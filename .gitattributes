@@ -1,0 +1,7 @@
+# 统一行尾，避免 Windows CRLF 导致 Linux CI 运行 .sh/.yml 时报 bad interpreter
+* text=auto
+
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+build.sh text eol=lf
