@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="bin.HexFile"
+    android:versionCode="28"
+    android:versionName="1.12.0">
+
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+    <application
+        android:label="MT Clone"
+        android:icon="@drawable/ic_launcher"
+        android:theme="@style/AppTheme"
+        android:largeHeap="true">
+
+        <activity
+            android:name="bin.HexFile.MainActivity"
+            android:exported="true"
+            android:label="主界面">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name="bin.HexFile.TextEditorActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <provider
+            android:name="bin.HexFile.ApkFileProvider"
+            android:authorities="bin.HexFile.files"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
+    </application>
+</manifest>

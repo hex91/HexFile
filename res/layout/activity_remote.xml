@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  v1.50.0 远程管理页：局域网 HTTP 服务器，电脑浏览器直接管理手机文件。
+  布局：标题 → 状态卡（地址 + 二维码）→ 启动/停止按钮 → 密钥行 → 日志
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/hfBg">
+
+    <!-- 标题栏 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:gravity="center_vertical"
+        android:paddingLeft="18dp"
+        android:paddingRight="18dp"
+        android:text="远程管理"
+        android:textSize="19sp"
+        android:textStyle="bold"
+        android:textColor="?attr/hfText"
+        android:background="?attr/hfSurface"/>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?attr/hfDivider"/>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingLeft="18dp"
+            android:paddingRight="18dp">
+
+            <!-- 状态说明 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="16dp"
+                android:text="服务状态"
+                android:textSize="12sp"
+                android:textColor="?attr/hfTextSub"/>
+
+            <TextView
+                android:id="@+id/remote_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="6dp"
+                android:text="未启动"
+                android:textSize="15sp"
+                android:textColor="?attr/hfText"/>
+
+            <!-- 访问地址（点击复制） -->
+            <TextView
+                android:id="@+id/remote_url"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="10dp"
+                android:paddingBottom="6dp"
+                android:text="—"
+                android:textSize="17sp"
+                android:textStyle="bold"
+                android:textColor="?attr/hfAccent"
+                android:fontFamily="monospace"/>
+
+            <TextView
+                android:id="@+id/remote_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="电脑/手机浏览器打开上方地址即可访问（点击可复制）。需与手机同一 Wi-Fi，保持本页面开启。"
+                android:textSize="12sp"
+                android:textColor="?attr/hfTextSub"/>
+
+            <!-- 二维码 -->
+            <ImageView
+                android:id="@+id/remote_qr"
+                android:layout_width="230dp"
+                android:layout_height="230dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="16dp"
+                android:contentDescription="访问地址二维码"
+                android:visibility="gone"/>
+
+            <!-- 启动 / 停止 -->
+            <Button
+                android:id="@+id/remote_toggle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:text="启动服务"
+                android:textSize="16sp"/>
+
+            <!-- 访问密钥 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingTop="14dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="访问密钥（链接中自动携带）"
+                        android:textSize="12sp"
+                        android:textColor="?attr/hfTextSub"/>
+
+                    <TextView
+                        android:id="@+id/remote_key"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingTop="4dp"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="?attr/hfText"
+                        android:fontFamily="monospace"/>
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/remote_regen"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="换一个"/>
+            </LinearLayout>
+
+            <!-- 访问日志 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="18dp"
+                android:text="访问日志"
+                android:textSize="12sp"
+                android:textColor="?attr/hfTextSub"/>
+
+            <TextView
+                android:id="@+id/remote_log"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="6dp"
+                android:paddingBottom="24dp"
+                android:text="（暂无）"
+                android:textSize="12sp"
+                android:textColor="?attr/hfTextSub"
+                android:fontFamily="monospace"/>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MT 风格主题：深色顶栏 + 白色列表 + 蓝色强调 -->
+    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">#263238</item>
+        <item name="android:colorAccent">#1E88E5</item>
+        <item name="android:windowBackground">#FFFFFF</item>
+        <item name="android:textColorPrimary">#212121</item>
+        <item name="android:statusBarColor">#1B1B1B</item>
+        <item name="android:navigationBarColor">#263238</item>
+    </style>
+
+    <!-- APK 信息弹窗底部操作按钮（蓝字文本，对标 MT） -->
+    <style name="ApkActionText">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:gravity">center</item>
+        <item name="android:padding">10dp</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">#1E88E5</item>
+        <item name="android:background">?android:attr/selectableItemBackground</item>
+    </style>
+
+    <!-- 编辑器底部快捷符号按钮（小方块，横向滚动） -->
+    <style name="SymBtn">
+        <item name="android:layout_width">40dp</item>
+        <item name="android:layout_height">36dp</item>
+        <item name="android:layout_marginLeft">2dp</item>
+        <item name="android:layout_marginRight">2dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:paddingLeft">0dp</item>
+        <item name="android:paddingRight">0dp</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:background">#FFFFFFFF</item>
+    </style>
+</resources>

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/hfBg">
+
+    <!-- 顶栏：标题 + 操作 -->
+    <LinearLayout
+        android:id="@+id/term_bar"
+        android:layout_width="match_parent"
+        android:layout_height="?android:attr/actionBarSize"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="?attr/hfTopBar"
+        android:paddingStart="12dp"
+        android:paddingEnd="6dp">
+
+        <TextView
+            android:id="@+id/term_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="终端"
+            android:textSize="17sp"
+            android:textColor="?attr/hfTopBarText"
+            android:singleLine="true"
+            android:ellipsize="end"/>
+
+        <TextView
+            android:id="@+id/btn_new"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:text="＋"
+            android:textSize="20sp"
+            android:textColor="?attr/hfTopBarText"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/btn_font"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:text="Aa"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="?attr/hfTopBarText"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/btn_clear"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:text="清屏"
+            android:textSize="14sp"
+            android:textColor="?attr/hfTopBarText"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/btn_paste"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:text="粘贴"
+            android:textSize="14sp"
+            android:textColor="?attr/hfTopBarText"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/btn_exit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:text="✕"
+            android:textSize="18sp"
+            android:textColor="?attr/hfTopBarText"
+            android:background="?android:attr/selectableItemBackground"/>
+    </LinearLayout>
+
+    <!-- 终端渲染区（Termux Apache-2.0 引擎） -->
+    <com.termux.view.TerminalView
+        android:id="@+id/term_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"/>
+
+    <!-- 额外按键条 -->
+    <HorizontalScrollView
+        android:id="@+id/term_keys"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/hfSurfaceAlt"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/keys_row"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="4dp"/>
+    </HorizontalScrollView>
+
+</LinearLayout>

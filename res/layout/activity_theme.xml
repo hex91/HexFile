@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  v1.48.0 主题设置页（对标 MT Manager 主题设置界面）
+  布局：标题 → 明暗模式单选 → 色板列表（单选 + 色条）→ 底部 取消/确定
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/hfBg">
+
+    <!-- 标题栏 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:gravity="center_vertical"
+        android:paddingLeft="18dp"
+        android:paddingRight="18dp"
+        android:text="主题设置"
+        android:textSize="19sp"
+        android:textStyle="bold"
+        android:textColor="?attr/hfText"
+        android:background="?attr/hfSurface"/>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?attr/hfDivider"/>
+
+    <!-- 明暗模式：跟随系统 / 浅色 / 深色 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingLeft="18dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="2dp"
+        android:text="外观模式"
+        android:textSize="12sp"
+        android:textColor="?attr/hfTextSub"/>
+
+    <RadioGroup
+        android:id="@+id/mode_group"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingLeft="14dp"
+        android:paddingRight="14dp"
+        android:paddingBottom="6dp">
+
+        <RadioButton
+            android:id="@+id/mode_follow"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:text="跟随系统"
+            android:textSize="14sp"
+            android:textColor="?attr/hfText"
+            android:buttonTint="?attr/hfAccent"/>
+
+        <RadioButton
+            android:id="@+id/mode_light"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:text="浅色"
+            android:textSize="14sp"
+            android:textColor="?attr/hfText"
+            android:buttonTint="?attr/hfAccent"/>
+
+        <RadioButton
+            android:id="@+id/mode_dark"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:text="深色"
+            android:textSize="14sp"
+            android:textColor="?attr/hfText"
+            android:buttonTint="?attr/hfAccent"/>
+    </RadioGroup>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingLeft="18dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="2dp"
+        android:text="主题色"
+        android:textSize="12sp"
+        android:textColor="?attr/hfTextSub"/>
+
+    <!-- 色板列表：每行 = 单选按钮 + 同行色条（由 ThemeActivity 动态生成） -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:scrollbars="vertical">
+
+        <LinearLayout
+            android:id="@+id/scheme_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="8dp"/>
+    </ScrollView>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?attr/hfDivider"/>
+
+    <!-- 底部操作条 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="end|center_vertical"
+        android:paddingLeft="12dp"
+        android:paddingRight="12dp"
+        android:background="?attr/hfSurface">
+
+        <TextView
+            android:id="@+id/btn_cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:paddingLeft="20dp"
+            android:paddingRight="20dp"
+            android:text="取消"
+            android:textSize="16sp"
+            android:textColor="?attr/hfAccent"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/btn_ok"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:paddingLeft="20dp"
+            android:paddingRight="20dp"
+            android:text="确定"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="?attr/hfAccent"
+            android:background="?android:attr/selectableItemBackground"/>
+    </LinearLayout>
+</LinearLayout>

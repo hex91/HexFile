@@ -1,0 +1,30 @@
+# ===== 构建产物 =====
+build/
+out/
+*.apk
+*.idsig
+*.class
+
+# ===== 签名密钥（绝不入库；CI 用 GitHub Secret 注入）=====
+hexfile.keystore
+
+# ===== NDK 生成的原生库（CI / 本地由 NDK 重新编译）=====
+native/lib/
+# native/jni 下只保留源码 termux.c；其中的 .so 为重复预编译产物，不入库
+native/jni/**/*.so
+
+# ===== 本地杂项 / 临时产物 =====
+Probe.java
+Probe.class
+cc126.jar
+unrar5j-src.zip
+term_*.png
+shots/
+
+# ===== 本地工具目录 =====
+.workbuddy/
+
+# ===== 系统 / 编辑器 =====
+.DS_Store
+Thumbs.db
+*.swp

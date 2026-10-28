@@ -1,0 +1,67 @@
+name: Build APK
+
+# 触发：推送到 main、打 v* 标签、手动触发
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+# 发布 Release 需要写权限
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Android SDK (cmdline-tools / build-tools / platform / ndk)
+        run: |
+          SDK=$HOME/android-sdk
+          mkdir -p "$SDK/cmdline-tools"
+          curl -fsSL -o /tmp/cmdtools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q /tmp/cmdtools.zip -d "$SDK/cmdline-tools"
+          mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --licenses >/dev/null
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" \
+            "platform-tools" "build-tools;37.0.0" "platforms;android-35" "ndk;27.0.12077973"
+          echo "ANDROID_NDK_HOME=$SDK/ndk/27.0.12077973" >> "$GITHUB_ENV"
+
+      - name: Build APK
+        env:
+          PYTHON_EXE: python3
+          HEXFILE_KEYSTORE_BASE64: ${{ secrets.HEXFILE_KEYSTORE_BASE64 }}
+          HEXFILE_KEYSTORE_PASS: ${{ secrets.HEXFILE_KEYSTORE_PASS }}
+        run: bash build.sh
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HexFile-APK
+          path: out/HexFile-*.apk
+
+      - name: Release (tagged version)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/HexFile-*.apk
+          generate_release_notes: true
+
+      - name: Continuous release (latest from main)
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: continuous
+          name: Continuous Build (latest from main)
+          prerelease: true
+          files: out/HexFile-*.apk

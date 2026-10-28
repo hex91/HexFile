@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HexFile</string>
+    <string name="up">上级</string>
+    <string name="home">主页</string>
+    <string name="refresh">刷新</string>
+    <string name="new_folder">新建文件夹</string>
+    <string name="swap">交换</string>
+
+    <!-- 终端额外按键条 -->
+    <string name="term_key_ctrl">Ctrl</string>
+    <string name="term_key_esc">Esc</string>
+    <string name="term_key_tab">Tab</string>
+    <string name="term_key_slash">/</string>
+    <string name="term_key_dash">-</string>
+    <string name="term_key_pipe">|</string>
+    <string name="term_key_up">↑</string>
+    <string name="term_key_down">↓</string>
+    <string name="term_key_left">←</string>
+    <string name="term_key_right">→</string>
+    <string name="term_key_home">Home</string>
+    <string name="term_key_end">End</string>
+
+    <!-- 终端文本选区菜单（来自 Termux 引擎） -->
+    <string name="copy_text">复制</string>
+    <string name="paste_text">粘贴</string>
+    <string name="text_selection_more">更多</string>
+</resources>

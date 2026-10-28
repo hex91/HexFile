@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MT 配色 -->
+    <color name="top_bar">#212121</color>
+    <color name="accent_blue">#1E88E5</color>
+    <color name="sel_highlight">#BBDEFB</color>
+</resources>

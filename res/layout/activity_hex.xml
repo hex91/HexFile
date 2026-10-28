@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/hfBg">
+
+    <TextView
+        android:id="@+id/hex_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="10dp"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:textColor="?attr/hfText"
+        android:background="?attr/hfSurfaceAlt"
+        android:minHeight="44dp"
+        android:maxLines="2"
+        android:ellipsize="middle"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="4dp">
+
+        <Button
+            android:id="@+id/hex_jump"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:text="跳转偏移"
+            android:textSize="12sp"/>
+
+        <Button
+            android:id="@+id/hex_search"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:text="搜索"
+            android:textSize="12sp"/>
+
+        <Button
+            android:id="@+id/hex_edit"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:text="编辑"
+            android:textSize="12sp"/>
+
+        <Button
+            android:id="@+id/hex_close"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:text="关闭"
+            android:textSize="12sp"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="4dp"
+        android:paddingTop="0dp">
+
+        <Button
+            android:id="@+id/hex_base"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:text="进制 HEX"
+            android:textSize="12sp"/>
+
+        <Button
+            android:id="@+id/hex_undo"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:text="撤销"
+            android:textSize="12sp"/>
+
+        <Button
+            android:id="@+id/hex_redo"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:text="重做"
+            android:textSize="12sp"/>
+
+        <Button
+            android:id="@+id/hex_mode"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:text="覆盖"
+            android:textSize="12sp"/>
+    </LinearLayout>
+
+    <ListView
+        android:id="@+id/hex_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:divider="@null"
+        android:scrollbars="horizontal"/>
+
+</LinearLayout>

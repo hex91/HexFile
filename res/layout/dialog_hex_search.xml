@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="搜索类型"
+        android:textSize="12sp"
+        android:textColor="?attr/hfText"/>
+
+    <Spinner
+        android:id="@+id/dlg_type"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginTop="2dp"/>
+
+    <RadioGroup
+        android:id="@+id/dlg_endian"
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp">
+
+        <RadioButton
+            android:id="@+id/rb_le"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="小端 LE"
+            android:checked="true"/>
+
+        <RadioButton
+            android:id="@+id/rb_be"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="大端 BE"
+            android:layout_marginLeft="16dp"/>
+    </RadioGroup>
+
+    <EditText
+        android:id="@+id/dlg_input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="输入搜索内容"
+        android:textSize="13sp"
+        android:layout_marginTop="8dp"/>
+
+    <TextView
+        android:id="@+id/dlg_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="12sp"
+        android:textColor="?attr/hfAccent"
+        android:layout_marginTop="6dp"/>
+</LinearLayout>

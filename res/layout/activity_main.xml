@@ -1,0 +1,481 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="?attr/hfBg">
+
+    <!-- 顶部深色栏：路径 + 菜单 / 统计行（对标 MT） -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="?attr/hfTopBar">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <!-- v1.41.0：左上汉堡按钮 → 侧边抽屉 -->
+            <TextView
+                android:id="@+id/btn_drawer"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:paddingLeft="12dp"
+                android:paddingRight="12dp"
+                android:gravity="center"
+                android:text="☰"
+                android:textSize="20sp"
+                android:textColor="?attr/hfTopBarText"
+                android:background="?android:attr/selectableItemBackground"/>
+
+            <TextView
+                android:id="@+id/header_path"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:paddingLeft="8dp"
+                android:text="/storage/emulated/0"
+                android:textSize="17sp"
+                android:textColor="?attr/hfTopBarText"
+                android:singleLine="true"
+                android:ellipsize="start"
+                android:background="?android:attr/selectableItemBackground"/>
+
+            <TextView
+                android:id="@+id/btn_more"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:paddingLeft="14dp"
+                android:paddingRight="14dp"
+                android:gravity="center"
+                android:text="⋮"
+                android:textSize="22sp"
+                android:textColor="?attr/hfTopBarText"
+                android:background="?android:attr/selectableItemBackground"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/header_stats"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingLeft="14dp"
+            android:paddingBottom="7dp"
+            android:text="文件夹: 0  文件: 0"
+            android:textSize="11sp"
+            android:textColor="?attr/hfTopBarTextSub"
+            android:singleLine="true"/>
+    </LinearLayout>
+
+    <!-- 双栏文件列表 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+
+        <ListView
+            android:id="@+id/list_left"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:divider="?attr/hfDivider"
+            android:dividerHeight="1dp"
+            android:scrollbars="vertical"/>
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:background="?attr/hfDivider"/>
+
+        <ListView
+            android:id="@+id/list_right"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:divider="?attr/hfDivider"
+            android:dividerHeight="1dp"
+            android:scrollbars="vertical"/>
+    </LinearLayout>
+
+    <!-- 多选批量操作栏（手势触发时显示） -->
+    <LinearLayout
+        android:id="@+id/selection_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="?attr/hfSurfaceAlt"
+        android:gravity="center_vertical"
+        android:padding="4dp"
+        android:visibility="gone">
+
+        <Button
+            android:id="@+id/btn_sel_all"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="38dp"
+            android:text="全选"
+            android:textSize="11sp"
+            android:textColor="?attr/hfText"
+            android:padding="0dp"/>
+
+        <Button
+            android:id="@+id/btn_sel_copy"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="38dp"
+            android:text="复制"
+            android:textSize="11sp"
+            android:textColor="?attr/hfText"
+            android:padding="0dp"/>
+
+        <Button
+            android:id="@+id/btn_sel_move"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="38dp"
+            android:text="移动"
+            android:textSize="11sp"
+            android:textColor="?attr/hfText"
+            android:padding="0dp"/>
+
+        <Button
+            android:id="@+id/btn_sel_del"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="38dp"
+            android:text="删除"
+            android:textSize="11sp"
+            android:textColor="?attr/hfText"
+            android:padding="0dp"/>
+
+        <Button
+            android:id="@+id/btn_sel_rename"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="38dp"
+            android:text="重命名"
+            android:textSize="11sp"
+            android:textColor="?attr/hfText"
+            android:padding="0dp"/>
+
+        <Button
+            android:id="@+id/btn_sel_done"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="38dp"
+            android:text="完成(0)"
+            android:textSize="11sp"
+            android:textColor="?attr/hfText"
+            android:padding="0dp"/>
+    </LinearLayout>
+
+    <!-- 底部 MT 风格工具栏：‹ 历史 › / ＋ 新建 / ⇄ 交换 / ↑ 上级 -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?attr/hfDivider"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:background="?attr/hfSurfaceAlt">
+
+        <TextView
+            android:id="@+id/btn_hist_back"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="‹"
+            android:textSize="24sp"
+            android:textColor="?attr/hfTextSub"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/btn_hist_fwd"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="›"
+            android:textSize="24sp"
+            android:textColor="?attr/hfTextSub"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/btn_new"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="＋"
+            android:textSize="22sp"
+            android:textColor="?attr/hfTextSub"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/btn_swap"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="⇄"
+            android:textSize="20sp"
+            android:textColor="?attr/hfTextSub"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/btn_up"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="↑"
+            android:textSize="22sp"
+            android:textColor="?attr/hfTextSub"
+            android:background="?android:attr/selectableItemBackground"/>
+    </LinearLayout>
+    </LinearLayout>
+
+    <!-- v1.41.0：抽屉遮罩（点击关闭） -->
+    <View
+        android:id="@+id/drawer_mask"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#55000000"
+        android:visibility="gone"/>
+
+    <!-- v1.41.0：左侧抽屉（MT 式功能导航） -->
+    <LinearLayout
+        android:id="@+id/drawer"
+        android:layout_width="280dp"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="?attr/hfSurface"
+        android:visibility="gone"
+        android:elevation="8dp">
+
+        <!-- 抽屉头：应用名 + 版本 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="?attr/hfTopBar"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="HexFile"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="?attr/hfTopBarText"/>
+
+            <TextView
+                android:id="@+id/drawer_version"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="v1.42.0"
+                android:textSize="11sp"
+                android:textColor="?attr/hfTopBarTextSub"/>
+
+            <TextView
+                android:id="@+id/drawer_rootstat"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Root: 检测中…"
+                android:textSize="11sp"
+                android:textColor="?attr/hfAccent"/>
+        </LinearLayout>
+
+        <!-- v1.42.0：本地存储区（对标 MT 抽屉「本地」） -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingLeft="16dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="4dp"
+            android:text="本地"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textColor="?attr/hfTextSub"/>
+
+        <LinearLayout
+            android:id="@+id/drawer_root"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingLeft="16dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:background="?android:attr/selectableItemBackground">
+
+            <TextView
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:gravity="center"
+                android:text="/"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="?attr/hfTopBarText"
+                android:background="?attr/hfAccent"/>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingLeft="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="根目录"
+                    android:textSize="15sp"
+                    android:textColor="?attr/hfText"/>
+
+                <TextView
+                    android:id="@+id/drawer_root_usage"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="…"
+                    android:textSize="11sp"
+                    android:textColor="?attr/hfTextSub"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/drawer_sd"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingLeft="16dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:background="?android:attr/selectableItemBackground">
+
+            <TextView
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:gravity="center"
+                android:text="SD"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="?attr/hfTopBarText"
+                android:background="?attr/hfAccent"/>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingLeft="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="内部存储"
+                    android:textSize="15sp"
+                    android:textColor="?attr/hfText"/>
+
+                <TextView
+                    android:id="@+id/drawer_sd_usage"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="…"
+                    android:textSize="11sp"
+                    android:textColor="?attr/hfTextSub"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingLeft="16dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="4dp"
+            android:text="工具"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textColor="?attr/hfTextSub"/>
+
+        <!-- 菜单项（tag = 动作码） -->
+        <TextView
+            android:id="@+id/drawer_bookmark"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:gravity="center_vertical"
+            android:paddingLeft="16dp"
+            android:text="☆  书签"
+            android:textSize="15sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/drawer_trash"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:gravity="center_vertical"
+            android:paddingLeft="16dp"
+            android:text="♻  回收站"
+            android:textSize="15sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/drawer_apps"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:gravity="center_vertical"
+            android:paddingLeft="16dp"
+            android:text="📦  应用管理"
+            android:textSize="15sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/drawer_theme"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:gravity="center_vertical"
+            android:paddingLeft="16dp"
+            android:text="🎨  主题设置"
+            android:textSize="15sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/drawer_remote"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:gravity="center_vertical"
+            android:paddingLeft="16dp"
+            android:text="📡  远程管理"
+            android:textSize="15sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/drawer_terminal"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:gravity="center_vertical"
+            android:paddingLeft="16dp"
+            android:text=">_  终端模拟器"
+            android:textSize="15sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+    </LinearLayout>
+</FrameLayout>

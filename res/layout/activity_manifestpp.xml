@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/hfBg">
+
+    <!-- 深色顶栏：标题/副标题 + 保存按钮 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="?attr/hfTopBar"
+        android:gravity="center_vertical"
+        android:paddingLeft="16dp"
+        android:paddingRight="8dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Manifest 编辑器++"
+                android:textColor="?attr/hfTopBarText"
+                android:textSize="18sp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:id="@+id/mfpp_sub"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="加载中…"
+                android:textColor="?attr/hfTopBarTextSub"
+                android:textSize="12sp"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/mfpp_xml"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="👀 预览"
+            android:textColor="?attr/hfTopBarText"
+            android:textSize="14sp"
+            android:padding="8dp"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/mfpp_save"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="💾 保存"
+            android:textColor="?attr/hfTopBarText"
+            android:textSize="15sp"
+            android:padding="8dp"
+            android:background="?android:attr/selectableItemBackground"/>
+    </LinearLayout>
+
+    <!-- 元素/属性搜索 -->
+    <EditText
+        android:id="@+id/mfpp_search"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="搜索元素 / 属性 / 值…"
+        android:inputType="text"
+        android:maxLines="1"
+        android:textSize="14sp"
+        android:paddingLeft="12dp"
+        android:paddingRight="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"/>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1px"
+        android:background="?attr/hfDivider"/>
+
+    <!-- 元素分组 + 属性列表 -->
+    <ListView
+        android:id="@+id/mfpp_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:divider="@null"
+        android:dividerHeight="0dp"/>
+</LinearLayout>

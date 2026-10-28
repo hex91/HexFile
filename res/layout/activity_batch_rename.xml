@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/hfBg">
+
+    <!-- 顶栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="?attr/hfTopBar">
+
+        <TextView
+            android:id="@+id/br_title"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:paddingLeft="14dp"
+            android:text="批量重命名"
+            android:textSize="17sp"
+            android:textColor="?attr/hfTopBarText"
+            android:singleLine="true"/>
+
+        <TextView
+            android:id="@+id/br_close"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:paddingLeft="14dp"
+            android:paddingRight="14dp"
+            android:text="✕"
+            android:textSize="18sp"
+            android:textColor="?attr/hfTopBarText"
+            android:background="?android:attr/selectableItemBackground"/>
+    </LinearLayout>
+
+    <!-- 模式选择 -->
+    <RadioGroup
+        android:id="@+id/br_mode"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="6dp">
+
+        <RadioButton
+            android:id="@+id/rb_num"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="编号命名"
+            android:checked="true"
+            android:textSize="13sp"/>
+
+        <RadioButton
+            android:id="@+id/rb_rep"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="查找替换"
+            android:textSize="13sp"/>
+
+        <RadioButton
+            android:id="@+id/rb_ext"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="扩展名替换"
+            android:textSize="13sp"/>
+    </RadioGroup>
+
+    <!-- 编号命名面板 -->
+    <LinearLayout
+        android:id="@+id/panel_num"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingLeft="12dp"
+        android:paddingRight="12dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/et_prefix"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:hint="前缀"
+                android:textSize="14sp"
+                android:inputType="textNoSuggestions"/>
+
+            <EditText
+                android:id="@+id/et_suffix"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:hint="后缀"
+                android:textSize="14sp"
+                android:inputType="textNoSuggestions"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/et_start"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:hint="起始"
+                android:text="1"
+                android:textSize="14sp"
+                android:inputType="number"/>
+
+            <EditText
+                android:id="@+id/et_step"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:hint="步长"
+                android:text="1"
+                android:textSize="14sp"
+                android:inputType="number"/>
+
+            <EditText
+                android:id="@+id/et_digits"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:hint="位数"
+                android:text="3"
+                android:textSize="14sp"
+                android:inputType="number"/>
+        </LinearLayout>
+
+        <CheckBox
+            android:id="@+id/cb_keepnum"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="保留原扩展名"
+            android:checked="true"
+            android:textSize="14sp"/>
+    </LinearLayout>
+
+    <!-- 查找替换面板 -->
+    <LinearLayout
+        android:id="@+id/panel_rep"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingLeft="12dp"
+        android:paddingRight="12dp"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/et_find"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="查找"
+            android:textSize="14sp"
+            android:inputType="textNoSuggestions"/>
+
+        <EditText
+            android:id="@+id/et_repl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="替换为"
+            android:textSize="14sp"
+            android:inputType="textNoSuggestions"/>
+
+        <CheckBox
+            android:id="@+id/cb_regex"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="使用正则"
+            android:textSize="14sp"/>
+
+        <CheckBox
+            android:id="@+id/cb_ci"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="区分大小写"
+            android:checked="true"
+            android:textSize="14sp"/>
+
+        <CheckBox
+            android:id="@+id/cb_keeprep"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="仅作用于文件名(保留扩展名)"
+            android:checked="true"
+            android:textSize="14sp"/>
+    </LinearLayout>
+
+    <!-- 扩展名替换面板 -->
+    <LinearLayout
+        android:id="@+id/panel_ext"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingLeft="12dp"
+        android:paddingRight="12dp"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/et_newext"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="新扩展名(如 jpg，留空则去掉扩展名)"
+            android:textSize="14sp"
+            android:inputType="textNoSuggestions"/>
+
+        <CheckBox
+            android:id="@+id/cb_onlyext"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="仅作用于已有扩展名的文件"
+            android:checked="true"
+            android:textSize="14sp"/>
+    </LinearLayout>
+
+    <!-- 冲突提示 -->
+    <TextView
+        android:id="@+id/br_warn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingLeft="12dp"
+        android:paddingRight="12dp"
+        android:paddingTop="4dp"
+        android:textColor="?attr/hfAccent"
+        android:textSize="13sp"
+        android:visibility="gone"/>
+
+    <!-- 预览列表 -->
+    <ListView
+        android:id="@+id/br_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:divider="?attr/hfDivider"
+        android:dividerHeight="1dp"
+        android:scrollbars="vertical"/>
+
+    <!-- 底部操作 -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?attr/hfDivider"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:background="?attr/hfSurfaceAlt">
+
+        <TextView
+            android:id="@+id/br_cancel"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="取消"
+            android:textSize="16sp"
+            android:textColor="?attr/hfTextSub"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:background="?attr/hfDivider"/>
+
+        <TextView
+            android:id="@+id/br_apply"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="开始重命名"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="?attr/hfAccent"
+            android:background="?android:attr/selectableItemBackground"/>
+    </LinearLayout>
+</LinearLayout>

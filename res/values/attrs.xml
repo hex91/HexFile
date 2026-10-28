@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  v1.48.0 主题系统语义色属性。
+  布局统一用 ?attr/hfXxx 引用，运行时由 ThemeManager 通过 setTheme()/applyStyle()
+  注入具体色板（含 values-night 暗色变体），实现多主题 + 跟随系统明暗。
+-->
+<resources>
+    <!-- 页面/窗口背景 -->
+    <attr name="hfBg" format="color"/>
+    <!-- 列表/卡片等次级背景 -->
+    <attr name="hfSurface" format="color"/>
+    <!-- 三级背景（工具条底、输入框底） -->
+    <attr name="hfSurfaceAlt" format="color"/>
+    <!-- 主文字 -->
+    <attr name="hfText" format="color"/>
+    <!-- 次要文字（副标题、说明） -->
+    <attr name="hfTextSub" format="color"/>
+    <!-- 分隔线 -->
+    <attr name="hfDivider" format="color"/>
+    <!-- 顶栏背景 -->
+    <attr name="hfTopBar" format="color"/>
+    <!-- 顶栏文字 -->
+    <attr name="hfTopBarText" format="color"/>
+    <!-- 顶栏次要文字（统计行、副标题） -->
+    <attr name="hfTopBarTextSub" format="color"/>
+    <!-- 强调色（主题色）：选中态、链接、按钮 -->
+    <attr name="hfAccent" format="color"/>
+    <!-- 强调色上的文字 -->
+    <attr name="hfOnAccent" format="color"/>
+    <!-- 选中行背景 -->
+    <attr name="hfSelected" format="color"/>
+    <!-- 状态栏颜色 -->
+    <attr name="hfStatusBar" format="color"/>
+    <!-- 导航栏颜色 -->
+    <attr name="hfNavBar" format="color"/>
+</resources>

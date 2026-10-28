@@ -1,0 +1,722 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  本文件由 tools/gen_themes.py 自动生成，请勿手工编辑。
+  v1.48.0 主题系统：22 套 MT 色板 × 明/暗 = 44 个色板 style + 2 个基座 style。
+  基座（Theme_Hex_Light / Theme_Hex_Dark）定义全部语义色 attr，
+  色板 style 仅覆盖随主题变化的部分（顶栏/强调色/选中态/状态栏）。
+-->
+<resources>
+
+    <!-- ================= 模式基座：亮色 ================= -->
+    <style name="Theme_Hex_Light" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FFFFFF</item>
+        <item name="android:colorPrimary">#212121</item>
+        <item name="android:colorPrimaryDark">#212121</item>
+        <item name="android:textColorPrimary">#212121</item>
+        <item name="android:textColorSecondary">#757575</item>
+        <item name="hfBg">#FFFFFF</item>
+        <item name="hfSurface">#FFFFFF</item>
+        <item name="hfSurfaceAlt">#F5F5F5</item>
+        <item name="hfText">#212121</item>
+        <item name="hfTextSub">#757575</item>
+        <item name="hfDivider">#E0E0E0</item>
+        <item name="hfTopBar">#212121</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#9E9E9E</item>
+        <item name="hfAccent">#1E88E5</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#BBDEFB</item>
+        <item name="hfStatusBar">#212121</item>
+        <item name="hfNavBar">#212121</item>
+        <item name="android:statusBarColor">#212121</item>
+        <item name="android:navigationBarColor">#212121</item>
+        <item name="android:colorAccent">#1E88E5</item>
+    </style>
+
+    <!-- ================= 模式基座：暗色 ================= -->
+    <style name="Theme_Hex_Dark" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#121212</item>
+        <item name="android:colorPrimary">#1E1E1E</item>
+        <item name="android:colorPrimaryDark">#121212</item>
+        <item name="android:textColorPrimary">#ECECEC</item>
+        <item name="android:textColorSecondary">#9E9E9E</item>
+        <item name="hfBg">#121212</item>
+        <item name="hfSurface">#1E1E1E</item>
+        <item name="hfSurfaceAlt">#2A2A2A</item>
+        <item name="hfText">#ECECEC</item>
+        <item name="hfTextSub">#9E9E9E</item>
+        <item name="hfDivider">#3A3A3A</item>
+        <item name="hfTopBar">#1E1E1E</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#9E9E9E</item>
+        <item name="hfAccent">#1E88E5</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#263238</item>
+        <item name="hfStatusBar">#121212</item>
+        <item name="hfNavBar">#121212</item>
+        <item name="android:statusBarColor">#121212</item>
+        <item name="android:navigationBarColor">#121212</item>
+        <item name="android:colorAccent">#1E88E5</item>
+    </style>
+
+    <!-- 0 蓝色 #3E9AFB -->
+    <style name="Theme_Hex_0" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#3E9AFB</item>
+        <item name="hfTopBarText">#212121</item>
+        <item name="hfTopBarTextSub">#31679F</item>
+        <item name="hfAccent">#3E9AFB</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#E3F0FE</item>
+        <item name="hfStatusBar">#2B6BAF</item>
+        <item name="hfNavBar">#235991</item>
+        <item name="android:statusBarColor">#2B6BAF</item>
+        <item name="android:navigationBarColor">#235991</item>
+        <item name="android:colorAccent">#3E9AFB</item>
+    </style>
+
+    <!-- 0 蓝色 #3E9AFB（暗） -->
+    <style name="Theme_Hex_Dark_0" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#2865A5</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#88AACD</item>
+        <item name="hfAccent">#3E9AFB</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#357ECC</item>
+        <item name="hfStatusBar">#1B4570</item>
+        <item name="hfNavBar">#153557</item>
+        <item name="android:statusBarColor">#1B4570</item>
+        <item name="android:navigationBarColor">#153557</item>
+        <item name="android:colorAccent">#3E9AFB</item>
+    </style>
+
+    <!-- 1 绿色 #61BC80 -->
+    <style name="Theme_Hex_1" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#61BC80</item>
+        <item name="hfTopBarText">#212121</item>
+        <item name="hfTopBarTextSub">#467A58</item>
+        <item name="hfAccent">#61BC80</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#E8F5ED</item>
+        <item name="hfStatusBar">#438359</item>
+        <item name="hfNavBar">#386D4A</item>
+        <item name="android:statusBarColor">#438359</item>
+        <item name="android:navigationBarColor">#386D4A</item>
+        <item name="android:colorAccent">#61BC80</item>
+    </style>
+
+    <!-- 1 绿色 #61BC80（暗） -->
+    <style name="Theme_Hex_Dark_1" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#407C54</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#95B6A0</item>
+        <item name="hfAccent">#61BC80</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#519A6A</item>
+        <item name="hfStatusBar">#2B5439</item>
+        <item name="hfNavBar">#21412C</item>
+        <item name="android:statusBarColor">#2B5439</item>
+        <item name="android:navigationBarColor">#21412C</item>
+        <item name="android:colorAccent">#61BC80</item>
+    </style>
+
+    <!-- 2 琥珀 #E3A23C -->
+    <style name="Theme_Hex_2" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#E3A23C</item>
+        <item name="hfTopBarText">#212121</item>
+        <item name="hfTopBarTextSub">#916B30</item>
+        <item name="hfAccent">#E3A23C</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#FBF1E3</item>
+        <item name="hfStatusBar">#9E712A</item>
+        <item name="hfNavBar">#835D22</item>
+        <item name="android:statusBarColor">#9E712A</item>
+        <item name="android:navigationBarColor">#835D22</item>
+        <item name="android:colorAccent">#E3A23C</item>
+    </style>
+
+    <!-- 2 琥珀 #E3A23C（暗） -->
+    <style name="Theme_Hex_Dark_2" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#956A27</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#C4AD88</item>
+        <item name="hfAccent">#E3A23C</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#B98533</item>
+        <item name="hfStatusBar">#66481B</item>
+        <item name="hfNavBar">#4F3815</item>
+        <item name="android:statusBarColor">#66481B</item>
+        <item name="android:navigationBarColor">#4F3815</item>
+        <item name="android:colorAccent">#E3A23C</item>
+    </style>
+
+    <!-- 3 珊瑚 #F16D6D -->
+    <style name="Theme_Hex_3" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#F16D6D</item>
+        <item name="hfTopBarText">#212121</item>
+        <item name="hfTopBarTextSub">#994D4D</item>
+        <item name="hfAccent">#F16D6D</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#FDEAEA</item>
+        <item name="hfStatusBar">#A84C4C</item>
+        <item name="hfNavBar">#8B3F3F</item>
+        <item name="android:statusBarColor">#A84C4C</item>
+        <item name="android:navigationBarColor">#8B3F3F</item>
+        <item name="android:colorAccent">#F16D6D</item>
+    </style>
+
+    <!-- 3 珊瑚 #F16D6D（暗） -->
+    <style name="Theme_Hex_Dark_3" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#9F4747</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#CA9999</item>
+        <item name="hfAccent">#F16D6D</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#C45A5A</item>
+        <item name="hfStatusBar">#6C3131</item>
+        <item name="hfNavBar">#542626</item>
+        <item name="android:statusBarColor">#6C3131</item>
+        <item name="android:navigationBarColor">#542626</item>
+        <item name="android:colorAccent">#F16D6D</item>
+    </style>
+
+    <!-- 4 灰绿 #8E9587 -->
+    <style name="Theme_Hex_4" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#8E9587</item>
+        <item name="hfTopBarText">#212121</item>
+        <item name="hfTopBarTextSub">#60645C</item>
+        <item name="hfAccent">#8E9587</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#EFF0EE</item>
+        <item name="hfStatusBar">#63685E</item>
+        <item name="hfNavBar">#52564E</item>
+        <item name="android:statusBarColor">#63685E</item>
+        <item name="android:navigationBarColor">#52564E</item>
+        <item name="android:colorAccent">#8E9587</item>
+    </style>
+
+    <!-- 4 灰绿 #8E9587（暗） -->
+    <style name="Theme_Hex_Dark_4" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#5D6259</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#A5A8A3</item>
+        <item name="hfAccent">#8E9587</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#757A6F</item>
+        <item name="hfStatusBar">#3F433C</item>
+        <item name="hfNavBar">#31342F</item>
+        <item name="android:statusBarColor">#3F433C</item>
+        <item name="android:navigationBarColor">#31342F</item>
+        <item name="android:colorAccent">#8E9587</item>
+    </style>
+
+    <!-- 5 石墨 #626566 -->
+    <style name="Theme_Hex_5" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#626566</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#A3A5A6</item>
+        <item name="hfAccent">#626566</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#E9E9E9</item>
+        <item name="hfStatusBar">#444647</item>
+        <item name="hfNavBar">#383A3B</item>
+        <item name="android:statusBarColor">#444647</item>
+        <item name="android:navigationBarColor">#383A3B</item>
+        <item name="android:colorAccent">#626566</item>
+    </style>
+
+    <!-- 5 石墨 #626566（暗） -->
+    <style name="Theme_Hex_Dark_5" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#404243</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#959797</item>
+        <item name="hfAccent">#626566</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#525455</item>
+        <item name="hfStatusBar">#2C2D2D</item>
+        <item name="hfNavBar">#222323</item>
+        <item name="android:statusBarColor">#2C2D2D</item>
+        <item name="android:navigationBarColor">#222323</item>
+        <item name="android:colorAccent">#626566</item>
+    </style>
+
+    <!-- 6 曜石 #333033 -->
+    <style name="Theme_Hex_6" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#333033</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#888688</item>
+        <item name="hfAccent">#333033</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#E2E2E2</item>
+        <item name="hfStatusBar">#232123</item>
+        <item name="hfNavBar">#1D1B1D</item>
+        <item name="android:statusBarColor">#232123</item>
+        <item name="android:navigationBarColor">#1D1B1D</item>
+        <item name="android:colorAccent">#333033</item>
+    </style>
+
+    <!-- 6 曜石 #333033（暗） -->
+    <style name="Theme_Hex_Dark_6" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#211F21</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#848384</item>
+        <item name="hfAccent">#333033</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#2C2A2C</item>
+        <item name="hfStatusBar">#161516</item>
+        <item name="hfNavBar">#111011</item>
+        <item name="android:statusBarColor">#161516</item>
+        <item name="android:navigationBarColor">#111011</item>
+        <item name="android:colorAccent">#333033</item>
+    </style>
+
+    <!-- 7 粉色 #FC5C99 -->
+    <style name="Theme_Hex_7" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#FC5C99</item>
+        <item name="hfTopBarText">#212121</item>
+        <item name="hfTopBarTextSub">#A04366</item>
+        <item name="hfAccent">#FC5C99</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#FEE8F0</item>
+        <item name="hfStatusBar">#B0406B</item>
+        <item name="hfNavBar">#923558</item>
+        <item name="android:statusBarColor">#B0406B</item>
+        <item name="android:navigationBarColor">#923558</item>
+        <item name="android:colorAccent">#FC5C99</item>
+    </style>
+
+    <!-- 7 粉色 #FC5C99（暗） -->
+    <style name="Theme_Hex_Dark_7" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#A63C64</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#CE93A9</item>
+        <item name="hfAccent">#FC5C99</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#CD4D7E</item>
+        <item name="hfStatusBar">#712944</item>
+        <item name="hfNavBar">#582035</item>
+        <item name="android:statusBarColor">#712944</item>
+        <item name="android:navigationBarColor">#582035</item>
+        <item name="android:colorAccent">#FC5C99</item>
+    </style>
+
+    <!-- 8 正红 #FC0001 -->
+    <style name="Theme_Hex_8" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#FC0001</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#FD6B6B</item>
+        <item name="hfAccent">#FC0001</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#FEDBDB</item>
+        <item name="hfStatusBar">#B00000</item>
+        <item name="hfNavBar">#920000</item>
+        <item name="android:statusBarColor">#B00000</item>
+        <item name="android:navigationBarColor">#920000</item>
+        <item name="android:colorAccent">#FC0001</item>
+    </style>
+
+    <!-- 8 正红 #FC0001（暗） -->
+    <style name="Theme_Hex_Dark_8" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#A60000</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#CE7272</item>
+        <item name="hfAccent">#FC0001</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#CD0304</item>
+        <item name="hfStatusBar">#710000</item>
+        <item name="hfNavBar">#580000</item>
+        <item name="android:statusBarColor">#710000</item>
+        <item name="android:navigationBarColor">#580000</item>
+        <item name="android:colorAccent">#FC0001</item>
+    </style>
+
+    <!-- 9 紫罗兰 #981FFF -->
+    <style name="Theme_Hex_9" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#981FFF</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#C37DFF</item>
+        <item name="hfAccent">#981FFF</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#F0DFFF</item>
+        <item name="hfStatusBar">#6A15B2</item>
+        <item name="hfNavBar">#581193</item>
+        <item name="android:statusBarColor">#6A15B2</item>
+        <item name="android:navigationBarColor">#581193</item>
+        <item name="android:colorAccent">#981FFF</item>
+    </style>
+
+    <!-- 9 紫罗兰 #981FFF（暗） -->
+    <style name="Theme_Hex_Dark_9" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#6414A8</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#A97DCF</item>
+        <item name="hfAccent">#981FFF</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#7D1CCF</item>
+        <item name="hfStatusBar">#440D72</item>
+        <item name="hfNavBar">#350A59</item>
+        <item name="android:statusBarColor">#440D72</item>
+        <item name="android:navigationBarColor">#350A59</item>
+        <item name="android:colorAccent">#981FFF</item>
+    </style>
+
+    <!-- 10 深蓝 #032DA3 -->
+    <style name="Theme_Hex_10" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#032DA3</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#6C85C9</item>
+        <item name="hfAccent">#032DA3</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#DBE1F2</item>
+        <item name="hfStatusBar">#021F72</item>
+        <item name="hfNavBar">#011A5E</item>
+        <item name="android:statusBarColor">#021F72</item>
+        <item name="android:navigationBarColor">#011A5E</item>
+        <item name="android:colorAccent">#032DA3</item>
+    </style>
+
+    <!-- 10 深蓝 #032DA3（暗） -->
+    <style name="Theme_Hex_Dark_10" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#011D6B</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#7382AD</item>
+        <item name="hfAccent">#032DA3</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#062786</item>
+        <item name="hfStatusBar">#011449</item>
+        <item name="hfNavBar">#010F39</item>
+        <item name="android:statusBarColor">#011449</item>
+        <item name="android:navigationBarColor">#010F39</item>
+        <item name="android:colorAccent">#032DA3</item>
+    </style>
+
+    <!-- 11 湖蓝 #80D7CF -->
+    <style name="Theme_Hex_11" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#80D7CF</item>
+        <item name="hfTopBarText">#212121</item>
+        <item name="hfTopBarTextSub">#588A85</item>
+        <item name="hfAccent">#80D7CF</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#EDF9F8</item>
+        <item name="hfStatusBar">#599690</item>
+        <item name="hfNavBar">#4A7C78</item>
+        <item name="android:statusBarColor">#599690</item>
+        <item name="android:navigationBarColor">#4A7C78</item>
+        <item name="android:colorAccent">#80D7CF</item>
+    </style>
+
+    <!-- 11 湖蓝 #80D7CF（暗） -->
+    <style name="Theme_Hex_Dark_11" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#548D88</item>
+        <item name="hfTopBarText">#212121</item>
+        <item name="hfTopBarTextSub">#3D5C59</item>
+        <item name="hfAccent">#80D7CF</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#6AAFA9</item>
+        <item name="hfStatusBar">#39605D</item>
+        <item name="hfNavBar">#2C4B48</item>
+        <item name="android:statusBarColor">#39605D</item>
+        <item name="android:navigationBarColor">#2C4B48</item>
+        <item name="android:colorAccent">#80D7CF</item>
+    </style>
+
+    <!-- 12 藏青 #02304F -->
+    <style name="Theme_Hex_12" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#02304F</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#6C8698</item>
+        <item name="hfAccent">#02304F</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#DBE2E6</item>
+        <item name="hfStatusBar">#012137</item>
+        <item name="hfNavBar">#011B2D</item>
+        <item name="android:statusBarColor">#012137</item>
+        <item name="android:navigationBarColor">#011B2D</item>
+        <item name="android:colorAccent">#02304F</item>
+    </style>
+
+    <!-- 12 藏青 #02304F（暗） -->
+    <style name="Theme_Hex_Dark_12" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#011F34</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#73838F</item>
+        <item name="hfAccent">#02304F</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#052A42</item>
+        <item name="hfStatusBar">#001523</item>
+        <item name="hfNavBar">#00101B</item>
+        <item name="android:statusBarColor">#001523</item>
+        <item name="android:navigationBarColor">#00101B</item>
+        <item name="android:colorAccent">#02304F</item>
+    </style>
+
+    <!-- 13 靛蓝 #6A67A8 -->
+    <style name="Theme_Hex_13" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#6A67A8</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#A8A6CC</item>
+        <item name="hfAccent">#6A67A8</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#EAE9F2</item>
+        <item name="hfStatusBar">#4A4875</item>
+        <item name="hfNavBar">#3D3B61</item>
+        <item name="android:statusBarColor">#4A4875</item>
+        <item name="android:navigationBarColor">#3D3B61</item>
+        <item name="android:colorAccent">#6A67A8</item>
+    </style>
+
+    <!-- 13 靛蓝 #6A67A8（暗） -->
+    <style name="Theme_Hex_Dark_13" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#45436E</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#9897AF</item>
+        <item name="hfAccent">#6A67A8</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#58568A</item>
+        <item name="hfStatusBar">#2F2E4B</item>
+        <item name="hfNavBar">#25243A</item>
+        <item name="android:statusBarColor">#2F2E4B</item>
+        <item name="android:navigationBarColor">#25243A</item>
+        <item name="android:colorAccent">#6A67A8</item>
+    </style>
+
+    <!-- 14 松石 #06837B -->
+    <style name="Theme_Hex_14" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#06837B</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#6EB7B2</item>
+        <item name="hfAccent">#06837B</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#DCEDEC</item>
+        <item name="hfStatusBar">#045B56</item>
+        <item name="hfNavBar">#034B47</item>
+        <item name="android:statusBarColor">#045B56</item>
+        <item name="android:navigationBarColor">#034B47</item>
+        <item name="android:colorAccent">#06837B</item>
+    </style>
+
+    <!-- 14 松石 #06837B（暗） -->
+    <style name="Theme_Hex_Dark_14" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#035651</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#74A29F</item>
+        <item name="hfAccent">#06837B</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#086C66</item>
+        <item name="hfStatusBar">#023A37</item>
+        <item name="hfNavBar">#022D2B</item>
+        <item name="android:statusBarColor">#023A37</item>
+        <item name="android:navigationBarColor">#022D2B</item>
+        <item name="android:colorAccent">#06837B</item>
+    </style>
+
+    <!-- 15 玫红 #C4112C -->
+    <style name="Theme_Hex_15" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#C4112C</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#DC7484</item>
+        <item name="hfAccent">#C4112C</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#F6DDE1</item>
+        <item name="hfStatusBar">#890B1E</item>
+        <item name="hfNavBar">#710919</item>
+        <item name="android:statusBarColor">#890B1E</item>
+        <item name="android:navigationBarColor">#710919</item>
+        <item name="android:colorAccent">#C4112C</item>
+    </style>
+
+    <!-- 15 玫红 #C4112C（暗） -->
+    <style name="Theme_Hex_Dark_15" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#810B1D</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#B97882</item>
+        <item name="hfAccent">#C4112C</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#A01126</item>
+        <item name="hfStatusBar">#580713</item>
+        <item name="hfNavBar">#44050F</item>
+        <item name="android:statusBarColor">#580713</item>
+        <item name="android:navigationBarColor">#44050F</item>
+        <item name="android:colorAccent">#C4112C</item>
+    </style>
+
+    <!-- 16 古铜 #A45C2D -->
+    <style name="Theme_Hex_16" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#A45C2D</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#CAA085</item>
+        <item name="hfAccent">#A45C2D</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#F2E8E1</item>
+        <item name="hfStatusBar">#72401F</item>
+        <item name="hfNavBar">#5F351A</item>
+        <item name="android:statusBarColor">#72401F</item>
+        <item name="android:navigationBarColor">#5F351A</item>
+        <item name="android:colorAccent">#A45C2D</item>
+    </style>
+
+    <!-- 16 古铜 #A45C2D（暗） -->
+    <style name="Theme_Hex_Dark_16" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#6C3C1D</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#AE9382</item>
+        <item name="hfAccent">#A45C2D</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#864D27</item>
+        <item name="hfStatusBar">#492914</item>
+        <item name="hfNavBar">#39200F</item>
+        <item name="android:statusBarColor">#492914</item>
+        <item name="android:navigationBarColor">#39200F</item>
+        <item name="android:colorAccent">#A45C2D</item>
+    </style>
+
+    <!-- 17 暗紫 #45012A -->
+    <style name="Theme_Hex_17" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#45012A</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#936B83</item>
+        <item name="hfAccent">#45012A</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#E4DBE1</item>
+        <item name="hfStatusBar">#30001D</item>
+        <item name="hfNavBar">#280018</item>
+        <item name="android:statusBarColor">#30001D</item>
+        <item name="android:navigationBarColor">#280018</item>
+        <item name="android:colorAccent">#45012A</item>
+    </style>
+
+    <!-- 17 暗紫 #45012A（暗） -->
+    <style name="Theme_Hex_Dark_17" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#2D001B</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#8B7281</item>
+        <item name="hfAccent">#45012A</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#3A0425</item>
+        <item name="hfStatusBar">#1F0012</item>
+        <item name="hfNavBar">#18000E</item>
+        <item name="android:statusBarColor">#1F0012</item>
+        <item name="android:navigationBarColor">#18000E</item>
+        <item name="android:colorAccent">#45012A</item>
+    </style>
+
+    <!-- 18 酒红 #4E000A -->
+    <style name="Theme_Hex_18" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#4E000A</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#986B70</item>
+        <item name="hfAccent">#4E000A</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#E6DBDC</item>
+        <item name="hfStatusBar">#360007</item>
+        <item name="hfNavBar">#2D0005</item>
+        <item name="android:statusBarColor">#360007</item>
+        <item name="android:navigationBarColor">#2D0005</item>
+        <item name="android:colorAccent">#4E000A</item>
+    </style>
+
+    <!-- 18 酒红 #4E000A（暗） -->
+    <style name="Theme_Hex_Dark_18" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#330006</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#8E7276</item>
+        <item name="hfAccent">#4E000A</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#42030B</item>
+        <item name="hfStatusBar">#230004</item>
+        <item name="hfNavBar">#1B0003</item>
+        <item name="android:statusBarColor">#230004</item>
+        <item name="android:navigationBarColor">#1B0003</item>
+        <item name="android:colorAccent">#4E000A</item>
+    </style>
+
+    <!-- 19 橙红 #EB5F21 -->
+    <style name="Theme_Hex_19" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#EB5F21</item>
+        <item name="hfTopBarText">#212121</item>
+        <item name="hfTopBarTextSub">#964421</item>
+        <item name="hfAccent">#EB5F21</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#FCE8DF</item>
+        <item name="hfStatusBar">#A44217</item>
+        <item name="hfNavBar">#883713</item>
+        <item name="android:statusBarColor">#A44217</item>
+        <item name="android:navigationBarColor">#883713</item>
+        <item name="android:colorAccent">#EB5F21</item>
+    </style>
+
+    <!-- 19 橙红 #EB5F21（暗） -->
+    <style name="Theme_Hex_Dark_19" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#9B3E15</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#C8947E</item>
+        <item name="hfAccent">#EB5F21</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#BF4F1E</item>
+        <item name="hfStatusBar">#692A0E</item>
+        <item name="hfNavBar">#52210B</item>
+        <item name="android:statusBarColor">#692A0E</item>
+        <item name="android:navigationBarColor">#52210B</item>
+        <item name="android:colorAccent">#EB5F21</item>
+    </style>
+
+    <!-- 20 金黄 #FAD16B -->
+    <style name="Theme_Hex_20" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#FAD16B</item>
+        <item name="hfTopBarText">#212121</item>
+        <item name="hfTopBarTextSub">#9E874B</item>
+        <item name="hfAccent">#FAD16B</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#FEF8EA</item>
+        <item name="hfStatusBar">#AF924A</item>
+        <item name="hfNavBar">#91793E</item>
+        <item name="android:statusBarColor">#AF924A</item>
+        <item name="android:navigationBarColor">#91793E</item>
+        <item name="android:colorAccent">#FAD16B</item>
+    </style>
+
+    <!-- 20 金黄 #FAD16B（暗） -->
+    <style name="Theme_Hex_Dark_20" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#A58946</item>
+        <item name="hfTopBarText">#212121</item>
+        <item name="hfTopBarTextSub">#695A35</item>
+        <item name="hfAccent">#FAD16B</item>
+        <item name="hfOnAccent">#212121</item>
+        <item name="hfSelected">#CBAA59</item>
+        <item name="hfStatusBar">#705E30</item>
+        <item name="hfNavBar">#574925</item>
+        <item name="android:statusBarColor">#705E30</item>
+        <item name="android:navigationBarColor">#574925</item>
+        <item name="android:colorAccent">#FAD16B</item>
+    </style>
+
+    <!-- 21 深褐 #442E20 -->
+    <style name="Theme_Hex_21" parent="Theme_Hex_Light">
+        <item name="hfTopBar">#442E20</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#92857D</item>
+        <item name="hfAccent">#442E20</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#E4E1DF</item>
+        <item name="hfStatusBar">#2F2016</item>
+        <item name="hfNavBar">#271A12</item>
+        <item name="android:statusBarColor">#2F2016</item>
+        <item name="android:navigationBarColor">#271A12</item>
+        <item name="android:colorAccent">#442E20</item>
+    </style>
+
+    <!-- 21 深褐 #442E20（暗） -->
+    <style name="Theme_Hex_Dark_21" parent="Theme_Hex_Dark">
+        <item name="hfTopBar">#2C1E15</item>
+        <item name="hfTopBarText">#FFFFFF</item>
+        <item name="hfTopBarTextSub">#8A837E</item>
+        <item name="hfAccent">#442E20</item>
+        <item name="hfOnAccent">#FFFFFF</item>
+        <item name="hfSelected">#3A281D</item>
+        <item name="hfStatusBar">#1E140E</item>
+        <item name="hfNavBar">#17100B</item>
+        <item name="android:statusBarColor">#1E140E</item>
+        <item name="android:navigationBarColor">#17100B</item>
+        <item name="android:colorAccent">#442E20</item>
+    </style>
+
+</resources>

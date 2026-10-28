@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingLeft="8dp"
+    android:paddingTop="7dp"
+    android:paddingRight="8dp"
+    android:paddingBottom="7dp"
+    android:background="?android:attr/selectableItemBackground">
+
+    <!-- 图标位：默认彩色类型角标；图片/APK 条目切缩略图，GIF 加动图角标（v1.39.0） -->
+    <FrameLayout
+        android:id="@+id/icon_box"
+        android:layout_width="38dp"
+        android:layout_height="38dp">
+
+        <TextView
+            android:id="@+id/icon"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="DIR"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"/>
+
+        <ImageView
+            android:id="@+id/thumb"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter"
+            android:visibility="gone"/>
+
+        <TextView
+            android:id="@+id/badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:text="GIF"
+            android:textSize="7sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:background="#B07E57C2"
+            android:paddingLeft="3dp"
+            android:paddingRight="3dp"
+            android:paddingTop="1dp"
+            android:paddingBottom="1dp"
+            android:visibility="gone"/>
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_weight="1"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginLeft="11dp">
+
+        <TextView
+            android:id="@+id/name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="?attr/hfText"
+            android:singleLine="true"
+            android:ellipsize="end"/>
+
+        <TextView
+            android:id="@+id/detail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textSize="11sp"
+            android:textColor="?attr/hfTextSub"
+            android:singleLine="true"/>
+    </LinearLayout>
+</LinearLayout>

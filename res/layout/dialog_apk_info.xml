@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- APK 信息弹窗：图标 + 应用名/版本 + 逐行信息（点行复制值） -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="14dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:id="@+id/apk_icon"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:src="@drawable/ic_file"/>
+
+        <TextView
+            android:id="@+id/apk_title"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:textColor="?attr/hfText"/>
+    </LinearLayout>
+
+    <ListView
+        android:id="@+id/apk_rows"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:divider="@null"
+        android:dividerHeight="0dp"
+        android:scrollbars="none"/>
+
+    <!-- 底部操作行（对标 MT：功能/查看/安装/关闭） -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="10dp">
+
+        <TextView
+            android:id="@+id/apk_act_features"
+            style="@style/ApkActionText"
+            android:text="功能"/>
+
+        <TextView
+            android:id="@+id/apk_act_view"
+            style="@style/ApkActionText"
+            android:text="查看"/>
+
+        <TextView
+            android:id="@+id/apk_act_install"
+            style="@style/ApkActionText"
+            android:text="安装"/>
+
+        <TextView
+            android:id="@+id/apk_act_close"
+            style="@style/ApkActionText"
+            android:text="关闭"/>
+    </LinearLayout>
+</LinearLayout>

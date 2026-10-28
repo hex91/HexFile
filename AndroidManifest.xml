@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.hex91.file"
+    android:versionCode="88"
+    android:versionName="1.51.0">
+
+    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
+
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+    <!-- v1.45.0 应用管理：targetSdk 30 包可见性过滤，需此权限查询全部已安装应用 -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/>
+    <!-- 终端「更新工具」：下载/OTA 检查需要联网 -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- v1.50.0 远程管理：传输期间持有高性能 Wi-Fi 锁防休眠断流 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+
+    <application
+        android:label="HexFile"
+        android:icon="@drawable/ic_launcher"
+        android:theme="@style/Theme_Hex_0"
+        android:largeHeap="true"
+        android:requestLegacyExternalStorage="true"
+        android:supportsRtl="true">
+
+        <activity
+            android:name="com.hex91.file.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name="com.hex91.file.SearchActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <activity
+            android:name="com.hex91.file.TrashActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <activity
+            android:name="com.hex91.file.ZipBrowserActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <activity
+            android:name="com.hex91.file.TextEditorActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize"/>
+
+        <activity
+            android:name="com.hex91.file.HexViewerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <activity
+            android:name="com.hex91.file.ImageViewerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <activity
+            android:name="com.hex91.file.DexEditorActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <activity
+            android:name="com.hex91.file.ManifestEditorActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize"/>
+
+        <activity
+            android:name="com.hex91.file.ArscEditorActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize"/>
+
+        <activity
+            android:name="com.hex91.file.CompareActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <activity
+            android:name="com.hex91.file.StringsViewerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <activity
+            android:name="com.hex91.file.BatchRenameActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize"/>
+
+        <activity
+            android:name="com.hex91.file.AppManagerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <!-- v1.48.0：主题设置页（22 套色板 + 跟随系统明暗） -->
+        <activity
+            android:name="com.hex91.file.ThemeActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <!-- v1.49.0：终端模拟器（NDK PTY + 自研 VT100/xterm 仿真）。TEST-EXPORT 仅用于自动化冒烟测试，发布前会改回 false -->
+        <activity
+            android:name="com.hex91.file.TerminalActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|keyboard|navigation|uiMode"
+            android:windowSoftInputMode="adjustResize"/>
+
+        <!-- v1.50.0：远程管理（局域网 HTTP 服务器，服务随页面开启/关闭） -->
+        <activity
+            android:name="com.hex91.file.RemoteActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <!-- 迷你文件共享 Provider：安装 APK 时向系统安装器提供文件 -->
+        <provider
+            android:name="com.hex91.file.ApkFileProvider"
+            android:authorities="com.hex91.file.files"
+            android:exported="false"
+            android:grantUriPermissions="true"/>
+
+    </application>
+</manifest>

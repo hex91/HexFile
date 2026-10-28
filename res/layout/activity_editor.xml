@@ -1,0 +1,379 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/hfBg">
+
+    <TextView
+        android:id="@+id/editor_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="10dp"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:textColor="?attr/hfText"
+        android:background="?attr/hfSurfaceAlt"
+        android:minHeight="44dp"
+        android:maxLines="2"
+        android:ellipsize="middle"/>
+
+    <!-- 顶部工具栏：菜单 / 撤销 / 重做 / 保存 / 编辑操作 / 更多 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="?attr/hfSurfaceAlt"
+        android:padding="3dp">
+
+        <ImageButton
+            android:id="@+id/editor_menu"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:src="@drawable/ic_menu"
+            android:tint="@null"
+            android:background="?android:attr/selectableItemBackground"
+            android:scaleType="fitCenter"
+            android:padding="6dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:contentDescription="菜单"/>
+
+        <ImageButton
+            android:id="@+id/editor_undo"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:src="@drawable/ic_undo"
+            android:tint="@null"
+            android:background="?android:attr/selectableItemBackground"
+            android:scaleType="fitCenter"
+            android:padding="6dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:contentDescription="撤销"/>
+
+        <ImageButton
+            android:id="@+id/editor_redo"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:src="@drawable/ic_redo"
+            android:tint="@null"
+            android:background="?android:attr/selectableItemBackground"
+            android:scaleType="fitCenter"
+            android:padding="6dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:contentDescription="重做"/>
+
+        <Button
+            android:id="@+id/editor_save"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:text="保存"
+            android:textSize="12sp"/>
+
+        <ImageButton
+            android:id="@+id/editor_editmenu"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:src="@drawable/ic_edit"
+            android:tint="@null"
+            android:background="?android:attr/selectableItemBackground"
+            android:scaleType="fitCenter"
+            android:padding="6dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:contentDescription="编辑操作"/>
+
+        <ImageButton
+            android:id="@+id/editor_more"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:src="@drawable/ic_more"
+            android:tint="@null"
+            android:background="?android:attr/selectableItemBackground"
+            android:scaleType="fitCenter"
+            android:padding="6dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:contentDescription="更多"/>
+    </LinearLayout>
+
+    <!-- 搜索 / 替换面板（默认隐藏，点击「搜索」展开） -->
+    <LinearLayout
+        android:id="@+id/editor_search_panel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone"
+        android:background="?attr/hfSurfaceAlt"
+        android:padding="4dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <EditText
+                android:id="@+id/editor_search_text"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:background="?attr/hfSurface"
+                android:paddingLeft="8dp"
+                android:paddingRight="8dp"
+                android:textSize="13sp"
+                android:hint="搜索"/>
+
+            <TextView
+                android:id="@+id/editor_search_count"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:minWidth="48dp"
+                android:paddingLeft="6dp"
+                android:paddingRight="6dp"
+                android:textSize="12sp"
+                android:textColor="?attr/hfTextSub"
+                android:text="0/0"/>
+
+            <ImageButton
+                android:id="@+id/editor_search_prev"
+                android:layout_width="38dp"
+                android:layout_height="36dp"
+                android:src="@drawable/ic_up"
+                android:tint="@null"
+                android:background="?android:attr/selectableItemBackground"
+                android:scaleType="fitCenter"
+                android:padding="4dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:contentDescription="上一个"/>
+
+            <ImageButton
+                android:id="@+id/editor_search_next"
+                android:layout_width="38dp"
+                android:layout_height="36dp"
+                android:src="@drawable/ic_down"
+                android:tint="@null"
+                android:background="?android:attr/selectableItemBackground"
+                android:scaleType="fitCenter"
+                android:padding="4dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:contentDescription="下一个"/>
+
+            <ImageButton
+                android:id="@+id/editor_search_close"
+                android:layout_width="38dp"
+                android:layout_height="36dp"
+                android:src="@drawable/ic_close"
+                android:tint="@null"
+                android:background="?android:attr/selectableItemBackground"
+                android:scaleType="fitCenter"
+                android:padding="4dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:contentDescription="关闭搜索"/>
+        </LinearLayout>
+
+        <!-- 查找选项：区分大小写 / 全词匹配 / 正则 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="2dp">
+
+            <CheckBox
+                android:id="@+id/editor_opt_case"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="区分大小写"
+                android:textSize="11sp"/>
+
+            <CheckBox
+                android:id="@+id/editor_opt_word"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="全词"
+                android:textSize="11sp"/>
+
+            <CheckBox
+                android:id="@+id/editor_opt_regex"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="正则"
+                android:textSize="11sp"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="4dp">
+
+            <EditText
+                android:id="@+id/editor_replace_text"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:background="?attr/hfSurface"
+                android:paddingLeft="8dp"
+                android:paddingRight="8dp"
+                android:textSize="13sp"
+                android:hint="替换为"/>
+
+            <Button
+                android:id="@+id/editor_replace_one"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:text="替换"
+                android:textSize="12sp"/>
+
+            <Button
+                android:id="@+id/editor_replace_all"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:text="全部"
+                android:textSize="12sp"/>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 编辑器区：Markor 架构（gsantner/markor, Apache 2.0）——
+         LineNumbersView 与 HighlightingEditor 平级放在同一滚动容器中，
+         编辑器自身不滚动（isScrollContainer=false / scrollbars=none），
+         由外层 ScrollView 滚动，行号与文本天然对齐（无 scrollY 偏移问题）。 -->
+    <ScrollView
+        android:id="@+id/editor_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:background="?attr/hfSurface"
+        android:scrollbars="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:baselineAligned="false"
+            android:background="?attr/hfSurface">
+
+            <com.hex91.file.LineNumbersView
+                android:id="@+id/editor_lines"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent" />
+
+            <com.hex91.file.HighlightingEditor
+                android:id="@+id/editor_text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="?attr/hfSurface"
+                android:gravity="top"
+                android:hint="正在加载…"
+                android:imeOptions="flagNoExtractUi"
+                android:inputType="textMultiLine|textNoSuggestions"
+                android:isScrollContainer="false"
+                android:minHeight="1dp"
+                android:overScrollMode="never"
+                android:paddingLeft="8dp"
+                android:paddingTop="8dp"
+                android:paddingRight="8dp"
+                android:paddingBottom="8dp"
+                android:scrollbars="none"
+                android:textSize="13sp"
+                android:textColor="?attr/hfText" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- 底部快捷符号栏（横向滚动，点按插入光标处） -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/hfSurfaceAlt"
+        android:padding="2dp">
+
+        <LinearLayout
+            android:id="@+id/editor_symbols"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button style="@style/SymBtn" android:text="→"/>
+            <Button style="@style/SymBtn" android:text="/"/>
+            <Button style="@style/SymBtn" android:text="+"/>
+            <Button style="@style/SymBtn" android:text="-"/>
+            <Button style="@style/SymBtn" android:text="*"/>
+            <Button style="@style/SymBtn" android:text="="/>
+            <Button style="@style/SymBtn" android:text="&lt;"/>
+            <Button style="@style/SymBtn" android:text="&gt;"/>
+            <Button style="@style/SymBtn" android:text="&quot;"/>
+            <Button style="@style/SymBtn" android:text="'"/>
+            <Button style="@style/SymBtn" android:text=":"/>
+            <Button style="@style/SymBtn" android:text=";"/>
+            <Button style="@style/SymBtn" android:text="("/>
+            <Button style="@style/SymBtn" android:text=")"/>
+            <Button style="@style/SymBtn" android:text="{"/>
+            <Button style="@style/SymBtn" android:text="}"/>
+            <Button style="@style/SymBtn" android:text="["/>
+            <Button style="@style/SymBtn" android:text="]"/>
+            <Button style="@style/SymBtn" android:text="="/>
+            <Button style="@style/SymBtn" android:text="&amp;"/>
+            <Button style="@style/SymBtn" android:text="|"/>
+            <Button style="@style/SymBtn" android:text="!"/>
+            <Button style="@style/SymBtn" android:text="?"/>
+            <Button style="@style/SymBtn" android:text="@"/>
+            <Button style="@style/SymBtn" android:text="#"/>
+            <Button style="@style/SymBtn" android:text="$"/>
+            <Button style="@style/SymBtn" android:text="%"/>
+            <Button style="@style/SymBtn" android:text="\\"/>
+            <Button style="@style/SymBtn" android:text=" "/>
+            <Button style="@style/SymBtn" android:text="Tab"/>
+            <Button style="@style/SymBtn" android:text="换行"/>
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="4dp">
+
+        <Button
+            android:id="@+id/editor_search"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:text="搜索"
+            android:textSize="12sp"/>
+
+        <Button
+            android:id="@+id/editor_goto"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:text="跳转"
+            android:textSize="12sp"/>
+
+        <Button
+            android:id="@+id/editor_close"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:text="关闭"
+            android:textSize="12sp"/>
+    </LinearLayout>
+
+</LinearLayout>

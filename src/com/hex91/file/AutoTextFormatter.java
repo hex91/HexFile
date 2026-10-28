@@ -1,0 +1,472 @@
+package com.hex91.file;
+
+/*#######################################################
+ *
+ *   Maintained 2018-2025 by Gregor Santner <gsantner AT mailbox DOT org>
+ *   License of this file: Apache 2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   移植自 Markor（gsantner/markor）frontend/textview/AutoTextFormatter。
+ *   改动：工具函数改调 MtTextUtils。
+ *
+ *   功能：作为 InputFilter 监听换行输入，实现：
+ *   - 自动缩进（继承上一行缩进）
+ *   - 有序列表自动编号（回车续 1. 2. 3.，renumberOrderedList 重排整表）
+ *   - 无序列表 / 复选框列表自动续写
+ *
+#########################################################*/
+
+import android.text.Editable;
+import android.text.InputFilter;
+import android.text.Selection;
+import android.text.Spanned;
+import android.text.TextWatcher;
+
+import java.util.EmptyStackException;
+import java.util.Stack;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public class AutoTextFormatter implements InputFilter {
+
+    private final FormatPatterns _patterns;
+
+    public AutoTextFormatter(FormatPatterns patterns) {
+        _patterns = patterns;
+    }
+
+    @Override
+    public CharSequence filter(CharSequence source, int start, int end, Spanned dest, int dstart, int dend) {
+        try {
+            if (start < source.length() && dstart <= dest.length() && MtTextUtils.isNewLine(source, start, end)) {
+                return autoIndent(source, dest, dstart, dend);
+            }
+        } catch (IndexOutOfBoundsException | NullPointerException e) {
+            e.printStackTrace();
+        }
+
+        return source;
+    }
+
+    private CharSequence autoIndent(final CharSequence source, final CharSequence dest, final int dstart, final int dend) {
+        if (dest.length() == 0) {
+            return null;
+        }
+
+        final OrderedListLine oLine = new OrderedListLine(dest, dstart, _patterns);
+        final UnOrderedOrCheckListLine uLine = new UnOrderedOrCheckListLine(dest, dstart, _patterns);
+        final String indent = source + oLine.line.substring(0, Math.min(oLine.indentEnd, dstart - oLine.lineStart));
+
+        final String result;
+        if (oLine.isOrderedList && oLine.lineEnd != oLine.groupEnd && dend >= oLine.groupEnd) {
+            result = indent + String.format("%s%c ", getNextOrderedValue(oLine.value, false), oLine.delimiter);
+        } else if (uLine.isUnorderedOrCheckList && uLine.lineEnd != uLine.groupEnd && dend >= uLine.groupEnd) {
+            String itemPrefix = uLine.newItemPrefix;
+            result = indent + itemPrefix;
+        } else {
+            result = indent;
+        }
+
+        return result;
+    }
+
+    public static class FormatPatterns {
+        public final Pattern prefixUnorderedList;
+        public final Pattern prefixCheckBoxList;
+        public final Pattern prefixOrderedList;
+        public final int indentSlack;
+
+        public FormatPatterns(final Pattern prefixUnorderedList,
+                              final Pattern prefixCheckBoxList,
+                              final Pattern prefixOrderedList,
+                              final int indentSlack) {
+            this.prefixUnorderedList = prefixUnorderedList;
+            this.prefixCheckBoxList = prefixCheckBoxList;
+            this.prefixOrderedList = prefixOrderedList;
+            this.indentSlack = indentSlack;
+        }
+    }
+
+    public static class ListLine {
+        protected final FormatPatterns patterns;
+        protected final CharSequence text;
+
+        public final int lineStart, lineEnd, indentEnd;
+        public final String line;
+        public final boolean isEmpty;
+        public final boolean isTopLevel;
+        public final int indent;
+
+        public ListLine(CharSequence text, int position, FormatPatterns patterns) {
+            this.text = text;
+            this.patterns = patterns;
+
+            lineStart = MtTextUtils.getLineStart(text, position);
+            lineEnd = MtTextUtils.getLineEnd(text, position);
+            line = text.subSequence(lineStart, lineEnd).toString();
+            final int firstChar = MtTextUtils.getFirstNonWhitespace(line);
+            isEmpty = firstChar < 0;
+            indentEnd = Math.max(firstChar, 0);
+            final int[] counts = MtTextUtils.countChars(line, 0, indentEnd, ' ', '\t');
+            indent = counts[0] + counts[1] * 4;
+            isTopLevel = indent <= patterns.indentSlack;
+        }
+
+        // Empty lines are children of any line level
+        public boolean isParentLevelOf(final ListLine line) {
+            return line.isEmpty || (!isEmpty && (line.indent - indent) > patterns.indentSlack);
+        }
+
+        public boolean isChildLevelOf(final ListLine line) {
+            return isEmpty || (!line.isEmpty && (indent - line.indent) > patterns.indentSlack);
+        }
+
+        public boolean isSiblingLevelOf(final ListLine line) {
+            return !isParentLevelOf(line) && !isChildLevelOf(line);
+        }
+
+        @Override
+        public boolean equals(final Object obj) {
+            final ListLine other = obj instanceof ListLine ? (ListLine) obj : null;
+            return other == this || (other != null && lineStart == other.lineStart && lineEnd == other.lineEnd && line.equals(other.line));
+        }
+    }
+
+    /**
+     * Class to parse a line of text and extract useful information
+     */
+    public static class OrderedListLine extends ListLine {
+        // TODO parametrize?
+        private static final int FULL_GROUP = 2;
+        private static final int VALUE_GROUP = 3;
+        private static final int DELIM_GROUP = 4;
+
+        public final boolean isOrderedList;
+        public final char delimiter;
+        public final int numStart, numEnd;
+        public final int groupStart, groupEnd;
+        public final String value;
+
+        public OrderedListLine(CharSequence text, int position, FormatPatterns patterns) {
+            super(text, position, patterns);
+
+            final Matcher match = patterns.prefixOrderedList.matcher(line);
+            isOrderedList = match.find();
+            if (isOrderedList) {
+                delimiter = match.group(DELIM_GROUP).charAt(0);
+                numStart = match.start(VALUE_GROUP) + lineStart;
+                numEnd = match.end(VALUE_GROUP) + lineStart;
+                value = match.group(VALUE_GROUP);
+                groupStart = lineStart + match.start(FULL_GROUP);
+                groupEnd = lineStart + match.end(FULL_GROUP);
+            } else {
+                groupEnd = groupStart = numStart = numEnd = -1;
+                value = "";
+                delimiter = 0;
+            }
+        }
+
+        public boolean isMatchingList(final OrderedListLine line) {
+            return isOrderedList && line.isOrderedList && delimiter == line.delimiter && Math.abs(indent - line.indent) <= patterns.indentSlack;
+        }
+
+        public OrderedListLine getLevelStart() {
+            OrderedListLine listStart = this;
+
+            if (lineStart > patterns.indentSlack) {
+                boolean matching;
+                OrderedListLine line = this;
+                do {
+                    int position = line.lineStart - 1;
+                    line = new OrderedListLine(text, position, patterns);
+                    matching = isMatchingList(line);
+                    if (matching) {
+                        listStart = line;
+                    }
+                } while (line.lineStart > patterns.indentSlack && (matching || isParentLevelOf(line)));
+            }
+
+            return listStart;
+        }
+
+        public OrderedListLine getParent() {
+            OrderedListLine line = null;
+            if ((lineStart > 0) && (isEmpty || !isTopLevel)) {
+                int position = lineStart - 1;
+                do {
+                    line = new OrderedListLine(text, position, patterns);
+                    position = line.lineStart - 1;
+                } while (position > 0 && !line.isParentLevelOf(this));
+            }
+            return line;
+        }
+
+        public OrderedListLine getNext() {
+            final int nextLineStart = lineEnd + 1;
+            if (nextLineStart < text.length()) {
+                return new OrderedListLine(text, nextLineStart, patterns);
+            }
+            return null;
+        }
+
+        public OrderedListLine recreate() {
+            return new OrderedListLine(text, lineStart, patterns);
+        }
+    }
+
+    /**
+     * Detects "real" unordered lists and checklists (both are treated as unordered lists).
+     */
+    public static class UnOrderedOrCheckListLine extends ListLine {
+        private static final int FULL_ITEM_PREFIX_GROUP = 2;
+        private static final int CHECKBOX_PREFIX_LEFT_GROUP = 3;
+        private static final int CHECKBOX_PREFIX_RIGHT_GROUP = 4;
+
+        public final boolean isUnorderedOrCheckList;
+        public final String newItemPrefix;
+        public final int groupStart, groupEnd;
+
+        public UnOrderedOrCheckListLine(CharSequence text, int position, FormatPatterns patterns) {
+            super(text, position, patterns);
+
+            final Matcher checklistMatcher = patterns.prefixCheckBoxList.matcher(line);
+            final Matcher unorderedListMatcher = patterns.prefixUnorderedList.matcher(line);
+
+            final boolean isChecklist = checklistMatcher.find();
+            isUnorderedOrCheckList = isChecklist || unorderedListMatcher.find();  // prefer checklist pattern to avoid spurious unordered list match
+            final Matcher matcher = isChecklist ? checklistMatcher : unorderedListMatcher;
+
+            if (isUnorderedOrCheckList) {
+                groupStart = lineStart + matcher.start(FULL_ITEM_PREFIX_GROUP);
+                groupEnd = lineStart + matcher.end(FULL_ITEM_PREFIX_GROUP);
+                final String emptyCheckboxContent = " ";
+                newItemPrefix = isChecklist ? matcher.group(CHECKBOX_PREFIX_LEFT_GROUP) + emptyCheckboxContent + matcher.group(CHECKBOX_PREFIX_RIGHT_GROUP)
+                        : matcher.group(FULL_ITEM_PREFIX_GROUP);
+            } else {
+                groupStart = groupEnd = -1;
+                newItemPrefix = "";
+            }
+        }
+    }
+
+
+    /**
+     * Find the topmost orderd list item which is a parent of the current
+     */
+    private static OrderedListLine getOrderedListStart(final CharSequence text, int position, final FormatPatterns patterns) {
+        position = Math.max(Math.min(position, text.length() - 1), 0);
+        OrderedListLine listStart = new OrderedListLine(text, position, patterns);
+
+        OrderedListLine line = listStart;
+        do {
+            line = line.getParent();
+            if (line != null && line.isOrderedList) {
+                listStart = line;
+            }
+        } while (line != null);
+
+        if (listStart.isOrderedList || listStart.isEmpty) {
+            listStart = listStart.getLevelStart();
+        }
+
+        return listStart;
+    }
+
+    /**
+     * This function will first walk up to the top of the current list
+     * and then walk down to the end, renumbering ordered list items along the way
+     * <p>
+     * This is an unfortunately complex + complicated function. Tweak at your peril and test a *lot* :)
+     */
+    public static void renumberOrderedList(final Editable edit, final FormatPatterns patterns) {
+
+        final int[] sel = MtTextUtils.getSelection(edit);
+        if (!MtTextUtils.inRange(0, edit.length(), sel)) {
+            return;
+        }
+
+        final MtTextUtils.ChunkedEditable chunked = MtTextUtils.ChunkedEditable.wrap(edit);
+
+        final int[] shifts = new int[]{0, 0};
+
+        // Top of list
+        final OrderedListLine firstLine = getOrderedListStart(chunked, sel[0], patterns);
+        if (!firstLine.isOrderedList) {
+            return;
+        }
+
+        // Stack represents each level in the list up from current
+        final Stack<OrderedListLine> levels = new Stack<>();
+        levels.push(firstLine);
+
+        try {
+            // Loop to end of list
+            OrderedListLine line = firstLine;
+            while (line != null && (firstLine.isParentLevelOf(line) || firstLine.isMatchingList(line))) {
+
+                if (line.isOrderedList) {
+                    // Indented. Add level
+                    if (line.isChildLevelOf(levels.peek())) {
+                        levels.push(line);
+                    }
+                    // Dedented. Remove appropriate number of levels
+                    else if (line.isParentLevelOf(levels.peek())) {
+                        while (levels.peek().isChildLevelOf(line)) {
+                            levels.pop();
+                        }
+                    }
+
+                    // Restart if bullet does not match list at this level
+                    if (line != levels.peek() && !levels.peek().isMatchingList(line)) {
+                        levels.pop();
+                        levels.push(line);
+                    }
+                }
+                // Non-ordered non-empty line. Pop back to parent level
+                else if (!line.isEmpty) {
+                    while (!levels.isEmpty() && !levels.peek().isParentLevelOf(line)) {
+                        levels.pop();
+                    }
+                }
+
+                // Update numbering if needed
+                if (line.isOrderedList) {
+                    // Restart numbering if list changes
+                    final OrderedListLine peek = levels.peek();
+                    final String newValue = getNextOrderedValue(peek.value, line.equals(peek));
+                    if (!newValue.equals(line.value)) {
+                        final int delta = newValue.length() - line.value.length();
+                        if (line.numEnd < sel[0]) {
+                            shifts[0] += delta;
+                        }
+                        if (line.numEnd < sel[1]) {
+                            shifts[1] += delta;
+                        }
+
+                        chunked.replace(line.numStart, line.numEnd, newValue);
+                        line = line.recreate(); // Recreate as line has changed
+                    }
+                    levels.pop();
+                    levels.push(line);
+                }
+                line = line.getNext();
+            }
+
+            chunked.applyChanges();
+
+            final int[] newSel = new int[]{sel[0] + shifts[0], sel[1] + shifts[1]};
+            if (MtTextUtils.inRange(0, edit.length(), newSel)) {
+                Selection.setSelection(edit, newSel[0], newSel[1]);
+            }
+
+        } catch (EmptyStackException ex) {
+            // Usually means that indents and de-indents did not match up
+            ex.printStackTrace();
+        }
+    }
+
+    private static String getNextOrderedValue(final String currentValue, final boolean restart) {
+        final Pattern numberPattern = Pattern.compile("\\d+");
+        final Pattern lowercaseLetterPattern = Pattern.compile("[a-z]");
+        final Pattern capitalLetterPattern = Pattern.compile("[A-z]");
+
+        if (numberPattern.matcher(currentValue).find()) {
+            final int intValue = MtTextUtils.tryParseInt(currentValue, 0);
+            return restart ? "1" : Integer.toString(intValue + 1);
+        } else {
+            final char charValue = currentValue.charAt(0);
+            if (lowercaseLetterPattern.matcher(currentValue).find()) {
+                return (restart || charValue >= 'z') ? "a" : String.valueOf(charValue + 1);
+            } else if (capitalLetterPattern.matcher(currentValue).find()) {
+                return (restart || charValue >= 'Z') ? "A" : String.valueOf(charValue + 1);
+            }
+        }
+        return "0";
+    }
+
+    /**
+     * 列表处理 TextWatcher（移植自 Markor frontend/textview/ListHandler，Apache 2.0）：
+     *  - 输入含换行时重排有序列表编号
+     *  - 在空列表项上回车时删除该列表前缀（智能退出列表）
+     */
+    public static class ListHandler implements TextWatcher {
+        private boolean triggerReorder = false;
+        private Integer beforeLineEnd = null;
+        private boolean alreadyRunning = false; // Prevent this instance from triggering itself
+        private android.util.Pair<Integer, Integer> _deleteRegion;
+
+        private final FormatPatterns _prefixPatterns;
+
+        public ListHandler(final FormatPatterns prefixPatterns) {
+            super();
+            _prefixPatterns = prefixPatterns;
+        }
+
+        @Override
+        public void onTextChanged(final CharSequence s, final int start, final int before, final int count) {
+            if (alreadyRunning) {
+                return;
+            }
+
+            triggerReorder = triggerReorder || containsNewline(s, start, count);
+
+            // Detects if enter pressed on empty list (correctly handles indent) and marks line for deletion.
+            if (beforeLineEnd != null && count > 0 && start > -1 && start < s.length() && s.charAt(start) == '\n') {
+
+                final OrderedListLine oMatch = new OrderedListLine(s, start, _prefixPatterns);
+                final UnOrderedOrCheckListLine uMatch = new UnOrderedOrCheckListLine(s, start, _prefixPatterns);
+
+                if (oMatch.isOrderedList && beforeLineEnd == oMatch.groupEnd) {
+                    _deleteRegion = android.util.Pair.create(oMatch.lineStart, oMatch.lineEnd + 1);
+                } else if (uMatch.isUnorderedOrCheckList && beforeLineEnd == uMatch.groupEnd) {
+                    _deleteRegion = android.util.Pair.create(oMatch.lineStart, oMatch.lineEnd + 1);
+                }
+            }
+            beforeLineEnd = null;
+        }
+
+        @Override
+        public void afterTextChanged(final Editable e) {
+            if (alreadyRunning) {
+                return;
+            }
+            try {
+                alreadyRunning = true;
+                if (_deleteRegion != null) {
+                    e.delete(_deleteRegion.first, _deleteRegion.second);
+                    _deleteRegion = null;
+                }
+                if (triggerReorder) {
+                    renumberOrderedList(e, _prefixPatterns);
+                }
+            } finally {
+                alreadyRunning = false;
+            }
+        }
+
+        @Override
+        public void beforeTextChanged(final CharSequence s, int start, final int count, final int after) {
+            if (alreadyRunning) {
+                return;
+            }
+
+            triggerReorder = containsNewline(s, start, count);
+            beforeLineEnd = MtTextUtils.getLineEnd(s, start);
+        }
+
+        private boolean containsNewline(final CharSequence s, final int start, final int count) {
+            final int end = start + count;
+            for (int i = start; i < end; i++) {
+                if (s.charAt(i) == '\n') {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    /** 工厂：创建 markdown 列表 watcher（自动编号 + 空项回车退出列表） */
+    public static ListHandler makeRenumberWatcher(final FormatPatterns patterns) {
+        return new ListHandler(patterns);
+    }
+}
