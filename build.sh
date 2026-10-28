@@ -102,8 +102,11 @@ mkdir -p "$ROOT/native/lib/arm64-v8a" "$ROOT/native/lib/armeabi-v7a"
 
 echo "[4/7] javac..."
 # libs = apksigner.jar + baksmali/dexlib2 等（smali 反编译引擎），供编译期引用
+# classpath 分隔符：Windows 为 ;，其它(Unix/Linux)为 :
+SEP=":"
+if [ -n "$EXE" ]; then SEP=";"; fi
 LIBS_CP="$BT/lib/apksigner.jar"
-for j in "$ROOT"/libs/*.jar; do LIBS_CP="$LIBS_CP;$j"; done
+for j in "$ROOT"/libs/*.jar; do LIBS_CP="$LIBS_CP$SEP$j"; done
 # 源码集：
 #   src/com/hex91/file/*            HexFile 自有
 #   src/jadx/...                   vendored jadx ARSC 解析器（Apache-2.0）
