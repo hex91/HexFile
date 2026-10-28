@@ -1,12 +1,11 @@
-# MT Clone —— MT Manager 本地复刻版（Android APK）
+# HexFile —— 安卓文件管理器（Android APK）
 
-对标 MT Manager（bin.mt.plus 2.26.10）架构的个人本地工具集：**纯本地、无网络、无账号/VIP**。
-零 AndroidX 依赖、零 Gradle、命令行一键出签名 APK（1.5MB，含 apksig 签名校验 + baksmali 反编译引擎）。
+对标 MT Manager架构的个人本地工具集：**纯本地、无网络、无账号/VIP**。
+
 
 ## 快速开始
 
 ```bash
-cd mtclone
 bash build.sh                       # 产出 out/HexFile-<version>.apk（已签名，可直接安装）
 adb install -r out/HexFile-*.apk
 ```
@@ -20,29 +19,29 @@ adb install -r out/HexFile-*.apk
 ## 工程结构
 
 ```
-mtclone/
+/
 ├── AndroidManifest.xml          # minSdk 21 / targetSdk 30 / 存储权限 / 4 Activity
 ├── build.sh                     # 一键构建（6 步：aapt2→link→javac→d8→zipalign→sign）
 ├── res/
-│   ├── layout/activity_main.xml # MT 风格双栏布局（深色顶栏+统计行、底部 ‹ › ＋ ⇄ ↑ 工具栏）
+│   ├── layout/activity_main.xml # 格双栏布局（深色顶栏+统计行、底部 ‹ › ＋ ⇄ ↑ 工具栏）
 │   ├── layout/activity_search.xml / item_result.xml
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings
 │   └── drawable/                # 矢量图标（ic_launcher / ic_folder / ic_file）
-└── src/bin/mtclone/
-    ├── MainActivity.java        # 双栏主界面（对标 bin.mt.plus.Main）
+└── src/com/hex91/file
+    ├── MainActivity.java        # 双栏主界面
     ├── FileAdapter.java         # 目录优先排序的列表适配器
     ├── FileItem.java            # 文件条目模型
     ├── FileOps.java             # 复制/移动/删除/重命名/新建 + MD5/SHA256/CRC32
-    ├── ApkUtil.java             # APK 信息解析（MT 风格逐行信息 + 加固特征检测）
+    ├── ApkUtil.java             # APK 信息解析
     ├── ApkSignCheck.java        # APK 签名校验（apksig：schemes 方案串 + detailRows 详情行）
     ├── ApkFileProvider.java     # 迷你 content:// 文件共享（安装 APK 用，零 AndroidX）
     ├── TextEditorActivity.java  # 文本编辑器（UTF-8/GBK 自动识别、未保存防丢、二进制检测）
     ├── HexViewerActivity.java   # HEX 查看器（偏移+HEX+ASCII、点行复制、偏移跳转、4MB 截断）
     ├── SmaliTool.java           # smali 反编译（org.smali:baksmali:2.5.2 编程 API 封装）
     └── libs/                    # baksmali 2.5.2 + dexlib2 + guava-27.1-android + jsr305 + failureaccess
-    ├── FeatureRegistry.java     # 功能注册表（对标 MT Features 设计模式）
+    ├── FeatureRegistry.java     # 功能注册表
     ├── BookmarkStore.java       # 书签持久化（SharedPreferences）
     ├── Trash.java               # 回收站（meta 记录原路径，可恢复/彻底删除/清空）
     ├── SearchActivity.java      # 递归搜索（* ? 通配符，后台线程，上限 1000）
@@ -59,11 +58,11 @@ mtclone/
 | 双栏文件浏览器（左右窗格、点击切换激活、一键交换） | 完成 |
 | 目录导航：进入子目录 / 上级 / 回主页 / 刷新 | 完成 |
 | 长按文件操作菜单：复制到对面 / 移动到对面 / 重命名 / 删除 / 属性 | 完成 |
-| 删除 = 移入回收站（.MTCloneTrash，可恢复/彻底删除/清空） | 完成 |
+| 删除 = 移入回收站（可恢复/彻底删除/清空） | 完成 |
 | 递归搜索（* ? 通配符、大小写不敏感、结果点击跳到所在目录） | 完成 |
 | 书签（添加当前目录 / 跳转 / 删除，SharedPreferences 持久化） | 完成 |
 | 文件属性 + MD5 / SHA-256 / CRC32 哈希 | 完成 |
-| APK 信息查看（MT 风格弹窗：图标 + 应用名/版本标题，逐行显示 包名/版本号/安装包大小/签名状态/加固状态/目标系统/最低系统/权限数/已安装版本/数据目录/UID/首次安装/最后更新/APK 路径；**点击任意行复制该行的值**） | 完成 |
+| APK 信息查看（图标 + 应用名/版本标题，逐行显示 包名/版本号/安装包大小/签名状态/加固状态/目标系统/最低系统/权限数/已安装版本/数据目录/UID/首次安装/最后更新/APK 路径；**点击任意行复制该行的值**） | 完成 |
 | 签名状态行：后台 apksig 检测后直接显示方案串（**V1 / V1+V2 / V1+V2+V3**）；**点击该行进签名详情页**，详情页逐行显示 校验结论/各方案/主体/颁发者/序列号/算法/有效期/MD5/SHA-1/SHA-256，**点行复制** | 完成 |
 | APK 弹窗底部操作行：**功能**(复制/移动/重命名/压缩/删除/属性菜单) / **查看**(进入 APK 压缩包浏览) / **安装**(调起系统安装器) / 关闭 | 完成 |
 | 安装 APK 支持（自研 20 行 ApkFileProvider 提供 content:// URI，零 AndroidX FileProvider 依赖；已声明 REQUEST_INSTALL_PACKAGES） | 完成 |
@@ -79,12 +78,12 @@ mtclone/
 | **文本编辑器**：点击 .txt/.xml/.json/.java/.py/.smali 等 30 种文本扩展名直接进入；UTF-8 严格解码失败自动降级 GBK（标题栏显示实际编码）；修改跟踪 + 返回键 保存/不保存/取消 三选一防丢；头部含 NUL 的二进制文件自动提示改用 HEX 查看；超 5MB 提示卡顿风险 | 完成 |
 | **HEX 查看器**：每行 16 字节 = 8 位偏移 + HEX（按 8 字节分组）+ ASCII 预览，等宽字体；点击行复制；「跳转偏移」支持十进制（1024）或 0x 前缀十六进制（0x400）；超 4MB 只显示前 4MB 并标注 | 完成 |
 | 长按菜单新增：**文本编辑** / **HEX 查看**（任何文件均可进） | 完成 |
-| **smali 反编译（v1.5）**：APK 压缩包浏览中**长按 classes.dex（或任意 .dex）→ 反编译为 smali**，后台线程跑 baksmali（4 并发），输出 `/sdcard/MTCloneSmali/<apk名>/<dex名>/` 并自动跳转浏览；点 .smali 文件直接用自带文本编辑器查看 | 完成 |
-| **独立 dex 文件反编译（v1.5.1）**：主界面**点击 .dex 弹菜单**（反编译为 smali / HEX 查看 / 属性），长按菜单也含「反编译为 smali」；输出 `/sdcard/MTCloneSmali/<dex名>/` 并自动跳转 | 完成 |
-| baksmali 引擎内嵌（org.smali 2.5.2：dexlib2+guava-27.1-android，纯 Java 零 native，与 MT 同源方案）；multidex 就绪的构建链（d8 自动拆分 classesN.dex）；manifest 开启 largeHeap | 完成 |
+| **smali 反编译（v1.5）**：APK 压缩包浏览中**长按 classes.dex（或任意 .dex）→ 反编译为 smali**，后台线程跑 baksmali（4 并发），输出 `/sdcard/HexFileSmali/<apk名>/<dex名>/` 并自动跳转浏览；点 .smali 文件直接用自带文本编辑器查看 | 完成 |
+| **独立 dex 文件反编译（v1.5.1）**：主界面**点击 .dex 弹菜单**（反编译为 smali / HEX 查看 / 属性），长按菜单也含「反编译为 smali」；输出 `/sdcard/HexFileSmali/<dex名>/` 并自动跳转 | 完成 |
+| baksmali 引擎内嵌（org.smali 2.5.2：dexlib2+guava-27.1-android，纯 Java 零 native）；multidex 就绪的构建链（d8 自动拆分 classesN.dex）；manifest 开启 largeHeap | 完成 |
 | 粉色主题 UI | 完成 |
 
-## 路线图（对齐 MT 功能清单 A→I 组）
+## 路线图
 
 - **v1.2** ✅：ZIP 压缩包（浏览/解压/打包，java.util.zip 零依赖）；7z/TAR/RAR 待后续引库
 - **v1.3** ✅：APK 签名校验（apksig 方案）；APK 对比待后续
@@ -97,27 +96,26 @@ mtclone/
 
 ## 设计说明
 
-- **架构对标**：`MainActivity` = MT 的 `bin.mt.plus.Main`；`FeatureRegistry` = MT 的 `Features` 注册表模式（后续所有功能模块统一注册，菜单自动生成）。
+- **架构对标**：`MainActivity` = 入口；`FeatureRegistry` =  注册表模式（后续所有功能模块统一注册，菜单自动生成）。
 - **回收站设计**：`/sdcard/.MTCloneTrash/store/<id>` 存内容、`meta/<id>.txt` 存原始路径/时间/类型四行文本；恢复时若原路径已存在自动追加 `(1)` 后缀。同分区用 renameTo 秒完成，跨分区自动降级为拷贝+删除。
 - **搜索防卡死**：后台 Thread + Handler 回主线程刷新，深度上限 12 层、结果上限 1000 条，自动跳过回收站目录。
 - **ZIP 引擎**：零第三方依赖；`listChildren` 前缀过滤实现目录层级浏览（深层条目一律归并到祖先目录项）；解压 `safeTarget` 校验规范路径防 zip-slip；`copyStream` 不关流（Zip 流由 try-with-resources 管理，文件流由调用方关闭）——曾因 copyStream 连带关闭 Zip 流导致打包/解压中断，已修复并单元测试回归。
-- **so 层零 C 开发**：MT 的 11 个原生库经分析全部可替换为 Java/开源库（详见《MT框架与so层复刻开发指南.md》）。
+- **so 层零 C 开发**
 - **手势与多选**：`GestureDetector` 旁听模式——`OnTouchListener` 恒返回 false，事件照常给 ListView，滚动/点击零干扰。左滑/右滑双通道触发：`onFling`（快速甩动，`|vx|>|vy|*1.2 且 |vx|>350 且 位移>80px`）+ `onScroll` 慢速横向拖动兜底（80px，`handled` 标志保证每个手势只触发一次）；`pointToPosition(e1.x, e1.y)` 把手指起点映射到条目，实现"对着哪个文件滑就操作哪个"；连续刷选用 `onScroll` 纵向主导位移（30px 起刷）。非多选时右滑 = 返回上一级。多选状态 per-panel，同一时刻仅一个窗格多选；导航（loadDir）自动退出多选防状态错乱。
 - **防误退**：`onBackPressed` 分层拦截——多选中先退多选 → 目录中逐级返回上级（异常位置直接回根）→ 根目录需 2 秒内再按一次才真正退出。
-- **签名校验引擎**：直接复用 build-tools 里的 `apksigner.jar`（含 309 个 `com.android.apksig` 类，Google 官方 apksig 库，与 MT 同源方案）——javac 用作 `-classpath`，d8 直接把 jar 与 app class 一起 dex 合并进单个 classes.dex（945KB / 6885 方法），零额外下载。
+- **签名校验引擎**：直接复用 build-tools 里的 `apksigner.jar`（含 309 个 `com.android.apksig` 类，Google 官方 apksig 库）——javac 用作 `-classpath`，d8 直接把 jar 与 app class 一起 dex 合并进单个 classes.dex（945KB / 6885 方法），零额外下载。
 - **APK 信息行**：`ApkUtil.rows()` 输出 {标签, 值} 列表——签名状态走 `PackageManager.GET_SIGNATURES`（秒出，方案细节留给"签名校验"）；加固检测扫 zip 条目名匹配 360/梆梆/腾讯/爱加密/阿里/网易易盾特征；已安装信息经 `getPackageInfo(包名)` 补充（数据目录/UID/安装时间）；目标/最低系统带 API→版本名映射。
 - **存储策略**：targetSdk 30 + requestLegacyExternalStorage，运行时申请 READ/WRITE_EXTERNAL_STORAGE，直接 File API 访问 /sdcard。
 
 ## 已验证
 
-- aapt2 dump badging：`bin.mtclone` v1.8.0（versionCode 20），minSdk 21 / targetSdk 30，launcher = bin.mtclone.MainActivity
 - 六个 Activity 均注册（Main singleTop / Search / Trash / ZipBrowser / TextEditor / HexViewer）+ ApkFileProvider；largeHeap 已开启
 - apksigner：V3.0 签名有效（证书 CN=MT Clone）
 - **签名 DN 可读化**：`X500Principal.getName()` 默认 RFC2253 会把邮箱属性（OID 1.2.840.113549.1.9.1）输出成十六进制 `#16...`；改用 `getName(RFC1779)` 并把 JDK 的 `OID.1.2.840.113549.1.9.1=` 前缀替换为 `EMAILADDRESS=`，输出与 keytool 一致的可读格式。
 - 产物：`out/MTClone-1.8.0.apk`（约 1.5MB，单 dex ~2.5万方法，含 baksmali）
-- **签名校验桌面实测（JDK 17 + 真实 apksig）**：schemes() → MTClone=V1+V2+V3、MT2.26.10=V1+V2；detailRows() → MT2.26.10 主体 CN=bin、序列号 24ADF7DE、MD5/SHA-1/SHA-256 连续 HEX 输出正确
+- **签名校验桌面实测（JDK 17 + 真实 apksig）**：schemes() → MTClone=V1+V2+V3、MT2.26.10=V1+V2；detailRows()
 - **v1.4 桌面实测（JDK 17）**：UTF-8/GBK 编码探测、GBK 保存往返无损、HEX 行格式（含尾行截断补齐）、偏移跳转解析（0x400/1024）全部通过
-- **v1.5 桌面实测（JDK 17）**：baksmali 2.5.2 编程 API 反编译 MTClone 自身 classes.dex → 847 个 .smali 文件，格式正确（30s/4并发）
+- **v1.5 桌面实测（JDK 17）**：baksmali 2.5.2 编程 API 反编译自身 classes.dex → 847 个 .smali 文件，格式正确（30s/4并发）
 - **Git Bash 教训**：`$ROOT` 用 `cygpath -m` 转 Windows 风格，否则 `;` 分隔的 javac classpath 传给原生 exe 时 MSYS 转换失效（报"找不到符号"）
 - **ZIP 单元测试（桌面 JDK 17 跑真实 ZipUtil）**：打包（多源+递归目录）、根/子目录浏览、解压全部、解压单条全部通过，内容比对正确
 - **真机验证（Pixel 6 / Android 14，adb 实测）**：安装成功、主界面启动无崩溃，双栏正常加载（items=51），无 FATAL。
@@ -125,45 +123,45 @@ mtclone/
 ## 真机权限须知（Android 11+）
 
 文件管理器访问 `/sdcard` 根目录必须「所有文件访问」权限（`MANAGE_EXTERNAL_STORAGE`），普通 READ/WRITE 在分区存储下不够（这正是 MT Manager 的做法）。首次启动若未授权，App 会跳转系统设置页引导开启。调试时可用：
-`adb shell appops set bin.mtclone android:manage_external_storage allow` 直接授予以验证。
+`adb shell appops set com.hex91.file android:manage_external_storage allow` 直接授予以验证。
 
-## v1.6.0：MT 风格 UI 改版（实测原版 MT 2.26.10 canary 后对齐）
+## v1.6.0：UI 改版
 
-- 主界面完全对标 MT：深色双行顶栏（活动栏路径 + `文件夹/文件/储存` 统计行）、双栏白底列表、底部 `‹ › ＋ ⇄ ↑` 工具栏（历史后退/前进、新建、交换窗口、上级）
-- 条目样式对标 MT：类型彩色圆角图标（DIR 黑/APK 绿/DEX 深绿/ZIP 棕/SO 灰蓝/图片紫/视频红/音频橙/文档蓝…）+ 名称 + `yy-MM-dd HH:mm 大小` 副行
-- 长按菜单改为 MT 式双列宫格弹窗；⋮ 主菜单：刷新/搜索/全选/排序方式/显示 .文件/书签/回收站/交换窗口
+- 主界面：深色双行顶栏（活动栏路径 + `文件夹/文件/储存` 统计行）、双栏白底列表、底部 `‹ › ＋ ⇄ ↑` 工具栏（历史后退/前进、新建、交换窗口、上级）
+- 条目样式：类型彩色圆角图标（DIR 黑/APK 绿/DEX 深绿/ZIP 棕/SO 灰蓝/图片紫/视频红/音频橙/文档蓝…）+ 名称 + `yy-MM-dd HH:mm 大小` 副行
+- 长按菜单 式双列宫格弹窗；⋮ 主菜单：刷新/搜索/全选/排序方式/显示 .文件/书签/回收站/交换窗口
 - 新增：目录历史导航（每栏独立栈）、排序方式（名称/大小/时间）、隐藏文件切换、新建文本文件
-- 主题从粉色换成 MT 配色（深色顶栏 #212121 + 白列表 + 蓝强调），保留粉色选区高亮改为 MT 浅蓝
-- 验证方式：adb 接管真机 MT 实测截图对比 + uiautomator 驱动自装复刻版逐项点按（进目录/长按菜单/⋮菜单/属性弹窗），0 FATAL
+- 主题从粉色换成（深色顶栏 #212121 + 白列表 + 蓝强调），保留粉色选区高亮改为 MT 浅蓝
+- 验证方式：adb 接管真机实测截图对比 + uiautomator 驱动自装复刻版逐项点按（进目录/长按菜单/⋮菜单/属性弹窗），0 FATAL
 
 ## v1.6.1
 - 修复：⋮ 主菜单从居中 AlertDialog 改为 PopupMenu，锚定右上角 ⋮ 按钮向下弹出（API23+ 显式右对齐），与 MT 溢出菜单一致
 
-## v1.7.0：APK 功能菜单（MT 对标）+ smali 回编译闭环
+## v1.7.0：APK 功能菜单+ smali 回编译闭环
 
-- **长按 APK / APK 弹窗「功能」→ APK 专属菜单**（双列宫格，对标 MT）：
-  - 反编译 dex→smali：APK 内全部 `classes*.dex` 自动提取并逐个 baksmali → `/sdcard/MTCloneSmali/<apk名>/<dex名>/`，完成后跳转浏览
+- **长按 APK / APK 弹窗「功能」→ APK 专属菜单**（双列宫格）：
+  - 反编译 dex→smali：APK 内全部 `classes*.dex` 自动提取并逐个 baksmali → `/sdcard/HexFileSmali/<apk名>/<dex名>/`，完成后跳转浏览
   - 提取 dex：全部 dex 提取到对面面板 `<apk名>_dex/`
   - 提取图标：当前分辨率位图存为 `<apk名>_icon.png` 到对面面板
   - 签名信息：直进签名详情页（V1/V2/V3、证书、MD5/序列号等）
   - 复制到对面 / 重命名 / 属性
 - **smali → dex 回编译**（与 baksmali 组成完整闭环）：长按含 `.smali` 的目录 → 「编译为 dex」→ 同级生成 `<目录名>.dex`；失败时弹窗提示排查语法错误
 - 引擎：`org.smali:smali:2.5.2` + antlr-runtime 3.5.2（新增 ~0.5MB）
-- 桌面验证：MT2.26.10.apk 枚举 5 个 dex 正确；自身 dex 反编译 3872 个 .smali → 回编译 13.4s 生成 3.7MB dex（与原 3.65MB 吻合）
+- 桌面验证：自身 dex 反编译 3872 个 .smali → 回编译 13.4s 生成 3.7MB dex（与原 3.65MB 吻合）
 
 ## v1.7.1：修复压缩包浏览闪退
 
-- **闪退根因**：v1.6.0 MT 风格改版把 `item_file.xml` 的图标位从 ImageView 改为 TextView 类型角标，`FileAdapter` 已适配但 `ZipAdapter` 漏改 → 进 APK 压缩包即 `ClassCastException` 闪退
+- **闪退根因**：v1.6.0 改版把 `item_file.xml` 的图标位从 ImageView 改为 TextView 类型角标，`FileAdapter` 已适配但 `ZipAdapter` 漏改 → 进 APK 压缩包即 `ClassCastException` 闪退
 - 修复：ZipAdapter 与 FileAdapter 同款渲染（TextView 角标 + GradientDrawable 按扩展名着色）；`FileItem.typeLabel/typeColor` 抽成静态方法供 zip 条目复用
 - 真机全链路回归：APK 弹窗 → 查看 → 压缩包浏览（类型角标正常）→ 长按 classes.dex → 反编译 → 3882 个 .smali 输出并自动跳转，全程 0 FATAL
 
-## v1.8.0：Dex 编辑器++（对标 MT 同名功能，实测原版交互后复刻）
+## v1.8.0：Dex 编辑器++
 
-adb 实测 MT canary 的 Dex 编辑器++ 全流程（MultiDex 多选对话框 → 浏览/搜索 Tab → 类树 → smali 编辑器）后复刻：
+adb 实测 Dex 编辑器++ 全流程（MultiDex 多选对话框 → 浏览/搜索 Tab → 类树 → smali 编辑器）后复刻：
 
 - **MultiDex 多选**：长按 dex / APK 功能菜单 →「Dex 编辑器++」→ 弹出 APK 内全部 dex 复选框（全选/取消/确定，MT 同款三键），支持单 dex 与多 dex
 - **临时工程**：选择的 dex 自动提取 + baksmali 到缓存工程；`project.ini` 记录选择，**重复打开秒开**（复用已反编译结果）
-- **类树浏览**：MT 式树形列表（▸/▾ 展开/收起包、蓝色 ● 标记类、按层级缩进、大小写不敏感排序）；顶部实时**搜索类名**（匹配全路径高亮计数）
+- **类树浏览**：树形列表（▸/▾ 展开/收起包、蓝色 ● 标记类、按层级缩进、大小写不敏感排序）；顶部实时**搜索类名**（匹配全路径高亮计数）
 - **编辑 smali**：点类 → 自带文本编辑器打开对应 .smali（改动保存后工程内即时生效）
 - **⚙ 编译**：整个工程（含多 dex 合并）smali → 单个 `classes.dex`，输出到 APK 同目录 `<apk名>_dexpp/`；失败弹窗提示检查最近改过的类
 - 引擎复用 v1.7 的 baksmali/smali 2.5.2（新增 `SmaliTool.assembleMulti` 多目录合并编译）
@@ -173,7 +171,7 @@ adb 实测 MT canary 的 Dex 编辑器++ 全流程（MultiDex 多选对话框 �
 
 用户指令："逆向代码和资源文件都可以参考 skylot/jadx，没必要重复造轮子，只需要加个修改即可。"——解析整体换成 jadx 的成熟代码，写回（修改）能力自研：
 
-- **解析层**（fork 自 jadx，Apache-2.0，见 `src/jadx/NOTICE.md`）：`ResTableBinaryParser` 流式二进制解析（全局字符串池 → package chunk → typeStrings/keyStrings → type spec/type/library/overlay/staged-alias chunks）。MTClone 改动：去掉 RootNode/反混淆集成（恒用原始资源名）、去掉 decodeFiles/XML 生成、**新增原始 span 记录用于字节级写回**、Java 8 兼容（jadx 原版 Java 10+）
+- **解析层**（fork 自 jadx，Apache-2.0，见 `src/jadx/NOTICE.md`）：`ResTableBinaryParser` 流式二进制解析（全局字符串池 → package chunk → typeStrings/keyStrings → type spec/type/library/overlay/staged-alias chunks）。去掉 RootNode/反混淆集成（恒用原始资源名）、去掉 decodeFiles/XML 生成、**新增原始 span 记录用于字节级写回**、Java 8 兼容（jadx 原版 Java 10+）
 - **写回层**（自研，`ArscWriter.java`）：字符串值/条目名都在字符串池中 → 编辑不改变条目大小 → 新串**追加**进池 + 条目内 **4 字节补丁**（compact 条目 key 为 2 字节）；池变大触发全量重布局，其余 chunk 逐字节复制。`Edit{VALUE_STRING, VALUE_RAW, NAME, MAP_STRING}` 四类编辑
 - **容错**：混淆/手改 arsc 的垃圾字符串索引（np.arsc 38.8 万串中 35.1 万索引无效）→ 指向共享空串槽；`BinaryXMLStrings.get()` 负索引/`id*4` 整数溢出双重防护（除法比较根治）
 - **保存链路**：`ArscWriter.write → ApkRepack.repack → ApkSignerTool.sign(..., minSdk=21)`。重打包保持条目原压缩方式（原本 STORED 的条目含直载 .so 补零对齐 4096；原本 DEFLATED 的 .so 保持 DEFLATED——曾因强制 .so STORED 导致体积翻倍）
@@ -183,7 +181,7 @@ adb 实测 MT canary 的 Dex 编辑器++ 全流程（MultiDex 多选对话框 �
 ## v1.9.2：v1 签名展示修复（apksig 跳过语义）
 
 - **根因**：apksig 的 `ApkVerifier` 仅在「minSdk<24 或无 v2/v3 签名」时才真正校验 v1——API 24+ 平台根本不看 JAR 签名，故跳过校验并报 `isVerifiedUsingV1Scheme()=false`。minSdk≥24 且带 v2/v3 的包（如重打包产物）会被显示成"无 v1"，但其 `META-INF/*.SF + *.RSA` 签名文件实际存在且有效。这不是签名损坏（`verified=true`、v2/v3=true、jarsigner 亦通过）
-- **修复**：`ApkSignCheck` 增加 `hasJarSignatureFiles()` 按签名文件存在性判断 v1；`schemes()` 方案串改为存在性口径（对齐 MT 的 "V1+V2+V3" 展示）；详情页 v1 行三态：✅ 已校验 / ✅ 有签名(平台跳过校验) / — 无
+- **修复**：`ApkSignCheck` 增加 `hasJarSignatureFiles()` 按签名文件存在性判断 v1；`schemes()` 方案串改为存在性口径;详情页 v1 行三态：✅ 已校验 / ✅ 有签名(平台跳过校验) / — 无
 - **桌面测试**：`test/SignCheckTest` 3/3（minSdk=24 重打包产物 → V1+V2+V3；minSdk=21 自身 → V1+V2+V3 且已校验；未签名包 → 未签名）
 - **经验**：apksig 源码级结论来自 javap 反编译 `V1SchemeVerifier`（`if (minSdkVersion < 24 || foundApkSigSchemeIds.isEmpty())` 才跑 v1 校验）；另发现 Git Bash 下 `java -cp` 目录在前、jar 在后时无法加载类名带 `$` 的类——桌面测试把 jar 放前面即可（不影响 Android 构建，d8 直读 jar 无此问题）
 
@@ -205,7 +203,7 @@ Dex 编辑器++ 编译链的最后一公里——编译出的 classes.dex 不再
 - **AxmlFile**（自研 span 解析器）：AXML token 流遍历（字符串池 0x0001 → 资源映射 0x0180 → namespace/element tokens），记录每个属性的 name/rawValue/typed-data 绝对偏移；END_ELEMENT 配对求嵌套深度与路径
 - **AxmlWriter**（写回，与 ArscWriter 同策略）：字符串值 → 池去重追加 + rawValue/data 双补丁；int/hex/bool/ref/float → typed data 4 字节原位补丁；池增长只需修文件头 size（token 内引用全是索引，无位置偏移）
 - **踩坑**：① BinaryXMLStrings 的 buffer 须从偏移数组起始（chunk+28）切片、stringsStart 传 stringsStartField−28；② UTF-16 池串只有**一个** u16 长度字段（UTF-8 池才是双长度）——照抄 ARSC 的双长度会多出一个隐形控制符
-- **ManifestEditorActivity**：MT 风格元素分组 + 属性列表，点击编辑（类型校验 + 还原按钮），👀 只读 pretty XML 预览，💾 保存 = AxmlWriter → 回读校验 → repack → v1+v2+v3 重签名（`<apk>_mfpp.apk`）
+- **ManifestEditorActivity**：分组 + 属性列表，点击编辑（类型校验 + 还原按钮），👀 只读 pretty XML 预览，💾 保存 = AxmlWriter → 回读校验 → repack → v1+v2+v3 重签名（`<apk>_mfpp.apk`）
 - **独立验证**：aapt2 dump xmltree 正确解析写入的 versionCode=66（Google 官方解析器交叉确认）
 - **测试**：`test/AxmlTest` 14/14（round-trip 字节一致 / int·bool·string 编辑回读 / 池重建后其余属性零扰动）
 
@@ -321,7 +319,7 @@ Dex 编辑器++ 编译链的最后一公里——编译出的 classes.dex 不再
 - canWrite(.7z)=true，UI 所有写入入口（复制/移动到压缩包、删除、批量）自动点亮。桌面回归 35/35。
 
 ### RAR 写入：物理上不可行，提供「转存为 ZIP」
-- RAR 压缩算法专有（rarlab 闭源），全球没有任何免费/付费通用库支持写入——包括 7-Zip native 引擎；MT 管理器同样只读。这不是实现偷懒，是格式授权限制。
+- RAR 压缩算法专有（rarlab 闭源），全球没有任何免费/付费通用库支持写入——包括 7-Zip native 引擎。这不是实现偷懒，是格式授权限制。
 - 尝试写 RAR 时弹窗说明，并可**一键转存为同名 ZIP**（解压到缓存→ZipUtil.createZip，RAR 原件保留），转存后即可增删改。
 
 ### 密码输入 UI（加密压缩包）
@@ -424,14 +422,14 @@ Dex 编辑器++ 编译链的最后一公里——编译出的 classes.dex 不再
 
 ## v1.19.0（versionCode 43）：书签 + 回收站 + 最近打开
 
-路线图收尾三件辅助功能（对标 MT 管理器侧栏能力）。
+路线图收尾三件辅助功能。
 
 ### 书签（BookmarkStore）
 - SharedPreferences 存路径集合；顶部路径栏点击 / ⋮ 菜单「书签」弹出列表。
 - 「+ 添加当前目录」收录当前窗格路径；点书签跳转；「删除书签」子对话框点击移除。
 
 ### 回收站（Trash / TrashActivity）
-- 删除 = 移入 `/sdcard/.MTCloneTrash/store/<id>`，`meta/<id>.txt` 记录 name/origPath/time/isDir 四行元数据；跨分区 rename 失败自动降级为复制+删除（目录递归）。
+- 删除 = 移入 `/sdcard/.HexFileTrash/store/<id>`，`meta/<id>.txt` 记录 name/origPath/time/isDir 四行元数据；跨分区 rename 失败自动降级为复制+删除（目录递归）。
 - 恢复回原路径，同名冲突自动追加 (1)/(2)…；支持彻底删除、清空回收站（双重确认）。
 - 接入点：长按菜单「移入回收站」、批量删除、目录递归删除兜底（`deleteRecursiveOrTrash`：直接删得掉就删，删不掉的部分进回收站）。
 - ⋮ 菜单「回收站」进入管理页：列表显示名称/删除时间/类型/原路径。
@@ -477,7 +475,7 @@ Dex 编辑器++ 编译链的最后一公里——编译出的 classes.dex 不再
 - 底部新增「跳转」按钮：输入 1-based 行号定位并把该行滚到视图顶部附近。
 - 用户反馈跳转行号与文本不对应、行号与文本不齐整 → 修复（仍属 v1.25.0 增量）：原行号按"视觉换行后的行"逐行编号（逻辑行被折行就错号/错位）。改为**按逻辑行（'\n' 计数）编号，仅在该逻辑行的首个视觉行画序号，折行续行留空**，与"跳转"共用同一套逻辑行编号；逻辑计数对全文执行（不先行裁剪视口），仅绘制层裁剪，避免长文件滚动后错号。LineNumberEditText 重写 onDraw。test/LineNumTest 7/7 验证（含折行/空行/跳转偏移一致）。
 
-## v1.26.0（versionCode 52）：文本编辑器对标 MT（多语言高亮 + 行操作 + 主菜单 + 补全 + Markdown）
+## v1.26.0（versionCode 52）：文本编辑器（多语言高亮 + 行操作 + 主菜单 + 补全 + Markdown）
 - **多语言语法高亮**：用通用正则规则引擎重写 SyntaxHighlight，支持 smali/xml/html/json/java/python/shell/properties/c/cpp/js/markdown；专属 SyntaxSpan 标记便于重高亮精准清除；"语法"菜单可手动切换，后缀自动识别。
 - **编辑操作菜单（✎）**：复制行/剪切行/删除行/清空行/替换行/重复行/转大写/转小写/增加缩进/减小缩进/自定义（行首·行尾插入、删除空行、按行排序、删除重复行）。
 - **主菜单（≡ 或 ⋮）**：文件(重新打开/另存为副本/分享)、搜索、语法、上个位置/下个位置（位置历史栈）、转到指定行、自动换行、只读模式、流畅模式、代码补全、设置(字号)、预览 Markdown、关闭文件。
@@ -496,7 +494,7 @@ Dex 编辑器++ 编译链的最后一公里——编译出的 classes.dex 不再
 - 修复：统一为「`'\n'`/`'\r'` 均计、CRLF 计 1 次」语义（`isBreakChar`/`countBreaks`/`splitLines`/`offsetOfLogicalLine`），行号改缓存式映射（文本变化才重算），跳转、行操作（缩进/插入/排序/去重/删空行）全部改走统一切分。test/LineNumTest2 65/65 验证（覆盖 LF/CR/CRLF 混合 + 折行 + 跳转一致性）。
 
 ## v1.28.0（versionCode 54）：集成 Markor 开源编辑器核心（架构重构）
-用户指定采用 github.com/gsantner/markor（Apache 2.0）的编辑器核心。不是替换整个 App，而是移植其编辑器引擎，保留 MTClone 文件管理/APK 能力：
+用户指定采用 github.com/gsantner/markor（Apache 2.0）的编辑器核心。不是替换整个 App，而是移植其编辑器引擎，保留文件管理/APK 能力：
 - **LineNumbersView**（独立 View）：与编辑器平级放入外层滚动容器（ScrollView + 水平 LinearLayout），EditText 自身不滚动（scrollY 恒 0）——从架构上根除 scrollY/padding 偏移类行号 bug。
 - **SyntaxHighlighterBase**：Markor 视口内动态 span + 后台线程计算 + 防抖机制，剥离 AppSettings/opoc 依赖。
 - **MarkdownSyntaxHighlighter / PlaintextSyntaxHighlighter**：Markdown 高亮（去 writeily HeaderSpan 依赖，标题用颜色+放大方案）；cpp/java/python 规则内置为 Java 常量（不读 assets JSON）。
@@ -512,7 +510,7 @@ Dex 编辑器++ 编译链的最后一公里——编译出的 classes.dex 不再
 - 修复：`makeDebounced` 内部改为惰性解析——run() 时 `handler != null ? handler : new Handler(Looper.getMainLooper())`，任何时机传入 null 都安全。
 
 ## v1.29.0（versionCode 56）：文本格式化（JSON / XML / 代码）
-- **FormatUtil 引擎**（src/bin/mtclone/FormatUtil.java，纯函数、桌面可验证）：
+- **FormatUtil 引擎**（src/com/hex91/file/FormatUtil.java，纯函数、桌面可验证）：
   - **JSON 美化/压缩**：自写 parser（不用 org.json），**保留原始数字字面量**（`1.0`/`1e10`/长整数不被转 double 丢精度），字符串按原 token 输出（转义形式不变）；宽容尾随逗号；未闭合/缺冒号/尾随内容/残缺字面量等明确报错不崩溃。
   - **XML/HTML 美化**：扫描式标签流缩进，**内容零改动**（属性、文本、注释、CDATA、DOCTYPE 原样保留）；单一短文本+紧接结束标签同行输出（`<string name="x">值</string>` 不拆行）；HTML 行内标签（a/b/i 等）不引入缩进层级，void 元素不缩进。
   - **代码美化（{} 语言：java/kt/c/cpp/js/ts/cs/go/rs/swift/smali）**：扫描式状态机（字符串/字符/行注释/块注释全保护，其中的 `;{}` 绝不参与规则）+ 花括号缩进 + `{` 前空格 + 分号/逗号换行（`for(;;)` 按括号深度特判不换行）+ `} else {`/`} catch {`/`} while(...)` 续排 + case/default 标签冒号换行 + 连续空行折叠 + 规则换行后吃掉源换行（pendingNL）无多余空行。
@@ -521,7 +519,7 @@ Dex 编辑器++ 编译链的最后一公里——编译出的 classes.dex 不再
 - 桌面验证 test/FormatTest **43/43**：JSON 嵌套/空容器/压缩/字面量保留/转义原样/尾随逗号/8 类异常；XML 嵌套/trim/注释/CDATA/声明/HTML 行内/内容零损；Java 基础缩进/字符串保护/注释保护/for 分号/else 续排/case/空行折叠/内容零损；detect 后缀+内容 10 例。
 
 
-## MTClone v1.30.0（versionCode 57）：批量重命名
+## v1.30.0（versionCode 57）：批量重命名
 - 需求来源：未开发功能清单 #13（用户点名），「你开发我测试」模式优先选测试链路最短项。
 - 新增独立 `BatchRenameActivity` + 纯逻辑 `BatchRenameCore`（无 Android 依赖，便于桌面测试）。
 - 三种规则：① 编号命名（前缀+起始+步长+位数零填+后缀，默认保留原扩展名）② 查找替换（字面/正则、区分大小写、可仅作用于主名保留扩展名）③ 扩展名替换（改写/去掉/新增，可选仅作用于已有扩展名的文件）。
@@ -529,19 +527,19 @@ Dex 编辑器++ 编译链的最后一公里——编译出的 classes.dex 不再
 - 两阶段重命名：先全部移到唯一临时名再落到目标名，根治 a→b、b→c 顺序覆盖导致的丢名；阶段一失败自动回滚。
 - 入口：多选栏新增「重命名」按钮（仅支持普通文件，压缩包内条目暂不支持，已 toast 引导）。
 - 桌面验证 test/BatchRenameTest **31/31**：splitName 边界（多扩展名/点文件）、编号命名（步长/零填/去扩展名）、查找替换（字面/全替/大小写/正则分组/空查找）、扩展名改写/去/加、冲突检测（重名/已存在/空名）、computeAll。
-- 构建：MTClone-1.30.0.apk，已 adb install -r --no-incremental 到 1C041FDF6006QG，用户手动测试。
+- 构建
 
-## MTClone v1.31.0（versionCode 58）：HEX 编辑器增强（类型搜索 + 编辑写回）
+## Clone v1.31.0（versionCode 58）：HEX 编辑器增强（类型搜索 + 编辑写回）
 - 需求来源：未开发功能清单 D 组 HEX 编辑器增强（类型搜索 + 编辑写回）。
 - 新增纯逻辑核心 `HexCore`（无 Android 依赖，便于桌面测试）：`Type` 枚举（HEX/TEXT/Int8~UInt64/Float32/64）、`patternFor` 类型编码（含大小端）、`hexToBytes`、`findAll`（KMP）、`patch`（边界保护）。
 - 类型搜索：对话框支持 12 种类型 + 大小端（LE/BE）切换；KMP 子序列搜索，匹配以 Spannable 高亮（当前匹配黄、其余绿），「下一项/上一项」导航并显示「匹配 x/N」。
 - 编辑写回：对话框按「偏移 + 类型 + 值」写入；`RandomAccessFile` 直接写盘 + 内存同步，`adapter.notifyDataSetChanged()` 实时刷新；写入后清空搜索状态。越界/无权限给出明确 toast；仅支持已加载的前 4MB。
 - 交互：点行=选中（蓝底）+复制+记录偏移；长按行=「编辑本行」（预填该行 16 字节 HEX 值）。布局 activity_hex 增加「搜索/编辑」按钮；新增 dialog_hex_search.xml / dialog_hex_edit.xml。
 - 桌面验证 test/HexCoreTest **27/27**：hexToBytes 边界、Int32/16/8 大小端、Float32/64 编码、UInt64 边界、TEXT、findAll 计数/重叠、数值搜索、patch 越界保护、bytesToHex。
-- 构建：MTClone-1.31.0.apk（4.7M），已 adb install -r --no-incremental 到 1C041FDF6006QG，用户手动测试。
+- 构建
 
-## MTClone v1.32.0（versionCode 59）：HEX 编辑器增强（借鉴 bined 思想）
-- 背景：用户提议集成 github.com/exbin/bined-android。评估结论——该库无 Android AAR（核心以源码 vendored 进 app/libsrc）、强依赖 JNA 原生库 + androidx、且 pre-1.0（0.2.x SNAPSHOT）Android 移植不成熟；集成成本高风险大，收益多超出 MT 复刻范围。决策：**保留自写 HexCore，借鉴其精华做增量增强**。
+## v1.32.0（versionCode 59）：HEX 编辑器增强（借鉴 bined 思想）
+- 背景：用户提议集成 github.com/exbin/bined-android。评估结论——该库无 Android AAR（核心以源码 vendored 进 app/libsrc）、强依赖 JNA 原生库 + androidx、且 pre-1.0（0.2.x SNAPSHOT）Android 移植不成熟；集成成本高风险大，收益多。决策：**保留自写 HexCore，借鉴其精华做增量增强**。
 - 新增增强（纯逻辑仍在 HexCore，桌面可测）：
   - 进制视图切换 HEX/BIN/OCT/DEC（`formatCode`/`codeWidth`/`byteStart`），长按需切换文本预览字符集（ASCII/UTF-8/UTF-16LE/ISO-8859-1/Shift_JIS）。
   - 撤销/重做：`EditAction` 栈（`spliceInsert`/`removeRange`/`undoData`/`redoData`），覆盖与插入两种模式均可回退。
@@ -549,11 +547,11 @@ Dex 编辑器++ 编译链的最后一公里——编译出的 classes.dex 不再
   - 插入/覆盖模式：覆盖=RandomAccessFile 就地写；插入=读尾部后移 + 写盘 + 内存 splice。
 - Activity 改造：新增第二排按钮（进制/撤销/重做/插入-覆盖），`activity_hex.xml` 加 row3；`getView` 高亮与选区着色；`decodeRow` 字符集解码。
 - 桌面验证 test/HexCoreTest 扩至 **41/41**（含 formatCode 四进制、splice/remove、EditAction 覆盖/插入的 undo/redo 往返、copyRange 交换边界）。
-- 构建：MTClone-1.32.0.apk（4.7M），已 adb install -r --no-incremental 到 1C041FDF6006QG，待用户手动测试。
+- 构建
 
-## MTClone v1.33.0（versionCode 60）：文件加密 + 加密 ZIP（对标 MT「加密」/「密码压缩」）
+## v1.33.0（versionCode 60）：文件加密 + 加密 ZIP
 
-### 文件加密 / 解密（自家私有格式 .enc，对标 MT「加密」功能，A 组缺口）
+### 文件加密 / 解密（自家私有格式 .enc，A 组缺口）
 - 新增 `FileCrypt.java`（纯 `javax.crypto`，零第三方依赖）：
   - 格式：`MTENC1` 魔数 + version(1) + iterations(4B 大端, 100000) + saltLen(1) + salt(16) + iv(16) + AES-256-CBC(PKCS5)密文 + HMAC-SHA256(32)。
   - 密钥派生：PBKDF2-HMAC-SHA256(password, salt, 100000, 64B) = encKey(32) ‖ authKey(32)；Encrypt-then-MAC（先加密后算 MAC，解密先验 MAC 再解密，防篡改/防密码探测）。
@@ -571,13 +569,13 @@ Dex 编辑器++ 编译链的最后一公里——编译出的 classes.dex 不再
 - 桌面单测 `test/FileCryptTest` **7/7**：生成 .enc / 解密去扩展名 / 密码错误拒绝 / 1MB 大文件 / 空文件 / 非加密文件拒绝。
 - 桌面单测 `test/ZipCryptTest` **9/9**：PBKDF2 RFC6070 向量(c=1/2/4096)、三文件（英文名）round-trip、错误密码拒绝；内置独立解密器比对。
 - **Python 独立交叉验证** `test/verify_aes_zip.py`（`hmac.new(auth_key, pv+ct, sha1)` + openssl aes-256-ctr + zlib）：`VERIFY: ALL PASS`——确认加密 ZIP 符合 WinZip AES 标准，可被标准工具解。
-- 构建：MTClone-1.33.0.apk（4.7M），已 adb install -r --no-incremental 到 1C041FDF6006QG；启动无崩溃（logcat 无 AndroidRuntime FATAL）。
+- 构建：
 
 ### 踩坑记录
 - **AES extra 字段少 1 字节导致全局错位**：初版 `writeAesExtra` 把 vendor version 写成 1 字节（`bo.write(AES_VENDOR_VERSION)`），但 `putEntry` 声明 `extraLen=11`，data 整体错位 1 字节 → 解密端 salt/pv 全错（auth fail）。修复为 `writeShortLE(bo, AES_VENDOR_VERSION)`（2 字节）后 java 与 python 均通过。
 - **交叉验证纪律**：无 7z/pyzipper 环境，但 openssl + python3(stdlib) 可用 → 建立「java 自实现 + python/openssl 独立交叉验证」双保险；诊断时用 `System.err` 实时打印 + `/tmp/zt.txt` 完整捕获 + python 解析 zip 字节 hex 定位偏移。
 
-## MTClone v1.33.1（versionCode 61）：修复「加密 ZIP 标准工具打不开」——改用开源 Zip4j
+## v1.33.1（versionCode 61）：修复「加密 ZIP 标准工具打不开」——改用开源 Zip4j
 
 用户真机反馈（v1.33.0）：AES 加密 ZIP 在手机和电脑（标准解压工具）都提示"无法解压/未知方式"。自查确认 **v1.33.0 自写 AE-2 实现确有格式 bug**，且原有的"python 交叉验证"是自实现回路、并未真正用第三方工具验证兼容性——属于验证缺失，不是标准工具的问题。
 
@@ -600,7 +598,7 @@ Dex 编辑器++ 编译链的最后一公里——编译出的 classes.dex 不再
   - ZipCrypto 包 → **标准库 zipfile（即 Windows 资源管理器/系统解压）成功解压**，内容一致；
   - 负向：标准库 zipfile 无法打开 AES 包 → 证明确为 AES 而非传统加密。
 - **系统工具实测**：`unzip`（Info-ZIP）直接解压 ZipCrypto 包，3 文件大小正确、提取无错。
-- 构建：MTClone-1.33.1.apk（4.8M），已 `adb install -r --no-incremental` 到 1C041FDF6006QG；启动无 `AndroidRuntime` FATAL。
+- 构建
 - 环境：为离线装 pyzipper，额外拉取 `pycryptodomex-3.24.1-cp37-abi3-win_amd64.whl` 安装（abi3 兼容本机 Python 3.13）。
 
 ### 教训
@@ -621,14 +619,14 @@ Dex 编辑器++ 编译链的最后一公里——编译出的 classes.dex 不再
 ### 修复
 - 新增 `ArchiveUtil.J4Archive`（Zip4j 后端）覆盖 **ZIP 族（.zip/.apk/.jar/.aar）** 的浏览+提取，原生支持 普通ZIP / 传统 ZipCrypto / WinZip AES(AE-2)，不再走 7-Zip-JBinding。
 - `ArchiveUtil.open()` 路由重写：ZIP 族一律 `J4Archive`；7z/RAR 仍走 7-Zip-JBinding（它们 AES 支持良好）。
-- 加密 ZIP 无密码打开时直接抛 `NeedsPasswordException` → UI 弹"输入密码"框；输对密码后可正常列出+解压；错密码提取失败标记 `NEED_PASSWORD` → 重新弹框（与 MT 一致）。
+- 加密 ZIP 无密码打开时直接抛 `NeedsPasswordException` → UI 弹"输入密码"框；输对密码后可正常列出+解压；错密码提取失败标记 `NEED_PASSWORD` → 重新弹框
 - APK（本质 ZIP、未加密）同样走 `J4Archive`，浏览/提取照常。
 
 ### 验证
 - 桌面单测 `test/J4ReadTest` **19/19 PASS**（命名无关、逐级浏览递归校验）：
   - 普通 ZIP / 伪装 .apk / AES-256 ZIP / ZipCrypto ZIP 四种归档，列出全部条目 + 提取内容/大小全部正确；
   - AES 与 ZipCrypto 无密码打开抛 `NeedsPassword`；有密码正常；错密码提取标记 `NEED_PASSWORD`。
-- 构建：MTClone-1.33.2.apk（4.8M），`adb install` 到 1C041FDF6006QG；启动无 `AndroidRuntime` FATAL。
+- 构建
 
 ### 遗留小问题（非本次范围，已记录）
 - **写入器命名不一致**：压缩"目录"时，普通 ZIP（`ZipUtil.createZip`）会把目录名作为前缀（`_dir/a.txt`），而 AES/ZipCrypto（`ZipUtil.createZipEncrypted*`）不带前缀。压缩"单文件"两种一致。后续若统一，建议让加密写入器也带目录前缀以对齐。
@@ -674,13 +672,13 @@ Dex 编辑器++ 编译链的最后一公里——编译出的 classes.dex 不再
 - 若只想解压单个文件/选中若干，仍用既有的「提取到当前/对面窗格」与多选批量提取。
 
 ### 验证
-- 构建产出 `out/MTClone-1.33.4.apk`（4.8M），安装到真机 `1C041FDF6006QG` -> `Success`。
+- 构建产出
 - 版本：versionCode 64 / versionName 1.33.4（AndroidManifest.xml + build.sh 两处同步）。
 
 ## v1.34.0 —— APK「去除签名校验」（SigKill）
 
 ### 需求
-对标 MT Manager 招牌功能：对目标 APK 做 smali 层启发式定位并 patch 签名校验点，生成可与原校验逻辑共存安装的 `_nosig.apk`。
+对目标 APK 做 smali 层启发式定位并 patch 签名校验点，生成可与原校验逻辑共存安装的 `_nosig.apk`。
 
 ### 实现（新增 SigKill.java，纯 Java 无 Android 依赖）
 patch 策略（不让校验变严，只让结果恒过）：
@@ -700,15 +698,14 @@ patch 策略（不让校验变严，只让结果恒过）：
 ### 验证
 - 桌面合成测试 19/19（checkSignatures×2 含 .line 间隔、调用点强 true、方法体重写、负例：其它类 equals/hashCode 与接口 abstract 均不动）
 - 真实 APK 集成：反编译+patch+回编译 无错误（回编译 round-trip 验证）
-- `out/MTClone-1.34.0.apk`（4.8M，versionCode 65）安装真机 `1C041FDF6006QG` → Success
 
-## v1.35.0 —— 文件分割/合并（对标 MT）
+## v1.35.0 —— 文件分割/合并
 
 ### 需求
 路线图 A 组 P0：按分卷大小把大文件切多块 + 合并还原，纯本地、测试链路最短。
 
 ### 实现（新增 FileSplit.java，纯 Java 无 Android 依赖）
-- **分割** `split(in, outDir, chunkSize)`：输出 `<名>.001 / .002 / …`（MT 同名约定，序号 3 位起步超 999 进位），到源文件所在目录，源文件保留；同时生成 `<名>.parts` 清单（MTCLONE_SPLIT v1：总卷数 + 原始大小），供合并时**精确缺卷校验**。
+- **分割** `split(in, outDir, chunkSize)`：输出 `<名>.001 / .002 / …`（序号 3 位起步超 999 进位），到源文件所在目录，源文件保留；同时生成 `<名>.parts` 清单，供合并时**精确缺卷校验**。
 - **合并** `merge(anyPart, outDir)`：从任一分卷定位 .001 起点、按连续序号收集拼接，还原为原文件名；目标重名改 `<名>.merged` 不覆盖。
 - **缺卷检测**：有清单→精确校验卷数与合并后总字节；无清单（外部工具分割）→启发式（单卷可疑 + 非末卷必须等大小）。尾卷缺失这种启发式发现不了的场景由清单兜底。
 - 文件 ≤ 分卷大小 → 报错不分割。
@@ -718,7 +715,7 @@ patch 策略（不让校验变严，只让结果恒过）：
 
 ### 验证
 - 桌面 SplitTest **23/23**：随机数据 round-trip 字节级一致（非整除/整除）、中间卷缺失报错、起始卷缺失报错、尾卷缺失（清单检测）报错、单卷可疑报错、合并重名 .merged 不覆盖、isSplitPart 识别。
-- `out/MTClone-1.35.0.apk`（4.8M，versionCode 66）安装真机 `1C041FDF6006QG` → Success。
+- 
 
 ## v1.35.1 —— 修复分割对话框不显示分卷大小选项
 
@@ -743,7 +740,7 @@ patch 策略（不让校验变严，只让结果恒过）：
 - 加载链实证（javap 反编译 util.Native）：`ZstdNativePath` 属性 → jar 资源解压（Android 上 classes.jar 无 linux 资源，走不到）→ `System.loadLibrary("zstd-jni-1.5.5-11")` → 命中 APK lib/ 内 AAR 的 so。桌面测试则由主 jar（现 test/zstd-jni-desktop.jar）的 win natives 资源解压，双路都通。
 
 ### 实现（新增 ZstdUtil.java，纯 Java 无 Android 依赖）
-- 压缩：单文件 → `<名>.zst`（ZstdOutputStream frame）；目录 → `<名>.tar.zst`（commons-compress TAR 流过 ZstdOutputStream，LONGFILE/BIGNUMBER POSIX，中文名 OK）；默认级别 3（MT 同默认）
+- 压缩：单文件 → `<名>.zst`（ZstdOutputStream frame）；目录 → `<名>.tar.zst`（commons-compress TAR 流过 ZstdOutputStream，LONGFILE/BIGNUMBER POSIX，中文名 OK）；默认级别 3
 - 解压：`.zst/.tar.zst/.tzst`；流式读解帧头 512 字节探测 ustar 魔数——是 tar 则解包（防路径穿越），否则单文件还原，全程单流不落临时文件
 - magic 识别（28 B5 2F FD）；重名输出自动 ` (1)` 递增不覆盖
 
@@ -768,12 +765,12 @@ patch 策略（不让校验变严，只让结果恒过）：
 ### 验证
 - 桌面 ArchZstTest **17/17**（用真样本）：tar.zst 根/中文子目录/深层 50 文件浏览、单条目提取落盘、目录提取、解压全部 401 文件+空目录；裸 zst 单条目、按名提取 300MB 还原
 - 样本重推：sample_dir.tar.zst 顶层目录名修正为 sample_dir
-- `out/MTClone-1.36.1.apk`（5.4M，versionCode 69）安装真机 Success
+
 
 ## v1.37.0 —— 目录对比差异条目可操作（对比模式补全）
 
 ### 需求
-v1.17.x 已有三种对比模式的"看"（目录/文本/哈希/APK），但目录对比结果只读。对标 MT：差异条目点进去能直接操作（同步到另一侧/删除/再对比），形成"对比→处理→刷新"闭环。
+v1.17.x 已有三种对比模式的"看"（目录/文本/哈希/APK），但目录对比结果只读：差异条目点进去能直接操作（同步到另一侧/删除/再对比），形成"对比→处理→刷新"闭环。
 
 ### 实现
 - **差异条目点击 → 按状态弹操作菜单**（CompareActivity，仅目录模式）：
@@ -788,7 +785,7 @@ v1.17.x 已有三种对比模式的"看"（目录/文本/哈希/APK），但目�
 
 ### 验证
 - 桌面 CmpOpsTest **12/12**：深层父目录自动创建字节级一致、长→短覆盖写无残留尾巴、目录合并复制（同名覆盖/额外保留/子目录递归/源不改动）、源不存在返回 false
-- `out/MTClone-1.37.0.apk`（5.4M，versionCode 70）安装真机 Success，启动无 FATAL
+
 
 ## v1.38.0 —— strings 提取（二进制可读字符串）
 
@@ -809,12 +806,12 @@ v1.17.x 已有三种对比模式的"看"（目录/文本/哈希/APK），但目�
 
 ### 验证
 - 桌面 StringExtractTest **13/13**：ASCII/UTF-16 命中与偏移、短串剔除、双 \0 断串不粘连、ASCII 与 UTF-16 各自跨 64KB 边界不漏、minLen 边界收敛（0→2）、空文件/纯二进制安全、scannedBytes 精确
-- `out/MTClone-1.38.0.apk`（5.4M，versionCode 71）装真机 Success，启动 0 FATAL；样本 libzstd-jni-1.5.5-11.so 已推 /sdcard/Download/
+
 
 ## v1.39.0 —— 文件列表缩略图（图片 / APK 图标 / GIF 角标）
 
 ### 需求（用户选定）
-图片预览、APK 文件图标列表预览、GIF 预览。其中 **GIF 动图播放 v1.18.0 已实现**（android.graphics.Movie 逐帧），本轮补齐的是列表层：MT 式缩略图。
+图片预览、APK 文件图标列表预览、GIF 预览。其中 **GIF 动图播放 v1.18.0 已实现**（android.graphics.Movie 逐帧），本轮补齐的是列表层：缩略图。
 
 ### 实现（新增 ThumbLoader.java）
 - **内存 LruCache**（堆 1/8），key = `绝对路径|lastModified`（文件覆盖即失效）；单线程池串行解码，UI 线程回调
@@ -827,7 +824,6 @@ v1.17.x 已有三种对比模式的"看"（目录/文本/哈希/APK），但目�
 
 ### 验证
 - 构建期：aapt2/javac/d8 全链通过（首次编译 FileAdapter 缺 Bitmap import 已修）
-- `out/MTClone-1.39.0.apk`（5.4M，versionCode 72）装真机 Success，启动 0 FATAL
 - 桌面测试不适用（BitmapFactory/PackageManager 为 Android 桩），以真机实测为准：含图片的目录应显示缩略图，APK 显示应用图标，GIF 带角标且点开动图播放
 
 ## v1.40.0 —— 列表顶部「..」返回上级
@@ -846,7 +842,7 @@ v1.17.x 已有三种对比模式的"看"（目录/文本/哈希/APK），但目�
 
 ### 验证
 - 真机驱动实测（uiautomator dump）：启动顶层两窗格 0 个 ".."；进入 Alarms 后左窗格顶部出现 ".."（副行"返回上级"）；点击 ".." 回到 /storage/emulated/0 且 ".." 消失
-- `out/MTClone-1.40.0.apk`（5.4M，versionCode 73）安装 Success，全程 0 FATAL
+
 
 ## v1.41.0 —— 左上汉堡菜单 + 侧边抽屉
 
@@ -863,12 +859,12 @@ v1.17.x 已有三种对比模式的"看"（目录/文本/哈希/APK），但目�
 - 点 ☰ → 抽屉滑出，5 项菜单 + v1.41.0 版本号全部渲染
 - 点回收站 → 进入"回收站（可恢复）/清空"页
 - 点主题设置 → 规划说明弹窗正常
-- MTClone-1.41.0.apk（5.4M，versionCode 74）安装 Success，全程 0 FATAL
+
 
 ## v1.42.0 —— Root 权限 + 抽屉「本地」区（根目录 / 内部存储）
 
-### 需求（用户反馈 + MT 截图对标）
-抽屉加「本地」区：根目录（系统目录 /）与内部存储（sdcard）两个入口，带容量统计；检测 root 权限，已 root 时像 MT 一样可浏览系统目录。
+### 需求
+抽屉加「本地」区：根目录（系统目录 /）与内部存储（sdcard）两个入口，带容量统计；检测 root 权限，已 root 可浏览系统目录。
 
 ### 实现
 - **RootUtil.java（新增，纯 Java）**：
@@ -886,15 +882,15 @@ v1.17.x 已有三种对比模式的"看"（目录/文本/哈希/APK），但目�
 - 真机（已 root）驱动实测：抽屉显示 Root: 已授权 ✓、根目录 987MB/100%、内部存储 42.99GB/110.27GB(38%)；点根目录 → `/` 列出 acct/apex/bin/data/dev/etc/proc…（30 文件夹 5 文件）；进 `/data` → 49 子目录带真实 mtime；点 `..` 返回 `/`；全程 0 FATAL
 - 局限（后续可做）：root 区域内文件**读取/写入/删除**仍是普通 File API，会失败；下一步可做 su cat/写入封装
 
-## v1.43.0 —— 列表权限显示 + MT 式属性弹窗（权限/所有者更改）+ 校验
+## v1.43.0 —— 列表权限显示 + 属性弹窗（权限/所有者更改）+ 校验
 
-### 需求（用户反馈 + MT 截图对标）
-1. 列表详情行显示 "rw-r--r-- 0.4K" 式权限；2. 长按→属性为 MT 式弹窗：名称/目录/类型/大小/修改时间 + 权限·所有者·用户组（可更改）；3. 校验弹窗：MD5/SHA1/SHA256/CRC32 可复制、大小写可转换、粘贴并校验；关闭校验回属性。
+### 需求
+1. 列表详情行显示 "rw-r--r-- 0.4K" 式权限；2. 长按→属性为弹窗：名称/目录/类型/大小/修改时间 + 权限·所有者·用户组（可更改）；3. 校验弹窗：MD5/SHA1/SHA256/CRC32 可复制、大小写可转换、粘贴并校验；关闭校验回属性。
 
 ### 实现
 - **FileAttrs.java（新增）**：属性模型 perm/octal/owner/group。有 root 用 `su stat -c '%A|%a|%U|%G'`；无 root 用 File.can* 近似（反映应用实际权限）。LRU 缓存 512 条（key=path|lastModified，纯 LinkedHashMap 实现，桌面可测）；load() 单线程池异步 + 主线程回调；chmod/chown 走 su，成功自动失效缓存
 - **列表详情行**（FileAdapter.detailWithPerm）：缓存命中 → `权限串 + 原详情`；未命中异步取，回调后整表刷新一次（缓存后不再触发）
-- **属性弹窗**（showProps 重写）：代码构建 MT 式逐行布局，值行长按可复制；权限/所有者/用户组行带「更改」按钮；底部 更多 | 校验 | 关闭（AlertDialog neutral/negative/positive 排序恰好对应）
+- **属性弹窗**（showProps 重写）：代码构建逐行布局，值行长按可复制；权限/所有者/用户组行带「更改」按钮；底部 更多 | 校验 | 关闭（AlertDialog neutral/negative/positive 排序恰好对应）
   - 「更改权限」：rwx 3×3 勾选矩阵 + 八进制实时显示 → su chmod；「更改所有者」：双 EditText → su chown owner:group
   - 「更多」：重命名 / 删除 / 复制路径（复用 askRename/confirmDelete）
 - **校验弹窗**（showHashDialog）：文件名 + MD5/SHA1/SHA256/CRC32（HashUtil.hashAll 后台一次算四算法）+ 每行复制按钮 + 粘贴并校验（equalsIgnoreCase 匹配，绿✓/红✗）+ 大写字母开关（含 CRC32 统一转换）+ 关闭 → 重开属性弹窗
@@ -905,14 +901,14 @@ v1.17.x 已有三种对比模式的"看"（目录/文本/哈希/APK），但目�
 
 ### 验证
 - 桌面 AttrLogicTest 13/13（run/submitOutput 无 su 兜底、statFallback 三段一致、permText 八进制、600₈ 位判定回归）
-- 真机：列表详情行显示 drwxrwx--x / -rw-rw---- 等真实权限（su stat）；属性弹窗与 MT 布局一致（ecapture: 30.4 MB(31859656)、-rw-rw----(660)、u0_a265、media_rw）；校验弹窗四算法填充、大写切换、复制 MD5→粘贴→绿字"✓ 与 MD5 校验值一致"、关闭回属性
+- 真机：列表详情行显示 drwxrwx--x / -rw-rw---- 等真实权限（su stat）；属性弹窗布局（ecapture: 30.4 MB(31859656)、-rw-rw----(660)、u0_a265、media_rw）；校验弹窗四算法填充、大写切换、复制 MD5→粘贴→绿字"✓ 与 MD5 校验值一致"、关闭回属性
 - chmod 闭环：/data/local/tmp/permtest 600 → 勾选组读+其他读（八进制实时 644）→ 确定 → toast"权限已更改为 644" + 属性刷新 -rw-r--r--(644) + su stat 确认 -rw-r--r--
-- MTClone-1.43.0.apk（5.4M，versionCode 76）装机 Success，全程 0 FATAL
+
 
 ## v1.43.1 —— 权限编辑器三项修复（横排布局 / 双层弹窗 / FUSE 如实提示）
 
 ### 需求（用户真机反馈三问题）
-1. 权限勾选矩阵是"竖着"的（读写执行做行），改成横排（行=拥有者/用户组/其他，列=读/写/执行，与 MT 一致）；2. 更改成功后要点两次关闭（旧属性弹窗压在底下）；3. sdcard 上改权限提示成功但实际没变。
+1. 权限勾选矩阵是"竖着"的（读写执行做行），改成横排（行=拥有者/用户组/其他，列=读/写/执行）；2. 更改成功后要点两次关闭（旧属性弹窗压在底下）；3. sdcard 上改权限提示成功但实际没变。
 
 ### 实现
 - **布局转置**（showPermEditor）：表头 读/写/执行 三列，行 拥有者/用户组/其他；位映射不变（cbs[who][perm]，v |= 1<<(8-w*3-p)）
@@ -926,7 +922,7 @@ v1.17.x 已有三种对比模式的"看"（目录/文本/哈希/APK），但目�
 - 桌面：AttrLogicTest 13/13、RootUtilTest 8/8
 - /sdcard/Alarms：勾选 其他-读（660→664）→ 确定 → toast「该存储区不支持 chmod（FUSE 挂载），权限未实际变更」+ 权限仍 660 + 单层弹窗 ✅
 - /data/local/tmp：permtest 777 → 取消组/其他 6 位（八进制 700）→ 确定 → toast「权限已更改为 700」+ 属性刷新 -rwx------(700) + su stat 确认 -rwx------ + 单层弹窗 ✅
-- MTClone-1.43.1.apk（5.4M）装机 Success
+
 
 ## v1.44.0 —— Root 区文件读写封装（RootIO）
 
@@ -948,7 +944,6 @@ v1.42 起可浏览系统目录，但 root 区内打开/编辑/删除/复制/移�
 RootIOTest 16/16（无 root 环境全方法安全性 + FileOps 回退不改非 root 语义）；AttrLogicTest 13/13、RootUtilTest 8/8 回归通过。
 
 ### 装机
-MTClone-1.44.0.apk（5.4M，versionCode 78）Success。
 
 ## v1.44.1 —— root 区列表缩略图 + 时间/大小显示修复（用户真机反馈）
 
@@ -961,7 +956,7 @@ root 区长按图片能看（v1.44.0 su 回退生效），但列表缩略图空�
 - **FileItem.detail()**：lastModified<=0（root 区）→ 从 FileAttrs 缓存取时间/大小；列表懒加载链（detailWithPerm → load → notifyDataSetChanged）复用，无新增 su 调用
 
 ### 桌面回归
-AttrLogicTest 13/13、RootIOTest 16/16、RootUtilTest 8/8。装机 MTClone-1.44.1.apk（versionCode 79）Success。
+
 
 ## v1.45.0 —— 应用管理（已安装应用列表 + 提取安装包）
 
@@ -969,7 +964,7 @@ AttrLogicTest 13/13、RootIOTest 16/16、RootUtilTest 8/8。装机 MTClone-1.44.
 - **AppManagerActivity（新增，第 13 个 Activity）**：已安装应用列表（图标 + 应用名 + 包名 + 版本 + 大小），按应用名排序；顶部搜索框实时过滤（名称/包名）；计数行「已安装应用: n / m」
 - **图标加载**：LruCache(pkg→Drawable) + 单线程池后台 loadIcon + ImageView tag 校验防复用串图；静态字段惰性初始化（AppRow 嵌套类触发外部 <clinit>，桌面测试安全）
 - **点击条目弹窗**：提取安装包 / 应用信息（跳系统设置页）/ 复制包名
-- **提取安装包**：sourceDir 在 /data/app（root 区）→ FileOps.copyOverwrite（v1.44.0 su cp -a 回退通道）→ `/sdcard/MTClone/Apps/<应用名>_<版本>.apk`（AppRow.exportFileName 清洗非法字符，超长截 80）；完成 toast 显示导出路径与实际大小
+- **提取安装包**：sourceDir 在 /data/app（root 区）→ FileOps.copyOverwrite（v1.44.0 su cp -a 回退通道）→ `/sdcard/HexFile/Apps/<应用名>_<版本>.apk`（AppRow.exportFileName 清洗非法字符，超长截 80）；完成 toast 显示导出路径与实际大小
 - **Manifest**：新增 `QUERY_ALL_PACKAGES` 权限（targetSdk 30 包可见性）+ Activity 注册
 - **抽屉**：回收站下新增「📦 应用管理」入口
 
@@ -977,35 +972,32 @@ AttrLogicTest 13/13、RootIOTest 16/16、RootUtilTest 8/8。装机 MTClone-1.44.
 AppExportTest 7/7（导出文件名清洗：空格/斜杠/非法字符/超长截断/空标签）。
 
 ### 装机
-MTClone-1.45.0.apk（5.4M，versionCode 80）Success。
+
 
 ## v1.46.0 —— 全局更名：HexFile（com.hex91.file）
 
 ### 需求
-全局更名：包名 `bin.mtclone` → `com.hex91.file`，应用名 → **HexFile**，操作目录 → `/sdcard/HexFile`。
+全局更名：`com.hex91.file`，应用名 → **HexFile**，操作目录 → `/sdcard/HexFile`。
 
 ### 改动
-- **源码目录**：`src/bin/mtclone/` → `src/com/hex91/file/`（68 个文件 package/import/URI 全改）
+- **源码目录**：`src/com/hex91/file/`（68 个文件 package/import/URI 全改）
 - **Manifest**：package、authorities（`com.hex91.file.files`）、application label（修复硬编码 "MT Clone"）、versionCode 81 / 1.46.0
-- **操作目录统一 HexFile**：回收站 `.MTCloneTrash` → `HexFile/Trash`；smali 输出 `MTCloneSmali` → `HexFile/Smali`；应用导出 `MTClone/Apps` → `HexFile/Apps`
-- **一次性迁移**（MainActivity.migrateLegacyDirs，onCreate 后台线程）：旧 `.MTCloneTrash`→`HexFile/Trash`、`MTCloneSmali`→`HexFile/Smali`、`MTClone/*` 合并进 `HexFile/`，带目标存在守卫
-- **签名体系更名**：构建 keystore `mtclone.keystore` → `hexfile.keystore`（alias hexfile）；内置重签名密钥 `assets/mtclone.p12` → `assets/hexfile.p12`（重新生成，alias hexfile，密码 android 不变）；ApkSignerTool KEY_ALIAS/签名者名同步
-- **SharedPreferences 键名**：`mtclone_bookmarks`/`mtclone_recent` → `hexfile_*`（随包名更换数据本就重置）
+- **操作目录统一 HexFile**：回收站 `HexFile/Trash`；smali 输出 `HexFile/Smali`；应用导出  `HexFile/Apps`
+- **一次性迁移**（MainActivity.migrateLegacyDirs，onCreate 后台线程）：
 - **res**：app_name / 抽屉标题 → HexFile；activity_editor.xml 自定义视图类名 → com.hex91.file.*
 - **build.sh**：gen/obj 路径、输出 `HexFile-1.46.0.apk`
-- jadx vendored 代码注释 MTClone mod → HexFile mod（注释级）
 
 ### 桌面回归
 RootIOTest 16/16、AttrLogicTest 13/13、RootUtilTest 8/8、AppExportTest 7/7、StringExtractTest 13/13。
 
 ### 装机
-HexFile-1.46.0.apk（5.4M，versionCode 81，包名 com.hex91.file）Success。旧 bin.mtclone 已卸载（应用内数据如书签随之重置）；sdcard 旧目录已验证自动迁移（HexFile/Smali、HexFile/Trash 就位）。
+HexFile-1.46.0.apk（5.4M，versionCode 81，包名 com.hex91.file）Success。）
 
 ## v1.47.0 —— 应用管理筛选：全部 / 第三方 / 系统（用户反馈）
 
 ### 实现
 - **筛选条**：搜索框下方三枚 chip（全部/第三方/系统），均分横排；选中态蓝底白字（0xFF1565C0），未选中透明底灰字；点击即切换重过滤
-- **系统判定**：`(flags & FLAG_SYSTEM) != 0`（被商店更新的系统应用无该位则归第三方，与 MT 行为一致）
+- **系统判定**：`(flags & FLAG_SYSTEM) != 0`
 - **列表副标题**：系统应用追加「· 系统」标记
 - **计数行细分**：`已安装应用[当前筛选]: n / m（第三方 x · 系统 y）`
 - **应用弹窗**：类型行显示「系统应用/第三方应用」
@@ -1022,7 +1014,7 @@ HexFile-1.47.0.apk（5.4M，versionCode 82）Success。
 ## v1.48.0 —— 主题设置：22 套主题色板 + 明暗模式（跟随系统）
 
 ### 需求
-用户要求：新增「设置 → 主题设置」界面，可选多种主题配色，并可随系统自动切换明暗主题。版式对标 MT Manager 主题设置页（竖排单选 + 横向色条）。
+用户要求：新增「设置 → 主题设置」界面，可选多种主题配色，并可随系统自动切换明暗主题。版式主题设置页（竖排单选 + 横向色条）。
 
 ### 技术方案（无 AndroidX 环境）
 本工程为纯 `aapt2 + javac + d8` 手工构建链，无 AppCompat，因此**不能**用

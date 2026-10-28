@@ -21,4 +21,4 @@
 
 > 说明：`sevenzipjbinding` 以 LGPL-2.1 发布并附带静态链接例外，本项目以动态加载其原生库（`.so`）的方式使用，符合其许可要求。
 > 内置重签名密钥 `assets/hexfile.p12`（alias `hexfile`，密码 `android`）仅用于 App 内部「重打包/重签名」工具功能，非发布签名密钥。
-> 发布签名密钥库 `hexfile.keystore`（PKCS12，条目别名 `mtclone`）**不随仓库分发**，由 CI 通过仓库 Secrets（`HEXFILE_KEYSTORE_BASE64` / `HEXFILE_KEYSTORE_PASS`）注入。
+> 发布签名密钥库 `hexfile.keystore`（PKCS12，条目别名 `hex91`）**不随仓库分发**，由 CI 通过仓库 Secrets（`HEXFILE_KEYSTORE_BASE64` / `HEXFILE_KEYSTORE_PASS`）注入。

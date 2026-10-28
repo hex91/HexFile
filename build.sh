@@ -11,7 +11,7 @@
 #   PYTHON_EXE              python 解释器（默认：Windows 用 workbuddy 环境，其它用 python3）
 #   HEXFILE_KEYSTORE_BASE64 经 base64 编码的签名 keystore（CI 注入，优先于本地文件）
 #   HEXFILE_KEYSTORE_PASS    keystore 密码（默认 android）
-#   HEXFILE_KEYSTORE_ALIAS   签名 key 别名（默认 mtclone，与本地 hexfile.keystore 内条目一致）
+#   HEXFILE_KEYSTORE_ALIAS   签名 key 别名（默认 hex91，与本地 hexfile.keystore 内条目一致）
 # ============================================================
 set -e
 
@@ -169,7 +169,7 @@ done
 echo "[7/7] apksigner sign..."
 KS="$ROOT/hexfile.keystore"
 KS_PASS="${HEXFILE_KEYSTORE_PASS:-android}"
-KS_ALIAS="${HEXFILE_KEYSTORE_ALIAS:-mtclone}"
+KS_ALIAS="${HEXFILE_KEYSTORE_ALIAS:-hex91}"
 if [ -n "$HEXFILE_KEYSTORE_BASE64" ]; then
     # CI 注入：base64 解码为 keystore
     echo "$HEXFILE_KEYSTORE_BASE64" | base64 -d > "$KS"
