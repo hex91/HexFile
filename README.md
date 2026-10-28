@@ -1199,3 +1199,46 @@ HexFile-1.51.0.apk（5.6M，versionCode 88）Success；启动 AppManagerActivity
 
 ### 真机实测（交用户）
 抽屉 → 应用管理 → 点应用：验证分包应用导出为文件夹、清理数据缓存（Root）、卸载（Root 或系统卸载器）。
+
+## v1.52.0 —— 终端增强（多会话页签 / ALT / 复制 / 命令历史）
+
+### 需求
+刚集成的 Termux 终端还比较「裸」，按功能补齐四项高频能力：多会话并行、辅助键 Alt、终端内复制、命令历史回溯。
+
+### 实现（TerminalActivity + activity_terminal.xml）
+- **多会话页签**：由单会话改为会话列表（`List<TerminalSession>` + 当前索引），顶部新增可横滑的页签栏——每个会话一个 chip（标题或「终端 N」，已结束标「（已结束）」），点选切换、`✕` 关闭、`＋` 新建；关闭最后一个会自动新建一个，保证始终有可用会话。`TerminalSessionClient` 回调按会话对象路由，因此多个会话共享同一套回调互不串台。
+- **辅助键行新增 Alt 粘滞键**：在既有 Ctrl 锁之外新增 Alt 锁（`readAltKey()` 返回 `mAltMode`），与 Ctrl 同款点击切换高亮，配合 Esc/Tab/方向键/Home/End 覆盖常见组合键。
+- **顶栏「复制」按钮**：调用 `TerminalView.getSelectedText()` 复制当前选区到剪贴板，无选区时提示「先长按选择」；与既有长按选区 ActionMode 复制互补。粘贴按钮保留。
+- **命令历史**：`.profile` 增加 `HISTFILE/HISTSIZE/HISTFILESIZE` 与 `set -o emacs`，交互 shell 支持上/下方向键回溯历史；辅助键行方向键本就能把光标键转义序列送进 shell。
+
+### 兼容性
+- 新增 `term_key_alt` 字符串、页签栏与复制按钮布局；不新增权限，Manifest 仅升版本号。
+- 会话进程在 `onDestroy` 时统一 `finishIfRunning()` 回收。
+
+### 装机
+HexFile-1.52.0.apk（5.6M，versionCode 89）本地构建 Success；启动 TerminalActivity 无 FATAL（顶栏 + 页签栏 + 终端渲染区三层布局正常）。
+
+### 真机实测（交用户）
+抽屉 → 终端：① 点页签栏 `＋` 新建会话并验证两个会话独立运行、点选切换、✕ 关闭；② 长按终端文字选区后用顶栏「复制」/ 长按 ActionMode 复制、粘贴；③ 关掉 Alt 锁后用 Alt+字母、Ctrl 锁后用 Ctrl+字母；④ 输入几条命令后按上方向键回溯历史。
+
+## v1.53.0 —— 应用管理二期（冻结 / 权限 / 备份 / 还原）
+
+### 需求
+在 v1.51.0 应用管理（提取 / 卸载 / 清理）基础上，按功能视角补齐二期能力：应用冻结解冻、权限管理可视化、整包备份与还原（含数据）。均走 Root（`RootUtil`），未 Root 时优雅降级。
+
+### 实现（AppManagerActivity）
+- **冻结 / 解冻**：`AppRow` 增加 `enabled`/`dataDir` 字段；操作菜单按 `enabled` 动态显示「冻结应用 / 解冻应用」，执行 `pm disable-user --user 0 <pkg>` / `pm enable --user 0 <pkg>`（Root），完成后 `loadApps()` 刷新状态，菜单头标注「已冻结」。本应用自身禁止冻结。
+- **权限管理**：`showPermissions` 用 `GET_PERMISSIONS` 取声明权限，逐条显示「名称 + 保护级别（普通/危险/签名/签名·系统）+ 授予状态」，危险权限以主题色高亮；底部「授予全部危险 / 撤销全部危险」走 `pm grant/revoke`（Root），逐项对 `PROTECTION_DANGEROUS` 过滤。
+- **应用备份**：APK 及 split 分包复制到 `HexFile/Backups/<pkg>/`；Root 下用 `tar -czf`（失败回退 `tar -cf`）打包 `dataDir` 到该目录（`data.tar.gz` / `data.tar`）。未 Root 时仅备份 APK 并提示。
+- **应用还原**：从 `HexFile/Backups/<pkg>/` 读取 APK，用 `pm install-create` → `pm install-write -S <len>`（逐包）→ `pm install-commit` 重装（支持 split 分包）；Root 且有 `data.tar*` 时解包回 `dataDir` 并 `chown` + `restorecon` 修正属主与 SELinux 上下文。
+
+### 兼容性
+- 仅改 `AppManagerActivity`（菜单 + 4 个新方法 + `installApkSet` / `parseSessionId`），`AppRow.exportFileName` 行为不变（桌面测试 `AppExportTest` 不受影响）。
+- `RootUtil.submitOutput` 用于读取 `pm install-create` 会话号（正则 `\[(\d+)\]` 解析）。
+
+### 装机
+HexFile-1.53.0.apk（5.6M，versionCode 90）本地构建 Success；`adb install -r` 成功；启动 AppManagerActivity 无 FATAL。
+
+### 真机实测（交用户）
+抽屉 → 应用管理 → 点应用：① 冻结某第三方应用 → 桌面 / 设置中确认其禁用、再解冻恢复；② 权限管理 → 查看危险权限授予状态、点「授予全部危险」后重开确认生效（需 Root）；③ 备份应用 → 检查 `HexFile/Backups/<pkg>/` 含 APK（及 Root 下的 data.tar*）；④ 卸载该应用后点「还原应用」→ 重装成功、Root 下数据恢复。
+
