@@ -9,6 +9,7 @@
 
     <!-- 终端额外按键条 -->
     <string name="term_key_ctrl">Ctrl</string>
+    <string name="term_key_alt">Alt</string>
     <string name="term_key_esc">Esc</string>
     <string name="term_key_tab">Tab</string>
     <string name="term_key_slash">/</string>

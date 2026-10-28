@@ -51,12 +51,21 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
 
     private TerminalView mView;
     private TextView mTitle;
-    private TerminalSession mSession;
+    private TerminalSession mSession;      // 当前（显示中）会话
     private String mCwd;
 
-    /** 额外按键：Ctrl 锁定态（供 {@link #readControlKey()} 返回） */
+    /** 多会话：所有活动会话 + 当前索引 */
+    private final List<TerminalSession> mSessions = new ArrayList<>();
+    private int mCurrentIndex = -1;
+    /** 会话 → 展示名（标题变化后更新） */
+    private final Map<TerminalSession, String> mSessionTitle = new HashMap<>();
+    private LinearLayout mTabBar;
+
+    /** 额外按键：Ctrl / Alt 粘滞锁定态（供 readControlKey() / readAltKey() 返回） */
     private boolean mCtrlMode = false;
+    private boolean mAltMode = false;
     private TextView mCtrlBtn;
+    private TextView mAltBtn;
 
     // ----------------------------------------------------------------
     // 显示配置：字号 + 配色方案（持久化到 SharedPreferences）
@@ -86,6 +95,7 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
 
         mTitle = findViewById(R.id.term_title);
         mView = findViewById(R.id.term_view);
+        mTabBar = findViewById(R.id.term_tabs);
         // Termux 的 TerminalView 重写了 onCheckIsTextEditor() 但未在构造器设置 focusableInTouchMode，
         // 触摸模式下 requestFocus() 会失败，导致 showSoftInput 因视图未 served 被拒、软键盘弹不出来。
         mView.setFocusable(true);
@@ -136,6 +146,9 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
         findViewById(R.id.btn_paste).setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { doPaste(); }
         });
+        findViewById(R.id.btn_copy).setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { doCopy(); }
+        });
         findViewById(R.id.btn_exit).setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { finish(); }
         });
@@ -143,10 +156,8 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
         buildExtraKeys();
     }
 
-    /** 创建（或重建）终端会话，并接入视图。视图量出尺寸后 {@link TerminalView} 才会真正起进程。 */
+    /** 创建（或重建）终端会话并追加为新页签，接入视图。视图量出尺寸后 {@link TerminalView} 才会真正起进程。 */
     private void createSession(String cwd) {
-        if (mSession != null && mSession.isRunning()) mSession.finishIfRunning();
-
         File dir = new File(cwd);
         if (!dir.isDirectory()) cwd = "/sdcard";
 
@@ -159,9 +170,103 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
         List<String> envList = new ArrayList<>();
         for (Map.Entry<String, String> e : env.entrySet()) envList.add(e.getKey() + "=" + e.getValue());
 
-        mSession = new TerminalSession("/system/bin/sh", cwd, new String[]{"-l"},
+        TerminalSession s = new TerminalSession("/system/bin/sh", cwd, new String[]{"-l"},
                 envList.toArray(new String[0]), 2000, this);
+        mSessions.add(s);
+        mCurrentIndex = mSessions.size() - 1;
+        mSession = s;
+        mSessionTitle.put(s, "终端 " + mSessions.size());
+        mView.attachSession(s);
+        refreshTabs();
+    }
+
+    /** 切换到指定页签（点选页签时调用）。 */
+    private void switchTo(int idx) {
+        if (idx < 0 || idx >= mSessions.size()) return;
+        if (idx == mCurrentIndex) { refreshTabs(); return; }
+        mCurrentIndex = idx;
+        mSession = mSessions.get(idx);
         mView.attachSession(mSession);
+        refreshTabs();
+    }
+
+    /** 关闭指定页签（✕ 时调用），并清理其进程。关闭最后一个会自动新建一个，保证始终有可用会话。 */
+    private void closeSession(int idx) {
+        if (idx < 0 || idx >= mSessions.size()) return;
+        TerminalSession s = mSessions.get(idx);
+        if (s != null) s.finishIfRunning();
+        mSessions.remove(idx);
+        if (s != null) mSessionTitle.remove(s);
+        if (mSessions.isEmpty()) {
+            mCurrentIndex = -1;
+            mSession = null;
+            createSession(mCwd);
+            return;
+        }
+        if (idx == mCurrentIndex) {
+            mCurrentIndex = Math.min(idx, mSessions.size() - 1);
+            mSession = mSessions.get(mCurrentIndex);
+            mView.attachSession(mSession);
+        } else if (idx < mCurrentIndex) {
+            mCurrentIndex--;
+        }
+        refreshTabs();
+    }
+
+    /** 重建页签栏：每会话一个 chip（标题/“终端 N”，已结束标“（已结束）”）＋ 末尾“＋”新建。 */
+    private void refreshTabs() {
+        if (mTabBar == null) return;
+        mTabBar.removeAllViews();
+        for (int i = 0; i < mSessions.size(); i++) {
+            final int idx = i;
+            TerminalSession s = mSessions.get(i);
+            String name = mSessionTitle.get(s);
+            if (name == null) name = "终端 " + (i + 1);
+            if (s != null && !s.isRunning()) name = name + "（已结束）";
+
+            LinearLayout chip = new LinearLayout(this);
+            chip.setOrientation(LinearLayout.HORIZONTAL);
+            chip.setGravity(Gravity.CENTER_VERTICAL);
+            chip.setPadding(dp(10), dp(4), dp(4), dp(4));
+            chip.setBackgroundResource(android.R.drawable.list_selector_background);
+
+            TextView label = new TextView(this);
+            label.setText(name);
+            label.setTextSize(13);
+            label.setSingleLine(true);
+            label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            label.setMaxWidth(dp(160));
+            label.setPadding(0, 0, dp(4), 0);
+            label.setTextColor(i == mCurrentIndex ? ThemeManager.accent(this) : ThemeManager.text(this));
+            label.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { switchTo(idx); }
+            });
+            chip.addView(label);
+
+            TextView close = new TextView(this);
+            close.setText("✕");
+            close.setTextSize(13);
+            close.setGravity(Gravity.CENTER);
+            close.setPadding(dp(4), 0, dp(4), 0);
+            close.setTextColor(ThemeManager.text(this));
+            close.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { closeSession(idx); }
+            });
+            chip.addView(close);
+
+            mTabBar.addView(chip);
+        }
+        TextView add = new TextView(this);
+        add.setText("＋");
+        add.setTextSize(18);
+        add.setGravity(Gravity.CENTER);
+        add.setPadding(dp(14), dp(2), dp(14), dp(2));
+        add.setTextColor(ThemeManager.text(this));
+        add.setBackgroundResource(android.R.drawable.list_selector_background);
+        add.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { createSession(mCwd); showKeyboard(); }
+        });
+        mTabBar.addView(add);
     }
 
     /** 顶栏“粘贴”：把系统剪贴板内容写入终端 */
@@ -178,6 +283,21 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
         if (mSession == null || s == null) return;
         byte[] b = s.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         mSession.write(b, 0, b.length);
+    }
+
+    /** 顶栏“复制”：把终端内当前选区文本复制到系统剪贴板（与长按选区 ActionMode 复制互补）。 */
+    private void doCopy() {
+        String sel = (mView != null) ? mView.getSelectedText() : null;
+        if (sel != null && !sel.isEmpty()) {
+            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            if (cm != null) { cm.setText(sel); toast("已复制选中文本"); }
+        } else {
+            toast("请先长按终端选择文本，再点复制");
+        }
+    }
+
+    private void toast(String msg) {
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
 
     // ----------------------------------------------------------------
@@ -349,6 +469,7 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
         LinearLayout row = findViewById(R.id.keys_row);
         final int[][] keys = {
                 {0, R.string.term_key_ctrl},
+                {12, R.string.term_key_alt},
                 {1, R.string.term_key_esc},
                 {2, R.string.term_key_tab},
                 {3, R.string.term_key_slash},
@@ -377,6 +498,10 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
                         mCtrlMode = !mCtrlMode;
                         b.setBackgroundColor(mCtrlMode ? ThemeManager.accent(TerminalActivity.this) : 0);
                         b.setTextColor(mCtrlMode ? ThemeManager.onAccent(TerminalActivity.this) : ThemeManager.text(TerminalActivity.this));
+                    } else if (kind == 12) {
+                        mAltMode = !mAltMode;
+                        b.setBackgroundColor(mAltMode ? ThemeManager.accent(TerminalActivity.this) : 0);
+                        b.setTextColor(mAltMode ? ThemeManager.onAccent(TerminalActivity.this) : ThemeManager.text(TerminalActivity.this));
                     } else {
                         TerminalSession s = mView.getCurrentSession();
                         if (s != null && s.getEmulator() != null) {
@@ -398,6 +523,7 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
                 }
             });
             if (kind == 0) mCtrlBtn = b;
+            if (kind == 12) mAltBtn = b;
             row.addView(b);
         }
     }
@@ -428,6 +554,11 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
                     "alias la='ls -a'\n" +
                     "alias l='ls -l'\n" +
                     "alias grep='grep --color=auto'\n" +
+                    // 命令行历史：交互 shell 支持上/下方向键回溯（终端已能发送方向键转义序列）
+                    "export HISTFILE=\"$HOME/.sh_history\"\n" +
+                    "export HISTSIZE=2000\n" +
+                    "export HISTFILESIZE=2000\n" +
+                    "case \"$-\" in *i*) set -o emacs 2>/dev/null;; esac\n" +
                     // Android 10+ 应用私有外部存储挂载为 noexec，脚本不能直接执行（execve 被拒，
                     // 报 can't execute: permission denied）；sh 读脚本是普通文件读取不受限制，
                     // 因此用函数包装：hex → sh $HOME/bin/hex
@@ -486,9 +617,13 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
     @Override
     public void onTitleChanged(TerminalSession changedSession) {
         final String t = changedSession.getTitle();
+        if (t != null && !t.isEmpty()) mSessionTitle.put(changedSession, t);
+        final boolean isCurrent = (changedSession == mSession);
+        final String disp = (t == null || t.isEmpty()) ? null : t;
         runOnUiThread(new Runnable() {
             @Override public void run() {
-                if (mTitle != null) mTitle.setText((t == null || t.isEmpty()) ? "终端" : "终端 — " + t);
+                if (isCurrent && mTitle != null) mTitle.setText((disp == null) ? "终端" : "终端 — " + disp);
+                refreshTabs();
             }
         });
     }
@@ -497,8 +632,11 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
     public void onSessionFinished(TerminalSession finishedSession) {
         runOnUiThread(new Runnable() {
             @Override public void run() {
-                Toast.makeText(TerminalActivity.this,
-                        "终端会话已结束（按 ＋ 新建）", Toast.LENGTH_SHORT).show();
+                refreshTabs();
+                if (finishedSession == mSession) {
+                    Toast.makeText(TerminalActivity.this,
+                            "当前终端会话已结束（切换或新建）", Toast.LENGTH_SHORT).show();
+                }
             }
         });
     }
@@ -590,7 +728,7 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
     @Override
     public boolean readControlKey() { return mCtrlMode; }
     @Override
-    public boolean readAltKey() { return false; }
+    public boolean readAltKey() { return mAltMode; }
     @Override
     public boolean readShiftKey() { return false; }
     @Override
@@ -630,6 +768,7 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (mSession != null) mSession.finishIfRunning();
+        for (TerminalSession s : mSessions) if (s != null) s.finishIfRunning();
+        mSessions.clear();
     }
 }
