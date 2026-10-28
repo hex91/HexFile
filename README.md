@@ -1,6 +1,6 @@
 # HexFile —— 安卓文件管理器（Android APK）
 
-对标 MT Manager架构的个人本地工具集：**纯本地、无网络、无账号/VIP**。
+一款**纯本地**的安卓文件管理与逆向辅助工具集：**无网络、无账号/VIP、无需联网权限**，所有功能在设备本地完成。
 
 
 ## 快速开始
@@ -96,7 +96,7 @@ adb install -r out/HexFile-*.apk
 
 ## 设计说明
 
-- **架构对标**：`MainActivity` = 入口；`FeatureRegistry` =  注册表模式（后续所有功能模块统一注册，菜单自动生成）。
+- **整体架构**：`MainActivity` = 入口；`FeatureRegistry` =  注册表模式（后续所有功能模块统一注册，菜单自动生成）。
 - **回收站设计**：`/sdcard/.MTCloneTrash/store/<id>` 存内容、`meta/<id>.txt` 存原始路径/时间/类型四行文本；恢复时若原路径已存在自动追加 `(1)` 后缀。同分区用 renameTo 秒完成，跨分区自动降级为拷贝+删除。
 - **搜索防卡死**：后台 Thread + Handler 回主线程刷新，深度上限 12 层、结果上限 1000 条，自动跳过回收站目录。
 - **ZIP 引擎**：零第三方依赖；`listChildren` 前缀过滤实现目录层级浏览（深层条目一律归并到祖先目录项）；解压 `safeTarget` 校验规范路径防 zip-slip；`copyStream` 不关流（Zip 流由 try-with-resources 管理，文件流由调用方关闭）——曾因 copyStream 连带关闭 Zip 流导致打包/解压中断，已修复并单元测试回归。
@@ -122,7 +122,7 @@ adb install -r out/HexFile-*.apk
 
 ## 真机权限须知（Android 11+）
 
-文件管理器访问 `/sdcard` 根目录必须「所有文件访问」权限（`MANAGE_EXTERNAL_STORAGE`），普通 READ/WRITE 在分区存储下不够（这正是 MT Manager 的做法）。首次启动若未授权，App 会跳转系统设置页引导开启。调试时可用：
+文件管理器访问 `/sdcard` 根目录必须「所有文件访问」权限（`MANAGE_EXTERNAL_STORAGE`），普通 READ/WRITE 在分区存储下不够（Android 11+ 分区存储限制）。首次启动若未授权，App 会跳转系统设置页引导开启。调试时可用：
 `adb shell appops set com.hex91.file android:manage_external_storage allow` 直接授予以验证。
 
 ## v1.6.0：UI 改版
@@ -790,7 +790,7 @@ v1.17.x 已有三种对比模式的"看"（目录/文本/哈希/APK），但目�
 ## v1.38.0 —— strings 提取（二进制可读字符串）
 
 ### 需求
-对标 Unix strings：从 .so/.dex/.bin 等二进制文件提取可读字符串（逆向定位 JNI 符号、URL、密钥串常用）。
+字符串提取：从 .so/.dex/.bin 等二进制文件提取可读字符串（逆向定位 JNI 符号、URL、密钥串常用）。
 
 ### 实现（新增 StringExtract.java，纯 Java 无 Android 依赖）
 - **单遍流式扫描**，两个独立状态机并行：
