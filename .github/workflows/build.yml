@@ -48,13 +48,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: HexFile-APK
-          path: out/HexFile-*.apk
+          path: out/HexFile-[0-9]*.apk
 
       - name: Release (tagged version)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: out/HexFile-*.apk
+          files: out/HexFile-[0-9]*.apk
           generate_release_notes: true
 
       - name: Continuous release (latest from main)
@@ -64,4 +64,4 @@ jobs:
           tag_name: continuous
           name: Continuous Build (latest from main)
           prerelease: true
-          files: out/HexFile-*.apk
+          files: out/HexFile-[0-9]*.apk
