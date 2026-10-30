@@ -610,36 +610,16 @@ public class AppManagerActivity extends BaseActivity {
                 final boolean rooted = rootReady();
                 boolean dataOk = false;
                 if (ok && rooted && r.dataDir != null) {
-                    File dataDir = new File(r.dataDir);
+                    // 注意：不要用 app 进程 stat dataDir —— 非 root 读不到别的 App 私有目录。
+                    // 也不要直接在 su 下归档 /data/user/0/<pkg>：KernelSU 应用内 su 处于隔离
+                    // 挂载命名空间，/data/data 是刚建的空壳目录，tar 会报 No such file。
+                    // 统一经 /proc/1/root 前缀访问 init 命名空间中的真实数据目录。
+                    String rel = "data/user/0/" + r.pkg;
                     File gz = new File(dir, "data.tar.gz");
                     File plain = new File(dir, "data.tar");
-                    // 先清掉旧数据文件，避免损坏残留误导后续还原
                     gz.delete();
                     plain.delete();
-                    if (dataDir.isDirectory()) {
-                        String rel = r.dataDir.substring(1);   // 绝对路径去首斜杠 → 相对 /
-                        // 优先 gzip；失败回退 plain，并删除无效 gzip
-                        RootUtil.RunResult rr = RootUtil.runCapture(
-                                "tar -czf '" + gz.getPath() + "' -C / '" + rel + "' 2>&1");
-                        if (rr != null && rr.exit == 0 && gz.exists() && gz.length() >= 512) {
-                            dataOk = true;
-                        } else {
-                            Log.w(TAG, "backup gzip failed, fallback plain: "
-                                    + (rr == null ? "timeout" : rr.out));
-                            gz.delete();
-                            RootUtil.RunResult pr = RootUtil.runCapture(
-                                    "tar -cf '" + plain.getPath() + "' -C / '" + rel + "' 2>&1");
-                            if (pr != null && pr.exit == 0 && plain.exists() && plain.length() >= 512) {
-                                dataOk = true;
-                            } else {
-                                Log.e(TAG, "backup plain failed: "
-                                        + (pr == null ? "timeout" : pr.out));
-                                plain.delete();
-                            }
-                        }
-                    } else {
-                        Log.w(TAG, "backup: dataDir not found: " + r.dataDir);
-                    }
+                    dataOk = tarDataArchive(rel, gz, true) || tarDataArchive(rel, plain, false);
                 }
                 final int fApk = apkCount;
                 final boolean fData = dataOk;
@@ -655,6 +635,39 @@ public class AppManagerActivity extends BaseActivity {
                 });
             }
         }, "app-backup").start();
+    }
+
+    /**
+     * 归档应用数据目录到备份目录。
+     * 应用内 su（KernelSU）处于隔离挂载命名空间，/data/data 是空壳 →
+     * 优先经 /proc/1/root 前缀访问 init 命名空间的真实数据；无隔离的环境回退直接归档。
+     * 产物先落 /data/local/tmp（su 命名空间对 sdcard 可见性因 ROM 而异），
+     * 再由应用侧拷入备份目录（/data/local/tmp 对其它用户有 +x 遍历权，644 文件可读）。
+     */
+    private boolean tarDataArchive(String rel, File out, boolean gzip) {
+        String flag = gzip ? "-czf" : "-cf";
+        String tmp = "/data/local/tmp/hfdata" + (gzip ? ".tar.gz" : ".tar");
+        RootUtil.run("rm -f '" + tmp + "' 2>/dev/null");
+        RootUtil.RunResult r = RootUtil.runCapture(
+                "tar " + flag + " '" + tmp + "' -C /proc/1/root '" + rel + "' 2>&1", 600);
+        File tf = new File(tmp);
+        boolean ok = r != null && r.exit == 0 && tf.isFile() && tf.length() >= 512;
+        if (!ok) {
+            // 回退：无命名空间隔离的环境（如 Magisk）直接归档
+            Log.w(TAG, "backup " + out.getName() + " via /proc/1/root failed, fallback direct: "
+                    + (r == null ? "timeout" : r.out));
+            r = RootUtil.runCapture(
+                    "tar " + flag + " '" + tmp + "' -C / '" + rel + "' 2>&1", 600);
+            ok = r != null && r.exit == 0 && tf.isFile() && tf.length() >= 512;
+        }
+        if (ok) {
+            RootUtil.run("chmod 644 '" + tmp + "' 2>/dev/null");
+            ok = FileOps.copyOverwrite(tf, out) && out.isFile() && out.length() >= 512;
+        }
+        RootUtil.run("rm -f '" + tmp + "' 2>/dev/null");
+        if (!ok) Log.e(TAG, "backup data archive failed: " + out.getName()
+                + (r == null ? " timeout" : " " + r.out));
+        return ok;
     }
 
     /** 还原应用：从 HexFile/Backups/<pkg>/ 重装 APK（含 split），Root 下恢复数据目录。 */

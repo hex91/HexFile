@@ -1300,3 +1300,29 @@ HexFile-1.54.1.apk（5.6M，versionCode 92）本地构建 Success；`adb install
 ### 已知限制
 - v1.53.0 时代已产生的损坏 `data.tar*`（如现有 `com.greenpoint.android.mc10086.activity` 备份）无法恢复其数据——数据在备份当时即为空。重新备份（v1.54.1+）即可获得有效数据归档。
 
+## v1.54.2 —— 数据备份/还原修复（KernelSU 隔离命名空间适配）
+
+### 背景
+v1.54.1 实测「数据备份失败」（应用本体备份正常，数据归档始终缺失/无效）。加探测日志真机定位，发现最终根因：
+
+**应用内 `su`（KernelSU）运行在隔离挂载命名空间**：`/data/data` 在该命名空间里是一个刚创建的**空壳目录**（mtime 即 su 启动时刻，仅 2 个子项），真实的应用数据目录（vold 的 CE 挂载）不在其中。因此 `tar -C / data/user/0/<pkg>` 报 `No such file or directory`——tar 命令本身、root 权限、SELinux 域（`u:r:ksu:s0` 可读 `app_data_file`）都没有问题，纯粹是**命名空间里看不到真实路径**。
+
+探测确认的两条可行通路（均在应用内 su 上下文验证）：
+- `/proc/1/root/data/user/0/<pkg>`：经 init 的 `/proc/<pid>/root` 前缀访问真实文件视图；
+- `nsenter -t 1 -m -- <cmd>`：进入 init 挂载命名空间执行命令。
+
+### 修复
+- **`AppManagerActivity.tarDataArchive`（新增）**：数据归档优先 `tar -C /proc/1/root data/user/0/<pkg>`（真实视图），回退直接 `-C /`（兼容 Magisk 等无隔离环境）；产物先落 `/data/local/tmp`（su 命名空间对 sdcard 可见性因 ROM 而异），`chmod 644` 后由应用侧 `FileOps` 拷入备份目录（`/data/local/tmp` 对其它用户有 `+x` 遍历权，644 文件可读），最后清理临时文件。
+- **`BackupRestore.extractData`（新增）**：数据解包优先 `nsenter -t 1 -m -- tar -x… -C /`（保证写入真实数据目录，且 `restorecon` 能按真实路径计算 SELinux 标签），回退直接解包；解包后经 nsenter 执行 `chown -R`（按当前目录属主修正 tar 内旧 UID）+ `restorecon -R`。
+- **`backupApp` 数据分支修正**：移除「应用进程 stat dataDir」误判（非 root 恒 false，导致 tar 根本不执行）；源路径统一 `data/user/0/<pkg>` 相对形式配合 `-C`；超时放宽到 600 秒（大应用 gzip 慢）。
+- 备份成功标准收紧：退出码 0 且产物 ≥ 512B 才算「数据:有」，失败自动删除无效输出。
+
+### 兼容性
+- 备份目录布局不变；v1.54.1 前生成的坏档仍会被 `pickValidDataTar` 自动跳过。
+- `RootUtil` 全部恢复裸 `su -c`（应用内由 KernelSU 提权；实测本机 `su 0` 从应用进程调用反而不提权）。
+
+### 真机实测（已自测，Pixel 6 / Android 15 / KernelSU）
+1. **备份**：应用管理 → AccuBattery → 备份应用 → `data.tar.gz` 4.7MB，`zcat|tar -tv` 校验含真实数据文件（属主 u0_aXXX）✓
+2. **还原（卸载态）**：备份管理 → 对已卸载的 icu.nullptr.applistdetector 点「还原」→ 应用重装成功（`pm install` 约 16s）+ 数据解包成功 + 特征文件 `cache/stub.apk`（29KB）恢复、属主为新 UID `u0_a351`（chown 生效）+ 数据目录 397K 与备份前吻合 ✓
+3. 全程日志：`restore: install ok` + `extract data from …`，无错误输出 ✓
+

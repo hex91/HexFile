@@ -129,26 +129,44 @@ public final class BackupRestore {
         // 2) 恢复数据（root 下 tar 解包 + 修正属主 + SELinux 上下文）
         File dataTar = pickValidDataTar(e);
         if (dataTar != null) {
-            String dd = "/data/data/" + e.pkg;
-            String cmd = "tar -xzf '" + dataTar.getPath() + "' -C / 2>/dev/null"
-                    + " || tar -xf '" + dataTar.getPath() + "' -C /";
+            String dd = "/data/user/0/" + e.pkg;
             Log.i(TAG, "restore: extract data from " + dataTar.getPath());
-            RootUtil.RunResult r = RootUtil.runCapture(cmd);
-            boolean dataOk = r != null && r.exit == 0;
-            if (dataOk) {
-                // 重装后系统重新分配 UID，按当前目录属主修正 tar 内旧 UID 文件
-                RootUtil.run("chown -R $(stat -c %u '" + dd + "' 2>/dev/null):"
-                        + "$(stat -c %u '" + dd + "' 2>/dev/null) '" + dd + "' 2>/dev/null");
-                RootUtil.run("restorecon -R '" + dd + "' 2>/dev/null");
-            } else {
-                Log.e(TAG, "restore: data extract failed, out=" + (r == null ? "null" : r.out));
-            }
+            boolean dataOk = extractData(dataTar, dd);
             o.dataOk = dataOk;
             o.message = dataOk ? "已重装并恢复数据" : "已重装，但数据恢复失败（备份数据损坏，无法解包）";
         } else {
             o.message = "已重装（备份中无有效数据，仅恢复应用本体）";
         }
         return o;
+    }
+
+    /**
+     * 解包数据归档到真实数据目录并修正属主/SELinux 上下文。
+     * 应用内 su（KernelSU）处于隔离挂载命名空间：/data/data 是刚建的空壳目录，
+     * 必须经 nsenter 进入 init(pid 1) 命名空间操作真实路径；无 nsenter 的环境
+     * （如 Magisk）回退为直接解包。
+     */
+    private static boolean extractData(File tar, String dd) {
+        String p = tar.getPath();
+        String xflag = p.endsWith(".gz") ? "-xzf" : "-xf";
+        RootUtil.RunResult r = RootUtil.runCapture(
+                "nsenter -t 1 -m -- tar " + xflag + " '" + p + "' -C / 2>&1", 600);
+        boolean ok = r != null && r.exit == 0;
+        if (!ok) {
+            Log.w(TAG, "restore: nsenter extract failed, fallback direct: "
+                    + (r == null ? "timeout" : r.out));
+            r = RootUtil.runCapture("tar " + xflag + " '" + p + "' -C / 2>&1", 600);
+            ok = r != null && r.exit == 0;
+        }
+        if (!ok) {
+            Log.e(TAG, "restore: data extract failed: " + (r == null ? "timeout" : r.out));
+            return false;
+        }
+        // 重装后系统重新分配 UID：按当前目录属主修正 tar 内旧 UID 文件。
+        // chown/restorecon 都需要真实路径，因此同样经 nsenter 执行。
+        RootUtil.runCapture("nsenter -t 1 -m -- sh -c 'chown -R $(stat -c %u " + dd
+                + "):$(stat -c %g " + dd + ") " + dd + " && restorecon -R " + dd + "' 2>&1", 120);
+        return true;
     }
 
     /**
