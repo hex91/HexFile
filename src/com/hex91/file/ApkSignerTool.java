@@ -60,4 +60,54 @@ public final class ApkSignerTool {
             throws Exception {
         sign(new java.io.ByteArrayInputStream(keyStoreBytes), password, in, out, minSdk);
     }
+
+    /**
+     * 自定义密钥签名（v1.57.0）：自动选取 keystore 中第一个含私钥+证书链的别名。
+     *  兼容 PKCS12(.p12/.pfx) 与 JKS(.jks/.keystore)。
+     */
+    public static void signAutoAlias(byte[] keyStoreBytes, char[] password,
+            File in, File out, int minSdk) throws Exception {
+        KeyStore ks = loadAny(keyStoreBytes, password);
+        String alias = null;
+        for (java.util.Enumeration<String> en = ks.aliases(); en.hasMoreElements();) {
+            String a = en.nextElement();
+            if (ks.isKeyEntry(a) && ks.getKey(a, password) instanceof PrivateKey
+                    && ks.getCertificateChain(a) != null
+                    && ks.getCertificateChain(a).length > 0) {
+                alias = a;
+                break;
+            }
+        }
+        if (alias == null) throw new IllegalStateException("keystore 中无可用私钥条目");
+        PrivateKey privateKey = (PrivateKey) ks.getKey(alias, password);
+        List<X509Certificate> chain = new ArrayList<X509Certificate>();
+        for (java.security.cert.Certificate c : ks.getCertificateChain(alias))
+            chain.add((X509Certificate) c);
+        ApkSigner.SignerConfig signerConfig = new ApkSigner.SignerConfig.Builder(
+                "HexFileCustom", privateKey, chain).build();
+        new ApkSigner.Builder(Collections.singletonList(signerConfig))
+                .setInputApk(in)
+                .setOutputApk(out)
+                .setV1SigningEnabled(true)
+                .setV2SigningEnabled(true)
+                .setV3SigningEnabled(true)
+                .setMinSdkVersion(minSdk)
+                .setAlignmentPreserved(true)
+                .setLibraryPageAlignmentBytes(4096)
+                .setCreatedBy("HexFile Custom Sign")
+                .build()
+                .sign();
+    }
+
+    private static KeyStore loadAny(byte[] bytes, char[] password) throws Exception {
+        Exception last = null;
+        for (String type : new String[]{"PKCS12", "JKS"}) {
+            try {
+                KeyStore ks = KeyStore.getInstance(type);
+                ks.load(new java.io.ByteArrayInputStream(bytes), password);
+                return ks;
+            } catch (Exception e) { last = e; }
+        }
+        throw last != null ? last : new IllegalStateException("无法加载 keystore");
+    }
 }

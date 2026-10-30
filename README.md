@@ -1390,3 +1390,19 @@ v1.54.1 实测「数据备份失败」（应用本体备份正常，数据归档
 - **格式化**：编辑器主菜单 → 格式化自动识别 JSON → JSON 美化 → 保存，落盘内容正确缩进
 - **SigKill 去签名校验**：96MB/6 dex APK → sample_nosig.apk（110MB），apksigner verify 通过（内置密钥 V3.0 重签）
 - **批量重命名**：左滑进多选选 2 项 → 编号命名预览（001.json/002.bin）→ 执行成功，全程无崩溃
+
+## v1.57.0 —— APK 增强（信息 / 解包打包 / 自定义签名 / 去签名）
+
+### 新增（APK 长按菜单 4 项 + 目录菜单 1 项）
+- **APK 信息**：新页面 ApkInfoActivity——包名/版本/minSdk·targetSdk/权限列表（计数）/四大组件（含 exported 判定：显式声明 > intent-filter 推导）/ABI 归纳/dex 数量与 classes.dex 方法数/签名方案（V1/V2/V3），右上角一键导出 txt 到 `/sdcard/HexFile/APK信息/`。
+- **APK 解包**：全部条目按原路径提取到 `<name>_unpack/`（跳过旧签名、防路径穿越），另存 `AndroidManifest.xml.txt`（AXML→可读 XML）。
+- **打包为 APK**：长按解包目录（含 AndroidManifest.xml 时显示）→ 目录重打包为未签名 APK——resources.arsc 与 lib/*.so STORED + 4096 对齐，其余 DEFLATED；完成后询问是否用内置密钥直接签名。
+- **自定义密钥签名**：系统选择器选 keystore（PKCS12/JKS 自动识别）→ 输密码 → 自动选取首个含私钥的别名 → v1+v2+v3 签出 `_csigned.apk`。
+- **去除签名**：重写包并剥离 META-INF 签名文件 → `<name>_unsigned.apk`。
+
+### 实现
+- `ApkInfoUtil`：基于 AxmlFile 二进制解析 manifest，纯只读；方法数直接读 dex 头偏移 88（无需临时文件）。
+- `ApkPackager`：unpack/pack 双向；pack 复用 ApkRepack 的对齐思路（计数流 + extra 填充 + 时间戳钳制 1980 防 EXTT 破坏对齐）。
+- `ApkSignerTool.signAutoAlias`：新增自动选别名重载，PKCS12/JKS 双格式兼容。
+- versionCode 96；桌面 JVM 冒烟通过（96MB/6dex 真实 APK：信息 40 权限 17 Activity、解包 3527 文件 197MB、重打包 183MB、重签成功）。
+- 连接/安装效果由用户手动测试。

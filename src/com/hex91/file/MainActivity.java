@@ -54,6 +54,9 @@ public class MainActivity extends BaseActivity {
 
     private static final int REQ_STORAGE = 1;
     private static final int REQ_BATCH_RENAME = 3001;
+    private static final int REQ_CUSTOM_KEYSTORE = 3002;
+    /** 自定义签名待处理的 APK（onActivityResult 期间持有） */
+    private File mCustomSignSrc;
 
     private TextView headerPath, headerStats;
     private ListView listLeft, listRight;
@@ -1741,6 +1744,116 @@ public class MainActivity extends BaseActivity {
         }, "apk-sign").start();
     }
 
+    /** APK 解包（v1.57）：全部条目提取到 <name>_unpack/，另存可读 Manifest */
+    private void doApkUnpack(final File apk) {
+        File out = new File(apk.getParentFile(), stripExt(apk.getName()) + "_unpack");
+        if (out.exists()) {
+            toast("目录已存在: " + out.getName());
+            return;
+        }
+        final ProgressDialog pd = ProgressDialog.show(this, "APK 解包", apk.getName(), true, false);
+        new Thread(new Runnable() {
+            public void run() {
+                String err = null, ok = null;
+                try {
+                    ok = ApkPackager.unpack(apk, out);
+                } catch (Throwable t) {
+                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                }
+                final String ferr = err, fok = ok;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        pd.dismiss();
+                        if (ferr != null) toast("解包失败: " + ferr);
+                        else {
+                            toast("已解包 → " + out.getName() + "（" + fok + "）");
+                            refreshAll();
+                        }
+                    }
+                });
+            }
+        }, "apk-unpack").start();
+    }
+
+    /** 去除签名（v1.57）：重写包并剥离 META-INF 签名文件 → <name>_unsigned.apk */
+    private void doRemoveSignature(final File apk) {
+        File out = new File(apk.getParentFile(), stripExt(apk.getName()) + "_unsigned.apk");
+        final ProgressDialog pd = ProgressDialog.show(this, "去除签名", apk.getName(), true, false);
+        new Thread(new Runnable() {
+            public void run() {
+                String err = null;
+                try {
+                    ApkRepack.repack(apk,
+                            java.util.Collections.<String, byte[]>emptyMap(), out);
+                } catch (Throwable t) {
+                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                }
+                final String ferr = err;
+                final File fout = out;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        pd.dismiss();
+                        if (ferr != null) toast("失败: " + ferr);
+                        else {
+                            toast("未签名包 → " + fout.getName());
+                            refreshAll();
+                        }
+                    }
+                });
+            }
+        }, "apk-rmsign").start();
+    }
+
+    /** 自定义密钥签名（v1.57）：选 keystore → 输密码 → signAutoAlias → _csigned.apk */
+    private void askCustomSign(final File apk) {
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("*/*");
+        try {
+            startActivityForResult(Intent.createChooser(i, "选择 keystore（.p12/.jks）"),
+                    REQ_CUSTOM_KEYSTORE);
+        } catch (Throwable t) {
+            toast("无法打开文件选择器: " + t.getMessage());
+        }
+        mCustomSignSrc = apk;
+    }
+
+    /** 解包目录 → 打包为 APK（v1.57）：产物未签名，询问是否用内置密钥直接签 */
+    private void doApkPack(final File dir) {
+        File out = new File(dir.getParentFile(), stripExt(dir.getName()) + "_packed.apk");
+        final ProgressDialog pd = ProgressDialog.show(this, "打包 APK", dir.getName(), true, false);
+        new Thread(new Runnable() {
+            public void run() {
+                String err = null;
+                final File fout = out;
+                try {
+                    ApkPackager.pack(dir, out);
+                } catch (Throwable t) {
+                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                }
+                final String ferr = err;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        pd.dismiss();
+                        if (ferr != null) { toast("打包失败: " + ferr); return; }
+                        refreshAll();
+                        new AlertDialog.Builder(MainActivity.this)
+                                .setTitle("打包完成")
+                                .setMessage(fout.getName()
+                                        + "（未签名）\n\n用内置调试密钥立即签名？")
+                                .setPositiveButton("内置密钥签名", new android.content.DialogInterface.OnClickListener() {
+                                    public void onClick(android.content.DialogInterface d, int w) {
+                                        signApkBuiltin(fout);
+                                    }
+                                })
+                                .setNegativeButton("先不签", null)
+                                .show();
+                    }
+                });
+            }
+        }, "apk-pack").start();
+    }
+
     /** 写文件/目录进压缩包（nameOverride 非空 = 单源自定义条目名/目录前缀；move = 成功后删源） */
     private void addToArchive(final File[] sources, final Panel archPane,
             final String nameOverride, final boolean move) {
@@ -2507,6 +2620,9 @@ public class MainActivity extends BaseActivity {
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
         if (isSmaliDir) { ops.add("编译为 dex"); acts.add(A_ASSEMBLE); }
+        if (!isFile && new java.io.File(f, "AndroidManifest.xml").isFile()) {
+            ops.add("打包为 APK"); acts.add(36);   // v1.57：解包目录回打包
+        }
         if (isDex) { ops.add("Dex 编辑器++"); acts.add(A_DEXPP); }
         if (isDex) { ops.add("反编译 smali"); acts.add(A_SMALI); }
         if (isFile) { ops.add("文本编辑"); acts.add(A_EDIT); }
@@ -2543,7 +2659,7 @@ public class MainActivity extends BaseActivity {
         final int A_DEX2SMALI = 10, A_EXTRACT_DEX = 11, A_EXTRACT_ICON = 12,
                 A_SIGN = 13, A_COPY = 3, A_REN = 5, A_PROP = 8, A_DEXPP = 15, A_ARSCPP = 16, A_MFPP = 17,
                 A_TOZIP_C = 18, A_TOZIP_M = 19, A_SIGN_APK = 20, A_APK_COMPARE = 22, A_APK_CLONE = 23,
-                A_SIGKILL = 26;
+                A_SIGKILL = 26, A_INFO = 32, A_UNPACK = 33, A_SIGN_CUSTOM = 34, A_RM_SIGN = 35;
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
         ops.add("Dex 编辑器++"); acts.add(A_DEXPP);
@@ -2557,6 +2673,10 @@ public class MainActivity extends BaseActivity {
         ops.add("APK 对比"); acts.add(A_APK_COMPARE);
         ops.add("APK 共存"); acts.add(A_APK_CLONE);
         ops.add("去除签名校验"); acts.add(A_SIGKILL);
+        ops.add("APK 信息"); acts.add(A_INFO);
+        ops.add("APK 解包"); acts.add(A_UNPACK);
+        ops.add("自定义密钥签名"); acts.add(A_SIGN_CUSTOM);
+        ops.add("去除签名"); acts.add(A_RM_SIGN);
         ops.add("复制到对面"); acts.add(A_COPY);
         // 对面窗格打开了压缩包 → 增加写入压缩包动作（只读格式点击时给说明）
         final boolean archDst = dst.archiveFile != null;
@@ -2682,6 +2802,22 @@ public class MainActivity extends BaseActivity {
             case 31:                              // strings 提取（二进制可读字符串）
                 startActivity(new Intent(this, StringsViewerActivity.class)
                         .putExtra(StringsViewerActivity.EXTRA_FILE, f.getAbsolutePath()));
+                break;
+            case 32:                              // APK 信息（v1.57）
+                startActivity(new Intent(this, ApkInfoActivity.class)
+                        .putExtra(ApkInfoActivity.EXTRA_APK, f.getAbsolutePath()));
+                break;
+            case 33:                              // APK 解包（v1.57）
+                doApkUnpack(f);
+                break;
+            case 34:                              // 自定义密钥签名（v1.57）
+                askCustomSign(f);
+                break;
+            case 35:                              // 去除签名 → 未签名 APK（v1.57）
+                doRemoveSignature(f);
+                break;
+            case 36:                              // 解包目录 → 打包为 APK（v1.57）
+                doApkPack(f);
                 break;
         }
     }
@@ -3998,6 +4134,72 @@ public class MainActivity extends BaseActivity {
             if (selPanel != null && selPanel.adapter.selectionMode) exitSelection(selPanel);
             refreshAll();
         }
+        if (req == REQ_CUSTOM_KEYSTORE && res == RESULT_OK && data != null
+                && data.getData() != null && mCustomSignSrc != null) {
+            askCustomKeyPassword(data.getData(), mCustomSignSrc);
+        }
+    }
+
+    /** 自定义签名第 2 步：输入 keystore 密码后执行 signAutoAlias */
+    private void askCustomKeyPassword(final android.net.Uri keystoreUri, final File apk) {
+        final EditText pass = new EditText(this);
+        pass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        pass.setHint("keystore 密码");
+        new AlertDialog.Builder(this)
+                .setTitle("自定义密钥签名")
+                .setMessage("keystore: " + (keystoreUri.getLastPathSegment() != null
+                        ? keystoreUri.getLastPathSegment() : "已选择")
+                        + "\nAPK: " + apk.getName())
+                .setView(pass)
+                .setPositiveButton("签名", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        final String pwd = pass.getText().toString();
+                        if (pwd.isEmpty()) { toast("密码不能为空"); return; }
+                        final ProgressDialog pd = ProgressDialog.show(MainActivity.this,
+                                "自定义签名", apk.getName(), true, false);
+                        new Thread(new Runnable() {
+                            public void run() {
+                                String err = null;
+                                File out = new File(apk.getParentFile(),
+                                        stripExt(apk.getName()) + "_csigned.apk");
+                                try {
+                                    byte[] ksBytes = readUriBytes(keystoreUri);
+                                    ApkSignerTool.signAutoAlias(ksBytes, pwd.toCharArray(),
+                                            apk, out, 21);
+                                } catch (Throwable t) {
+                                    err = t.getMessage() != null
+                                            ? t.getMessage()
+                                            : t.getClass().getSimpleName();
+                                }
+                                final String ferr = err;
+                                final File fout = out;
+                                runOnUiThread(new Runnable() {
+                                    public void run() {
+                                        pd.dismiss();
+                                        if (ferr != null) toast("签名失败: " + ferr);
+                                        else {
+                                            toast("已签名 → " + fout.getName());
+                                            refreshAll();
+                                        }
+                                    }
+                                });
+                            }
+                        }, "apk-csign").start();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private byte[] readUriBytes(android.net.Uri uri) throws Exception {
+        java.io.InputStream in = getContentResolver().openInputStream(uri);
+        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+        byte[] buf = new byte[65536];
+        int n;
+        while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+        in.close();
+        return bo.toByteArray();
     }
 
     private long lastBackPress = 0;
