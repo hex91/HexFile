@@ -1406,3 +1406,20 @@ v1.54.1 实测「数据备份失败」（应用本体备份正常，数据归档
 - `ApkSignerTool.signAutoAlias`：新增自动选别名重载，PKCS12/JKS 双格式兼容。
 - versionCode 96；桌面 JVM 冒烟通过（96MB/6dex 真实 APK：信息 40 权限 17 Activity、解包 3527 文件 197MB、重打包 183MB、重签成功）。
 - 连接/安装效果由用户手动测试。
+
+## v1.58.0 —— 媒体与文档工具（图片批处理 / PDF 预览 / 字体预览）
+
+### 新增
+- **图片批处理**：图片长按「图片处理」，或多选栏「处理」按钮批量——
+  缩放 10-400%、格式转换（保持/JPEG/PNG/WebP）、质量 1-100、文字水印（右下角带阴影，字号随图宽自适应）。
+  输出同目录 `<base>_p.<ext>`（冲突加序号）；解码超 4096 自动采样防 OOM。
+- **PDF 预览**：点击 .pdf 直开——PdfRenderer 渲染、上一页/下一页导航、双击 2x 放大/还原、
+  长按当前页导出高清 PNG（3x FOR_PRINT）到 `/sdcard/HexFile/PDF导出/`；加密 PDF 友好提示。
+- **字体预览**：点击 .ttf/.otf 直开——中英文/数字/符号样张 + 自定义文本实时输入预览，字号 12-72sp 滑条。
+
+### 实现
+- `ImageBatchUtil`：BitmapFactory + Matrix + Canvas，零第三方依赖；KEEP 模式按源扩展名选编码器。
+- `PdfPreviewActivity`：ParcelFileDescriptor + PdfRenderer，渲染线程化，页面位图复用回收。
+- `FontPreviewActivity`：Typeface.createFromFile 单加载多 TextView 共享。
+- 多选操作栏扩为 7 键（全选/复制/移动/删除/重命名/处理/完成）。
+- versionCode 97。

@@ -166,6 +166,16 @@
             android:padding="0dp"/>
 
         <Button
+            android:id="@+id/btn_sel_img"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="38dp"
+            android:text="处理"
+            android:textSize="11sp"
+            android:textColor="?attr/hfText"
+            android:padding="0dp"/>
+
+        <Button
             android:id="@+id/btn_sel_done"
             android:layout_width="0dp"
             android:layout_weight="1"

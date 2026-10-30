@@ -727,6 +727,12 @@ public class MainActivity extends BaseActivity {
             askDexAction(f);
         } else if (isImageExt(lower)) {
             openViewer(f);
+        } else if (lower.endsWith(".pdf")) {
+            startActivity(new Intent(this, PdfPreviewActivity.class)
+                    .putExtra(PdfPreviewActivity.EXTRA_FILE, f.getAbsolutePath()));
+        } else if (lower.endsWith(".ttf") || lower.endsWith(".otf")) {
+            startActivity(new Intent(this, FontPreviewActivity.class)
+                    .putExtra(FontPreviewActivity.EXTRA_FILE, f.getAbsolutePath()));
         } else if (isTextFile(f, lower)) {
             openEditor(f);
         } else {
@@ -1744,6 +1750,132 @@ public class MainActivity extends BaseActivity {
         }, "apk-sign").start();
     }
 
+    /** 图片批处理参数对话框（v1.58）：缩放/格式/质量/水印 → 后台逐张处理 */
+    private void askImageBatch(final java.util.List<String> paths) {
+        if (paths == null || paths.isEmpty()) return;
+        float den = getResources().getDisplayMetrics().density;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int p16 = (int) (16 * den);
+        box.setPadding(p16, (int) (8 * den), p16, 0);
+
+        TextView l1 = new TextView(this);
+        l1.setText("缩放（%）");
+        l1.setTextSize(13);
+        l1.setTextColor(ThemeManager.textSub(this));
+        box.addView(l1);
+        final EditText scale = new EditText(this);
+        scale.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        scale.setText("100");
+        box.addView(scale);
+
+        TextView l2 = new TextView(this);
+        l2.setText("输出格式");
+        l2.setTextSize(13);
+        l2.setTextColor(ThemeManager.textSub(this));
+        l2.setPadding(0, (int) (8 * den), 0, 0);
+        box.addView(l2);
+        final android.widget.Spinner fmt = new android.widget.Spinner(this);
+        android.widget.ArrayAdapter<String> ad = new android.widget.ArrayAdapter<String>(this,
+                android.R.layout.simple_spinner_dropdown_item, ImageBatchUtil.FORMATS);
+        fmt.setAdapter(ad);
+        box.addView(fmt);
+
+        TextView l3 = new TextView(this);
+        l3.setText("质量（JPEG/WebP 有效，1-100）");
+        l3.setTextSize(13);
+        l3.setTextColor(ThemeManager.textSub(this));
+        l3.setPadding(0, (int) (8 * den), 0, 0);
+        box.addView(l3);
+        final EditText quality = new EditText(this);
+        quality.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        quality.setText("85");
+        box.addView(quality);
+
+        TextView l4 = new TextView(this);
+        l4.setText("水印文字（留空不加）");
+        l4.setTextSize(13);
+        l4.setTextColor(ThemeManager.textSub(this));
+        l4.setPadding(0, (int) (8 * den), 0, 0);
+        box.addView(l4);
+        final EditText wm = new EditText(this);
+        wm.setHint("如：© HexFile");
+        box.addView(wm);
+
+        new AlertDialog.Builder(this)
+                .setTitle("图片处理（" + paths.size() + " 张）")
+                .setView(box)
+                .setPositiveButton("开始处理", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        ImageBatchUtil.Options o = new ImageBatchUtil.Options();
+                        try {
+                            o.scalePercent = Integer.parseInt(scale.getText().toString());
+                        } catch (NumberFormatException ignore) {}
+                        o.scalePercent = Math.max(10, Math.min(400, o.scalePercent));
+                        o.formatIdx = fmt.getSelectedItemPosition();
+                        try {
+                            o.quality = Integer.parseInt(quality.getText().toString());
+                        } catch (NumberFormatException ignore) {}
+                        o.quality = Math.max(1, Math.min(100, o.quality));
+                        o.watermark = wm.getText().toString().trim();
+                        if (o.watermark.isEmpty()) o.watermark = null;
+                        doImageBatch(paths, o);
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void doImageBatch(final java.util.List<String> paths, final ImageBatchUtil.Options o) {
+        final ProgressDialog pd = new ProgressDialog(this);
+        pd.setTitle("图片处理");
+        pd.setMax(paths.size());
+        pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+        pd.setCancelable(false);
+        pd.show();
+        new Thread(new Runnable() {
+            public void run() {
+                int ok = 0, fail = 0;
+                String firstErr = null;
+                File dir0 = new File(paths.get(0)).getParentFile();
+                for (String p : paths) {
+                    try {
+                        ImageBatchUtil.process(new File(p), dir0, o);
+                        ok++;
+                    } catch (Throwable t) {
+                        fail++;
+                        if (firstErr == null) firstErr = t.getMessage();
+                    }
+                    pd.incrementProgressBy(1);
+                }
+                final int fok = ok, ffail = fail;
+                final String ferr = firstErr;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        pd.dismiss();
+                        String msg = "成功 " + fok + " 张";
+                        if (ffail > 0) msg += "，失败 " + ffail + " 张" + (ferr != null ? "（" + ferr + "）" : "");
+                        toast(msg + "，输出在同目录（_p 后缀）");
+                        refreshAll();
+                    }
+                });
+            }
+        }, "img-batch").start();
+    }
+
+    /** 多选栏「处理」：筛出选中图片进批处理对话框 */
+    private void doBatchImage() {
+        if (selPanel == null) return;
+        java.util.List<String> imgs = new ArrayList<String>();
+        for (FileItem it : selPanel.adapter.getSelectedItems()) {
+            if (it.isArchEntry() || it.file == null) continue;
+            if (ImageBatchUtil.supported(it.file.getName().toLowerCase()))
+                imgs.add(it.file.getAbsolutePath());
+        }
+        if (imgs.isEmpty()) { toast("选中的项里没有可处理的图片"); return; }
+        askImageBatch(imgs);
+    }
+
     /** APK 解包（v1.57）：全部条目提取到 <name>_unpack/，另存可读 Manifest */
     private void doApkUnpack(final File apk) {
         File out = new File(apk.getParentFile(), stripExt(apk.getName()) + "_unpack");
@@ -2631,6 +2763,9 @@ public class MainActivity extends BaseActivity {
         if (isDex) { ops.add("Dex 编辑器++"); acts.add(A_DEXPP); }
         if (isDex) { ops.add("反编译 smali"); acts.add(A_SMALI); }
         if (isFile) { ops.add("文本编辑"); acts.add(A_EDIT); }
+        if (isFile && ImageBatchUtil.supported(f.getName().toLowerCase())) {
+            ops.add("图片处理"); acts.add(37);   // v1.58：缩放/转格式/水印
+        }
         if (isFile) { ops.add("HEX 查看"); acts.add(A_HEX); }
         ops.add("复制到对面"); acts.add(A_COPY);
         ops.add("移动到对面"); acts.add(A_MOVE);
@@ -2665,7 +2800,7 @@ public class MainActivity extends BaseActivity {
                 A_SIGN = 13, A_COPY = 3, A_REN = 5, A_PROP = 8, A_DEXPP = 15, A_ARSCPP = 16, A_MFPP = 17,
                 A_TOZIP_C = 18, A_TOZIP_M = 19, A_SIGN_APK = 20, A_APK_COMPARE = 22, A_APK_CLONE = 23,
                 A_SIGKILL = 26, A_INFO = 32, A_UNPACK = 33, A_SIGN_CUSTOM = 34, A_RM_SIGN = 35,
-                A_DEL = 7;
+                A_DEL = 7, A_IMGBATCH = 37;
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
         ops.add("Dex 编辑器++"); acts.add(A_DEXPP);
@@ -2683,8 +2818,7 @@ public class MainActivity extends BaseActivity {
         ops.add("APK 解包"); acts.add(A_UNPACK);
         ops.add("自定义密钥签名"); acts.add(A_SIGN_CUSTOM);
         ops.add("去除签名"); acts.add(A_RM_SIGN);
-        ops.add("删除"); acts.add(A_DEL);
-        ops.add("复制到对面"); acts.add(A_COPY);
+        ops.add("删除"); acts.add(A_DEL);        ops.add("复制到对面"); acts.add(A_COPY);
         // 对面窗格打开了压缩包 → 增加写入压缩包动作（只读格式点击时给说明）
         final boolean archDst = dst.archiveFile != null;
         if (archDst) { ops.add("复制到对面压缩包"); acts.add(A_TOZIP_C); }
@@ -2825,6 +2959,9 @@ public class MainActivity extends BaseActivity {
                 break;
             case 36:                              // 解包目录 → 打包为 APK（v1.57）
                 doApkPack(f);
+                break;
+            case 37:                              // 图片处理（缩放/转格式/水印，v1.58）
+                askImageBatch(java.util.Collections.singletonList(f.getAbsolutePath()));
                 break;
         }
     }
@@ -3890,6 +4027,9 @@ public class MainActivity extends BaseActivity {
         });
         findViewById(R.id.btn_sel_rename).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { doBatchRename(); }
+        });
+        findViewById(R.id.btn_sel_img).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { doBatchImage(); }
         });
         findViewById(R.id.btn_sel_done).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { if (selPanel != null) exitSelection(selPanel); }

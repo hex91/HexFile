@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hex91.file"
-    android:versionCode="96"
-    android:versionName="1.57.0">
+    android:versionCode="97"
+    android:versionName="1.58.0">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
 
@@ -132,6 +132,16 @@
         <!-- v1.57.0：APK 信息查看（权限/组件/ABI/DEX/签名一览） -->
         <activity
             android:name="com.hex91.file.ApkInfoActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+        <!-- v1.58.0：PDF 预览（PdfRenderer 渲染/翻页/导出 PNG） -->
+        <activity
+            android:name="com.hex91.file.PdfPreviewActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+        <!-- v1.58.0：字体预览（ttf/otf 样张实时渲染） -->
+        <activity
+            android:name="com.hex91.file.FontPreviewActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
