@@ -33,7 +33,8 @@ import java.util.Locale;
  * v1.56.0 网络存储：SMB / WebDAV 客户端，手机直连电脑共享。
  *
  * <p>SMB 走 {@link SmbFs}（smbj 0.14.0，SMB2/SMB3），WebDAV 走 {@link WebDavFs}
- * （HttpURLConnection + Basic 认证）。服务器配置以 JSON 存于 SharedPreferences。</p>
+ * （HttpURLConnection + Basic 认证），FTP 走 {@link FtpFs}（纯 Socket 零依赖），
+ * SFTP 走 {@link SftpFs}（JSch SSH2）。服务器配置以 JSON 存于 SharedPreferences。</p>
  *
  * <p>功能：服务器增删改测、远程浏览、下载到本地（文件/目录递归）、
  * 上传本地文件（系统选择器）、新建目录、重命名、删除。</p>
@@ -47,6 +48,8 @@ public final class NetStorageActivity extends BaseActivity {
 
     private static final String TYPE_SMB = "smb";
     private static final String TYPE_WEBDAV = "webdav";
+    private static final String TYPE_FTP = "ftp";        // v1.60.0
+    private static final String TYPE_SFTP = "sftp";      // v1.60.0
 
     // ---- UI ----
     private View mServersPanel, mBrowsePanel;
@@ -170,7 +173,12 @@ public final class NetStorageActivity extends BaseActivity {
 
     private String serverLabel(org.json.JSONObject s) {
         try {
-            if (TYPE_WEBDAV.equals(s.optString("type"))) return "WebDAV · " + s.optString("url");
+            String t = s.optString("type");
+            if (TYPE_WEBDAV.equals(t)) return "WebDAV · " + s.optString("url");
+            if (TYPE_FTP.equals(t)) return "FTP · " + s.optString("host")
+                    + (s.optInt("port", 21) == 21 ? "" : ":" + s.optInt("port"));
+            if (TYPE_SFTP.equals(t)) return "SFTP · " + s.optString("host")
+                    + (s.optInt("port", 22) == 22 ? "" : ":" + s.optInt("port"));
             return "SMB · " + s.optString("host") + (s.optInt("port", 445) == 445 ? "" : ":" + s.optInt("port")) + "/" + s.optString("share");
         } catch (Exception e) {
             return "（配置损坏）";
@@ -243,31 +251,39 @@ public final class NetStorageActivity extends BaseActivity {
         final int pad = dp(20);
         box.setPadding(pad, dp(8), pad, 0);
 
-        final Spinner type = addSpinnerRow(box, "类型", new String[]{"SMB (Windows 共享/NAS)", "WebDAV"});
-        final EditText host = addEditRow(box, "地址（SMB: IP或主机名 / WebDAV: 完整URL）", "");
-        final EditText port = addEditRow(box, "端口（SMB 用，WebDAV 忽略）", "445");
+        final Spinner type = addSpinnerRow(box, "类型",
+                new String[]{"SMB (Windows 共享/NAS)", "WebDAV", "FTP", "SFTP (SSH)"});
+        final EditText host = addEditRow(box, "地址（SMB/FTP/SFTP: IP或主机名 / WebDAV: 完整URL）", "");
+        final EditText port = addEditRow(box, "端口", "445");
         final EditText share = addEditRow(box, "共享名（SMB，如 public）", "");
         final EditText domain = addEditRow(box, "域/工作组（SMB，可留空）", "");
-        final EditText user = addEditRow(box, "用户名（留空 = 访客）", "");
+        final EditText user = addEditRow(box, "用户名（FTP/SFTP 匿名/留空视协议而定）", "");
         final EditText pass = addEditRow(box, "密码", "");
         pass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
                 | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
 
         type.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             public void onItemSelected(android.widget.AdapterView<?> p, View v, int pos, long id) {
+                // 0=SMB 1=WebDAV 2=FTP 3=SFTP
                 boolean smb = pos == 0;
-                port.setVisibility(smb ? View.VISIBLE : View.GONE);
-                share.setVisibility(smb ? View.VISIBLE : View.GONE);
-                domain.setVisibility(smb ? View.VISIBLE : View.GONE);
-                host.setHint(smb ? "192.168.1.100" : "http://192.168.1.100:5005/dav/");
+                boolean http = pos == 1;
+                setRowVisible(port, !http);
+                setRowVisible(share, smb);
+                setRowVisible(domain, smb);
+                host.setHint(smb ? "192.168.1.100"
+                        : http ? "http://192.168.1.100:5005/dav/"
+                        : "192.168.1.100");
+                port.setText(smb ? "445" : http ? "" : pos == 2 ? "21" : "22");
             }
             public void onNothingSelected(android.widget.AdapterView<?> p) {}
         });
 
         if (editing != null) {
-            type.setSelection(TYPE_WEBDAV.equals(editing.optString("type")) ? 1 : 0);
+            String et = editing.optString("type");
+            type.setSelection(TYPE_WEBDAV.equals(et) ? 1 : TYPE_FTP.equals(et) ? 2 : TYPE_SFTP.equals(et) ? 3 : 0);
             host.setText(editing.optString("host"));
-            port.setText(String.valueOf(editing.optInt("port", 445)));
+            port.setText(String.valueOf(editing.optInt("port",
+                    TYPE_FTP.equals(et) ? 21 : TYPE_SFTP.equals(et) ? 22 : 445)));
             share.setText(editing.optString("share"));
             domain.setText(editing.optString("domain"));
             user.setText(editing.optString("user"));
@@ -280,14 +296,17 @@ public final class NetStorageActivity extends BaseActivity {
                 .setPositiveButton("保存", new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         try {
-                            boolean smb = type.getSelectedItemPosition() == 0;
+                            int pos = type.getSelectedItemPosition(); // 0=SMB 1=WebDAV 2=FTP 3=SFTP
+                            boolean smb = pos == 0, http = pos == 1;
                             String h = host.getText().toString().trim();
                             if (smb && h.isEmpty()) { toast("地址不能为空"); return; }
-                            if (!smb && !h.startsWith("http")) { toast("WebDAV 地址需以 http(s):// 开头"); return; }
+                            if (http && !h.startsWith("http")) { toast("WebDAV 地址需以 http(s):// 开头"); return; }
+                            if (!http && h.isEmpty()) { toast("地址不能为空"); return; }
+                            int defPort = smb ? 445 : pos == 2 ? 21 : pos == 3 ? 22 : 80;
                             org.json.JSONObject o = editing == null ? new org.json.JSONObject() : editing;
-                            o.put("type", smb ? TYPE_SMB : TYPE_WEBDAV);
+                            o.put("type", smb ? TYPE_SMB : http ? TYPE_WEBDAV : pos == 2 ? TYPE_FTP : TYPE_SFTP);
                             o.put("host", h);
-                            o.put("port", parseInt(port.getText().toString(), 445));
+                            o.put("port", parseInt(port.getText().toString(), defPort));
                             o.put("share", share.getText().toString().trim());
                             o.put("domain", domain.getText().toString().trim());
                             o.put("user", user.getText().toString().trim());
@@ -322,13 +341,25 @@ public final class NetStorageActivity extends BaseActivity {
     }
 
     private EditText addEditRow(LinearLayout box, String label, String value) {
-        addLabel(box, label);
+        // 标签与输入框包进同一行容器，显隐时整体切换（只藏 EditText 会留下孤零零的标签）
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        addLabel(row, label);
         EditText e = new EditText(this);
         e.setText(value);
         e.setSingleLine(true);
         e.setTextSize(14);
-        box.addView(e);
+        row.addView(e);
+        e.setTag(row);
+        box.addView(row);
         return e;
+    }
+
+    /** 显示/隐藏一个输入行（含标签）。 */
+    private void setRowVisible(EditText e, boolean visible) {
+        Object tag = e.getTag();
+        View target = tag instanceof View ? (View) tag : e;
+        target.setVisibility(visible ? View.VISIBLE : View.GONE);
     }
 
     private Spinner addSpinnerRow(LinearLayout box, String label, String[] items) {
@@ -349,8 +380,15 @@ public final class NetStorageActivity extends BaseActivity {
             public void run() {
                 try {
                     NetFs fs;
-                    if (TYPE_WEBDAV.equals(s.optString("type"))) {
+                    String t = s.optString("type");
+                    if (TYPE_WEBDAV.equals(t)) {
                         fs = new WebDavFs(s.optString("url").isEmpty() ? s.optString("host") : s.optString("url"),
+                                s.optString("user"), s.optString("pass"));
+                    } else if (TYPE_FTP.equals(t)) {
+                        fs = FtpFs.connect(s.optString("host"), s.optInt("port", 21),
+                                s.optString("user"), s.optString("pass"));
+                    } else if (TYPE_SFTP.equals(t)) {
+                        fs = SftpFs.connect(s.optString("host"), s.optInt("port", 22),
                                 s.optString("user"), s.optString("pass"));
                     } else {
                         fs = SmbFs.connect(s.optString("host"), s.optInt("port", 445),
@@ -413,11 +451,16 @@ public final class NetStorageActivity extends BaseActivity {
     }
 
     private void disconnect() {
-        if (mFs != null) { mFs.close(); mFs = null; }
+        final NetFs fs = mFs;
+        mFs = null;
         mCurServer = null;
         mEntries.clear();
         mAdapter.notifyDataSetChanged();
         showServers();
+        // 断连可能涉及网络 I/O（FTP QUIT / SMB 树断开 / SFTP DISCONNECT），必须离开主线程
+        if (fs != null) {
+            bg(new Runnable() { public void run() { fs.close(); } });
+        }
     }
 
     private void entryMenu(final NetFs.NetEntry e) {
@@ -448,8 +491,9 @@ public final class NetStorageActivity extends BaseActivity {
         bg(new Runnable() {
             public void run() {
                 try {
+                    // 统一落在 NetStorage/<条目名>：目录为递归根，文件为完整目标路径
                     File destDir = new File(android.os.Environment.getExternalStorageDirectory(),
-                            "HexFile/网络存储" + (e.dir ? "/" + e.name : ""));
+                            "HexFile/NetStorage/" + e.name);
                     final File baseDir = destDir;
                     runOnUiThread(new Runnable() {
                         public void run() { mProgress.setMessage("下载中…"); }
@@ -852,7 +896,11 @@ public final class NetStorageActivity extends BaseActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (mFs != null) { mFs.close(); mFs = null; }
+        final NetFs fs = mFs;
+        mFs = null;
+        if (fs != null) {
+            bg(new Runnable() { public void run() { fs.close(); } });
+        }
         hideProgress();
     }
 }

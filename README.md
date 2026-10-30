@@ -1454,3 +1454,23 @@ v1.54.1 实测「数据备份失败」（应用本体备份正常，数据归档
 ### 结果
 - 全量 30 套桌面 JVM 测试：**27 通过 / 0 失败 / 3 跳过**（跳过原因：ArchiveWriteTest 需真机样本；ZstdTest/ArchZstTest 需 zstd 原生库）。
 - versionCode 99，APK 7.6M。
+
+## v1.60.0 —— 网络存储扩展（FTP / SFTP 协议支持）
+
+### 新增
+- **FTP 客户端**（`FtpFs`，纯 Socket 手写零依赖）：被动模式（PASV，数据连接复用控制 host 兼容 NAT/多网卡）、二进制传输（TYPE I）、LIST 解析双风格（UNIX ls + Windows/IIS DOS）、UTF-8 文件名（OPTS UTF8 ON）、RETR/STOR 流式收发（close 时确认 226 保证传输完整）、MKD/RMD/DELE/RNFR+RNTO、目录递归删除。默认端口 21，用户名留空按匿名登录。
+- **SFTP 客户端**（`SftpFs`，JSch 0.1.55 SSH2）：密码认证、host key 宽松模式（局域网免交互）、列目录排除 . ..、get/put 流式收发、put 自动补齐父目录、rm/rmdir/递归删除、rename 目标已存在时先删后改（SFTP v3 无原子覆盖）。默认端口 22。
+- **服务器管理四协议**：添加/编辑对话框类型下拉扩为 SMB / WebDAV / FTP / SFTP，按类型显隐端口（21/22/445）与共享名/域字段、动态 hint；连接分发与列表标签（`FTP · host[:port]`）适配。
+
+### 修复（测试驱动发现）
+- `FtpFs.list()` 读完数据后未消费服务器 226 完成回复 → 后续命令读到错位回复（如 PASV 收到 "257 created"）。修复后每条命令回复严格对齐。
+- 目录行 LIST 的 size 归 0（目录 4096 等块大小无意义）。
+- UNIX LIST 时间解析：近期文件（无年份，如 "Oct 30 12:34"）补当前年；老文件（"Oct 30 2023"）按 "MMM d yyyy" 解析。
+- **类型切换残留标签**：SMB→FTP 切换后「共享名/域」仅隐藏输入框、标签 TextView 残留——addEditRow 改为标签+输入框包进行容器整体显隐（真机 UI 冒烟发现）。
+- **下载落盘路径**：根目录文件下载写成 `HexFile/网络存储` 单个文件（内容为文件数据）而非 `HexFile/网络存储/<文件名>`——统一改为 `HexFile/NetStorage/<条目名>`（真机验证发现）。
+- **断开连接崩溃**（真机测试发现）：`FtpFs.close()` 在主线程发 `QUIT` 命令抛 `NetworkOnMainThreadException`（按返回键/断开按钮即崩）——QUIT 写入改独立线程 + Activity 的 disconnect/onDestroy 统一后台线程 close（同时保护 SMB/SFTP 断连）。
+
+### 测试
+- 新增 `FtpFsTest`（30 套 → 31 套）：内置迷你 FTP 服务器桩（Socket 内存文件系统，支持 USER/PASS/PASV/LIST/RETR/STOR/MKD/DELE/RMD/RNFR/RNTO/QUIT），全链路 20 项断言——上传下载逐字节一致、中文与空格文件名、目录排前+按名排序、重命名、递归删除、错误路径；另含 parseListLine 的 UNIX/DOS/符号链接/total 行单元解析。
+- versionCode 100。
+
