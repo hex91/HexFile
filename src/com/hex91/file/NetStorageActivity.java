@@ -188,7 +188,12 @@ public final class NetStorageActivity extends BaseActivity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.VERTICAL);
         row.setPadding(dp(18), dp(10), dp(18), dp(10));
-        row.setBackgroundResource(android.R.attr.selectableItemBackground);
+        // attr 不能直接当资源 ID 用 → 先 resolve 成 drawable 资源
+        try {
+            android.util.TypedValue tv = new android.util.TypedValue();
+            getTheme().resolveAttribute(android.R.attr.selectableItemBackground, tv, true);
+            row.setBackgroundResource(tv.resourceId);
+        } catch (Exception ignore) {}
 
         TextView t1 = new TextView(this);
         t1.setText(label);

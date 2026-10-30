@@ -64,7 +64,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
-                <TextView
+                <LinearLayout
                     android:id="@+id/net_server_container"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
