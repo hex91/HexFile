@@ -32,6 +32,10 @@ import android.view.View;
 import android.view.ViewTreeObserver;
 import android.widget.EditText;
 
+/**
+ * 编辑器行号自绘 View：跟随文本滚动同步行号、随内容行数自适应高度，
+ * 绑定 HighlightingEditor 使用。
+ */
 public class LineNumbersView extends View {
 
     private EditText editText;

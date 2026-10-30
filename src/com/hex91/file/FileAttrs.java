@@ -7,7 +7,6 @@ import java.io.File;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -117,7 +116,7 @@ public final class FileAttrs {
     }
 
     /** 无 root 近似：can* 反映应用实际权限；三段一致（sdcard 挂载视图下通常成立） */
-    static Attr statFallback(File f) {
+    public static Attr statFallback(File f) {
         Attr a = new Attr();
         String t = (f.canRead() ? "r" : "-") + (f.canWrite() ? "w" : "-")
                 + (f.canExecute() ? "x" : "-");

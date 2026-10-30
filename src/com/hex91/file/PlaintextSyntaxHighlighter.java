@@ -18,6 +18,10 @@ import android.util.Log;
 import java.util.HashMap;
 import java.util.regex.Pattern;
 
+/**
+ * 通用/纯文本语法高亮器：LangRules 按扩展名选择规则集，
+ * 未识别语言降级为基础着色（字符串/注释/数字）。
+ */
 public class PlaintextSyntaxHighlighter extends SyntaxHighlighterBase {
 
     /** 语言规则：扩展名 -> 规则列表（编译惰性） */

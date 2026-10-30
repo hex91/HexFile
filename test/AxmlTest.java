@@ -29,13 +29,21 @@ public class AxmlTest {
 
     static int passed = 0, failed = 0;
 
+    /** 取 out/ 下最新 HexFile-*.apk（旧路径 out/MTClone-1.11.0.apk 已不存在，v1.60 清理） */
+    static File newestApk() {
+        File[] fs = new File("out").listFiles((d, n) -> n.matches("HexFile-1\\.\\d+(\\.\\d+)?\\.apk"));
+        if (fs == null || fs.length == 0) throw new IllegalStateException("out/ 无 HexFile-*.apk，请先构建");
+        java.util.Arrays.sort(fs, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+        return fs[0];
+    }
+
     public static void main(String[] args) throws Exception {
         File tmp = new File("test/axml_tmp");
         rmR(tmp); tmp.mkdirs();
 
         // ---- 1. 解析真实 manifest ----
         File mf = new File(tmp, "AndroidManifest.xml");
-        extract(new File("out/MTClone-1.11.0.apk"), "AndroidManifest.xml", mf);
+        extract(newestApk(), "AndroidManifest.xml", mf);
         byte[] data = readAll(mf);
         AxmlFile f = AxmlFile.parse(data);
         check("解析元素数 > 0", f.elements.size() > 0, "elements=" + f.elements.size());

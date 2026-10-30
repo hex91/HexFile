@@ -18,6 +18,10 @@ package com.hex91.file;
 import java.util.List;
 import java.util.regex.Pattern;
 
+/**
+ * MT 风格多语言语法高亮器：关键词/字符串/注释/数字/注解分色，
+ * 覆盖 Java/Kotlin/JS/Python/XML/Shell 等常见语言。
+ */
 public class MtSyntaxHighlighter extends SyntaxHighlighterBase {
 
     private static final int FLAGS = Pattern.DOTALL | Pattern.MULTILINE;

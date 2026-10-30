@@ -17,17 +17,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
-import java.util.zip.Deflater;
 
-import javax.crypto.Cipher;
-import javax.crypto.Mac;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
-import java.security.spec.InvalidKeySpecException;
 
 /**
  * ZIP 工具集（零第三方依赖，纯 java.util.zip）
@@ -435,7 +425,7 @@ public class ZipUtil {
             zip.close();
             return outZip.exists();
         } catch (Exception e) {
-            e.printStackTrace();
+            android.util.Log.w("ZipUtil", "encrypted zip create failed", e);
             return false;
         }
     }
@@ -464,7 +454,7 @@ public class ZipUtil {
             zip.close();
             return outZip.exists();
         } catch (Exception e) {
-            e.printStackTrace();
+            android.util.Log.w("ZipUtil", "encrypted zip create failed", e);
             return false;
         }
     }

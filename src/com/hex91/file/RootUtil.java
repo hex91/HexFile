@@ -43,7 +43,7 @@ public final class RootUtil {
     }
 
     /** 可注入命令名的探测（测试用）。 */
-    static boolean detect(String suCommand) {
+    public static boolean detect(String suCommand) {
         Boolean c = cached;
         if (c != null) return c;
         boolean ok;
@@ -192,9 +192,9 @@ public final class RootUtil {
     }
 
     /** 探测任务：su -c id → 输出含 uid=0( 才算通过 */
-    static class Probe implements Callable<Boolean> {
+    public static class Probe implements Callable<Boolean> {
         private final String cmd;
-        Probe(String cmd) { this.cmd = cmd; }
+        public Probe(String cmd) { this.cmd = cmd; }
 
         @Override
         public Boolean call() throws Exception {

@@ -1,7 +1,6 @@
 package com.hex91.file;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.view.View;

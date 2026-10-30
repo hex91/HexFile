@@ -32,6 +32,14 @@ public class DexWritebackTest {
 
     static int passed = 0, failed = 0;
 
+    /** 取 out/ 下最新 HexFile-*.apk（旧路径 out/MTClone-1.11.0.apk 已不存在，v1.60 清理） */
+    static File newestApk() {
+        File[] fs = new File("out").listFiles((d, n) -> n.matches("HexFile-1\\.\\d+(\\.\\d+)?\\.apk"));
+        if (fs == null || fs.length == 0) throw new IllegalStateException("out/ 无 HexFile-*.apk，请先构建");
+        java.util.Arrays.sort(fs, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+        return fs[0];
+    }
+
     public static void main(String[] args) throws Exception {
         File tmp = new File("test/dwb_tmp");
         rmR(tmp); tmp.mkdirs();
@@ -65,7 +73,7 @@ public class DexWritebackTest {
 
         // ---- 2. 构造 mini APK：manifest(借用现成产物) + classes.dex + classes2.dex + assets/x.txt ----
         File mf = new File(tmp, "AndroidManifest.xml");
-        extract(new File("out/MTClone-1.11.0.apk"), "AndroidManifest.xml", mf);
+        extract(newestApk(), "AndroidManifest.xml", mf);
         File miniApk = new File(tmp, "mini.apk");
         try (ZipOutputStream zo = new ZipOutputStream(new FileOutputStream(miniApk))) {
             put(zo, "AndroidManifest.xml", readAll(mf));

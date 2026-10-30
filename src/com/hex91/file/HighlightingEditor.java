@@ -51,6 +51,10 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * 编辑器核心 EditText：超长文本的异步语法高亮（后台分词 + 节流刷新，
+ * 避免主线程卡顿）、与 LineNumbersView 行号联动、撤销栈管理。文本编辑相关 Activity 共用。
+ */
 public class HighlightingEditor extends EditText {
 
     final static int HIGHLIGHT_SHIFT_LINES = 8;              // Lines to scroll before hl updated

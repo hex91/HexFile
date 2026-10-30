@@ -47,6 +47,10 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * 语法高亮器抽象基类：定义「Pattern → 颜色」规则表结构，
+ * 统一处理 Matcher 扫描、Span 生命周期与增量刷新。
+ */
 public abstract class SyntaxHighlighterBase {
 
     protected final static int LONG_HIGHLIGHTING_DELAY = 2400;

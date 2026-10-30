@@ -29,3 +29,8 @@ shots/
 Thumbs.db
 *.swp
 test/_zsamples/
+test/bin/
+test/bin_all/
+test/bin2/
+test/bin3/
+test/_dbg/

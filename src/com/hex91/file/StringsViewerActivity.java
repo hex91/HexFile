@@ -1,9 +1,7 @@
 package com.hex91.file;
 
-import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
-import android.graphics.Color;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;

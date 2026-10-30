@@ -9,7 +9,6 @@ import java.io.OutputStream;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
-import java.util.Arrays;
 
 import javax.crypto.Cipher;
 import javax.crypto.Mac;

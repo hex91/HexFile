@@ -1,10 +1,8 @@
 package com.hex91.file;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import jadx.core.xmlgen.BinaryXMLStrings;
 import jadx.core.xmlgen.entry.RawNamedValue;
 import jadx.core.xmlgen.entry.RawValue;
 import jadx.core.xmlgen.entry.ResourceEntry;

@@ -12,12 +12,15 @@ package com.hex91.file;
  *
 #########################################################*/
 
-import android.graphics.Paint;
 import android.graphics.Typeface;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Markdown 语法高亮器：标题层级/粗体斜体/行内与围栏代码/链接引用/
+ * 列表标记分色，基于 SyntaxHighlighterBase 的正则模式驱动。
+ */
 public class MarkdownSyntaxHighlighter extends SyntaxHighlighterBase {
 
     public final static Pattern BOLD = Pattern.compile("(?<=(\\n|^|\\s|\\[|\\{|\\())(([*_]){2,3})(?=\\S)(.*?)\\S\\2(?=(\\n|$|\\s|\\.|,|:|;|-|\\]|\\}|\\)))");

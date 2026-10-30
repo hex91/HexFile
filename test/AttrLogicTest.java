@@ -1,5 +1,8 @@
 package bin.HexFile;
 
+import com.hex91.file.FileAttrs;
+import com.hex91.file.RootUtil;
+
 import java.io.File;
 
 /**

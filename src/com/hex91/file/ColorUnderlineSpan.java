@@ -18,6 +18,10 @@ import android.text.style.UpdateAppearance;
 import java.lang.reflect.Method;
 import java.util.regex.Pattern;
 
+/**
+ * 语法高亮下划线 Span：在部分主题下以下划线标示拼写/匹配区域，
+ * 通过反射兼容不同 API 级别的 underlineTextColor 更新。
+ */
 public class ColorUnderlineSpan extends UnderlineSpan implements UpdateAppearance {
     public static final Pattern HEX_CODE_UNDERLINE_PATTERN = Pattern.compile("(?:\\s|[\";,:'*]|^)(#[A-Fa-f0-9]{6,8})+(?:\\s|[\";,:'*]|$)");
 

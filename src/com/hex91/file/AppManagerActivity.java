@@ -1,6 +1,5 @@
 package com.hex91.file;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.Intent;
@@ -48,7 +47,7 @@ import java.util.concurrent.Executors;
 public class AppManagerActivity extends BaseActivity {
 
     /** 列表行模型 */
-    static class AppRow {
+    public static class AppRow {
         String label;
         String pkg;
         String version;
@@ -67,7 +66,7 @@ public class AppManagerActivity extends BaseActivity {
         }
 
         /** 导出文件名：应用名_版本.apk（清洗非法字符；放 AppRow 避免类初始化器，桌面可测） */
-        static String exportFileName(String label, String version) {
+        public static String exportFileName(String label, String version) {
             return exportBaseName(label, version) + ".apk";
         }
     }

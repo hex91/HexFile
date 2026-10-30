@@ -1435,3 +1435,22 @@ v1.54.1 实测「数据备份失败」（应用本体备份正常，数据归档
 - `DiskScanUtil`：scanSize（DirVisitor 回调构占用树）、topFiles（PriorityQueue TopN）、findDuplicates（三阶段去重算法）、hashFull（流式 MessageDigest）。纯 File API 无 root 依赖。
 - JVM 测试 4 项通过（目录统计精确值/重复组识别/MD5 一致性与区分/SHA-256 长度）。
 - versionCode 98。
+
+## v1.59.1 —— 代码质量整理（v1.36 以来首轮流线维护）
+
+### 清理（行为零变更）
+- **删除 52 个未用 import**（16 个文件），编译验证通过。
+- **printStackTrace 全部清除**（AutoTextFormatter 2 处、ZipUtil 2 处）→ 统一 `Log.w` 带 TAG。
+- **补齐 9 个缺失类头注释**：编辑器家族（HighlightingEditor/LineNumbersView/AutoTextFormatter/SyntaxHighlighterBase 及各高亮器）。
+
+### 测试体系（本次主要产出）
+- **新增 `test/run_all.sh` 全量测试入口**：一键编译并运行全部桌面 JVM 测试，输出 PASS/FAIL/SKIP 汇总与失败日志尾部；支持名称过滤；跳过名单注明原因（真机样本/原生库缺失）。
+- 修复 10 个历史测试文件的缺 import（当年同包名直编遗留）：J4ReadTest/StringExtractTest/ArchZstTest/AttrLogicTest/CmpOpsTest/RootUtilTest/ThemeTest/ZipWriteTest/ZstdTest/MakeSample。
+- 修复 3 个测试的过期产物路径（`out/MTClone-1.11.0.apk` → 自动取最新 `out/HexFile-*.apk`）：AxmlTest/DexWritebackTest/SignTest。
+- SignTest 改用 `signAutoAlias`（根 keystore 别名 hex91 ≠ KEY_ALIAS hexfile，自动选别名更稳）；v1 签名文件断言从写死 MT_CLONE.* 改为通用 *.SF/*.RSA 判定。
+- 可见性微调（测试可达，行为不变）：AppRow/exportFileName/statFallback/RootUtil.detect/Probe → public。
+- .gitignore 补测试产物目录（test/bin*、test/_dbg）。
+
+### 结果
+- 全量 30 套桌面 JVM 测试：**27 通过 / 0 失败 / 3 跳过**（跳过原因：ArchiveWriteTest 需真机样本；ZstdTest/ArchZstTest 需 zstd 原生库）。
+- versionCode 99，APK 7.6M。

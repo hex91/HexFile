@@ -5,9 +5,7 @@ import android.os.Looper;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.Selection;
-import android.text.Spanned;
 import android.text.TextUtils;
-import android.text.TextWatcher;
 import android.widget.TextView;
 
 import java.util.ArrayList;

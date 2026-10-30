@@ -19,8 +19,16 @@ public class SignTest {
 
     static int pass = 0, fail = 0;
 
+    /** 取 out/ 下最新 HexFile-*.apk（旧路径 out/MTClone-1.11.0.apk 已不存在，v1.60 清理） */
+    static File newestApk() {
+        File[] fs = new File("out").listFiles((d, n) -> n.matches("HexFile-1\\.\\d+(\\.\\d+)?\\.apk"));
+        if (fs == null || fs.length == 0) throw new IllegalStateException("out/ 无 HexFile-*.apk，请先构建");
+        java.util.Arrays.sort(fs, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+        return fs[0];
+    }
+
     public static void main(String[] args) throws Exception {
-        String src = args.length > 0 ? args[0] : "out/MTClone-1.9.1.apk";
+        String src = args.length > 0 ? args[0] : newestApk().getPath();
         File apk = new File(src);
         System.out.println("源: " + apk + " (" + apk.length() + "B)");
 
@@ -60,7 +68,8 @@ public class SignTest {
 
         // 3. 重签名（minSdk 21 → v1+v2+v3）
         File signed = new File("test/sign_signed.apk");
-        ApkSignerTool.sign(readAll(new File("HexFile.keystore")),
+        // v1.60 清理：根 keystore 别名是 hex91（非 KEY_ALIAS=hexfile），改用自动选别名
+        ApkSignerTool.signAutoAlias(readAll(new File("HexFile.keystore")),
                 ApkSignerTool.KEY_PASSWORD, unsigned, signed, 21);
         System.out.println("签名: " + signed.length() + "B");
 
@@ -81,9 +90,8 @@ public class SignTest {
         check("签名后 arsc 编辑仍生效", found);
         check("旧签名文件已剥离", !hasEntry(signed, "META-INF/MTCLONE.SF")
                 && !hasEntry(signed, "META-INF/MTCLONE.RSA"));
-        check("新 v1 签名文件存在", hasEntry(signed, "META-INF/MT_CLONE.SF")
-                && hasEntry(signed, "META-INF/MT_CLONE.RSA")
-                && hasEntry(signed, "META-INF/MANIFEST.MF"));
+        // v1.60 清理：v1 签名文件名随 SignerConfig 名称变化（现为 HEXFILEC.*），改通用断言
+        check("新 v1 签名文件存在", hasV1Signature(signed));
         System.out.println("\n==== " + pass + " passed, " + fail + " failed ====");
         if (fail > 0) {
             System.exit(1);
@@ -106,6 +114,23 @@ public class SignTest {
         in.close();
         zf.close();
         return bo.toByteArray();
+    }
+
+    /** v1 签名通用判定：META-INF 下存在 MANIFEST.MF + 任意 *.SF + *.RSA（或 .EC） */
+    static boolean hasV1Signature(File apk) throws Exception {
+        java.util.zip.ZipInputStream zi = new java.util.zip.ZipInputStream(
+                new FileInputStream(apk));
+        java.util.zip.ZipEntry e;
+        boolean mf = false, sf = false, sig = false;
+        while ((e = zi.getNextEntry()) != null) {
+            String n = e.getName().toUpperCase();
+            if (n.equals("META-INF/MANIFEST.MF")) mf = true;
+            if (n.startsWith("META-INF/") && n.endsWith(".SF")) sf = true;
+            if (n.startsWith("META-INF/") && (n.endsWith(".RSA") || n.endsWith(".EC") || n.endsWith(".DSA"))) sig = true;
+            zi.closeEntry();
+        }
+        zi.close();
+        return mf && sf && sig;
     }
 
     static boolean hasEntry(File zip, String entry) throws Exception {

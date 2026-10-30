@@ -14,6 +14,10 @@ package com.hex91.file;
 
 import java.util.regex.Pattern;
 
+/**
+ * Markdown 高亮正则模式集中定义：所有 Pattern 预编译为常量，
+ * 供 MarkdownSyntaxHighlighter 复用，避免重复编译开销。
+ */
 public final class MdFormatPatterns {
 
     private MdFormatPatterns() {

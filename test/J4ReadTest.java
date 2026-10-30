@@ -1,5 +1,9 @@
 package bin.HexFile;
 
+import com.hex91.file.ZipUtil;
+
+import com.hex91.file.ArchiveUtil;
+
 import java.io.*;
 import java.util.*;
 

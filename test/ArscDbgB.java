@@ -17,7 +17,7 @@ public class ArscDbgB {
     }
 }
 class ArscValuesHolder {
-    static String display(bin.HexFile.ArscFile a, ResourceEntry e) {
-        return bin.HexFile.ArscValues.valueDisplay(a, e);
+    static String display(ArscFile a, ResourceEntry e) {
+        return ArscValues.valueDisplay(a, e);
     }
 }

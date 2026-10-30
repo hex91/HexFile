@@ -1,5 +1,7 @@
 package bin.HexFile;
 
+import com.hex91.file.StringExtract;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.RandomAccessFile;

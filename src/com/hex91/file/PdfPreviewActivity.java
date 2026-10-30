@@ -1,8 +1,6 @@
 package com.hex91.file;
 
-import android.app.Activity;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.pdf.PdfRenderer;
 import android.os.Bundle;

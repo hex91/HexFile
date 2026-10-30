@@ -27,6 +27,10 @@ import java.util.Stack;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * 编辑器自动格式化过滤器（InputFilter）：输入过程中实时按语言规则缩进/整理，
+ * 与 FormatUtil 的手动「格式化」共享缩进策略。
+ */
 public class AutoTextFormatter implements InputFilter {
 
     private final FormatPatterns _patterns;
@@ -42,7 +46,7 @@ public class AutoTextFormatter implements InputFilter {
                 return autoIndent(source, dest, dstart, dend);
             }
         } catch (IndexOutOfBoundsException | NullPointerException e) {
-            e.printStackTrace();
+            android.util.Log.w("AutoTextFormatter", "autoIndent skipped", e);
         }
 
         return source;
@@ -361,7 +365,7 @@ public class AutoTextFormatter implements InputFilter {
 
         } catch (EmptyStackException ex) {
             // Usually means that indents and de-indents did not match up
-            ex.printStackTrace();
+            android.util.Log.w("AutoTextFormatter", "undo stack mismatch", ex);
         }
     }
 

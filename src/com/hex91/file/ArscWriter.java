@@ -7,7 +7,6 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
-import jadx.core.xmlgen.BinaryXMLStrings;
 import jadx.core.xmlgen.ResTableBinaryParser.ChunkSpan;
 import jadx.core.xmlgen.ResTableBinaryParser.EntrySpan;
 import jadx.core.xmlgen.ResTableBinaryParser.PkgSpan;
