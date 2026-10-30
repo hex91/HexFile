@@ -258,6 +258,13 @@ public class MainActivity extends BaseActivity {
                 startActivity(new Intent(MainActivity.this, NetStorageActivity.class));
             }
         });
+        findViewById(R.id.drawer_storage).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                closeDrawer();
+                // v1.59.0：存储分析（目录占用树下钻 + 大文件清理 + 重复文件查找）
+                startActivity(new Intent(MainActivity.this, StorageAnalysisActivity.class));
+            }
+        });
         findViewById(R.id.drawer_terminal).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 closeDrawer();
@@ -1863,6 +1870,99 @@ public class MainActivity extends BaseActivity {
         }, "img-batch").start();
     }
 
+    /** 哈希校验（v1.59）：MD5/SHA1/SHA256 流式计算 + 期望值比对 + 点击复制 */
+    private void doHash(final File f) {
+        final ProgressDialog pd = ProgressDialog.show(this, "计算哈希", f.getName(), true, false);
+        new Thread(new Runnable() {
+            String md5, sha1, sha256, err;
+            public void run() {
+                try {
+                    md5 = DiskScanUtil.hashFull(f, "MD5");
+                    sha1 = DiskScanUtil.hashFull(f, "SHA-1");
+                    sha256 = DiskScanUtil.hashFull(f, "SHA-256");
+                } catch (Throwable t) { err = t.getMessage(); }
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        pd.dismiss();
+                        if (err != null) { toast("计算失败: " + err); return; }
+                        showHashDialog(f, md5, sha1, sha256);
+                    }
+                });
+            }
+        }, "hash").start();
+    }
+
+    private void showHashDialog(final File f, String md5, String sha1, String sha256) {
+        float den = getResources().getDisplayMetrics().density;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int p16 = (int) (16 * den);
+        box.setPadding(p16, (int) (8 * den), p16, 0);
+
+        final TextView md5v = hashRow(box, "MD5", md5, den);
+        final TextView sha1v = hashRow(box, "SHA-1", sha1, den);
+        final TextView sha256v = hashRow(box, "SHA-256", sha256, den);
+        hashRowClick(md5v, md5);
+        hashRowClick(sha1v, sha1);
+        hashRowClick(sha256v, sha256);
+
+        TextView l = new TextView(this);
+        l.setText("比对值（可选，粘贴期望的哈希）");
+        l.setTextSize(13);
+        l.setTextColor(ThemeManager.textSub(this));
+        l.setPadding(0, (int) (10 * den), 0, 0);
+        box.addView(l);
+        final EditText expect = new EditText(this);
+        expect.setHint("粘贴 MD5/SHA1/SHA256 任一值");
+        expect.setTextSize(13);
+        box.addView(expect);
+        final TextView result = new TextView(this);
+        result.setTextSize(14);
+        result.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        result.setPadding(0, (int) (8 * den), 0, 0);
+        box.addView(result);
+        expect.addTextChangedListener(new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+            public void onTextChanged(CharSequence s, int a, int b, int c) {}
+            public void afterTextChanged(android.text.Editable s) {
+                String v = s.toString().trim().toLowerCase();
+                if (v.isEmpty()) { result.setText(""); return; }
+                boolean m = v.equals(md5) || v.equals(sha1) || v.equals(sha256);
+                result.setText(m ? "✅ 校验一致" : "❌ 不匹配");
+                result.setTextColor(m ? 0xFF2E7D32 : 0xFFC62828);
+            }
+        });
+
+        new AlertDialog.Builder(this)
+                .setTitle("文件校验 · " + f.getName() + "（点击哈希值可复制）")
+                .setView(box)
+                .setPositiveButton("关闭", null)
+                .show();
+    }
+
+    private TextView hashRow(LinearLayout box, String label, String value, float den) {
+        TextView tv = new TextView(this);
+        tv.setText(label + "  " + value);
+        tv.setTextSize(12);
+        tv.setTypeface(android.graphics.Typeface.MONOSPACE);
+        tv.setTextColor(ThemeManager.text(this));
+        tv.setTextIsSelectable(true);
+        tv.setPadding(0, (int) (6 * den), 0, 0);
+        box.addView(tv);
+        return tv;
+    }
+
+    private void hashRowClick(final TextView tv, final String value) {
+        tv.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                android.content.ClipboardManager cm = (android.content.ClipboardManager)
+                        getSystemService(CLIPBOARD_SERVICE);
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("hash", value));
+                toast("已复制 " + value);
+            }
+        });
+    }
+
     /** 多选栏「处理」：筛出选中图片进批处理对话框 */
     private void doBatchImage() {
         if (selPanel == null) return;
@@ -2763,9 +2863,12 @@ public class MainActivity extends BaseActivity {
         if (isDex) { ops.add("Dex 编辑器++"); acts.add(A_DEXPP); }
         if (isDex) { ops.add("反编译 smali"); acts.add(A_SMALI); }
         if (isFile) { ops.add("文本编辑"); acts.add(A_EDIT); }
+        if (isFile) { ops.add("计算哈希"); acts.add(38);   // v1.59：MD5/SHA1/SHA256
+        }
         if (isFile && ImageBatchUtil.supported(f.getName().toLowerCase())) {
             ops.add("图片处理"); acts.add(37);   // v1.58：缩放/转格式/水印
         }
+        if (!isFile) { ops.add("查找重复文件"); acts.add(39); }   // v1.59：内容级查重
         if (isFile) { ops.add("HEX 查看"); acts.add(A_HEX); }
         ops.add("复制到对面"); acts.add(A_COPY);
         ops.add("移动到对面"); acts.add(A_MOVE);
@@ -2962,6 +3065,13 @@ public class MainActivity extends BaseActivity {
                 break;
             case 37:                              // 图片处理（缩放/转格式/水印，v1.58）
                 askImageBatch(java.util.Collections.singletonList(f.getAbsolutePath()));
+                break;
+            case 38:                              // 计算哈希（MD5/SHA1/SHA256，v1.59）
+                doHash(f);
+                break;
+            case 39:                              // 查找重复文件（v1.59）
+                startActivity(new Intent(this, DupFinderActivity.class)
+                        .putExtra(DupFinderActivity.EXTRA_ROOT, f.getAbsolutePath()));
                 break;
         }
     }

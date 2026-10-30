@@ -467,6 +467,17 @@
             android:background="?android:attr/selectableItemBackground"/>
 
         <TextView
+            android:id="@+id/drawer_storage"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:gravity="center_vertical"
+            android:paddingLeft="16dp"
+            android:text="🧹  存储分析"
+            android:textSize="15sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
             android:id="@+id/drawer_theme"
             android:layout_width="match_parent"
             android:layout_height="48dp"
