@@ -14,6 +14,7 @@ import android.os.Environment;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.LruCache;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -70,6 +71,8 @@ public class AppManagerActivity extends BaseActivity {
             return exportBaseName(label, version) + ".apk";
         }
     }
+
+    private static final String TAG = "HexFile";
 
     // v1.47.0 筛选模式
     private static final int FILTER_ALL = 0, FILTER_THIRD = 1, FILTER_SYSTEM = 2;
@@ -607,12 +610,36 @@ public class AppManagerActivity extends BaseActivity {
                 final boolean rooted = rootReady();
                 boolean dataOk = false;
                 if (ok && rooted && r.dataDir != null) {
+                    File dataDir = new File(r.dataDir);
                     File gz = new File(dir, "data.tar.gz");
                     File plain = new File(dir, "data.tar");
-                    String rel = r.dataDir.substring(1);   // 绝对路径去首斜杠 → 相对 /
-                    String cmd = "tar -czf '" + gz.getPath() + "' -C / '" + rel + "' 2>/dev/null"
-                            + " || tar -cf '" + plain.getPath() + "' -C / '" + rel + "'";
-                    dataOk = RootUtil.run(cmd);
+                    // 先清掉旧数据文件，避免损坏残留误导后续还原
+                    gz.delete();
+                    plain.delete();
+                    if (dataDir.isDirectory()) {
+                        String rel = r.dataDir.substring(1);   // 绝对路径去首斜杠 → 相对 /
+                        // 优先 gzip；失败回退 plain，并删除无效 gzip
+                        RootUtil.RunResult rr = RootUtil.runCapture(
+                                "tar -czf '" + gz.getPath() + "' -C / '" + rel + "' 2>&1");
+                        if (rr != null && rr.exit == 0 && gz.exists() && gz.length() >= 512) {
+                            dataOk = true;
+                        } else {
+                            Log.w(TAG, "backup gzip failed, fallback plain: "
+                                    + (rr == null ? "timeout" : rr.out));
+                            gz.delete();
+                            RootUtil.RunResult pr = RootUtil.runCapture(
+                                    "tar -cf '" + plain.getPath() + "' -C / '" + rel + "' 2>&1");
+                            if (pr != null && pr.exit == 0 && plain.exists() && plain.length() >= 512) {
+                                dataOk = true;
+                            } else {
+                                Log.e(TAG, "backup plain failed: "
+                                        + (pr == null ? "timeout" : pr.out));
+                                plain.delete();
+                            }
+                        }
+                    } else {
+                        Log.w(TAG, "backup: dataDir not found: " + r.dataDir);
+                    }
                 }
                 final int fApk = apkCount;
                 final boolean fData = dataOk;

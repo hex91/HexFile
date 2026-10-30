@@ -3,14 +3,13 @@ package com.hex91.file;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Environment;
+import android.util.Log;
 
 import java.io.File;
 import java.io.FileFilter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * v1.54.0 备份管理核心：扫描 HexFile/Backups、列出所有备份（不论是否已安装），
@@ -23,8 +22,6 @@ import java.util.regex.Pattern;
  * - 通过 RootUtil.runCapture 读取 pm 输出的失败原因，区分「签名不一致 / 分包缺失 / 其它」。
  */
 public final class BackupRestore {
-
-    private static final Pattern SESSION_ID = Pattern.compile("\\[(\\d+)\\]");
 
     private BackupRestore() {}
 
@@ -98,6 +95,8 @@ public final class BackupRestore {
         return list;
     }
 
+    private static final String TAG = "HexFile";
+
     /**
      * 还原：重装 APK（含 split）+ 视情况恢复数据目录。
      * 必须在后台线程调用（含阻塞 IO + root 命令）。
@@ -111,23 +110,29 @@ public final class BackupRestore {
         if (!RootUtil.detect() || !RootUtil.isRootAvailable()) {
             o.rootAvailable = false;
             o.message = "未获取 Root 权限：还原需 root 才能重装应用并写入 /data（请先在 Magisk 等授权 HexFile）";
+            Log.w(TAG, "restore blocked: root unavailable");
             return o;
         }
         o.rootAvailable = true;
 
         // 1) 重装 APK（install-create / write / commit 会话流程）
+        Log.i(TAG, "restore: start install pkg=" + e.pkg + " apks=" + e.apks.length);
         String installMsg = installApkSet(e.apks, installerPkg);
         o.installOk = installMsg == null;
         if (!o.installOk) {
             o.message = installMsg;
+            Log.e(TAG, "restore: install failed: " + installMsg);
             return o;
         }
+        Log.i(TAG, "restore: install ok, pkg=" + e.pkg);
 
         // 2) 恢复数据（root 下 tar 解包 + 修正属主 + SELinux 上下文）
-        if (e.dataTar != null) {
+        File dataTar = pickValidDataTar(e);
+        if (dataTar != null) {
             String dd = "/data/data/" + e.pkg;
-            String cmd = "tar -xzf '" + e.dataTar.getPath() + "' -C / 2>/dev/null"
-                    + " || tar -xf '" + e.dataTar.getPath() + "' -C /";
+            String cmd = "tar -xzf '" + dataTar.getPath() + "' -C / 2>/dev/null"
+                    + " || tar -xf '" + dataTar.getPath() + "' -C /";
+            Log.i(TAG, "restore: extract data from " + dataTar.getPath());
             RootUtil.RunResult r = RootUtil.runCapture(cmd);
             boolean dataOk = r != null && r.exit == 0;
             if (dataOk) {
@@ -135,37 +140,69 @@ public final class BackupRestore {
                 RootUtil.run("chown -R $(stat -c %u '" + dd + "' 2>/dev/null):"
                         + "$(stat -c %u '" + dd + "' 2>/dev/null) '" + dd + "' 2>/dev/null");
                 RootUtil.run("restorecon -R '" + dd + "' 2>/dev/null");
+            } else {
+                Log.e(TAG, "restore: data extract failed, out=" + (r == null ? "null" : r.out));
             }
             o.dataOk = dataOk;
-            o.message = dataOk ? "已重装并恢复数据" : "已重装，但数据恢复失败（tar 解包错误，可能备份损坏）";
+            o.message = dataOk ? "已重装并恢复数据" : "已重装，但数据恢复失败（备份数据损坏，无法解包）";
         } else {
-            o.message = "已重装（备份中无数据，仅恢复应用本体）";
+            o.message = "已重装（备份中无有效数据，仅恢复应用本体）";
         }
         return o;
     }
 
+    /**
+     * 选择有效的数据归档：优先 data.tar.gz（gzip），其次 data.tar（plain）。
+     * 若文件存在但实质为空/损坏（tar 无法识别），返回 null，避免还原时误用坏档。
+     */
+    private static File pickValidDataTar(BackupEntry e) {
+        File[] candidates = { new File(e.dir, "data.tar.gz"), new File(e.dir, "data.tar") };
+        for (File f : candidates) {
+            if (!f.exists() || !f.isFile()) continue;
+            // 至少大于一个 tar 块（512B），且能被 tar 列出 → 视为有效
+            if (f.length() < 512) { Log.w(TAG, "data archive too small, skip: " + f.getName()); continue; }
+            RootUtil.RunResult t = RootUtil.runCapture("tar -tf '" + f.getPath() + "' >/dev/null 2>&1");
+            if (t != null && t.exit == 0) return f;
+            Log.w(TAG, "data archive invalid, skip: " + f.getName());
+        }
+        return null;
+    }
+
     /** 安装一组 APK；成功返回 null，失败返回友好原因。 */
     private static String installApkSet(File[] apks, String installerPkg) {
-        RootUtil.RunResult create =
-                RootUtil.runCapture("pm install-create -r -i " + installerPkg + " 2>&1");
-        if (create == null) return "Root 执行失败（超时或被 Magisk 拒绝）";
-        if (create.exit != 0) return "创建安装会话失败：" + create.out;
-        Integer sid = parseSessionId(create.out);
-        if (sid == null) return "无法解析安装会话 ID：" + create.out;
-
+        // Android 11+：system_server 无法读取 /sdcard（fuse 标签）上的文件，
+        // 必须先把 APK 拷到 /data/local/tmp，再从 tmp 安装。
+        List<String> tmpFiles = new ArrayList<>();
         for (File apk : apks) {
-            long len = apk.length();
-            RootUtil.RunResult wr = RootUtil.runCapture(
-                    "pm install-write -S " + len + " " + sid + " "
-                            + apk.getName() + " " + apk.getPath() + " 2>&1");
-            if (wr == null) return "写入安装包超时：" + apk.getName();
-            if (wr.exit != 0) return "写入安装包失败：" + apk.getName() + " —— " + wr.out;
+            String tmp = "/data/local/tmp/" + apk.getName();
+            RootUtil.RunResult cp = RootUtil.runCapture(
+                    "cp '" + apk.getPath() + "' '" + tmp + "' 2>&1");
+            if (cp == null || cp.exit != 0) {
+                cleanupTmp(tmpFiles);
+                return "复制安装包失败（sdcard 权限）：" + apk.getName() + " —— " + (cp == null ? "timeout" : cp.out);
+            }
+            RootUtil.run("chmod 644 '" + tmp + "' 2>/dev/null");
+            tmpFiles.add(tmp);
         }
 
-        RootUtil.RunResult cm = RootUtil.runCapture("pm install-commit " + sid + " 2>&1");
-        if (cm == null) return "提交安装超时";
-        if (cm.exit != 0) return friendlyInstallError(cm.out);
+        // 单一 APK 用 pm install；多个（split 分包）用 pm install-multiple。
+        StringBuilder sb = new StringBuilder();
+        if (apks.length == 1) sb.append("pm install -r -i ").append(installerPkg);
+        else sb.append("pm install-multiple -r -i ").append(installerPkg);
+        for (String t : tmpFiles) sb.append(" '").append(t).append("'");
+        sb.append(" 2>&1");
+        Log.i(TAG, "restore: run " + (apks.length == 1 ? "pm install" : "pm install-multiple")
+                + " apks=" + apks.length);
+        RootUtil.RunResult r = RootUtil.runCapture(sb.toString(), 180);
+        cleanupTmp(tmpFiles);
+        if (r == null) return "安装超时（请确认已授予 Root 且设备未卡顿）";
+        if (r.exit != 0) return friendlyInstallError(r.out);
         return null;
+    }
+
+    /** 清理 /data/local/tmp 下的临时安装包，避免残留。 */
+    private static void cleanupTmp(List<String> tmpFiles) {
+        for (String t : tmpFiles) RootUtil.run("rm -f '" + t + "' 2>/dev/null");
     }
 
     /** 将 pm 安装失败输出翻译为可定位的原因 */
@@ -183,11 +220,5 @@ public final class BackupRestore {
             return "安装失败：" + out;
         }
         return "重装失败：" + (out.isEmpty() ? "未知原因（pm 无输出）" : out);
-    }
-
-    private static Integer parseSessionId(String s) {
-        if (s == null) return null;
-        Matcher m = SESSION_ID.matcher(s);
-        return m.find() ? Integer.valueOf(m.group(1)) : null;
     }
 }

@@ -1253,7 +1253,7 @@ v1.53.0 的「还原」挂在已安装应用行菜单上，应用一旦卸载便
 - **新增 `BackupManagerActivity`**：扫描 `HexFile/Backups/` 子目录（每个即一个包备份），逐条展示图标（已安装取应用图标，否则占位）、应用名 / 包名、状态（`已安装 / 未安装 · N 个 APK · 数据:有/无`）。每行「还原」「删除备份」；删除走二次确认 + 递归删除。
 - **新增 `BackupRestore`（共享核心）**：
   - `listBackups(Context)`：列出所有备份，`getPackageInfo` 判定是否已安装并取应用名；无需 Root（备份目录归属 HexFile 自身）。
-  - `restore(BackupEntry, installerPkg)`：先判 Root（无 Root 直接报错「未获取 Root 权限…」）；重装走 `pm install-create/write/commit` 会话流程；有 `data.tar*` 时 `tar` 解包回 `/data/data/<pkg>` 并 `chown` + `restorecon`（按重装后新 UID 修正）。
+  - `restore(BackupEntry, installerPkg)`：先判 Root（无 Root 直接报错「未获取 Root 权限…」）；重装走 `pm install` / `pm install-multiple`（单一 APK 用 `pm install`，split 分包用 `install-multiple`，均带 `-r -i <installer>`）；有 `data.tar*` 时 `tar` 解包回 `/data/data/<pkg>` 并 `chown` + `restorecon`（按重装后新 UID 修正）。
   - 通过 `RootUtil.runCapture`（v1.54.0 新增，合并 stdout/stderr 且不限退出码）读取 `pm` 失败输出，将 `UPDATE_INCOMPATIBLE / signatures do not match` 翻译为「签名不一致：请先卸载再还原」，`MISSING_SPLIT` 翻译为「分包缺失：备份不完整」。
 - **`AppManagerActivity.restoreApp` 重构**：改为构造 `BackupEntry` 调用 `BackupRestore.restore`，与备份管理共用同一套细分提示；删除原 `installApkSet`/`parseSessionId`（迁移至 `BackupRestore`）。
 - **入口**：抽屉新增「💾 备份管理」→ `BackupManagerActivity`；`AndroidManifest` 注册该 Activity。
@@ -1267,4 +1267,36 @@ HexFile-1.54.0.apk（5.6M，versionCode 91）本地构建 Success；`adb install
 
 ### 真机实测（交用户）
 抽屉 → 备份管理：① 列表应出现 `com.gpu.a0837dd7`（已卸载）等所有备份，状态显示「未安装」；② 点「还原」→ 该应用重装成功、Root 下数据恢复（提示「已重装并恢复数据」）；③ 若未授权 Root，点还原应提示「未获取 Root 权限…」而非静默失败；④ 点「删除备份」二次确认后目录被清除、列表刷新。
+
+---
+
+## v1.54.1 —— 备份/还原可靠性修复（安装路径 + 数据备份校验）
+
+### 背景
+v1.54.0 实测「还原失败」。抓 logcat + 真机复现，定位两类根因：
+
+1. **安装被 SELinux 拦截（致命）**：`pm install-write`（旧会话流程）由 `system_server` 读取 APK，而备份 APK 位于 `/sdcard`（FUSE 文件系统，标签 `u:object_r:fuse:s0`），`system_server` 被 SELinux 拒绝读取 → `install-write` 失败 → `install-commit` 报 `INSTALL_FAILED_INVALID_APK`。此问题与 Root 无关。
+2. **安装超时（致命）**：本机 `pm install`（dexopt）实际耗时约 17 秒，旧 `runCapture` 固定 20 秒超时且放弃等待 → 应用未装上即报「还原失败」。
+3. **数据备份损坏（数据丢失）**：v1.53.0 的 `backupApp` 用 `tar -czf … 2>/dev/null || tar -cf …` 静默吞错——当备份时数据目录不可用（如应用正被卸载），tar 写出 1024 字节全零 / 29 字节的无效归档，且 `2>/dev/null` 掩盖错误，留下诱人但损坏的 `data.tar*`。
+
+### 修复
+- **安装改走 `pm install` / `pm install-multiple`**（弃用 `install-create/write/commit` 会话流程）：先在 Root 下把 APK 从 `/sdcard` 拷到 `/data/local/tmp`（绕开 FUSE 读取限制），再从 tmp 安装。单一 APK 用 `pm install`，split 用 `pm install-multiple`，均带 `-r -i <installer>`。
+- **`RootUtil.runCapture` 加超时重载**：安装命令用 180 秒超时（dexopt 慢也不误判），超时仅放弃等待、不杀正在执行的 root 进程（避免误杀将完成的安装）。
+- **`BackupRestore.restore` 加日志**：每个阶段打 `Log.i/Log.e("HexFile", …)`，方便以后抓日志定位。
+- **`BackupRestore.pickValidDataTar`**：还原前校验数据归档（体积 ≥ 512B 且 `tar -tf` 可列出），损坏档直接跳过并提示「无有效数据」，不再误用坏档。
+- **`AppManagerActivity.backupApp` 数据备份校验**：备份前 `dataDir.isDirectory()` 判存在；不再 `2>/dev/null` 吞错；失败后删除无效输出文件，避免坏档误导还原；成功才算「数据:有」。
+- **`BackupRestore` 清理**：移除已无用的会话解析（`SESSION_ID`/`parseSessionId`）死代码。
+
+### 兼容性
+- 备份目录布局不变（`HexFile/Backups/<pkg>/{base.apk…, data.tar.gz|data.tar}`）；旧版损坏的 `data.tar*` 现在会被自动跳过（仅重装应用本体）。
+- `RootUtil.runCapture(String)` 旧签名保留（默认 20s），新增 `runCapture(String, long)`。
+
+### 装机
+HexFile-1.54.1.apk（5.6M，versionCode 92）本地构建 Success；`adb install -r` 成功；`am start` 启动 `BackupManagerActivity` 无 FATAL。
+
+### 真机实测（已自测）
+抽屉 → 备份管理 → 对「已卸载」应用点「还原」：① 应用重装成功（`pm install` 约 17s）；② `/data/data/<pkg>` 目录按新 UID 重建并 `chown`+`restorecon`，数据恢复（日志 `restore: install ok` + `extract data from …`）；③ 完整「卸载→还原（含数据）」链路验证通过。
+
+### 已知限制
+- v1.53.0 时代已产生的损坏 `data.tar*`（如现有 `com.greenpoint.android.mc10086.activity` 备份）无法恢复其数据——数据在备份当时即为空。重新备份（v1.54.1+）即可获得有效数据归档。
 

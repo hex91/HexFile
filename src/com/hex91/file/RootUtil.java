@@ -278,6 +278,14 @@ public final class RootUtil {
      * 超时 / 异常 / 未 root 返回 null。
      */
     public static RunResult runCapture(final String shellCmd) {
+        return runCapture(shellCmd, 20);
+    }
+
+    /**
+     * v1.54.1：带超时重载。注意：超时仅放弃等待（返回 null），不会杀掉正在执行的
+     * root 命令进程（避免误杀已接近完成的安装），进程会在后台自然结束。
+     */
+    public static RunResult runCapture(final String shellCmd, long timeoutSec) {
         try {
             Future<RunResult> f = POOL.submit(new Callable<RunResult>() {
                 public RunResult call() throws Exception {
@@ -301,7 +309,7 @@ public final class RootUtil {
                     }
                 }
             });
-            return f.get(20, TimeUnit.SECONDS);
+            return f.get(timeoutSec, TimeUnit.SECONDS);
         } catch (Exception e) {
             return null;
         }
