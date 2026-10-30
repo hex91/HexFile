@@ -71,6 +71,8 @@ public class DexEditorActivity extends BaseActivity {
     private Node root;
     private final List<Object> rows = new ArrayList<Object>(); // Node 或 String(类path，搜索态)
     private final Map<String, File> classFiles = new HashMap<String, File>();
+    /** v1.63.0：smali_ 目录名 → 对应 dex 文件（反编译时用作 CFR 类型库） */
+    private final Map<String, File> smaliDirDex = new HashMap<String, File>();
     private boolean searchMode;
     private int classCount;
 
@@ -240,6 +242,7 @@ public class DexEditorActivity extends BaseActivity {
                         }
                         String base = stripExt(new File(dexName).getName());
                         File outDir = new File(workDir, "smali_" + base);
+                        smaliDirDex.put(outDir.getName(), src);
                         final String msg2 = "反编译 " + dexName + "\n（大 dex 需 10-60 秒）";
                         ui.post(new Runnable() { public void run() { pd.setMessage(msg2); } });
                         err = SmaliTool.decompile(src, outDir, 4);
@@ -401,10 +404,60 @@ public class DexEditorActivity extends BaseActivity {
         }
     }
 
-    private void openSmali(File f) {
-        Intent i = new Intent(this, TextEditorActivity.class);
-        i.putExtra(TextEditorActivity.EXTRA_FILE, f.getAbsolutePath());
-        startActivity(i);
+    /**
+     * 打开一个类：给出「编辑 smali」与「Java 源码（反编译）」两个选项。
+     * 后者走 DecompileActivity：当前 smali → dex → dex2jar → CFR → Java（高亮）。
+     */
+    private void openSmali(final File f) {
+        new AlertDialog.Builder(this)
+                .setTitle(f.getName())
+                .setItems(new String[]{"编辑 Smali", "Java 源码（dex2jar + CFR 反编译）"},
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface d, int w) {
+                                if (w == 0) {
+                                    Intent i = new Intent(DexEditorActivity.this, TextEditorActivity.class);
+                                    i.putExtra(TextEditorActivity.EXTRA_FILE, f.getAbsolutePath());
+                                    startActivity(i);
+                                } else {
+                                    Intent i = new Intent(DexEditorActivity.this, DecompileActivity.class);
+                                    i.putExtra(DecompileActivity.EXTRA_SMALI, f.getAbsolutePath());
+                                    i.putExtra(DecompileActivity.EXTRA_CLS, clsOf(f));
+                                    File dx = dexOf(f);
+                                    if (dx != null)
+                                        i.putExtra(DecompileActivity.EXTRA_DEX, dx.getAbsolutePath());
+                                    startActivity(i);
+                                }
+                            }
+                        })
+                .show();
+    }
+
+    /** smali 文件 → 类路径（com/foo/Bar）。 */
+    private String clsOf(File f) {
+        File cur = f.getParentFile();
+        while (cur != null) {
+            File par = cur.getParentFile();
+            if (par != null && workDir != null && par.equals(workDir)) {
+                String rel = f.getAbsolutePath().substring(cur.getAbsolutePath().length() + 1);
+                return rel.substring(0, rel.length() - 6); // 去掉 .smali
+            }
+            cur = par;
+        }
+        String n = f.getName();
+        return n.endsWith(".smali") ? n.substring(0, n.length() - 6) : n;
+    }
+
+    /** smali 文件 → 它所属 dex（用于生成反编译类型库）。 */
+    private File dexOf(File f) {
+        File cur = f;
+        while (cur != null) {
+            File par = cur.getParentFile();
+            if (par != null && workDir != null && par.equals(workDir)) {
+                return smaliDirDex.get(cur.getName());
+            }
+            cur = par;
+        }
+        return null;
     }
 
     // ---------- 编译 ----------

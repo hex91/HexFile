@@ -1538,3 +1538,60 @@ v1.54.1 实测「数据备份失败」（应用本体备份正常，数据归档
 ### 备注
 - 许可证：nb-javac 为 **GPL v2 + Classpath Exception**（仅借用其 jar、未修改），其余链路（dx / baksmali）沿用项目既有依赖。
 - versionCode 102，APK 12M。
+
+---
+
+## v1.63.0 —— Dex 编辑器++ 支持「Java 源码」反编译（dex2jar + CFR，全离线）
+
+在 Dex 编辑器++ 里点任意 smali 类，除「编辑 Smali」外新增 **「Java 源码（dex2jar + CFR 反编译）」**，
+打开 `DecompileActivity` 展示**真正的 Java 源码**（带语法高亮、可复制），并提供 **Smali 对照**标签一键切换。
+
+### 为什么不用「自研 smali → 伪代码」
+先评估了两条路，最终选效果更好的那条：
+
+| 方案 | 依赖 | 输出质量 | 结论 |
+|---|---|---|---|
+| 自研 smali→伪代码 | 零依赖，秒开 | 伪代码：if/goto 线性展开，无循环结构 | 放弃（可读性差、维护成本高） |
+| **dex2jar + CFR** | 两个 dex 插件，共 1.0MB | **真 Java**：if/for/while/try-catch 结构完整，类型与方法调用正常 | **采用** |
+| jadx | 依赖庞大（>10MB、多 dex） | 最高（含反混淆/重命名） | 暂不引入，体积代价过大 |
+
+注意：**dex2jar 单独并不能出 Java**，它只做 dex → .class；必须再配一个反编译器（本项目用 CFR）。
+
+### 流水线（后台线程，全离线）
+1. 把**当前 smali**（含你在编辑器里的改动）用 smali 汇编器编成临时 dex —— 所以改完 smali 立刻能看到对应的 Java；
+2. dex2jar 把该 dex 转成 .class；
+3. 首次反编译时把整个工程 dex 转成 jar 并**缓存**到 `cacheDir/dec_jars/`，作为 CFR 的 `--extraclasspath`，
+   让跨类调用解析出真实签名（而不是 Unknown）；
+4. CFR 反编译 → Java 源码 → `SyntaxHighlight("java")` 高亮显示。
+
+### 引擎选型体检结果（决定能否跑在 Android 上）
+- **CFR 0.152**：1302 个类，**全部 Java 6 字节码（major 50）**，零 `java.*` 包类、零 `java.nio.file`、
+  零 `java.lang.Module` → minSdk 21 也能跑。2.16MB jar → dex 后 1.53MB → zip 0.60MB。
+- **dex2jar 2.4.28**（`de.femtopedia.dex2jar`，Apache 2.0）+ ASM 9：全部 Java 8 字节码，同样无禁区依赖；
+  五个模块合计仅 536KB（+ASM 372KB）。
+
+### 真机踩坑与修复
+1. **`Main.main` 里的 `System.exit` 杀死进程**：CFR 的命令行入口内部会 `System.exit`，
+   在 Android 上等于自杀——表现为「Activity 打开后立刻消失、退回主界面」，且 logcat 无 Java 异常。
+   → 改用官方 API `org.benf.cfr.reader.api.CfrDriver.Builder`，并用 **动态代理**实现
+   `OutputSinkFactory`（主 dex 不能编译期引用插件里的类），从 STRING sink 直接接住源码，不落盘、不 exit。
+2. **dex2jar 的 `doTranslate(ByteArrayOutputStream)` 输出的不是 zip**：是自定义长度前缀流
+   `[nameLen:4][name][dataLen:4][data]…`，需自行组装成 jar（见 `Decompiler.writeJar`）。
+   好处是这样可**绕开 `java.nio.file.Path`**（`to(Path)` 才需要），minSdk 21 也能跑。
+3. **成功分支漏赋值**：反编译成功后没把结果写回 `javaSrc`，导致状态行 `javaSrc.contains(...)` 空指针崩溃。
+
+### 控制流扁平化（CFF）辅助
+CFR 遇到被扁平化的方法会输出 `while(true) { switch(state) { case N: …; state = M; continue; } }`，极难读。
+本版做**安全标注**（不改动代码结构，避免破坏可读性）：
+- 识别 `while(true)` + `switch(选择子)`，把选择子当作状态变量；
+- 对该状态变量的每个整数常量赋值追加行尾注释：`n3 = 1;  /* → case 1 */`；
+- 文件头加提示，状态行显示「⚠ 疑似扁平化」。
+顺着 case 编号读即可还原原始执行顺序（真机样本已验证：`n3 = 1; /* → case 1 */`、`n3 = 2; /* → case 2 */`）。
+
+已知边界：类名/方法名混淆（a.b.c）与字符串加密不在本版处理范围——那是另一类问题（需重命名策略与解密执行）。
+
+### 资产与版本
+- 新增 `assets/cfr-plugin.zip`（0.60MB）、`assets/d2j-plugin.zip`（0.39MB）；APK 约 13MB。
+- 新增源码：`Decompiler.java`（引擎封装）、`DecompileActivity.java`（查看页）；
+  `DexEditorActivity` 增加 `smali_目录 → dex` 映射与打开选项。
+- versionCode 103。
