@@ -264,6 +264,13 @@ public class MainActivity extends BaseActivity {
                 startActivity(new Intent(MainActivity.this, StorageAnalysisActivity.class));
             }
         });
+        findViewById(R.id.drawer_smali).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                closeDrawer();
+                // v1.61.0：Smali 语法查询（红色语法 + 中文注释解析 + 搜索，数据可扩展）
+                startActivity(new Intent(MainActivity.this, SmaliDocActivity.class));
+            }
+        });
         findViewById(R.id.drawer_terminal).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 closeDrawer();

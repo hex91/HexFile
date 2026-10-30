@@ -520,5 +520,17 @@
             android:textSize="15sp"
             android:textColor="?attr/hfText"
             android:background="?android:attr/selectableItemBackground"/>
+
+        <!-- v1.61.0：Smali 语法查询（红色语法 + 中文注释解析 + 搜索） -->
+        <TextView
+            android:id="@+id/drawer_smali"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:gravity="center_vertical"
+            android:paddingLeft="16dp"
+            android:text="📐  Smali 语法"
+            android:textSize="15sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
     </LinearLayout>
 </FrameLayout>
