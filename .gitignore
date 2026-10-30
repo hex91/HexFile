@@ -34,3 +34,10 @@ test/bin_all/
 test/bin2/
 test/bin3/
 test/_dbg/
+test/_j4src/
+test/_j4out/
+test/_zipout/
+test/dwb_tmp/
+test/axml_tmp/
+test/sign_*.apk
+test/sign_back.arsc
