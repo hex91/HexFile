@@ -1479,11 +1479,15 @@ v1.54.1 实测「数据备份失败」（应用本体备份正常，数据归档
 
 ### 新增
 - **SmaliDocActivity**：抽屉菜单新入口「📐 Smali 语法」。
-  - **顶部搜索框**实时过滤：语法、中文解析、分类名任一包含关键词即命中（忽略大小写），头部显示 `命中/总数`。
-  - **条目卡片三层结构**：语法行（**红色等宽加粗**，明暗主题自适应——按 hfBg 亮度切换深红 #D32F2F / 亮红 #FF8A80）→ 中文解析（逐行 `#` 前缀的**注释形式**、灰色）→ 示例代码块（等宽 + 次级背景，可直接选中复制）。
-  - **点击卡片复制语法**到剪贴板。
-- **SmaliDocs 数据层**（93 条 / 13 分类，纯静态 String[][]，追加一行即自动收录）：基础概念（寄存器 vN/pN 命名、4bit/8bit/16bit 索引宽度——如 `move/from16 vx, vy` 的 vy 可达 64k 而 vx 必须 ≤255、类型描述符、方法签名）、伪指令与结构（.class/.field/.method/.locals/标签/.annotation/.packed-switch/.array-data 等）、数据移动（move 全家族 + move-result + move-exception）、常量加载（const 全家族 + const-string/jumbo + const-class）、返回、算术与逻辑（int/long/float/double 四族 + 位运算 + neg/not）、比较（cmp-long + cmpl/cmpg float/double）、跳转与分支（goto + if-eqz 家族 + packed/sparse-switch）、数组（new-array/aget/aput 全类型族 + fill-array-data）、字段操作（iget/iput/sget/sput 全类型族 + 引用格式）、方法调用（invoke-virtual/super/direct/static/interface + /range + 构造器模板）、对象与类型（new-instance/check-cast/instance-of/monitor/throw）、类型转换（全 15 个）、其他（nop、catch/catch-all、调试技巧）。
+  - **三标签页**：`语法 (112)` / `操作码 (256)` / `★ 收藏 (N)`，切换即时重渲染，选中态反色高亮。
+  - **顶部搜索框**实时过滤：语法类匹配「分类 + 语法 + 解析」，操作码类匹配「操作码 + 助记符 + 中文说明」，收藏页同样支持；头部显示 `命中/总数`。
+  - **条目卡片三层结构**：语法行（**红色等宽加粗**，明暗主题自适应——按 hfBg 亮度切换深红 #D32F2F / 亮红 #FF8A80）→ 中文解析（逐行 `#` 前缀的**注释形式**、灰色）→ 示例代码块（等宽 + 次级背景，可长按选中；点击卡片主体复制语法）。
+  - **收藏**：每张卡片右上角 ★/☆ 一键切换，SharedPreferences（`smalidoc/favs`）持久化，键为 `E:<语法>` 或 `O:<操作码>`，收藏页按加入顺序跨两类混合展示并支持取消；真机验证重启 App 后仍保留。
+- **SmaliDocs 数据层**（纯静态，追加一行即自动收录）：
+  - `E`：112 条 / 13 分类 —— 基础概念（寄存器 vN/pN 命名、4bit/8bit/16bit 索引宽度——如 `move/from16 vx, vy` 的 vy 可达 64k 而 vx 必须 ≤255、类型描述符、方法签名）、伪指令与结构（.class/.field/.method/.locals/标签/.annotation/.packed-switch/.array-data 等）、数据移动（move 全家族 + move-result + move-exception）、常量加载（const 全家族 + const-string/jumbo + const-class）、返回、算术与逻辑（int/long/float/double 四族 + 位运算 + neg/not）、比较（cmp-long + cmpl/cmpg float/double）、跳转与分支（goto + if-eqz 家族 + packed/sparse-switch）、数组（new-array/aget/aput 全类型族 + fill-array-data）、字段操作（iget/iput/sget/sput 全类型族）、方法调用（invoke-virtual/super/direct/static/interface + /range + 构造器模板）、对象与类型（new-instance/check-cast/instance-of/monitor/throw）、类型转换（全 15 个）、其他（nop、catch/catch-all、调试技巧）。
+  - `OP`：**dex 操作码 0x00–0xFF 全表 256 项** —— 每项{操作码, 助记符与操作数格式, 中文说明}，覆盖 nop/move/const/return/switch/比较/分支/aget-aput/iget-iput/sget-sput/invoke(含 range)/neg-not/类型转换/三操作数算术全家(0x90–0xaf)/2addr 版(0xb0–0xcf)/lit16+lit8 版(0xd0–0xe2)，并含 API 26+ 的 `invoke-polymorphic`(0xfa)/`invoke-custom`(0xfc)/`const-method-handle`(0xfe)/`const-method-type`(0xff)；未定义位（0x3e–0x43、0x73/0x79/0x7a、0xe3–0xf9）标注「未使用/保留」以保索引对齐。
 
 ### 实现
-- 纯程序化 UI（无新布局文件），全部颜色走主题属性（hfBg/hfSurface/hfTextSub/hfAccent…），22 套色板 + 明暗模式自动适配；`getResources().getColor()` 兼容 minSdk 21。
+- 纯程序化 UI（无新布局文件），全部颜色走主题属性（hfBg/hfSurface/hfSurfaceAlt/hfTextSub/hfAccent…），22 套色板 + 明暗模式自动适配；`getResources().getColor()` 兼容 minSdk 21。
+- 操作码卡片用红底白字徽标显示 0xNN，未定义操作码助记符降为灰字。
 - versionCode 101。

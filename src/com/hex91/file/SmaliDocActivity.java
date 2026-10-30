@@ -3,11 +3,13 @@ package com.hex91.file;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
@@ -16,56 +18,66 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
 /**
- * v1.61.0 Smali 语法查询页：抽屉菜单入口。
+ * v1.61.0 Smali 语法 / 操作码查询页：抽屉菜单入口。
  *
- * <p>顶部搜索框实时过滤（语法 + 中文解析 + 分类均参与匹配）；正文按分类分节，
- * 每条目一张卡片：红色等宽语法 → {@code "#"} 注释形式的中文解析 → 等宽示例代码块。
- * 点击卡片复制语法到剪贴板。数据源 {@link SmaliDocs#E}，追加条目即自动收录。</p>
+ * <p>三个标签页：语法（{@link SmaliDocs#E}）、操作码（{@link SmaliDocs#OP}，0x00~0xFF 全表）、
+ * ★ 收藏（两类混合，SharedPreferences 持久化）。顶部搜索框实时过滤：
+ * 语法类匹配「分类+语法+解析」，操作码类匹配「操作码+助记符+说明」。</p>
  *
- * <p>红色适配明暗主题：解析 hfBg 亮度，暗色用亮红、浅色用深红。</p>
+ * <p>条目卡片三层：红色等宽语法 → {@code "#"} 注释形式的中文解析 → 等宽示例代码块。
+ * 卡片右上角 ★ 切换收藏；点击卡片主体复制语法到剪贴板。</p>
+ *
+ * <p>颜色全部走主题属性（22 套色板 + 明暗模式），语法红按背景亮度自适应深浅。</p>
  */
 public class SmaliDocActivity extends BaseActivity {
+
+    private static final String PREFS = "smalidoc";
+    private static final String KEY_FAVS = "favs";
+    /** 收藏键前缀：E=语法条目，O=操作码。 */
+    private static final String PK_E = "E:";
+    private static final String PK_O = "O:";
+
+    /** 0=语法 1=操作码 2=收藏 */
+    private int mMode;
 
     private LinearLayout mContainer;
     private EditText mSearch;
     private TextView mCount;
+    private TextView[] mTabViews = new TextView[3];
 
-    /** 语法红色（onCreate 按主题亮度确定）。 */
-    private int mRed;
-    /** 解析注释色（hfTextSub）。 */
-    private int mSub;
-    /** 卡片背景（hfSurface）。 */
-    private int mCardBg;
-    /** 示例代码块背景（hfSurfaceAlt）。 */
-    private int mCodeBg;
-    /** 主文字色（hfText）。 */
-    private int mText;
-    /** 分隔线色（hfDivider）。 */
-    private int mDivider;
+    /** 收藏键集合（有序，保持加入顺序）。 */
+    private final LinkedHashSet<String> mFavs = new LinkedHashSet<>();
 
-    /** 等宽字体（Typeface.createFromFile 可能失败，回落 MONOSPACE）。 */
+    private int mRed, mSub, mCardBg, mCodeBg, mText, mDivider, mAccent;
     private Typeface mMono;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // ---- 主题色解析 ----
         mRed = isDarkTheme() ? Color.parseColor("#FF8A80") : Color.parseColor("#D32F2F");
         mSub = attr(R.attr.hfTextSub, Color.GRAY);
         mCardBg = attr(R.attr.hfSurface, Color.WHITE);
         mCodeBg = attr(R.attr.hfSurfaceAlt, 0xFFF0F0F0);
         mText = attr(R.attr.hfText, Color.BLACK);
+        mAccent = attr(R.attr.hfAccent, Color.BLUE);
         mDivider = attr(R.attr.hfDivider, 0xFFDDDDDD);
         try { mMono = Typeface.MONOSPACE; } catch (Exception ignore) {}
 
-        // ---- 整体框架：竖排 = 头部 / 搜索框 / 滚动内容 ----
+        loadFavs();
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(attr(R.attr.hfBg, Color.WHITE));
         setContentView(root);
         root.addView(header());
+        root.addView(tabs());
         root.addView(searchBar());
         root.addView(divider(1));
 
@@ -80,13 +92,16 @@ public class SmaliDocActivity extends BaseActivity {
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         render(null);
+        refreshTabs();
     }
+
+    // ---------- 头部 / 标签 / 搜索 ----------
 
     /** 头部：返回 + 标题 + 条目计数。 */
     private View header() {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setBackgroundColor(attr(R.attr.hfTopBar, mCardBg));
         bar.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
@@ -95,7 +110,7 @@ public class SmaliDocActivity extends BaseActivity {
         back.setText("←");
         back.setTextSize(20);
         back.setTextColor(mText);
-        back.setGravity(android.view.Gravity.CENTER);
+        back.setGravity(Gravity.CENTER);
         back.setPadding(dp(16), 0, dp(16), 0);
         back.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { finish(); }
@@ -109,17 +124,59 @@ public class SmaliDocActivity extends BaseActivity {
         title.setTypeface(null, Typeface.BOLD);
         title.setTextColor(mText);
         title.setSingleLine(true);
-        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        bar.addView(title, tp);
+        bar.addView(title, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         mCount = new TextView(this);
         mCount.setTextSize(12);
         mCount.setTextColor(mSub);
         mCount.setPadding(0, 0, dp(14), 0);
-        mCount.setText(SmaliDocs.E.length + " 条");
         bar.addView(mCount);
         return bar;
+    }
+
+    /** 三标签：语法 / 操作码 / ★ 收藏。 */
+    private View tabs() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setBackgroundColor(mCardBg);
+        row.setPadding(dp(12), dp(6), dp(12), dp(6));
+
+        final String[] names = {"语法", "操作码", "★ 收藏"};
+        for (int i = 0; i < 3; i++) {
+            final int idx = i;
+            TextView tv = new TextView(this);
+            tv.setText(names[i]);
+            tv.setTextSize(14);
+            tv.setGravity(Gravity.CENTER);
+            tv.setPadding(dp(12), dp(7), dp(12), dp(7));
+            tv.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) {
+                    mMode = idx;
+                    refreshTabs();
+                    render(mSearch.getText().toString());
+                }
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            lp.setMargins(i == 0 ? 0 : dp(6), 0, 0, 0);
+            row.addView(tv, lp);
+            mTabViews[i] = tv;
+        }
+        return row;
+    }
+
+    /** 刷新标签外观：选中态反色 + 收藏数。 */
+    private void refreshTabs() {
+        for (int i = 0; i < 3; i++) {
+            boolean on = i == mMode;
+            mTabViews[i].setBackgroundColor(on ? mAccent : Color.TRANSPARENT);
+            mTabViews[i].setTextColor(on ? Color.WHITE : mSub);
+            mTabViews[i].setTypeface(null, on ? Typeface.BOLD : Typeface.NORMAL);
+            if (i == 2) mTabViews[i].setText("★ 收藏 (" + mFavs.size() + ")");
+            else if (i == 0) mTabViews[i].setText("语法 (" + SmaliDocs.E.length + ")");
+            else mTabViews[i].setText("操作码 (" + SmaliDocs.OP.length + ")");
+        }
     }
 
     /** 顶部搜索框（实时过滤）。 */
@@ -129,7 +186,7 @@ public class SmaliDocActivity extends BaseActivity {
         wrap.setPadding(dp(12), dp(8), dp(12), dp(8));
 
         mSearch = new EditText(this);
-        mSearch.setHint("搜索指令 / 关键字，如 move、invoke、字段、跳转…");
+        mSearch.setHint("搜索指令 / 操作码 / 关键字，如 move、0x90、invoke、跳转…");
         mSearch.setTextSize(14);
         mSearch.setTextColor(mText);
         mSearch.setHintTextColor(mSub);
@@ -147,14 +204,56 @@ public class SmaliDocActivity extends BaseActivity {
         return wrap;
     }
 
-    /**
-     * 渲染条目。query 为空显示全部（按分类分节）；
-     * 非空时只显示匹配条目（语法 / 解析 / 分类任一包含即命中，忽略大小写）。
-     */
+    // ---------- 渲染 ----------
+
+    /** 按当前标签 + 查询渲染列表。 */
     private void render(String query) {
         mContainer.removeAllViews();
         String q = query == null ? "" : query.trim().toLowerCase();
         int hits = 0;
+
+        if (mMode == 2) {
+            // 收藏：两类混合，按加入顺序
+            String lastCat = null;
+            for (String key : mFavs) {
+                if (key.startsWith(PK_E)) {
+                    String[] e = findE(key.substring(PK_E.length()));
+                    if (e == null || (q != null && !q.isEmpty() && !match(e, q))) continue;
+                    mContainer.addView(sectionHeader("语法 · " + e[0]));
+                    mContainer.addView(entryCard(e, false));
+                } else {
+                    String[] o = findOp(key.substring(PK_O.length()));
+                    if (o == null || (q != null && !q.isEmpty() && !matchOp(o, q))) continue;
+                    mContainer.addView(sectionHeader("操作码"));
+                    mContainer.addView(opCard(o));
+                }
+                mContainer.addView(spacer(dp(8)));
+                hits++;
+                lastCat = null;
+            }
+            if (hits == 0) {
+                mContainer.addView(emptyView(mFavs.isEmpty()
+                        ? "还没有收藏。在任意条目卡片右上角点 ☆ 即可收藏，重启 App 仍保留。"
+                        : "当前关键词没有命中收藏条目。"));
+            }
+            mCount.setText(hits + " / 收藏 " + mFavs.size());
+            return;
+        }
+
+        if (mMode == 1) {
+            // 操作码全表
+            for (String[] o : SmaliDocs.OP) {
+                if (!q.isEmpty() && !matchOp(o, q)) continue;
+                mContainer.addView(opCard(o));
+                mContainer.addView(spacer(dp(6)));
+                hits++;
+            }
+            if (hits == 0) mContainer.addView(emptyView("没有匹配的操作码，试试 0x90、invoke、const…"));
+            mCount.setText(q.isEmpty() ? SmaliDocs.OP.length + " 条" : hits + "/" + SmaliDocs.OP.length);
+            return;
+        }
+
+        // 语法条目（按分类分节）
         String lastCat = null;
         for (String[] e : SmaliDocs.E) {
             if (!q.isEmpty() && !match(e, q)) continue;
@@ -162,42 +261,48 @@ public class SmaliDocActivity extends BaseActivity {
                 lastCat = e[0];
                 mContainer.addView(sectionHeader(e[0]));
             }
-            mContainer.addView(entryCard(e));
+            mContainer.addView(entryCard(e, false));
             mContainer.addView(spacer(dp(8)));
             hits++;
         }
-        if (hits == 0) {
-            TextView empty = new TextView(this);
-            empty.setText("没有匹配的条目，换个关键词试试（如 add-int、invoke-static、跳转、字段）");
-            empty.setTextSize(14);
-            empty.setTextColor(mSub);
-            empty.setPadding(dp(8), dp(40), dp(8), 0);
-            empty.setGravity(android.view.Gravity.CENTER);
-            mContainer.addView(empty);
-        }
+        if (hits == 0) mContainer.addView(emptyView("没有匹配的条目，换个关键词试试（如 add-int、invoke-static、跳转、字段）"));
         mCount.setText(q.isEmpty() ? SmaliDocs.E.length + " 条" : hits + "/" + SmaliDocs.E.length);
     }
 
-    /** 过滤匹配：语法 / 中文解析 / 分类。 */
-    private static boolean match(String[] e, String qLower) {
-        return e[1].toLowerCase().contains(qLower)
-                || e[2].toLowerCase().contains(qLower)
-                || e[0].toLowerCase().contains(qLower);
+    private static boolean match(String[] e, String q) {
+        return e[1].toLowerCase().contains(q)
+                || e[2].toLowerCase().contains(q)
+                || e[0].toLowerCase().contains(q);
     }
 
-    /** 分类节头。 */
+    private static boolean matchOp(String[] o, String q) {
+        return o[0].toLowerCase().contains(q)
+                || o[1].toLowerCase().contains(q)
+                || o[2].toLowerCase().contains(q);
+    }
+
     private View sectionHeader(String cat) {
         TextView tv = new TextView(this);
         tv.setText("◆ " + cat);
         tv.setTextSize(14);
         tv.setTypeface(null, Typeface.BOLD);
-        tv.setTextColor(attr(R.attr.hfAccent, mRed));
+        tv.setTextColor(mAccent);
         tv.setPadding(dp(2), dp(14), dp(2), dp(6));
         return tv;
     }
 
-    /** 条目卡片：语法（红） + 注释解析 + 示例代码块。点击复制语法。 */
-    private View entryCard(final String[] e) {
+    private View emptyView(String msg) {
+        TextView tv = new TextView(this);
+        tv.setText(msg);
+        tv.setTextSize(14);
+        tv.setTextColor(mSub);
+        tv.setPadding(dp(8), dp(40), dp(8), 0);
+        tv.setGravity(Gravity.CENTER);
+        return tv;
+    }
+
+    /** 语法条目卡片：语法（红）+ ★ + 注释解析 + 示例。 */
+    private View entryCard(final String[] e, boolean compact) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setBackgroundColor(mCardBg);
@@ -206,18 +311,12 @@ public class SmaliDocActivity extends BaseActivity {
             public void onClick(View v) { copy(e[1]); }
         });
 
-        // 1) 语法：红色等宽
-        TextView syn = new TextView(this);
-        syn.setText(e[1]);
-        syn.setTypeface(mMono, Typeface.BOLD);
-        syn.setTextSize(14);
-        syn.setTextColor(mRed);
-        syn.setTextIsSelectable(true);
-        card.addView(syn);
+        // 标题行：语法（红，左） + 收藏星（右）
+        final String key = PK_E + e[1];
+        card.addView(syntaxRow(e[1], key, mFavs.contains(key)));
 
         card.addView(spacer(dp(4)));
 
-        // 2) 中文解析：以 "# " 注释形式存在，灰色
         TextView desc = new TextView(this);
         desc.setText(commentize(e[2]));
         desc.setTypeface(mMono);
@@ -227,23 +326,120 @@ public class SmaliDocActivity extends BaseActivity {
         desc.setTextIsSelectable(true);
         card.addView(desc);
 
-        // 3) 示例代码块：等宽 + 次级背景
         if (e[3] != null && !e[3].isEmpty()) {
             card.addView(spacer(dp(6)));
-            TextView ex = new TextView(this);
-            ex.setText(e[3]);
-            ex.setTypeface(mMono);
-            ex.setTextSize(12);
-            ex.setTextColor(mText);
-            ex.setBackgroundColor(mCodeBg);
-            ex.setPadding(dp(10), dp(8), dp(10), dp(8));
-            ex.setTextIsSelectable(true);
-            card.addView(ex);
+            card.addView(codeBlock(e[3]));
         }
         return card;
     }
 
-    /** 解析文本逐行以 "# " 注释呈现（行首已有 # 的不再重复；空行只显示裸 #）。 */
+    /** 操作码卡片：操作码徽标 + 助记符（红）+ ★ + 中文说明。 */
+    private View opCard(final String[] o) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackgroundColor(mCardBg);
+        card.setPadding(dp(12), dp(10), dp(12), dp(10));
+        card.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { copy(o[1]); }
+        });
+
+        final String key = PK_O + o[0];
+        boolean fav = mFavs.contains(key);
+
+        LinearLayout row1 = new LinearLayout(this);
+        row1.setOrientation(LinearLayout.HORIZONTAL);
+        row1.setGravity(Gravity.CENTER_VERTICAL);
+
+        // 操作码徽标
+        TextView badge = new TextView(this);
+        badge.setText(o[0]);
+        badge.setTypeface(mMono, Typeface.BOLD);
+        badge.setTextSize(12);
+        badge.setTextColor(Color.WHITE);
+        badge.setBackgroundColor(mRed);
+        badge.setPadding(dp(6), dp(2), dp(6), dp(2));
+        row1.addView(badge);
+
+        TextView syn = new TextView(this);
+        syn.setText(" " + o[1]);
+        syn.setTypeface(mMono, Typeface.BOLD);
+        syn.setTextSize(14);
+        syn.setTextColor(o[1].contains("unused") ? mSub : mRed);
+        syn.setTextIsSelectable(true);
+        row1.addView(syn, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        row1.addView(star(key, fav));
+        card.addView(row1);
+
+        card.addView(spacer(dp(4)));
+        TextView desc = new TextView(this);
+        desc.setText(commentize(o[2]));
+        desc.setTypeface(mMono);
+        desc.setTextSize(12);
+        desc.setTextColor(mSub);
+        desc.setTextIsSelectable(true);
+        card.addView(desc);
+        return card;
+    }
+
+    /** 语法行的标题行（语法 + ★）。 */
+    private View syntaxRow(final String syntax, final String key, boolean fav) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView syn = new TextView(this);
+        syn.setText(syntax);
+        syn.setTypeface(mMono, Typeface.BOLD);
+        syn.setTextSize(14);
+        syn.setTextColor(mRed);
+        syn.setTextIsSelectable(true);
+        row.addView(syn, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        row.addView(star(key, fav));
+        return row;
+    }
+
+    /** 收藏星：点击切换并持久化。 */
+    private View star(final String key, boolean fav) {
+        TextView s = new TextView(this);
+        s.setText(fav ? "★" : "☆");
+        s.setTextSize(18);
+        s.setTextColor(fav ? mAccent : mSub);
+        s.setPadding(dp(10), dp(2), dp(2), dp(6));
+        s.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                boolean now;
+                if (mFavs.contains(key)) { mFavs.remove(key); now = false; }
+                else { mFavs.add(key); now = true; }
+                saveFavs();
+                ((TextView) v).setText(now ? "★" : "☆");
+                ((TextView) v).setTextColor(now ? mAccent : mSub);
+                Toast.makeText(SmaliDocActivity.this,
+                        now ? "已收藏" : "已取消收藏", Toast.LENGTH_SHORT).show();
+                refreshTabs();
+                if (mMode == 2) render(mSearch.getText().toString());
+            }
+        });
+        return s;
+    }
+
+    /** 示例代码块：等宽 + 次级背景。 */
+    private View codeBlock(String code) {
+        TextView ex = new TextView(this);
+        ex.setText(code);
+        ex.setTypeface(mMono);
+        ex.setTextSize(12);
+        ex.setTextColor(mText);
+        ex.setBackgroundColor(mCodeBg);
+        ex.setPadding(dp(10), dp(8), dp(10), dp(8));
+        ex.setTextIsSelectable(true);
+        return ex;
+    }
+
+    /** 解析文本逐行以 "# " 注释呈现（行首已有 # 的不再重复；空行显示裸 #）。 */
     private static String commentize(String desc) {
         String[] lines = desc.split("\n", -1);
         StringBuilder sb = new StringBuilder();
@@ -253,6 +449,39 @@ public class SmaliDocActivity extends BaseActivity {
             sb.append(line.isEmpty() ? "#" : line.startsWith("#") ? line : "# " + line);
         }
         return sb.toString();
+    }
+
+    // ---------- 收藏持久化 ----------
+
+    private void loadFavs() {
+        mFavs.clear();
+        SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+        String raw = sp.getString(KEY_FAVS, "");
+        if (raw != null && !raw.isEmpty()) {
+            for (String k : raw.split("\u0001")) if (!k.isEmpty()) mFavs.add(k);
+        }
+    }
+
+    private void saveFavs() {
+        StringBuilder sb = new StringBuilder();
+        for (String k : mFavs) {
+            if (sb.length() > 0) sb.append('\u0001');
+            sb.append(k);
+        }
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .putString(KEY_FAVS, sb.toString()).apply();
+    }
+
+    /** 按语法文本定位语法条目。 */
+    private static String[] findE(String syntax) {
+        for (String[] e : SmaliDocs.E) if (e[1].equals(syntax)) return e;
+        return null;
+    }
+
+    /** 按操作码定位（如 0x90）。 */
+    private static String[] findOp(String op) {
+        for (String[] o : SmaliDocs.OP) if (o[0].equals(op)) return o;
+        return null;
     }
 
     /** 复制语法到剪贴板。 */
