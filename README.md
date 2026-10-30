@@ -1352,3 +1352,26 @@ v1.54.1 实测「数据备份失败」（应用本体备份正常，数据归档
 - **真机（Pixel 6）**：SearchActivity 筛选面板渲染正常、「最大 1MB」过滤搜索返回 1000 条（达上限）正常截断；UI 完整走通「长按 → 加密文件 → 输密码 → 生成 .enc（140 字节、MTENC1 头）→ 解密文件 → 内容逐字节一致」闭环；目录对比打开正常。
 - HexFile-1.55.0.apk（5.6M，versionCode 94）构建 Success，`adb install -r` 成功。
 
+
+## v1.56.0 —— 网络存储挂载（SMB/WebDAV，直连电脑共享）
+
+### 新增
+- **网络存储（抽屉入口 🌐）**：手机作为客户端直连局域网内电脑/NAS 共享，与 v1.50「远程管理」（手机当服务端）互为反向能力。
+  - **SMB**：集成 **smbj 0.14.0**（Apache-2.0，MaterialFiles 同款库），支持 SMB2/SMB2.1/SMB3（含 3.1.1 协商）；依赖 asn-one 0.6.0、mbassador 1.3.0、bcprov-jdk18on 1.79 一并入 libs/。不支持 SMB1（极老设备请开 SMB2 或走 WebDAV）。
+  - **WebDAV**：`WebDavFs` 手写实现（HttpURLConnection + 系统 XmlPullParser，零第三方依赖）：PROPFIND(Depth 1)/GET/PUT/MKCOL/DELETE/MOVE，HTTP Basic 认证。
+- **服务器管理**：添加/编辑/删除服务器（SMB：地址+端口+共享名+域+账号；WebDAV：完整 URL+账号），配置 JSON 存 SharedPreferences；用户名留空即访客（guest）登录。
+- **远程浏览**：目录树导航（上级/子目录）、文件大小与修改时间显示、目录/文件图标区分。
+- **传输能力**：
+  - 下载：单文件（水平进度条）或整个目录递归下载到 `/sdcard/HexFile/网络存储/`，重名自动加 (1) 序号；
+  - 上传：系统文档选择器（ACTION_OPEN_DOCUMENT）任选本地文件上传到当前远程目录；
+  - 远端操作：新建目录、重命名（SMB 走 FileRenameInformation，WebDAV 走 MOVE）、删除（目录递归）。
+
+### 实现
+- `NetFs`：网络文件系统抽象接口（list/openRead/openWrite/mkdir/delete/rename/close），路径以 `/` 分隔、相对各协议根。
+- `SmbFs`：smbj 包装——连接复用单 Session，`SmbConfig` 60s 超时 + 30s SoTimeout；目录判定走 FILE_ATTRIBUTE_DIRECTORY 位；`openWrite` 自动逐级补父目录；`rename` 经 `setFileInformation(FileRenameInformation)`（DiskShare 无原生 rename API）。
+- `NetStorageActivity`：双面板（服务器列表 / 远程浏览）单 Activity，操作统一后台线程 + ProgressDialog；错误信息人性化（ECONNREFUSED/ETIMEDOUT/401/404 等给中文提示）。
+- versionCode 95，APK 体积 5.6M → 7.5M（增量主要为 bcprov）。
+
+### 验证
+- javac 编译通过 + d8 合并 dex 成功（smbj/bcprov/mbassador/asn-one 全部收入）。
+- `adb install -r` Success（Pixel 6）。**连接/传输功能由用户手动测试**（需局域网内真实 SMB/WebDAV 服务端）。

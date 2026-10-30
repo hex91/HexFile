@@ -18,6 +18,10 @@
 | **ANTLR runtime 3.5.2**（`libs/antlr-runtime-3.5.2.jar`） | 解析支持 | BSD-3-Clause | https://www.antlr.org/ |
 | **SLF4J 1.7.36**（`libs/slf4j-api-1.7.36.jar`） | 日志门面（sevenzipjbinding 依赖） | MIT | https://www.slf4j.org/ |
 | **XZ for Java 1.9**（`libs/xz-1.9.jar`） | .xz 解压（commons-compress 依赖） | Public Domain | https://github.com/tukaani-project/xz-java |
+| **smbj 0.14.0**（`libs/smbj-0.14.0.jar`） | SMB 客户端（网络存储，SMB2/SMB3） | Apache-2.0 | https://github.com/hierynomus/smbj |
+| **asn-one 0.6.0**（`libs/asn-one-0.6.0.jar`） | ASN.1 编解码（smbj 依赖） | Apache-2.0 | https://github.com/hierynomus/asn-one |
+| **mbassador 1.3.0**（`libs/mbassador-1.3.0.jar`） | 事件总线（smbj 依赖） | MIT | https://github.com/bennidi/mbassador |
+| **Bouncy Castle bcprov-jdk18on 1.79**（`libs/bcprov-jdk18on-1.79.jar`） | 加密算法提供者（smbj 依赖） | MIT（BC 双许可 MIT/LGPL，此处按 MIT 使用） | https://www.bouncycastle.org/ |
 
 > 说明：`sevenzipjbinding` 以 LGPL-2.1 发布并附带静态链接例外，本项目以动态加载其原生库（`.so`）的方式使用，符合其许可要求。
 > 内置重签名密钥 `assets/hexfile.p12`（alias `hexfile`，密码 `android`）仅用于 App 内部「重打包/重签名」工具功能，非发布签名密钥。

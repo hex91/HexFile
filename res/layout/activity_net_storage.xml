@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  v1.56.0 网络存储页：SMB / WebDAV 客户端，直连电脑共享。
+  面板一（net_servers_panel）：已保存服务器列表 + 添加按钮
+  面板二（net_browse_panel）：远程目录浏览（路径条 + 文件列表 + 操作栏）
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/hfBg">
+
+    <!-- 标题栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="?attr/hfSurface">
+
+        <TextView
+            android:id="@+id/net_back"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:paddingLeft="16dp"
+            android:paddingRight="16dp"
+            android:text="←"
+            android:textSize="20sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/net_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="网络存储"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="?attr/hfText"
+            android:singleLine="true"
+            android:ellipsize="middle"/>
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?attr/hfDivider"/>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!-- 面板一：服务器列表 -->
+        <ScrollView
+            android:id="@+id/net_servers_panel"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/net_server_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="4dp"/>
+
+                <TextView
+                    android:id="@+id/net_add"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:gravity="center"
+                    android:text="＋  添加服务器"
+                    android:textSize="15sp"
+                    android:textColor="?attr/hfAccent"
+                    android:background="?android:attr/selectableItemBackground"/>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="16dp"
+                    android:text="支持 SMB2/SMB3（Windows 共享、NAS）与 WebDAV。手机需与电脑同一局域网。SMB 用户名留空即以访客（guest）登录。"
+                    android:textSize="12sp"
+                    android:textColor="?attr/hfTextSub"/>
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- 面板二：远程浏览 -->
+        <LinearLayout
+            android:id="@+id/net_browse_panel"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <!-- 路径条 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingLeft="8dp"
+                android:paddingRight="8dp"
+                android:background="?attr/hfSurface">
+
+                <TextView
+                    android:id="@+id/net_up"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:paddingLeft="10dp"
+                    android:paddingRight="10dp"
+                    android:text="⬆"
+                    android:textSize="17sp"
+                    android:textColor="?attr/hfText"
+                    android:background="?android:attr/selectableItemBackground"/>
+
+                <TextView
+                    android:id="@+id/net_path"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="/"
+                    android:textSize="13sp"
+                    android:textColor="?attr/hfTextSub"
+                    android:fontFamily="monospace"
+                    android:singleLine="true"
+                    android:ellipsize="start"/>
+            </LinearLayout>
+
+            <ListView
+                android:id="@+id/net_list"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:divider="?attr/hfDivider"
+                android:dividerHeight="1dp"/>
+
+            <!-- 操作栏 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:orientation="horizontal"
+                android:background="?attr/hfSurface">
+
+                <TextView
+                    android:id="@+id/net_mkdir"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="📁 新建目录"
+                    android:textSize="14sp"
+                    android:textColor="?attr/hfText"
+                    android:background="?android:attr/selectableItemBackground"/>
+
+                <TextView
+                    android:id="@+id/net_upload"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="⬆ 上传文件"
+                    android:textSize="14sp"
+                    android:textColor="?attr/hfText"
+                    android:background="?android:attr/selectableItemBackground"/>
+
+                <TextView
+                    android:id="@+id/net_disconnect"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="✕ 断开"
+                    android:textSize="14sp"
+                    android:textColor="?attr/hfText"
+                    android:background="?android:attr/selectableItemBackground"/>
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+</LinearLayout>

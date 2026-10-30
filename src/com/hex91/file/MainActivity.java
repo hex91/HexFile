@@ -248,6 +248,13 @@ public class MainActivity extends BaseActivity {
                 startActivity(new Intent(MainActivity.this, RemoteActivity.class));
             }
         });
+        findViewById(R.id.drawer_net).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                closeDrawer();
+                // v1.56.0：网络存储（SMB/WebDAV 客户端，直连电脑共享）
+                startActivity(new Intent(MainActivity.this, NetStorageActivity.class));
+            }
+        });
         findViewById(R.id.drawer_terminal).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 closeDrawer();
