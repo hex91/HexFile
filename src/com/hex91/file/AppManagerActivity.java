@@ -34,10 +34,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * v1.45.0 应用管理：已安装应用列表（图标/名称/包名/版本）+ 提取安装包。
@@ -643,76 +639,28 @@ public class AppManagerActivity extends BaseActivity {
             public boolean accept(File f) { return f.isFile() && f.getName().endsWith(".apk"); }
         });
         if (apks == null || apks.length == 0) { toast("备份中无 APK 文件"); return; }
+        final File gz = new File(dir, "data.tar.gz");
+        final File plain = new File(dir, "data.tar");
+        final File dataTar = gz.exists() ? gz : (plain.exists() ? plain : null);
+        final BackupRestore.BackupEntry e = new BackupRestore.BackupEntry();
+        e.pkg = r.pkg; e.dir = dir; e.apks = apks; e.dataTar = dataTar;
+        e.installed = true; e.label = r.label;
         final ProgressDialog pd = new ProgressDialog(this);
         pd.setMessage("正在还原 " + r.label + " …");
         pd.setCanceledOnTouchOutside(false);
         pd.show();
-        final File gz = new File(dir, "data.tar.gz");
-        final File plain = new File(dir, "data.tar");
-        final File dataTar = gz.exists() ? gz : (plain.exists() ? plain : null);
         new Thread(new Runnable() {
             public void run() {
-                final boolean installOk = installApkSet(apks);
-                final boolean rooted = rootReady();
-                boolean dataOk = false;
-                if (installOk && dataTar != null && rooted) {
-                    // 解包到原数据目录（install 已重建目录），并修正属主与 SELinux 上下文
-                    String cmd = "tar -xzf '" + dataTar.getPath() + "' -C / 2>/dev/null"
-                            + " || tar -xf '" + dataTar.getPath() + "' -C /";
-                    if (RootUtil.run(cmd)) {
-                        String dd = r.dataDir == null ? "/data/data/" + r.pkg : r.dataDir;
-                        RootUtil.run("chown -R $(stat -c %u '" + dd + "' 2>/dev/null):"
-                                + "$(stat -c %u '" + dd + "' 2>/dev/null) '" + dd + "' 2>/dev/null");
-                        RootUtil.run("restorecon -R '" + dd + "' 2>/dev/null");
-                        dataOk = true;
-                    }
-                }
-                final boolean fInstall = installOk;
-                final boolean fData = dataOk;
-                final boolean fRoot = rooted;
+                final BackupRestore.RestoreOutcome o = BackupRestore.restore(e, getPackageName());
                 runOnUiThread(new Runnable() {
                     public void run() {
                         try { pd.dismiss(); } catch (Exception ignored) {}
-                        String msg = fInstall ? "已重装 " + r.label : "重装失败";
-                        if (dataTar != null) {
-                            if (fRoot) msg += fData ? " + 数据已恢复" : "（数据恢复失败）";
-                            else msg += "（未 Root，跳过数据）";
-                        }
-                        toast(msg);
+                        toast(o.message);
                         loadApps();
                     }
                 });
             }
         }, "app-restore").start();
-    }
-
-    /** 通过 pm install-create / install-write / install-commit 安装一组 APK（支持 split 分包）。 */
-    private boolean installApkSet(File[] apks) {
-        try {
-            Future<String> f = RootUtil.submitOutput("pm install-create -r -i "
-                    + getPackageName() + " 2>&1");
-            String out = f.get(10, TimeUnit.SECONDS);
-            if (out == null) return false;
-            Integer sid = parseSessionId(out);
-            if (sid == null) return false;
-            for (File apk : apks) {
-                long len = apk.length();
-                String write = "pm install-write -S " + len + " " + sid + " "
-                        + apk.getName() + " " + apk.getPath();
-                if (!RootUtil.run(write)) return false;
-            }
-            return RootUtil.run("pm install-commit " + sid);
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private static final Pattern SESSION_ID = Pattern.compile("\\[(\\d+)\\]");
-
-    private static Integer parseSessionId(String s) {
-        if (s == null) return null;
-        Matcher m = SESSION_ID.matcher(s);
-        return m.find() ? Integer.valueOf(m.group(1)) : null;
     }
 
     private class AppAdapter extends BaseAdapter {

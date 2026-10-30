@@ -227,6 +227,13 @@ public class MainActivity extends BaseActivity {
                 startActivity(new Intent(MainActivity.this, AppManagerActivity.class));
             }
         });
+        findViewById(R.id.drawer_backups).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                closeDrawer();
+                // v1.54.0：备份管理（列出所有备份，支持已卸载应用还原）
+                startActivity(new Intent(MainActivity.this, BackupManagerActivity.class));
+            }
+        });
         findViewById(R.id.drawer_theme).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 closeDrawer();

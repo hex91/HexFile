@@ -1242,3 +1242,29 @@ HexFile-1.53.0.apk（5.6M，versionCode 90）本地构建 Success；`adb install
 ### 真机实测（交用户）
 抽屉 → 应用管理 → 点应用：① 冻结某第三方应用 → 桌面 / 设置中确认其禁用、再解冻恢复；② 权限管理 → 查看危险权限授予状态、点「授予全部危险」后重开确认生效（需 Root）；③ 备份应用 → 检查 `HexFile/Backups/<pkg>/` 含 APK（及 Root 下的 data.tar*）；④ 卸载该应用后点「还原应用」→ 重装成功、Root 下数据恢复。
 
+---
+
+## v1.54.0 —— 备份管理（独立入口 + 还原失败细分）
+
+### 需求
+v1.53.0 的「还原」挂在已安装应用行菜单上，应用一旦卸载便从列表消失、入口不可用——无法救回已卸载应用。本版新增独立**备份管理**入口，列出 `HexFile/Backups/` 下全部备份（不论是否已安装），提供「还原 / 删除备份」。同时将还原失败原因细分（Root 缺失 / 签名冲突 / 分包缺失 / 其它），便于定位。
+
+### 实现
+- **新增 `BackupManagerActivity`**：扫描 `HexFile/Backups/` 子目录（每个即一个包备份），逐条展示图标（已安装取应用图标，否则占位）、应用名 / 包名、状态（`已安装 / 未安装 · N 个 APK · 数据:有/无`）。每行「还原」「删除备份」；删除走二次确认 + 递归删除。
+- **新增 `BackupRestore`（共享核心）**：
+  - `listBackups(Context)`：列出所有备份，`getPackageInfo` 判定是否已安装并取应用名；无需 Root（备份目录归属 HexFile 自身）。
+  - `restore(BackupEntry, installerPkg)`：先判 Root（无 Root 直接报错「未获取 Root 权限…」）；重装走 `pm install-create/write/commit` 会话流程；有 `data.tar*` 时 `tar` 解包回 `/data/data/<pkg>` 并 `chown` + `restorecon`（按重装后新 UID 修正）。
+  - 通过 `RootUtil.runCapture`（v1.54.0 新增，合并 stdout/stderr 且不限退出码）读取 `pm` 失败输出，将 `UPDATE_INCOMPATIBLE / signatures do not match` 翻译为「签名不一致：请先卸载再还原」，`MISSING_SPLIT` 翻译为「分包缺失：备份不完整」。
+- **`AppManagerActivity.restoreApp` 重构**：改为构造 `BackupEntry` 调用 `BackupRestore.restore`，与备份管理共用同一套细分提示；删除原 `installApkSet`/`parseSessionId`（迁移至 `BackupRestore`）。
+- **入口**：抽屉新增「💾 备份管理」→ `BackupManagerActivity`；`AndroidManifest` 注册该 Activity。
+
+### 兼容性
+- 新增 `RootUtil.runCapture` 与 `RunResult`；`RootUtil` 既有接口不变。
+- 还原逻辑收口到 `BackupRestore`，`AppManagerActivity` 行为保持一致（已安装应用还原路径等价于旧实现，数据目录默认 `/data/data/<pkg>`）。
+
+### 装机
+HexFile-1.54.0.apk（5.6M，versionCode 91）本地构建 Success；`adb install -r` 成功；`am start` 启动 `BackupManagerActivity` 与 `AppManagerActivity` 均无 FATAL。
+
+### 真机实测（交用户）
+抽屉 → 备份管理：① 列表应出现 `com.gpu.a0837dd7`（已卸载）等所有备份，状态显示「未安装」；② 点「还原」→ 该应用重装成功、Root 下数据恢复（提示「已重装并恢复数据」）；③ 若未授权 Root，点还原应提示「未获取 Root 权限…」而非静默失败；④ 点「删除备份」二次确认后目录被清除、列表刷新。
+

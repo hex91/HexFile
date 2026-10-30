@@ -265,4 +265,45 @@ public final class RootUtil {
             }
         }
     }
+
+    /** v1.54.0：执行结果（退出码 + 合并后的输出文本，便于还原时区分失败原因） */
+    public static final class RunResult {
+        public int exit;
+        public String out;
+    }
+
+    /**
+     * v1.54.0：执行 root 命令并捕获输出（无论退出码是否为零，stdout/stderr 合并后返回）。
+     * 用于还原安装流程：需要读取 `pm install-commit` 的失败原因（签名冲突 / 分包缺失等）。
+     * 超时 / 异常 / 未 root 返回 null。
+     */
+    public static RunResult runCapture(final String shellCmd) {
+        try {
+            Future<RunResult> f = POOL.submit(new Callable<RunResult>() {
+                public RunResult call() throws Exception {
+                    Process p = null;
+                    try {
+                        p = new ProcessBuilder("su", "-c", shellCmd)
+                                .redirectErrorStream(true).start();
+                        BufferedReader r = new BufferedReader(
+                                new InputStreamReader(p.getInputStream()));
+                        StringBuilder sb = new StringBuilder();
+                        char[] buf = new char[1024];
+                        int n;
+                        while ((n = r.read(buf)) != -1) sb.append(buf, 0, n);
+                        r.close();
+                        RunResult res = new RunResult();
+                        res.exit = p.waitFor();
+                        res.out = sb.toString().trim();
+                        return res;
+                    } finally {
+                        if (p != null) try { p.destroy(); } catch (Exception ignored) {}
+                    }
+                }
+            });
+            return f.get(20, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hex91.file"
-    android:versionCode="90"
-    android:versionName="1.53.0">
+    android:versionCode="91"
+    android:versionName="1.54.0">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
 
@@ -102,6 +102,12 @@
 
         <activity
             android:name="com.hex91.file.AppManagerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <!-- v1.54.0：备份管理（列出所有备份，支持已卸载应用还原） -->
+        <activity
+            android:name="com.hex91.file.BackupManagerActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
