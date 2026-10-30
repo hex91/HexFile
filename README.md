@@ -1375,3 +1375,18 @@ v1.54.1 实测「数据备份失败」（应用本体备份正常，数据归档
 ### 验证
 - javac 编译通过 + d8 合并 dex 成功（smbj/bcprov/mbassador/asn-one 全部收入）。
 - `adb install -r` Success（Pixel 6）。**连接/传输功能由用户手动测试**（需局域网内真实 SMB/WebDAV 服务端）。
+
+## v1.56.x —— 历史版本回归（JVM 169 项 + 真机 UI 全链路）
+
+### JVM 核心逻辑回归（7 套测试，169 项断言 0 失败）
+- BatchRenameTest 31 ✅ / FormatTest 43 ✅ / HexCoreTest 41 ✅ / SplitTest 23 ✅ / FileCryptTest 7 ✅ / ZipCryptTest 5 ✅ / SigKillTest 19 ✅
+- 修复 4 个测试文件的历史遗留缺 import（SplitTest/FileCryptTest/ZipCryptTest/SigKillTest，当年同包名直编可过，独立编译需显式 import com.hex91.file.*；功能代码零改动）
+- 新增 test/ui_tap.py 真机 UI 自动化辅助（uiautomator dump + 按文本定位点击/长按）
+
+### 真机 UI 冒烟（Pixel 6，全部通过）
+- **文件分割/合并**：3MB → 3×1MB 分卷 + .parts 清单 → 合并 big.bin.merged，md5 与原文件一致；小于最小分卷的文件被正确拒绝
+- **加密 ZIP**：压缩为 ZIP 输密码 → big.bin.zip 含 AES-256 extra field（0x9901），大小符合 AES 开销
+- **HEX 编辑写回**：偏移 0 写入 DEADBEEF，落盘逐字节核对 de ad be ef，其余字节未动
+- **格式化**：编辑器主菜单 → 格式化自动识别 JSON → JSON 美化 → 保存，落盘内容正确缩进
+- **SigKill 去签名校验**：96MB/6 dex APK → sample_nosig.apk（110MB），apksigner verify 通过（内置密钥 V3.0 重签）
+- **批量重命名**：左滑进多选选 2 项 → 编号命名预览（001.json/002.bin）→ 执行成功，全程无崩溃
