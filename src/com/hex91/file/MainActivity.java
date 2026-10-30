@@ -2659,7 +2659,8 @@ public class MainActivity extends BaseActivity {
         final int A_DEX2SMALI = 10, A_EXTRACT_DEX = 11, A_EXTRACT_ICON = 12,
                 A_SIGN = 13, A_COPY = 3, A_REN = 5, A_PROP = 8, A_DEXPP = 15, A_ARSCPP = 16, A_MFPP = 17,
                 A_TOZIP_C = 18, A_TOZIP_M = 19, A_SIGN_APK = 20, A_APK_COMPARE = 22, A_APK_CLONE = 23,
-                A_SIGKILL = 26, A_INFO = 32, A_UNPACK = 33, A_SIGN_CUSTOM = 34, A_RM_SIGN = 35;
+                A_SIGKILL = 26, A_INFO = 32, A_UNPACK = 33, A_SIGN_CUSTOM = 34, A_RM_SIGN = 35,
+                A_DEL = 7;
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
         ops.add("Dex 编辑器++"); acts.add(A_DEXPP);
@@ -2677,6 +2678,7 @@ public class MainActivity extends BaseActivity {
         ops.add("APK 解包"); acts.add(A_UNPACK);
         ops.add("自定义密钥签名"); acts.add(A_SIGN_CUSTOM);
         ops.add("去除签名"); acts.add(A_RM_SIGN);
+        ops.add("删除"); acts.add(A_DEL);
         ops.add("复制到对面"); acts.add(A_COPY);
         // 对面窗格打开了压缩包 → 增加写入压缩包动作（只读格式点击时给说明）
         final boolean archDst = dst.archiveFile != null;
