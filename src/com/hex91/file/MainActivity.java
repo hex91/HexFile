@@ -1840,10 +1840,15 @@ public class MainActivity extends BaseActivity {
                         new AlertDialog.Builder(MainActivity.this)
                                 .setTitle("打包完成")
                                 .setMessage(fout.getName()
-                                        + "（未签名）\n\n用内置调试密钥立即签名？")
+                                        + "（未签名）\n\n选择签名方式：")
                                 .setPositiveButton("内置密钥签名", new android.content.DialogInterface.OnClickListener() {
                                     public void onClick(android.content.DialogInterface d, int w) {
                                         signApkBuiltin(fout);
+                                    }
+                                })
+                                .setNeutralButton("自定义密钥签名", new android.content.DialogInterface.OnClickListener() {
+                                    public void onClick(android.content.DialogInterface d, int w) {
+                                        askCustomSign(fout);
                                     }
                                 })
                                 .setNegativeButton("先不签", null)
