@@ -3537,17 +3537,74 @@ public class MainActivity extends BaseActivity {
                         String p2 = pw2.getText().toString();
                         if (p.isEmpty()) { toast("密码不能为空"); return; }
                         if (!p.equals(p2)) { toast("两次密码不一致"); return; }
-                        try {
-                            File out = FileCrypt.encrypt(f, p);
-                            toast("已加密: " + out.getName());
-                        } catch (Exception e) {
-                            toast("加密失败: " + e.getMessage());
-                        }
-                        refreshAll();
+                        runCrypt("加密", f, p, true);
                     }
                 })
                 .setNegativeButton("取消", null)
                 .show();
+    }
+
+    /**
+     * 后台执行加/解密并显示进度对话框。
+     * PBKDF2（10 万次迭代）+ 流式加解密耗时明显，绝不可在 UI 线程执行。
+     */
+    private void runCrypt(final String verb, final File f, final String pw, final boolean enc) {
+        final ProgressDialog pd = new ProgressDialog(this);
+        pd.setTitle(verb + "文件");
+        pd.setMessage(f.getName());
+        pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+        pd.setMax(100);
+        pd.setCancelable(false);
+        pd.show();
+        new Thread(new Runnable() {
+            public void run() {
+                final int[] last = { -1 };
+                FileCrypt.Progress cb = new FileCrypt.Progress() {
+                    public void on(long done, long total) {
+                        if (total <= 0) return;
+                        final int pct = (int) (done * 100 / total);
+                        if (pct != last[0]) {
+                            last[0] = pct;
+                            runOnUiThread(new Runnable() {
+                                public void run() { pd.setProgress(pct); }
+                            });
+                        }
+                    }
+                };
+                try {
+                    final File out = enc ? FileCrypt.encrypt(f, pw, cb)
+                            : FileCrypt.decrypt(f, pw, cb);
+                    runOnUiThread(new Runnable() {
+                        public void run() {
+                            try { pd.dismiss(); } catch (Exception ignored) {}
+                            toast("已" + verb + ": " + out.getName());
+                            refreshAll();
+                        }
+                    });
+                } catch (final SecurityException e) {
+                    runOnUiThread(new Runnable() {
+                        public void run() {
+                            try { pd.dismiss(); } catch (Exception ignored) {}
+                            toast("密码错误或文件被篡改");
+                        }
+                    });
+                } catch (final IllegalArgumentException e) {
+                    runOnUiThread(new Runnable() {
+                        public void run() {
+                            try { pd.dismiss(); } catch (Exception ignored) {}
+                            toast(e.getMessage());
+                        }
+                    });
+                } catch (final Exception e) {
+                    runOnUiThread(new Runnable() {
+                        public void run() {
+                            try { pd.dismiss(); } catch (Exception ignored) {}
+                            toast(verb + "失败: " + e.getMessage());
+                        }
+                    });
+                }
+            }
+        }, "file-crypt").start();
     }
 
     /** 解密 .enc 文件（自家私有格式） */
@@ -3563,17 +3620,7 @@ public class MainActivity extends BaseActivity {
                     public void onClick(android.content.DialogInterface d, int w) {
                         String p = pw.getText().toString();
                         if (p.isEmpty()) { toast("密码不能为空"); return; }
-                        try {
-                            File out = FileCrypt.decrypt(f, p);
-                            toast("已解密: " + out.getName());
-                        } catch (SecurityException e) {
-                            toast("密码错误或文件被篡改");
-                        } catch (IllegalArgumentException e) {
-                            toast(e.getMessage());
-                        } catch (Exception e) {
-                            toast("解密失败: " + e.getMessage());
-                        }
-                        refreshAll();
+                        runCrypt("解密", f, p, false);
                     }
                 })
                 .setNegativeButton("取消", null)

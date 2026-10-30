@@ -28,11 +28,18 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="40dp"
-            android:hint="关键词，如 *.txt 或 report*"
+            android:hint="关键词，支持 * ? 通配或正则"
             android:textSize="13sp"
             android:background="?attr/hfSurface"
             android:paddingLeft="8dp"
             android:inputType="text"/>
+
+        <Button
+            android:id="@+id/btn_adv"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="筛选"
+            android:textSize="13sp"/>
 
         <Button
             android:id="@+id/btn_search"
@@ -40,6 +47,131 @@
             android:layout_height="40dp"
             android:text="搜索"
             android:textSize="13sp"/>
+    </LinearLayout>
+
+    <!-- 高级筛选面板（默认折叠） -->
+    <LinearLayout
+        android:id="@+id/panel_adv"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="?attr/hfSurface"
+        android:paddingLeft="10dp"
+        android:paddingRight="10dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="8dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="类型"
+                android:textSize="13sp"
+                android:textColor="?attr/hfText"/>
+
+            <Spinner
+                android:id="@+id/sp_type"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="36dp"/>
+
+            <CheckBox
+                android:id="@+id/cb_regex"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="正则"
+                android:textSize="13sp"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="大小"
+                android:textSize="13sp"
+                android:textColor="?attr/hfText"/>
+
+            <EditText
+                android:id="@+id/et_size_min"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="36dp"
+                android:hint="最小MB"
+                android:textSize="12sp"
+                android:inputType="numberDecimal"
+                android:background="?attr/hfBg"
+                android:paddingLeft="6dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=" ~ "
+                android:textSize="13sp"/>
+
+            <EditText
+                android:id="@+id/et_size_max"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="36dp"
+                android:hint="最大MB"
+                android:textSize="12sp"
+                android:inputType="numberDecimal"
+                android:background="?attr/hfBg"
+                android:paddingLeft="6dp"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="时间"
+                android:textSize="13sp"
+                android:textColor="?attr/hfText"/>
+
+            <EditText
+                android:id="@+id/et_days_min"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="36dp"
+                android:hint="距今≥天"
+                android:textSize="12sp"
+                android:inputType="number"
+                android:background="?attr/hfBg"
+                android:paddingLeft="6dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=" ~ "
+                android:textSize="13sp"/>
+
+            <EditText
+                android:id="@+id/et_days_max"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="36dp"
+                android:hint="距今≤天"
+                android:textSize="12sp"
+                android:inputType="number"
+                android:background="?attr/hfBg"
+                android:paddingLeft="6dp"/>
+        </LinearLayout>
     </LinearLayout>
 
     <TextView
@@ -51,7 +183,7 @@
         android:paddingBottom="4dp"
         android:textSize="12sp"
         android:textColor="?attr/hfTextSub"
-        android:text="输入关键词后点搜索"/>
+        android:text="输入关键词后点搜索；「筛选」可设类型/大小/时间"/>
 
     <ListView
         android:id="@+id/list_result"
