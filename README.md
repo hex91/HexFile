@@ -1491,3 +1491,50 @@ v1.54.1 实测「数据备份失败」（应用本体备份正常，数据归档
 - 纯程序化 UI（无新布局文件），全部颜色走主题属性（hfBg/hfSurface/hfSurfaceAlt/hfTextSub/hfAccent…），22 套色板 + 明暗模式自动适配；`getResources().getColor()` 兼容 minSdk 21。
 - 操作码卡片用红底白字徽标显示 0xNN，未定义操作码助记符降为灰字。
 - versionCode 101。
+
+## v1.62.0 —— Java → Smali 转换（抽屉内置，全离线）
+
+### 新增
+- **Java2SmaliActivity**：抽屉菜单新入口「☕ Java→Smali」。上半屏粘贴/编辑 Java 源码，右上角「转换 ⚙」一键转出 Smali，下半屏可读可复制；多类时顶部出现类切换标签（主类排最前），底部「载入示例 / 复制结果 / 清空」。
+- 三段流水线全在手机端完成，不联网、不需要 root：
+  1. **nb-javac** 把 Java 源码编译成 `.class`；
+  2. **dx** 把 `.class` 打成 `classes.dex`；
+  3. **baksmali API** 把 dex 反汇编成 smali。
+
+### 编译器选型：为什么从 ECJ 换成 nb-javac
+- ECJ 3.21 引用 `java.lang.Module`（Java 9+ API），而 **ART 禁止应用 ClassLoader 定义 `java.*` 包下的类**，真机上必然失败，且无法用桩绕开。
+- 改用 nb-javac（NetBeans 版 OpenJDK javac，取自开源项目 [Android-Java2Smali](https://github.com/ToolDroidYT/Android-Java2Smali) 的 `java2smali-javac` 组件）：**全部为 Java 8 字节码（major 52）**、不碰 `java.*`，可安全由 d8 转 dex 后按需加载。
+- 该 jar 已做重定位（`com.sun.tools.javac` → `org.openjdk.tools.javac`、`javax.*` → `org.openjdk.javax.*`），同时保留一份未重定位副本，故 `com.sun.tools.javac.Main.compile(String[], PrintWriter)` 可直接反射调用。
+
+### 插件化（不进主 dex）
+- 主 dex 方法数已逼近 64K，编译器/打包器以 **dex 插件**随 assets 分发，首次使用时释放并通过 `DexClassLoader` 按需加载：
+  - `javac-plugin.zip`（2.6MB）：d8 产物 `classes.dex` + javac 的 20 个 `*.properties` 语言包；
+  - `dx-plugin.zip`（0.36MB）、`jre-stubs.jar`（0.8MB，android.jar 中的 `java/**` 桩，作编译期 bootclasspath）。
+- 反射入口：`com.sun.tools.javac.Main.compile(String[], PrintWriter)`、`com.android.dx.command.dexer.Main.run(Arguments)`。
+- **javac 需要 `java.nio.file`**（Android 8.0 / API 26 才提供），故本功能要求 Android 8.0+，低于该版本给出明确提示而非崩溃。
+
+### 真机踩坑与修复（按发现顺序）
+1. **ECJ 崩溃**：`java.lang.Module` 触犯 ART 的 `java.*` 加载禁令 → 换 nb-javac。
+2. **javac 语言包缺失**：`InternalError: Cannot find requested resource bundle for locale zh_CN`。dex 里装不下 `.properties`，改为把插件解压到目录，`DexClassLoader` 的 dexPath 用「`classes.dex` 文件 + 解压目录」双元素——前者提供类，后者（`DexPathList` 的目录元素）提供资源查找。
+3. **dx 报 `UsageException: unknown option: --dex`**：`--dex` 是外层 `com.android.dx.command.Main` 的子命令，`dexer.Main.parseFlags` 不认识；且 `parseFlags` 不会把末尾输入目录填进 `fileNames`（实测为 null），需手动设置，否则 `run()` 内 `Arrays.sort(fileNames)` 空指针。
+4. **顶栏「转换」按钮隐形**：22 套彩色主题里 `hfTopBar` 与 `hfAccent` 是**同一个颜色**，按钮文字用 accent 画在同色背景上完全看不见 → 顶栏文字统一改用 `hfTopBarText`（主题保证对比度），并加同色 15% 透明底标识可点区域。
+5. **invokedynamic 风险**：JDK 17 langtools 即使 `-target 8` 也会把字符串拼接编成 `invokedynamic`，而旧版 dx 不支持 → 编译参数加 `-XDstringConcat=inline`，实测产物无 invokedynamic。
+
+### 构建速度优化（build.sh）
+- 原 d8 每次都要重新解析 `apksigner.jar` + 20 个 libs（约 20MB），单次常达数分钟，且后台运行时偶发僵死。
+- 改为**分层 dex + 指纹缓存**：
+  - 依赖 dex（`build/deps`）：仅当 libs / apksigner / platform / build-tools 指纹变化时才重建；
+  - 应用 dex（`build/dex`）：每次只编译工程自身 class，libs 以 `--lib` 形式仅参与类型解析；
+  - 打包时统一连续编号为 `classes.dex / classes2.dex / …`（当前 app=1 + deps=2）。
+  - NDK 编译 `libtermux.so` 改为按需（两个 ABI 的 .so 都比 `termux.c` 新时跳过）。
+- 效果：全量 2 分 02 秒 → 增量 **1 分 06 秒**（依赖 dex 命中缓存）。
+- 排查提示：构建请让输出直接落盘（`bash build.sh > build.log 2>&1`）再 tail 查看；若用管道（`| tail`）会因缓冲看不到任何进度，容易被误判为卡死。
+
+### 验证
+- 桌面端到端预演：nb-javac 编译 → dx 打 dex → baksmali 反汇编，输出与预期格式一致。
+- 真机（Android 15 / API 35）：进入「☕ Java→Smali」→ 点「转换」，输出
+  `.class public LMain;` / `sget-object v0, Ljava/lang/System;->out:Ljava/io/PrintStream;` / `invoke-virtual {v0, v1}, Ljava/io/PrintStream;->println(Ljava/lang/String;)V`，状态栏显示「已生成 1 个类 · 当前 Main（23 行）」。
+
+### 备注
+- 许可证：nb-javac 为 **GPL v2 + Classpath Exception**（仅借用其 jar、未修改），其余链路（dx / baksmali）沿用项目既有依赖。
+- versionCode 102，APK 12M。

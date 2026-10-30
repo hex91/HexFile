@@ -271,6 +271,13 @@ public class MainActivity extends BaseActivity {
                 startActivity(new Intent(MainActivity.this, SmaliDocActivity.class));
             }
         });
+        findViewById(R.id.drawer_java2smali).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                closeDrawer();
+                // v1.62.0：Java → Smali（nb-javac 编译 + dx 打包 + baksmali 反汇编，全离线）
+                startActivity(new Intent(MainActivity.this, Java2SmaliActivity.class));
+            }
+        });
         findViewById(R.id.drawer_terminal).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 closeDrawer();

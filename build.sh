@@ -75,6 +75,7 @@ OUT="$ROOT/out"
 # 版本号从 AndroidManifest 读取，避免硬编码
 VER="$(grep -o 'android:versionName="[^"]*"' "$ROOT/AndroidManifest.xml" | head -1 | sed 's/.*"\(.*\)"/\1/')"
 echo "Building HexFile $VER"
+SECONDS=0
 
 # 增量清理：只删本次构建会被覆盖的产物
 mkdir -p "$BUILD/gen" "$BUILD/obj" "$BUILD/dex" "$OUT"
@@ -95,10 +96,16 @@ echo "[2/7] aapt2 link (manifest + R.java)..."
 
 echo "[3/7] NDK 编译 libtermux.so（Termux PTY 原生桥，Apache-2.0）..."
 mkdir -p "$ROOT/native/lib/arm64-v8a" "$ROOT/native/lib/armeabi-v7a"
+# 原生桥极少改动：两个 ABI 的 .so 都比 termux.c 新时跳过编译
+if [ "$ROOT/native/lib/arm64-v8a/libtermux.so" -nt "$ROOT/native/jni/termux.c" ] \
+   && [ "$ROOT/native/lib/armeabi-v7a/libtermux.so" -nt "$ROOT/native/jni/termux.c" ]; then
+    echo "      libtermux.so 已是最新，跳过"
+else
 "$NDK_BIN/aarch64-linux-android21-clang" -shared -fPIC -O2 \
     -o "$ROOT/native/lib/arm64-v8a/libtermux.so" "$ROOT/native/jni/termux.c"
 "$NDK_BIN/armv7a-linux-androideabi21-clang" -shared -fPIC -O2 \
     -o "$ROOT/native/lib/armeabi-v7a/libtermux.so" "$ROOT/native/jni/termux.c"
+fi
 
 echo "[4/7] javac..."
 # libs = apksigner.jar + baksmali/dexlib2 等（smali 反编译引擎），供编译期引用
@@ -128,25 +135,72 @@ for j in "$ROOT"/libs/*.jar; do LIBS_CP="$LIBS_CP$SEP$j"; done
     "$ROOT"/src/androidx/annotation/*.java \
     "$ROOT"/src/io/nayuki/qrcodegen/*.java
 
-echo "[5/7] d8 dex（app + apksig + smali 引擎 + jadx arsc + Termux 终端引擎 合并）..."
-# class 文件多，命令行可能超长 → 全部参数写入 @argfile 交给 java 启动器展开
+echo "[5/7] d8 dex（分层：依赖 dex 指纹缓存 + 应用 dex 增量重建）..."
+# 为什么要分层：全量合并时 d8 每次都要重新解析 apksigner.jar + 20 个 libs（约 20MB），
+# 单次常达数分钟；而这些依赖几乎不变。改为：
+#   ① 依赖 dex（build/deps）：仅在 libs/apksigner/platform/build-tools 指纹变化时重建；
+#   ② 应用 dex（build/dex）：每次只编译工程自身的 class，libs 以 --lib 形式仅参与类型解析。
+DEPS_DIR="$BUILD/deps"
+DEPS_SIG="$BUILD/deps.sig"
+deps_inputs() {
+    ls -l "$BT/lib/apksigner.jar" "$PLATFORM" 2>/dev/null
+    for j in "$ROOT"/libs/*.jar; do ls -l "$j"; done
+    echo "$BT"
+}
+SIG_NOW="$(deps_inputs | md5sum 2>/dev/null | awk '{print $1}')"
+if [ -z "$SIG_NOW" ]; then SIG_NOW="$(deps_inputs | cksum | awk '{print $1}')"; fi
+
+if [ -f "$DEPS_SIG" ] && [ "$(cat "$DEPS_SIG")" = "$SIG_NOW" ] \
+   && [ -n "$(ls -A "$DEPS_DIR" 2>/dev/null)" ]; then
+    echo "      依赖 dex 未变化，复用缓存（跳过 d8 依赖阶段）"
+else
+    echo "      重建依赖 dex（apksig + smali 引擎 + jadx + Termux…），仅依赖变化时执行"
+    rm -rf "$DEPS_DIR"
+    mkdir -p "$DEPS_DIR"
+    {
+        echo "-cp \"$BT/lib/d8.jar\""
+        echo "com.android.tools.r8.D8"
+        echo "--release --min-api 21"
+        echo "--lib \"$PLATFORM\""
+        echo "--output \"$DEPS_DIR\""
+        echo "\"$BT/lib/apksigner.jar\""
+        for j in "$ROOT"/libs/*.jar; do echo "\"$j\""; done
+    } > "$BUILD/deps.args"
+    "$JAVA_BIN" @"$BUILD/deps.args"
+    echo "$SIG_NOW" > "$DEPS_SIG"
+fi
+
+# 应用 dex：只编译工程自身 class（libs 作为 --lib 不打包进来）
 ARGS="$BUILD/java.args"
 {
     echo "-cp \"$BT/lib/d8.jar\""
     echo "com.android.tools.r8.D8"
     echo "--release --min-api 21"
     echo "--lib \"$PLATFORM\""
+    for j in "$ROOT"/libs/*.jar; do echo "--lib \"$j\""; done
     echo "--output \"$BUILD/dex\""
-    echo "\"$BT/lib/apksigner.jar\""
-    for j in "$ROOT"/libs/*.jar; do echo "\"$j\""; done
     find "$BUILD/obj/com/hex91/file" "$BUILD/obj/jadx" "$BUILD/obj/com/termux" "$BUILD/obj/androidx" "$BUILD/obj/io" -name "*.class" -printf '"%p"\n'
 } > "$ARGS"
 "$JAVA_BIN" @"$ARGS"
 
 echo "[6/7] zipalign + 打包原生库..."
 cd "$BUILD"
-# dex 段（DEFLATED）
-"$PY" -c "import zipfile,glob; z=zipfile.ZipFile('base.apk','a',zipfile.ZIP_DEFLATED); [z.write(f, f.replace(chr(92),'/').split('/')[-1]) for f in sorted(glob.glob('dex/classes*.dex'))]; z.close()"
+# dex 段（DEFLATED）：应用 dex 在前、依赖 dex 在后，统一连续编号 classes*.dex
+"$PY" -c "
+import zipfile, glob, re
+def key(p):
+    m = re.search(r'classes(\d*)\.dex$', p)
+    return int(m.group(1) or 1)
+app = sorted(glob.glob('dex/classes*.dex'), key=key)
+dep = sorted(glob.glob('deps/classes*.dex'), key=key)
+z = zipfile.ZipFile('base.apk', 'a', zipfile.ZIP_DEFLATED)
+i = 1
+for f in app + dep:
+    z.write(f, 'classes.dex' if i == 1 else 'classes%d.dex' % i)
+    i += 1
+z.close()
+print('      dex: app=%d deps=%d total=%d' % (len(app), len(dep), len(app) + len(dep)))
+"
 # assets/（含重签名用 keystore hexfile.p12）
 if [ -d "$ROOT/assets" ]; then
     "$PY" -c "import zipfile,glob,os; z=zipfile.ZipFile('base.apk','a',zipfile.ZIP_DEFLATED); [z.write(f, 'assets/'+os.path.basename(f)) for f in glob.glob('$ROOT/assets/*')]; z.close()"
@@ -187,3 +241,4 @@ fi
 echo ""
 echo "BUILD OK -> $OUT/HexFile-$VER.apk"
 ls -lh "$OUT/HexFile-$VER.apk" | awk '{print "size:", $5}'
+echo "耗时: $((SECONDS / 60)) 分 $((SECONDS % 60)) 秒"
