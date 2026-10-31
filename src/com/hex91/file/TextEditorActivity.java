@@ -1583,12 +1583,15 @@ public class TextEditorActivity extends BaseActivity {
                     // 2) 重新解析 APK 内的 arsc（避免用过期模型）
                     byte[] arscBytes = readZipEntry(archiveFile, arscppEntry);
                     ArscFile af = ArscFile.parse(arscBytes);
-                    // 3) XML → 修改列表 → 新 arsc
+                    // 3) XML → 编辑列表（值级 + 结构化 v1.64.2: rename/delete/add）
+                    java.util.List<ArscEditor.Op> ops =
+                            new java.util.ArrayList<ArscEditor.Op>();
                     java.util.List<ArscWriter.Edit> edits =
-                            ArscPlus.applyXml(af, arscppType, arscppCfg, text);
-                    nEdits = edits.size();
+                            ArscPlus.applyXml(af, arscppType, arscppCfg, text, ops);
+                    nEdits = edits.size() + ops.size();
                     if (nEdits > 0) {
-                        byte[] newArsc = ArscWriter.write(af, edits);
+                        // ArscEditor：无结构化编辑走兼容补丁路径；有 delete/add 走全量重编码
+                        byte[] newArsc = ArscEditor.write(af, edits, ops);
                         // 4) 重打包覆盖原 APK（保持 .so 4096 对齐），随后提示重签名
                         java.util.Map<String, byte[]> replace =
                                 new java.util.HashMap<String, byte[]>();

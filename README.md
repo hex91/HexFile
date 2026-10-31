@@ -1659,3 +1659,35 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v1.64.2 —— ARSC++ 全量解析器 ArscEditor（参考 NP Manager 架构逆向）
+
+逆向 NP Manager（com.wn.app.np）的 ARSC 实现后，在原「字符串池追加 + 4 字节补丁」
+（`ArscWriter`，只能改值）之上新增**全内存模型 + 全表重编码**引擎 `ArscEditor`：
+
+### 新增能力（XML 源码编辑器内直接用属性表达）
+| 属性 | 效果 |
+|---|---|
+| `rename="新名字"` | 资源改名（key 池追加 + 条目 key 索引重写） |
+| `delete="true"` | 删除条目（type chunk 偏移置 NO_ENTRY，条目体移除） |
+| `add="true"` | 新增条目（entryId 取同类型最大 id+1，key 池追加，值 TYPE_STRING） |
+| （直接改文本） | 改值（字符串/整数/布尔/颜色/引用，兼容原逻辑） |
+
+### 引擎设计（`ArscEditor.java`，纯 Java 可桌面单测）
+- 惰性解析：type chunk 头全量解析（便宜），条目体只在块被编辑时解析（真机内存友好）；
+- 块保持重编码：无编辑的 chunk 原字节拷贝，被编辑的块重序列化
+  （偏移数组重建 + 条目逐个拷贝/补丁/合成，entriesStart/size 重算）；
+- 无结构化编辑时自动回落到 `ArscWriter` 补丁路径（已验证的兼容链路）；
+- 安全防御（与 NP 一致）：sparse/compact/offset16 布局块拒绝编辑（Android 15 紧凑格式只读）、
+  compact 条目拒绝编辑、ADD 的资源 ID 冲突拒绝、异常 count 钳制防 OOM。
+
+### 测试
+- `test_arscpp/ArscEditorTest`：改值+改名+删除+新增全链路（写回→重解析校验），两个真实样本 **10/10**；
+- `test_arscpp/ArscXmlOpsTest`：XML 属性级端到端（rename/delete/add → applyXml → ArscEditor），两个样本 **7/7**；
+- 逆向调试期修复 3 个关键 bug：条目字段偏移（key@+4、Res_value@+8、data@+12）、
+  惰性解析防 OOM、touched-chunk 才重序列化。
+
+- 保存链路：`applyXml(→ops)` → `ArscEditor.write` → ApkRepack（.so 4096 对齐）→ 提示重签名。
+- versionCode 111。
