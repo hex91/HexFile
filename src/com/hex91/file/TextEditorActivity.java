@@ -1107,18 +1107,29 @@ public class TextEditorActivity extends BaseActivity {
     }
 
     private void showSettings() {
-        final String[] items = {"字体：放大", "字体：缩小", "重置为 13sp"};
+        // v1.63.4：放大/缩小 → 直接输入 sp
+        final EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        input.setText(String.valueOf(fontSize));
+        input.setSelection(input.getText().length());
         new AlertDialog.Builder(this)
-                .setTitle("设置（当前 " + fontSize + "sp）")
-                .setItems(items, new DialogInterface.OnClickListener() {
+                .setTitle("字体大小（sp，8-40）")
+                .setView(input)
+                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
-                        if (w == 0) fontSize = Math.min(30, fontSize + 1);
-                        else if (w == 1) fontSize = Math.max(8, fontSize - 1);
-                        else fontSize = 13;
-                        editor.setTextSize(fontSize);
-                        toast("字体 " + fontSize + "sp");
+                        try {
+                            float v = Float.parseFloat(input.getText().toString().trim());
+                            v = Math.max(8f, Math.min(40f, v));
+                            fontSize = (int) v;
+                            editor.setTextSize(v);
+                            toast("字体 " + fontSize + "sp");
+                        } catch (Exception e) {
+                            toast("格式错误");
+                        }
                     }
-                }).show();
+                })
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     // ============================================================ 格式化（v1.29.0）
