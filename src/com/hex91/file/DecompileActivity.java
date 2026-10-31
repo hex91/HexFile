@@ -1,9 +1,11 @@
 package com.hex91.file;
 
+import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -14,6 +16,7 @@ import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -160,7 +163,52 @@ public class DecompileActivity extends BaseActivity {
         });
         bar.addView(copy, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // v1.63.3：最右侧「A」按钮 —— 手动输入字号（sp）
+        TextView font = new TextView(this);
+        font.setText("A");
+        font.setTextSize(17);
+        font.setTypeface(null, Typeface.BOLD);
+        font.setTextColor(topText);
+        font.setGravity(Gravity.CENTER);
+        font.setPadding(dp(14), dp(6), dp(16), dp(6));
+        android.graphics.drawable.GradientDrawable fbg =
+                new android.graphics.drawable.GradientDrawable();
+        fbg.setCornerRadius(dp(6));
+        fbg.setColor((topText & 0x00FFFFFF) | 0x26000000);
+        font.setBackgroundDrawable(fbg);
+        font.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { promptFontSize(); }
+        });
+        bar.addView(font, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         return bar;
+    }
+
+    /** 手动输入字号（8-40 sp），确定后立即生效并持久化。 */
+    private void promptFontSize() {
+        final EditText input = new EditText(this);
+        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+                | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        input.setText(String.valueOf((int) mTextSize));
+        input.setSelection(input.getText().length());
+        new AlertDialog.Builder(this)
+                .setTitle("字体大小（sp，8-40）")
+                .setView(input)
+                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        try {
+                            float v = Float.parseFloat(input.getText().toString().trim());
+                            setTextSize(v);
+                            getSharedPreferences("dec_view", Context.MODE_PRIVATE)
+                                    .edit().putFloat("font", mTextSize).apply();
+                        } catch (Exception e) {
+                            Toast.makeText(DecompileActivity.this, "格式错误", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     private View tabs() {
@@ -238,7 +286,7 @@ public class DecompileActivity extends BaseActivity {
         return h;
     }
 
-    /** 双指捏合缩放代码字号（9-30sp），松手后持久化。 */
+    /** 双指捏合缩放代码字号，松手后持久化（也可点右上角「A」手动输入）。 */
     private class ScaleListener implements ScaleGestureDetector.OnScaleGestureListener {
         public boolean onScaleBegin(ScaleGestureDetector d) { return true; }
         public boolean onScale(ScaleGestureDetector d) {
@@ -252,7 +300,7 @@ public class DecompileActivity extends BaseActivity {
     }
 
     private void setTextSize(float sp) {
-        float ns = Math.max(9f, Math.min(30f, sp));
+        float ns = Math.max(8f, Math.min(40f, sp));
         if (ns == mTextSize) return;
         mTextSize = ns;
         mCode.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, mTextSize);
