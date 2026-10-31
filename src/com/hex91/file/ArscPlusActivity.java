@@ -10,6 +10,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -50,6 +51,7 @@ public class ArscPlusActivity extends BaseActivity {
         boolean isTypeInfo;        // level 2 type-info（只读）
         String type, cfg;          // 配置节点的类型与配置串
         int count;                 // 条目数
+        int depth;                 // 缩进层级（包=0）
         boolean expanded;
         List<Node> children = new ArrayList<Node>();
     }
@@ -62,6 +64,7 @@ public class ArscPlusActivity extends BaseActivity {
     private Node pkgRoot;
     private final List<Node> rows = new ArrayList<Node>();
     private ListView listView;
+    private RowAdapter adapter;
     private TextView titleSub;
     private final Handler ui = new Handler();
 
@@ -227,14 +230,27 @@ public class ArscPlusActivity extends BaseActivity {
     private void refresh() {
         rows.clear();
         if (pkgRoot != null) {
+            pkgRoot.depth = 0;
             rows.add(pkgRoot);
             if (pkgRoot.expanded) flatten(pkgRoot, 1);
         }
-        listView.setAdapter(new RowAdapter());
+        if (adapter == null) {
+            adapter = new RowAdapter();
+            listView.setAdapter(adapter);
+            // 关键接线（v1.64.0 修复）：点击展开/进入 XML 编辑
+            listView.setOnItemClickListener(new android.widget.AdapterView.OnItemClickListener() {
+                public void onItemClick(android.widget.AdapterView<?> parent, View view, int pos, long id) {
+                    if (pos < rows.size()) onRowClick(rows.get(pos));
+                }
+            });
+        } else {
+            adapter.notifyDataSetChanged();
+        }
     }
 
     private void flatten(Node n, int depth) {
         for (Node c : n.children) {
+            c.depth = depth;
             rows.add(c);
             if ((c.isType || c.isPkg) && c.expanded) flatten(c, depth + 1);
         }
@@ -248,24 +264,63 @@ public class ArscPlusActivity extends BaseActivity {
         public View getView(int i, View cv, ViewGroup parent) {
             float den = getResources().getDisplayMetrics().density;
             Node n = rows.get(i);
+
+            // 行布局：[缩进][箭头(可展开节点)][图标][文字]
+            LinearLayout row = new LinearLayout(ArscPlusActivity.this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(dp2(16 + n.depth * 16), dp2(5), dp2(8), dp2(5));
+
+            // 箭头：仅可展开节点（包 / 类型目录）
+            if (n.isPkg || n.isType) {
+                ImageView chev = new ImageView(ArscPlusActivity.this);
+                chev.setImageResource(R.drawable.ic_tree_chevron);
+                chev.setColorFilter(ThemeManager.textSub(ArscPlusActivity.this));
+                chev.setRotation(n.expanded ? 0f : -90f);
+                row.addView(chev, new LinearLayout.LayoutParams(dp2(20), dp2(20)));
+            } else {
+                View sp = new View(ArscPlusActivity.this);
+                row.addView(sp, new LinearLayout.LayoutParams(dp2(20), 1));
+            }
+
+            // 图标：文件夹（包/类型）或 ©（叶子/type-info）
+            ImageView ic = new ImageView(ArscPlusActivity.this);
+            if (n.isPkg || n.isType) {
+                ic.setImageResource(R.drawable.ic_tree_folder);
+                ic.setColorFilter(ThemeManager.textSub(ArscPlusActivity.this));
+            } else {
+                ic.setImageResource(R.drawable.ic_tree_node);
+                ic.setColorFilter(n.isTypeInfo
+                        ? ThemeManager.textSub(ArscPlusActivity.this)
+                        : ThemeManager.accent(ArscPlusActivity.this));
+            }
+            LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(dp2(20), dp2(20));
+            ilp.leftMargin = dp2(4);
+            row.addView(ic, ilp);
+
+            // 文字
             TextView tv = new TextView(ArscPlusActivity.this);
             tv.setTextSize(n.isPkg || n.isType ? 15 : 14);
             tv.setGravity(Gravity.CENTER_VERTICAL);
-            tv.setPadding((int) (16 * den), (int) (9 * den), (int) (8 * den), (int) (9 * den));
+            tv.setPadding(dp2(8), 0, 0, 0);
+            tv.setText(n.label + (n.isType ? "  (" + n.count + ")"
+                    : (!n.isPkg && !n.isType && !n.isTypeInfo ? "  (" + n.count + ")" : "")));
             if (n.isPkg || n.isType) {
-                tv.setTextColor(ThemeManager.accent(ArscPlusActivity.this));
+                tv.setTextColor(ThemeManager.text(ArscPlusActivity.this));
                 tv.setTypeface(null, android.graphics.Typeface.BOLD);
-                tv.setText((n.expanded ? "▾ " : "▸ ") + n.label
-                        + (n.isType ? "  (" + n.count + ")" : ""));
             } else if (n.isTypeInfo) {
                 tv.setTextColor(ThemeManager.textSub(ArscPlusActivity.this));
-                tv.setText("ⓘ " + n.label);
             } else {
                 tv.setTextColor(ThemeManager.text(ArscPlusActivity.this));
-                tv.setText("◉ " + n.label + "  (" + n.count + ")");
             }
-            return tv;
+            row.addView(tv, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            return row;
         }
+    }
+
+    private int dp2(int v) {
+        return (int) (v * getResources().getDisplayMetrics().density + 0.5f);
     }
 
     // ---------- 点击 ----------
