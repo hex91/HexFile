@@ -10,6 +10,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.text.TextUtils;
 import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.HorizontalScrollView;
@@ -63,6 +65,10 @@ public class DecompileActivity extends BaseActivity {
     private TextView mTabSmali;
     private ProgressDialog mPd;
 
+    /** 代码字号（sp），双指缩放调整，持久化 */
+    private float mTextSize = 13f;
+    private ScaleGestureDetector mScale;
+
     private String javaSrc;
     private String smaliSrc;
     private boolean showJava = true;
@@ -88,6 +94,8 @@ public class DecompileActivity extends BaseActivity {
         mCodeBg = attr(R.attr.hfSurfaceAlt, 0xFFF0F0F0);
         mBg = attr(R.attr.hfBg, Color.WHITE);
         mAccent = attr(R.attr.hfAccent, Color.BLUE);
+        mTextSize = getSharedPreferences("dec_view", Context.MODE_PRIVATE)
+                .getFloat("font", 13f);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -205,17 +213,49 @@ public class DecompileActivity extends BaseActivity {
     private View codePane() {
         HorizontalScrollView h = new HorizontalScrollView(this);
         ScrollView v = new ScrollView(this);
+        // v1.63.2：背景铺在滚动容器上（而不是 TextView），内容再短也铺满整屏
+        h.setBackgroundColor(mCodeBg);
+        v.setBackgroundColor(mCodeBg);
+        v.setFillViewport(true);
         mCode = new TextView(this);
         mCode.setTypeface(mMono);
-        mCode.setTextSize(12);
+        mCode.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, mTextSize);
         mCode.setTextColor(mText);
-        mCode.setBackgroundColor(mCodeBg);
         mCode.setPadding(dp(8), dp(8), dp(8), dp(8));
         mCode.setTextIsSelectable(true);
         mCode.setHorizontallyScrolling(true);
+        // v1.63.2：双指缩放调字号
+        mScale = new ScaleGestureDetector(this, new ScaleListener());
+        mCode.setOnTouchListener(new View.OnTouchListener() {
+            public boolean onTouch(View vw, MotionEvent ev) {
+                mScale.onTouchEvent(ev);
+                return false; // 不消费，选择/滚动手势照常
+            }
+        });
         v.addView(mCode);
-        h.addView(v);
+        h.addView(v, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         return h;
+    }
+
+    /** 双指捏合缩放代码字号（9-30sp），松手后持久化。 */
+    private class ScaleListener implements ScaleGestureDetector.OnScaleGestureListener {
+        public boolean onScaleBegin(ScaleGestureDetector d) { return true; }
+        public boolean onScale(ScaleGestureDetector d) {
+            setTextSize(mTextSize * d.getScaleFactor());
+            return true;
+        }
+        public void onScaleEnd(ScaleGestureDetector d) {
+            getSharedPreferences("dec_view", Context.MODE_PRIVATE)
+                    .edit().putFloat("font", mTextSize).apply();
+        }
+    }
+
+    private void setTextSize(float sp) {
+        float ns = Math.max(9f, Math.min(30f, sp));
+        if (ns == mTextSize) return;
+        mTextSize = ns;
+        mCode.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, mTextSize);
     }
 
     private View statusBar() {
@@ -282,7 +322,8 @@ public class DecompileActivity extends BaseActivity {
                         } else {
                             javaSrc = res[0] == null ? "" : res[0];
                             mStatus.setText("dex2jar + CFR 0.152 · " + lines(javaSrc) + " 行"
-                                    + (javaSrc.contains("控制流扁平化") ? " · ⚠ 疑似扁平化" : ""));
+                                    + (javaSrc.contains("控制流扁平化") ? " · ⚠ 疑似扁平化" : "")
+                                    + " · 双指缩放调字号");
                         }
                         show();
                     }
