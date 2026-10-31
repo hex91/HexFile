@@ -74,6 +74,10 @@ public class TextEditorActivity extends BaseActivity {
     /** v1.63.1：smali 编辑时的类名（com/foo/Bar）与所属 dex，用于「转 Java」反编译 */
     public static final String EXTRA_J2S_CLS = "j2s_cls";
     public static final String EXTRA_J2S_DEX = "j2s_dex";
+    /** v1.64.0：ARSC++ 编辑 —— 保存时把 values XML 应用回 resources.arsc */
+    public static final String EXTRA_ARSCPP_TYPE = "arscpp_type";
+    public static final String EXTRA_ARSCPP_CFG = "arscpp_cfg";
+    public static final String EXTRA_ARSCPP_ENTRY = "arscpp_entry";
     private static final long SOFT_LIMIT = 5L * 1024 * 1024;
     private static final int SEARCH_BG = 0x66FFF59D;
 
@@ -85,6 +89,7 @@ public class TextEditorActivity extends BaseActivity {
     private File rtApkFile;
     private String j2sCls;   // smali 类名（转 Java 用），null = 非 smali 场景
     private String j2sDex;   // 所属工程 dex（CFR 类型库），可为 null
+    private String arscppType, arscppCfg, arscppEntry; // ARSC++ 编辑（非空 = 保存走 XML→arsc）
     private HighlightingEditor editor;
     private ScrollView editorScroll;
     private LineNumbersView lineNumbers;
@@ -138,6 +143,9 @@ public class TextEditorActivity extends BaseActivity {
             rtApkFile = new File(rtApk);
         }
         j2sDex = getIntent().getStringExtra(EXTRA_J2S_DEX);
+        arscppType = getIntent().getStringExtra(EXTRA_ARSCPP_TYPE);
+        arscppCfg = getIntent().getStringExtra(EXTRA_ARSCPP_CFG);
+        arscppEntry = getIntent().getStringExtra(EXTRA_ARSCPP_ENTRY);
         boolean readOnly = getIntent().getBooleanExtra(EXTRA_READONLY, false);
         titleView = (TextView) findViewById(R.id.editor_title);
         editor = (HighlightingEditor) findViewById(R.id.editor_text);
@@ -168,6 +176,9 @@ public class TextEditorActivity extends BaseActivity {
 
         if (rtAxmlFile != null) {
             titleSuffix = "\n↳ 编译写回 " + rtApkFile.getName();
+        } else if (arscppType != null) {
+            titleSuffix = "\n↳ ARSC++ 写回 " + archiveFile.getName() + "!" + arscppEntry
+                    + "  (" + ArscPlus.cfgLabel(arscppType, arscppCfg) + ")";
         } else if (readOnly) {
             editor.setKeyListener(null);
             editor.setTextIsSelectable(true);
@@ -1493,6 +1504,7 @@ public class TextEditorActivity extends BaseActivity {
     private void save() {
         if (file == null) return;
         if (rtAxmlFile != null) { saveRoundtrip(); return; }
+        if (arscppType != null) { saveArscPlus(); return; }   // v1.64.0：ARSC++ 编辑
         final String text = editor.getText().toString();
         new Thread(new Runnable() {
             public void run() {
@@ -1545,6 +1557,101 @@ public class TextEditorActivity extends BaseActivity {
                 });
             }
         }, "text-save").start();
+    }
+
+    /**
+     * v1.64.0：ARSC++ 编辑保存 —— 编辑的是 values 风格 XML，
+     * 保存时解析 XML → 生成对 resources.arsc 的修改（ArscPlus.applyXml → ArscWriter.write）
+     * → 重打包（.so 4096 对齐）覆盖原 APK → 提示重签名。
+     */
+    private void saveArscPlus() {
+        final String text = editor.getText().toString();
+        new Thread(new Runnable() {
+            public void run() {
+                String err = null;
+                int nEdits = 0;
+                try {
+                    // 1) XML 文本照常落盘（编辑器缓存，下次打开还是最新内容）
+                    byte[] data = encodeForSave(text);
+                    try {
+                        FileOutputStream out = new FileOutputStream(file);
+                        out.write(data);
+                        out.close();
+                    } catch (Exception ro) {
+                        if (!RootIO.writeBytes(file, data)) throw ro;
+                    }
+                    // 2) 重新解析 APK 内的 arsc（避免用过期模型）
+                    byte[] arscBytes = readZipEntry(archiveFile, arscppEntry);
+                    ArscFile af = ArscFile.parse(arscBytes);
+                    // 3) XML → 修改列表 → 新 arsc
+                    java.util.List<ArscWriter.Edit> edits =
+                            ArscPlus.applyXml(af, arscppType, arscppCfg, text);
+                    nEdits = edits.size();
+                    if (nEdits > 0) {
+                        byte[] newArsc = ArscWriter.write(af, edits);
+                        // 4) 重打包覆盖原 APK（保持 .so 4096 对齐），随后提示重签名
+                        java.util.Map<String, byte[]> replace =
+                                new java.util.HashMap<String, byte[]>();
+                        replace.put(arscppEntry, newArsc);
+                        File tmp = new File(getCacheDir(), "arscpp_save.apk");
+                        if (tmp.exists()) tmp.delete();
+                        ApkRepack.repack(archiveFile, replace, tmp);
+                        copyFileTo(tmp, archiveFile);
+                        tmp.delete();
+                    }
+                } catch (Exception e) {
+                    err = e.getMessage() != null ? e.getMessage()
+                            : e.getClass().getSimpleName();
+                }
+                final String ferr = err;
+                final int fn = nEdits;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        if (ferr != null) {
+                            new AlertDialog.Builder(TextEditorActivity.this)
+                                    .setTitle("写回失败")
+                                    .setMessage(ferr)
+                                    .setPositiveButton("知道了", null).show();
+                        } else if (fn == 0) {
+                            modified = false;
+                            toast("没有需要写回的修改");
+                        } else {
+                            modified = false;
+                            toast("已写回 " + arscppEntry + "（" + fn + " 处修改）");
+                            if (archiveFile.getName().toLowerCase().endsWith(".apk"))
+                                askAutoSign();
+                        }
+                    }
+                });
+            }
+        }, "arscpp-save").start();
+    }
+
+    private static byte[] readZipEntry(File zip, String entryName) throws Exception {
+        java.util.zip.ZipFile zf = new java.util.zip.ZipFile(zip);
+        try {
+            java.util.zip.ZipEntry ze = zf.getEntry(entryName);
+            if (ze == null) throw new Exception("压缩包内找不到 " + entryName);
+            java.io.InputStream in = zf.getInputStream(ze);
+            java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[65536];
+            int n;
+            while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+            in.close();
+            return bo.toByteArray();
+        } finally {
+            zf.close();
+        }
+    }
+
+    private static void copyFileTo(File src, File dst) throws Exception {
+        java.io.FileInputStream in = new java.io.FileInputStream(src);
+        java.io.FileOutputStream out = new java.io.FileOutputStream(dst);
+        byte[] buf = new byte[65536];
+        int n;
+        while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+        out.close();
+        in.close();
     }
 
     private void askAutoSign() {

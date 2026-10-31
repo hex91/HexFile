@@ -1631,3 +1631,31 @@ CFR 遇到被扁平化的方法会输出 `while(true) { switch(state) { case N: 
 
 APK 约 13MB。新增图标资源：`ic_save.xml`、`ic_java.xml`。
 
+
+---
+
+## v1.64.0 —— ARSC++ 编辑（树状列表 + values XML 源码编辑，全离线）
+
+点击 APK 里的 `resources.arsc`，原「ARSC 编辑器++」更名为 **「ARSC 编辑」**，新增 **「ARSC++ 编辑」**：
+
+### 界面（对标 MT Manager）
+树状列表三级结构：**包名 → 资源类型目录**（anim/attr/bool/color/dimen/drawable/id/integer/
+interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**（`type-info` +
+默认配置显示为类型名本身、其余 `类型-配置` 如 `style-hdpi` / `style-night` / `style-v25`）。
+`type-info` 为只读元信息，点击显示该类型的条目/配置统计。
+
+### 编辑方式
+点配置节点（如 `xml`）→ 生成 **values 风格 XML**（`<resources><xml name="…">值</xml>…</resources>`）
+→ 进入自带文本编辑器（XML 语法高亮），**可改可保存**：
+- 保存时解析 XML → 与当前值比对（只提交有变化的条目）→ `ArscWriter` 写回
+  （字符串池追加 + 4 字节补丁）→ 重打包（.so 4096 对齐）→ 提示重新签名；
+- bag/复杂条目（style 布局等）在 XML 中以注释占位，提示去「ARSC 编辑」逐项修改；
+- 错误防御：改资源名 / 未知资源 / 嵌套元素 / 自闭合标签直接报错，不静默写坏资源表。
+
+### 新增/修改
+- 新增 `ArscPlus.java`（XML 生成 + 手写轻量解析器，纯 Java 可桌面单测）、
+  `ArscPlusActivity.java`（树状列表）；`TextEditorActivity` 增加 ARSC++ 保存分支；
+  `MainActivity` / `ZipBrowserActivity` 菜单改名 + 新增入口；注册新 Activity。
+- 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
+  写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
+- versionCode 109，APK 约 13MB。

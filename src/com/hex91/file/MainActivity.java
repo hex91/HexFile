@@ -1433,6 +1433,14 @@ public class MainActivity extends BaseActivity {
         startActivity(i);
     }
 
+    /** v1.64.0：压缩包内 .arsc → ARSC++ 编辑（树状列表 + values XML 源码编辑） */
+    private void openArchArscPlus(final Panel p, final FileItem it) {
+        Intent i = new Intent(MainActivity.this, ArscPlusActivity.class);
+        i.putExtra(ArscPlusActivity.EXTRA_APK, p.archiveFile.getAbsolutePath());
+        i.putExtra(ArscPlusActivity.EXTRA_ENTRY, it.archPath());
+        startActivity(i);
+    }
+
     /** 压缩包内单个 dex → 反编译为 smali（/sdcard/HexFile/Smali/<apk名>/<dex名>/）并跳转 */
     private void decompileArchDex(final Panel p, final FileItem it) {
         final File apk = p.archiveFile;
@@ -1535,7 +1543,8 @@ public class MainActivity extends BaseActivity {
         final boolean isText = isTextName(it.archShort.toLowerCase(), it.archSize);
         final boolean canToArch = other().archiveFile != null;
         final int A_EDIT = 0, A_HERE = 1, A_OTHER = 2, A_DEL = 3, A_PROP = 4,
-                A_TOARCH_C = 5, A_TOARCH_M = 6, A_DEXPP = 7, A_SMALI = 8, A_HEX = 9, A_ARSCPP = 10, A_MANIFEST = 11;
+                A_TOARCH_C = 5, A_TOARCH_M = 6, A_DEXPP = 7, A_SMALI = 8, A_HEX = 9, A_ARSCPP = 10, A_MANIFEST = 11,
+                A_ARSCPP2 = 12;
         String low = it.archShort.toLowerCase();
         final boolean isDex = low.endsWith(".dex");
         final boolean isArs = low.endsWith(".arsc");
@@ -1545,7 +1554,8 @@ public class MainActivity extends BaseActivity {
         if (isManifest) { ops.add("Manifest 编辑器++"); acts.add(A_MANIFEST); }
         if (isDex) { ops.add("Dex 编辑器++"); acts.add(A_DEXPP); }
         if (isDex) { ops.add("反编译 smali"); acts.add(A_SMALI); }
-        if (isArs) { ops.add("ARSC 编辑器++"); acts.add(A_ARSCPP); }
+        if (isArs) { ops.add("ARSC 编辑"); acts.add(A_ARSCPP); }
+        if (isArs) { ops.add("ARSC++ 编辑"); acts.add(A_ARSCPP2); }
         if (isText) { ops.add("文本编辑"); acts.add(A_EDIT); }
         if (isDex || isArs) { ops.add("HEX 查看"); acts.add(A_HEX); }
         ops.add("提取到当前窗格"); acts.add(A_HERE);
@@ -1570,6 +1580,8 @@ public class MainActivity extends BaseActivity {
                     decompileArchDex(p, it);
                 } else if (act == A_ARSCPP) {
                     openArchArsc(p, it);
+                } else if (act == A_ARSCPP2) {
+                    openArchArscPlus(p, it);
                 } else if (act == A_HEX) {
                     hexArchEntry(p, it);
                 } else if (act == A_EDIT) editArchEntry(p, it);
@@ -2916,11 +2928,12 @@ public class MainActivity extends BaseActivity {
                 A_SIGN = 13, A_COPY = 3, A_REN = 5, A_PROP = 8, A_DEXPP = 15, A_ARSCPP = 16, A_MFPP = 17,
                 A_TOZIP_C = 18, A_TOZIP_M = 19, A_SIGN_APK = 20, A_APK_COMPARE = 22, A_APK_CLONE = 23,
                 A_SIGKILL = 26, A_INFO = 32, A_UNPACK = 33, A_SIGN_CUSTOM = 34, A_RM_SIGN = 35,
-                A_DEL = 7, A_IMGBATCH = 37;
+                A_DEL = 7, A_IMGBATCH = 37, A_ARSCPP2 = 40;
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
         ops.add("Dex 编辑器++"); acts.add(A_DEXPP);
-        ops.add("ARSC 编辑器++"); acts.add(A_ARSCPP);
+        ops.add("ARSC 编辑"); acts.add(A_ARSCPP);
+        ops.add("ARSC++ 编辑"); acts.add(A_ARSCPP2);
         ops.add("Manifest 编辑器++"); acts.add(A_MFPP);
         ops.add("反编译 dex→smali"); acts.add(A_DEX2SMALI);
         ops.add("提取 dex"); acts.add(A_EXTRACT_DEX);
@@ -3018,9 +3031,13 @@ public class MainActivity extends BaseActivity {
                 startActivity(new Intent(this, DexEditorActivity.class)
                         .putExtra(DexEditorActivity.EXTRA_APK, f.getAbsolutePath()));
                 break;
-            case 16:                              // APK → ARSC 编辑器++
+            case 16:                              // APK → ARSC 编辑
                 startActivity(new Intent(this, ArscEditorActivity.class)
                         .putExtra(ArscEditorActivity.EXTRA_APK, f.getAbsolutePath()));
+                break;
+            case 40:                              // APK → ARSC++ 编辑
+                startActivity(new Intent(this, ArscPlusActivity.class)
+                        .putExtra(ArscPlusActivity.EXTRA_APK, f.getAbsolutePath()));
                 break;
             case 17:                              // APK → Manifest 编辑器++
                 startActivity(new Intent(this, ManifestEditorActivity.class)

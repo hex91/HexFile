@@ -157,7 +157,8 @@ public class ZipBrowserActivity extends BaseActivity {
         java.util.List<String> opList = new java.util.ArrayList<String>();
         final java.util.List<Integer> actList = new java.util.ArrayList<Integer>();
         if (zipMode && isDex) { opList.add("Dex 编辑器++"); actList.add(0); }
-        if (zipMode && isArsc) { opList.add("ARSC 编辑器++"); actList.add(3); }
+        if (zipMode && isArsc) { opList.add("ARSC 编辑"); actList.add(3); }
+        if (zipMode && isArsc) { opList.add("ARSC++ 编辑"); actList.add(5); }
         opList.add("解压此条目"); actList.add(1);
         if (zipMode && isDex) { opList.add("反编译为 smali"); actList.add(2); }
         opList.add("解压全部"); actList.add(4);
@@ -182,6 +183,12 @@ public class ZipBrowserActivity extends BaseActivity {
                                 startActivity(j);
                                 break;
                             case 4: extractAll(); break;
+                            case 5:
+                                Intent k = new Intent(ZipBrowserActivity.this, ArscPlusActivity.class);
+                                k.putExtra(ArscPlusActivity.EXTRA_APK, archiveFile.getAbsolutePath());
+                                k.putExtra(ArscPlusActivity.EXTRA_ENTRY, e.full);
+                                startActivity(k);
+                                break;
                         }
                     }
                 })
