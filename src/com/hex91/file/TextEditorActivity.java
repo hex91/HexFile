@@ -55,8 +55,9 @@ import java.util.regex.PatternSyntaxException;
  *  - 多语言语法高亮：smali/xml/html/json/java/python/shell/properties/c/cpp/js/markdown/text，
  *    经 MtSyntaxHighlighter 桥接进 Markor 高亮框架；"语法"菜单可手动切换，后缀自动识别。
  *  - 行操作（编辑菜单 ✎）：复制行/剪切行/删除行/清空行/替换行/重复行/转大小写/增减缩进/自定义。
- *  - 主菜单（≡ 或 ⋮）：文件(重新打开/另存为/分享)/搜索/语法/上·下位置/跳转/只读/
+ *  - 主菜单（⋮）：文件(重新打开/另存为/分享)/搜索/语法/上·下位置/跳转/只读/
  *    高亮开关/代码补全/设置(字号)/预览 Markdown/关闭。
+ *  - v1.63.1：smali 文件顶栏出现「</>」图标，一键转 Java（先落盘再反编译）；保存改为图标。
  *  - 代码补全：开启后输入标识符自动按当前语言关键字弹出候选（PopupWindow）。
  *  - 编码显示：标题显示实际编码，支持 UTF-8-BOM / UTF-16(BOM) 探测与回写。
  *  - 底部快捷符号栏：点按插入光标处。
@@ -70,6 +71,9 @@ public class TextEditorActivity extends BaseActivity {
     public static final String EXTRA_READONLY = "readonly";
     public static final String EXTRA_RT_AXML = "rt_axml";
     public static final String EXTRA_RT_APK = "rt_apk";
+    /** v1.63.1：smali 编辑时的类名（com/foo/Bar）与所属 dex，用于「转 Java」反编译 */
+    public static final String EXTRA_J2S_CLS = "j2s_cls";
+    public static final String EXTRA_J2S_DEX = "j2s_dex";
     private static final long SOFT_LIMIT = 5L * 1024 * 1024;
     private static final int SEARCH_BG = 0x66FFF59D;
 
@@ -79,6 +83,8 @@ public class TextEditorActivity extends BaseActivity {
     private File exportDir;
     private File rtAxmlFile;
     private File rtApkFile;
+    private String j2sCls;   // smali 类名（转 Java 用），null = 非 smali 场景
+    private String j2sDex;   // 所属工程 dex（CFR 类型库），可为 null
     private HighlightingEditor editor;
     private ScrollView editorScroll;
     private LineNumbersView lineNumbers;
@@ -131,6 +137,7 @@ public class TextEditorActivity extends BaseActivity {
             rtAxmlFile = new File(rtAxml);
             rtApkFile = new File(rtApk);
         }
+        j2sDex = getIntent().getStringExtra(EXTRA_J2S_DEX);
         boolean readOnly = getIntent().getBooleanExtra(EXTRA_READONLY, false);
         titleView = (TextView) findViewById(R.id.editor_title);
         editor = (HighlightingEditor) findViewById(R.id.editor_text);
@@ -189,9 +196,6 @@ public class TextEditorActivity extends BaseActivity {
         });
 
         // 顶部工具栏
-        findViewById(R.id.editor_menu).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { showMainMenu(); }
-        });
         findViewById(R.id.editor_more).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { showMainMenu(); }
         });
@@ -207,6 +211,15 @@ public class TextEditorActivity extends BaseActivity {
         findViewById(R.id.editor_save).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { save(); }
         });
+        // v1.63.1：「转 Java」图标 —— 仅 smali 文件显示，一键反编译为 Java 源码
+        View j2s = findViewById(R.id.editor_java);
+        j2sCls = deriveJ2sCls();
+        if (j2sCls != null) {
+            j2s.setVisibility(View.VISIBLE);
+            j2s.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { toJava(); }
+            });
+        }
         findViewById(R.id.editor_close).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { finishWithCheck(); }
         });
@@ -1232,6 +1245,57 @@ public class TextEditorActivity extends BaseActivity {
 
     private static boolean isWordChar(char c) {
         return Character.isLetterOrDigit(c) || c == '_' || c == '$';
+    }
+
+    // ============================================================ 转 Java（smali → 反编译）
+
+    /**
+     * smali 文件 → 类名（com/foo/Bar）：
+     * 优先用 Dex 编辑器++ 传入的 extra，否则从 smali_* 工程目录自行推导；
+     * 非 smali 文件返回 null（隐藏「转 Java」图标）。
+     */
+    private String deriveJ2sCls() {
+        if (file == null || !file.getName().endsWith(".smali")) return null;
+        String via = getIntent().getStringExtra(EXTRA_J2S_CLS);
+        if (via != null && !via.isEmpty()) return via;
+        File cur = file.getParentFile();
+        while (cur != null) {
+            if (cur.getName().startsWith("smali_")) {
+                String rel = file.getAbsolutePath().substring(cur.getAbsolutePath().length() + 1);
+                return rel.endsWith(".smali") ? rel.substring(0, rel.length() - 6) : rel;
+            }
+            cur = cur.getParentFile();
+        }
+        return null;
+    }
+
+    /** 一键转 Java：先把未保存的改动落盘（反编译读磁盘文件），再进 DecompileActivity。 */
+    private void toJava() {
+        if (file == null || j2sCls == null) return;
+        if (modified) {
+            try {
+                byte[] data = encodeForSave(editor.getText().toString());
+                boolean ok;
+                try {
+                    FileOutputStream fo = new FileOutputStream(file);
+                    fo.write(data);
+                    fo.close();
+                    ok = true;
+                } catch (Exception ro) {
+                    ok = RootIO.writeBytes(file, data);   // root 区回退
+                }
+                if (!ok) { toast("保存失败，无法反编译最新内容"); return; }
+                modified = false;
+            } catch (Exception e) {
+                toast("保存失败: " + e.getMessage());
+                return;
+            }
+        }
+        Intent i = new Intent(this, DecompileActivity.class);
+        i.putExtra(DecompileActivity.EXTRA_SMALI, file.getAbsolutePath());
+        i.putExtra(DecompileActivity.EXTRA_CLS, j2sCls);
+        if (j2sDex != null) i.putExtra(DecompileActivity.EXTRA_DEX, j2sDex);
+        startActivity(i);
     }
 
     // ============================================================ 保存 / 退出

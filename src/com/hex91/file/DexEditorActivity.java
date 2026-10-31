@@ -36,7 +36,8 @@ import java.util.zip.ZipFile;
  *   1. MultiDex 选择对话框（复选全部 classes*.dex，全选/取消/确定）
  *   2. 临时工程：dex 提取 + baksmali（重复打开自动复用，秒开）
  *   3. 类树浏览（包可展开/收起，类蓝色标记）+ 实时搜索类名
- *   4. 点类 → 自带文本编辑器改 smali（返回自动保存在原文件）
+ *   4. 点类 → 直接进自带文本编辑器改 smali（v1.63.1 去掉选择对话框；
+ *      编辑器顶栏「</>」图标一键转 Java；长按列表项直接反编译）
  *   5. ⚙ 编译：整个工程 smali → 单个 classes.dex（跨 dex 合并），输出到 APK 同目录 <apk名>_dexpp/
  *   6. 写回 APK（v1.10）：替换首个选中 dex + 移除其余选中的 dex → 重打包 → 重签名（64K 方法数守卫）
  */
@@ -121,6 +122,18 @@ public class DexEditorActivity extends BaseActivity {
         listView.setOnItemClickListener(new android.widget.AdapterView.OnItemClickListener() {
             public void onItemClick(android.widget.AdapterView<?> parent, View view, int pos, long id) {
                 if (pos < rows.size()) onRowClick(rows.get(pos));
+            }
+        });
+        // v1.63.1：长按类 → 直接反编译为 Java（平时单击直接进 smali 编辑）
+        listView.setOnItemLongClickListener(new android.widget.AdapterView.OnItemLongClickListener() {
+            public boolean onItemLongClick(android.widget.AdapterView<?> parent, View view, int pos, long id) {
+                if (pos >= rows.size()) return false;
+                Object o = rows.get(pos);
+                String path = (o instanceof Node) ? ((Node) o).isClass ? ((Node) o).path : null : (String) o;
+                if (path == null) return false;
+                File f = classFiles.get(path);
+                if (f != null) { openJava(f); return true; }
+                return false;
             }
         });
     }
@@ -405,31 +418,28 @@ public class DexEditorActivity extends BaseActivity {
     }
 
     /**
-     * 打开一个类：给出「编辑 smali」与「Java 源码（反编译）」两个选项。
-     * 后者走 DecompileActivity：当前 smali → dex → dex2jar → CFR → Java（高亮）。
+     * v1.63.1：单击类 → 直接进 smali 编辑（不再弹选择对话框）；
+     * 编辑器顶栏有「转 Java」图标可一键反编译；长按列表项 → 直接反编译。
      */
-    private void openSmali(final File f) {
-        new AlertDialog.Builder(this)
-                .setTitle(f.getName())
-                .setItems(new String[]{"编辑 Smali", "Java 源码（dex2jar + CFR 反编译）"},
-                        new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface d, int w) {
-                                if (w == 0) {
-                                    Intent i = new Intent(DexEditorActivity.this, TextEditorActivity.class);
-                                    i.putExtra(TextEditorActivity.EXTRA_FILE, f.getAbsolutePath());
-                                    startActivity(i);
-                                } else {
-                                    Intent i = new Intent(DexEditorActivity.this, DecompileActivity.class);
-                                    i.putExtra(DecompileActivity.EXTRA_SMALI, f.getAbsolutePath());
-                                    i.putExtra(DecompileActivity.EXTRA_CLS, clsOf(f));
-                                    File dx = dexOf(f);
-                                    if (dx != null)
-                                        i.putExtra(DecompileActivity.EXTRA_DEX, dx.getAbsolutePath());
-                                    startActivity(i);
-                                }
-                            }
-                        })
-                .show();
+    private void openSmali(File f) {
+        Intent i = new Intent(this, TextEditorActivity.class);
+        i.putExtra(TextEditorActivity.EXTRA_FILE, f.getAbsolutePath());
+        i.putExtra(TextEditorActivity.EXTRA_J2S_CLS, clsOf(f));
+        File dx = dexOf(f);
+        if (dx != null)
+            i.putExtra(TextEditorActivity.EXTRA_J2S_DEX, dx.getAbsolutePath());
+        startActivity(i);
+    }
+
+    /** 长按类 → 直接反编译为 Java 源码（DecompileActivity）。 */
+    private void openJava(File f) {
+        Intent i = new Intent(this, DecompileActivity.class);
+        i.putExtra(DecompileActivity.EXTRA_SMALI, f.getAbsolutePath());
+        i.putExtra(DecompileActivity.EXTRA_CLS, clsOf(f));
+        File dx = dexOf(f);
+        if (dx != null)
+            i.putExtra(DecompileActivity.EXTRA_DEX, dx.getAbsolutePath());
+        startActivity(i);
     }
 
     /** smali 文件 → 类路径（com/foo/Bar）。 */

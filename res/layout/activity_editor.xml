@@ -18,27 +18,13 @@
         android:maxLines="2"
         android:ellipsize="middle"/>
 
-    <!-- 顶部工具栏：菜单 / 撤销 / 重做 / 保存 / 编辑操作 / 更多 -->
+    <!-- 顶部工具栏：撤销 / 重做 / 转Java(smali) / 编辑操作 / 保存 / 更多 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:background="?attr/hfSurfaceAlt"
         android:padding="3dp">
-
-        <ImageButton
-            android:id="@+id/editor_menu"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:src="@drawable/ic_menu"
-            android:tint="@null"
-            android:background="?android:attr/selectableItemBackground"
-            android:scaleType="fitCenter"
-            android:padding="6dp"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:contentDescription="菜单"/>
 
         <ImageButton
             android:id="@+id/editor_undo"
@@ -68,13 +54,20 @@
             android:minHeight="0dp"
             android:contentDescription="重做"/>
 
-        <Button
-            android:id="@+id/editor_save"
+        <ImageButton
+            android:id="@+id/editor_java"
             android:layout_width="0dp"
             android:layout_height="36dp"
             android:layout_weight="1"
-            android:text="保存"
-            android:textSize="12sp"/>
+            android:src="@drawable/ic_java"
+            android:tint="@null"
+            android:background="?android:attr/selectableItemBackground"
+            android:scaleType="fitCenter"
+            android:padding="6dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:contentDescription="转为 Java"
+            android:visibility="gone"/>
 
         <ImageButton
             android:id="@+id/editor_editmenu"
@@ -89,6 +82,20 @@
             android:minWidth="0dp"
             android:minHeight="0dp"
             android:contentDescription="编辑操作"/>
+
+        <ImageButton
+            android:id="@+id/editor_save"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:src="@drawable/ic_save"
+            android:tint="@null"
+            android:background="?android:attr/selectableItemBackground"
+            android:scaleType="fitCenter"
+            android:padding="6dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:contentDescription="保存"/>
 
         <ImageButton
             android:id="@+id/editor_more"
