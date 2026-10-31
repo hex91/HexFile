@@ -370,8 +370,7 @@ public class DecompileActivity extends BaseActivity {
                         } else {
                             javaSrc = res[0] == null ? "" : res[0];
                             mStatus.setText("dex2jar + CFR 0.152 · " + lines(javaSrc) + " 行"
-                                    + (javaSrc.contains("控制流扁平化") ? " · ⚠ 疑似扁平化" : "")
-                                    + " · 双指缩放调字号");
+                                    + (javaSrc.contains("控制流扁平化") ? " · ⚠ 疑似扁平化" : ""));
                         }
                         show();
                     }
