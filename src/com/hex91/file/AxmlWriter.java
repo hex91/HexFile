@@ -190,21 +190,27 @@ public final class AxmlWriter {
 
 			ByteArrayOutputStream data = new ByteArrayOutputStream();
 			int[] offs = new int[stringCount + appends.size()];
+			int emptySlot = -1; // 垃圾偏移共享空串（与 ArscWriter.poolBytes 同语义）
 			for (int i = 0; i < stringCount; i++) {
 				int relOff = ArscDefs.u32(raw, start + 28 + i * 4);
 				int sStart = start + stringsStartField + relOff;
-				int sEnd;
-				if (i + 1 < stringCount) {
-					int nextRel = ArscDefs.u32(raw, start + 28 + (i + 1) * 4);
-					sEnd = (nextRel > relOff) ? start + stringsStartField + nextRel
-							: scanTerminator(sStart, utf8, end);
-				} else {
-					sEnd = (styleCount > 0 && stylesStartField > 0)
-							? start + stylesStartField : scanTerminator(sStart, utf8, end);
-				}
+				// v1.65.0 关键修复：按长度前缀定界（与 BinaryXMLStrings 同语义），
+				// 不再用「下一串偏移」当结尾——畸形/膨胀池（加固包）偏移乱序会写出数 GB 导致 OOM
+				int sEnd = strEnd(sStart, utf8, end);
 				if (sStart < start + stringsStartField || sEnd > end) sEnd = sStart;
+				if (sEnd <= sStart) {
+					// 无效/空串：不能让 offs[i] 指向 data.size()——那会把【下一串】
+					// 的内容当成这一串读出来；指向共享空串占位
+					if (emptySlot < 0) {
+						emptySlot = data.size();
+						data.write(utf8 ? new byte[] { 0, 0, 0 } : new byte[] { 0, 0, 0, 0 }, 0,
+								utf8 ? 3 : 4);
+					}
+					offs[i] = emptySlot;
+					continue;
+				}
 				offs[i] = data.size();
-				if (sEnd > sStart) data.write(raw, sStart, sEnd - sStart);
+				data.write(raw, sStart, sEnd - sStart);
 			}
 			byte[] styleData = new byte[0];
 			if (styleCount > 0 && stylesStartField > 0 && start + stylesStartField < end) {
@@ -215,6 +221,12 @@ public final class AxmlWriter {
 				offs[stringCount + i] = data.size();
 				data.write(utf8 ? encodeUtf8(appends.get(i)) : encodeUtf16(appends.get(i)));
 			}
+			// v1.65.0 关键修复：字符串数据补零对齐到 4 字节——二进制 XML 所有 chunk
+			// 必须 4 字节对齐，否则 PackageManager/aapt2 报
+			// "XML size ... is not on an integer boundary" → APK 无法解析（安装失败）
+			// 写法与 ArscWriter.poolBytes 的 pad 变量等价：此处先补 data，
+			// 下方 dataLen 读取时已含补零，newStylesStart/total 因此天然对齐
+			while ((data.size() & 3) != 0) data.write(0);
 
 			int newCount = stringCount + appends.size();
 			int newStringsStart = 28 + (newCount + styleCount) * 4;
@@ -244,6 +256,38 @@ public final class AxmlWriter {
 			return pool;
 		}
 
+		/** v1.65.0：按长度前缀 + 终止符定界一个池串（[absStart, end) 的结尾偏移，含终止符） */
+		private int strEnd(int sStart, boolean utf8, int limit) {
+			if (sStart < 0 || sStart >= limit) return sStart;
+			int i = sStart;
+			if (utf8) {
+				// u8/u16 变长 charLen + u8/u16 变长 byteLen，随后 byteLen 字节 + \0
+				int c1 = raw[i] & 0xFF;
+				i += (c1 & 0x80) != 0 ? 2 : 1;
+				if (i >= limit) return sStart;
+				int b1 = raw[i] & 0xFF;
+				i += (b1 & 0x80) != 0 ? 2 : 1;
+				if (i >= limit) return sStart;
+				int byteLen = (b1 & 0x80) != 0
+						? (((b1 & 0x7F) << 8) | (raw[i - 1] & 0xFF)) : b1;
+				int e = i + byteLen;
+				if (e >= limit || raw[Math.min(e, limit - 1)] != 0)
+					return scanTerminator(sStart, true, limit);   // 前缀异常 → 回退扫描
+				return e + 1;
+			}
+			// UTF-16：u16 len（高位标记则再一个 u16 拼 32 位），len 个字符 + \0\0
+			int len = ArscDefs.u16(raw, i);
+			i += 2;
+			if ((len & 0x8000) != 0) {
+				if (i + 2 > limit) return scanTerminator(sStart, false, limit);
+				len = ((len & 0x7FFF) << 16) | ArscDefs.u16(raw, i);
+				i += 2;
+			}
+			long e = (long) i + (long) len * 2 + 2;
+			if (e >= limit) return scanTerminator(sStart, false, limit);
+			return (int) e;
+		}
+
 		private int scanTerminator(int from, boolean utf8, int limit) {
 			int i = from;
 			int end = Math.min(limit, raw.length);
@@ -264,8 +308,10 @@ public final class AxmlWriter {
 				bo.write(n & 0xFF);
 				bo.write((n >>> 8) & 0xFF);
 			} else {
-				bo.write(0x80 | ((n >>> 15) & 0x01) | 0xFF); // 标记（高位 1）
-				bo.write(0xFF);
+				// v1.65.0 修正长串标记：首 u16 = 0x8000 | (n>>16)，次 u16 = n & 0xFFFF
+				int hi = 0x8000 | ((n >>> 16) & 0x7FFF);
+				bo.write(hi & 0xFF);
+				bo.write((hi >>> 8) & 0xFF);
 				bo.write(n & 0xFF);
 				bo.write((n >>> 8) & 0xFF);
 			}
@@ -283,12 +329,20 @@ public final class AxmlWriter {
 		private byte[] encodeUtf8(String s) {
 			byte[] b = s.getBytes(java.nio.charset.StandardCharsets.UTF_8);
 			int n = s.length();
-			ByteArrayOutputStream bo = new ByteArrayOutputStream(b.length + 5);
-			bo.write(n & 0x7F);
-			bo.write(b.length & 0x7F);
+			ByteArrayOutputStream bo = new ByteArrayOutputStream(b.length + 10);
+			// v1.66.3 修复：长度 >127 时须写双字节变长（0x80|高8位 + 低8位），
+			// 此前只写低 7 位导致长字符串（如长权限名）池损坏、APK 无法解析
+			writeLen8(bo, n);          // 字符数
+			writeLen8(bo, b.length);   // 字节数
 			bo.write(b, 0, b.length);
 			bo.write(0);
 			return bo.toByteArray();
+		}
+
+		/** 变长长度编码（与 ArscWriter.writeLen8 及 strEnd 解码同语义）：≤0x7F 单字节，否则双字节 */
+		private static void writeLen8(ByteArrayOutputStream bo, int len) {
+			if (len > 0x7F) bo.write(0x80 | ((len >> 8) & 0x7F));
+			bo.write(len & 0xFF);
 		}
 	}
 }

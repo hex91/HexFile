@@ -56,6 +56,7 @@ public class MainActivity extends BaseActivity {
     private static final int REQ_CUSTOM_KEYSTORE = 3002;
     /** 自定义签名待处理的 APK（onActivityResult 期间持有） */
     private File mCustomSignSrc;
+    private boolean mCustomSignInPlace;
 
     private TextView headerPath, headerStats;
     private ListView listLeft, listRight;
@@ -922,6 +923,11 @@ public class MainActivity extends BaseActivity {
     }
 
     private void closeArchiveQuiet(Panel p) {
+        // v1.66.0：退出 APK 浏览时，有未签名修改版 → 统一弹窗（不签名/内置签名文件/自有签名文件）
+        if (p.archiveFile != null && ApkEditSession.isApk(p.archiveFile)
+                && ApkEditSession.needsSignPrompt(p.archiveFile)) {
+            ApkEditSession.launchSignPrompt(this, p.archiveFile);
+        }
         if (p.archive != null) {
             try { p.archive.close(); } catch (Throwable ignored) {}
         }
@@ -1222,6 +1228,8 @@ public class MainActivity extends BaseActivity {
                     err = t.getMessage();
                 }
                 final File tmpFile = new File(tmpDir, it.archPath());
+                // v1.66.0：会话中有该条目未落地修改则取最新内容
+                ApkEditSession.overlayPending(p.archiveFile, it.archPath(), tmpFile);
                 final String ferr = (err == null && tmpFile.isFile()) ? null
                         : (err != null ? err : "提取失败");
                 runOnUiThread(new Runnable() {
@@ -1321,6 +1329,8 @@ public class MainActivity extends BaseActivity {
                     err = t.getMessage();
                 }
                 final File tmpFile = new File(tmpDir, it.archPath());
+                // v1.66.0：会话中有该条目未落地修改则取最新内容
+                ApkEditSession.overlayPending(p.archiveFile, it.archPath(), tmpFile);
                 final String ferr = (err == null && tmpFile.isFile()) ? null
                         : (err != null ? err : "提取失败");
                 runOnUiThread(new Runnable() {
@@ -1425,12 +1435,29 @@ public class MainActivity extends BaseActivity {
                 .show();
     }
 
-    /** 压缩包内点击 .arsc → 直接进 ARSC 编辑器++（查看/编辑资源表） */
+    /** v1.65.0：压缩包内点击 .arsc → 弹选择框（用哪个编辑器打开），不直接进入修改 */
     private void openArchArsc(final Panel p, final FileItem it) {
-        Intent i = new Intent(MainActivity.this, ArscEditorActivity.class);
-        i.putExtra(ArscEditorActivity.EXTRA_APK, p.archiveFile.getAbsolutePath());
-        i.putExtra(ArscEditorActivity.EXTRA_ENTRY, it.archPath());
-        startActivity(i);
+        new AlertDialog.Builder(this)
+                .setTitle(it.archShort)
+                .setItems(new String[] {
+                        "ARSC 编辑（传统资源表编辑器）",
+                        "ARSC++ 编辑（树状列表 + XML 源码）" },
+                        new android.content.DialogInterface.OnClickListener() {
+                            public void onClick(android.content.DialogInterface d, int w) {
+                                if (w == 0) {
+                                    startActivity(new Intent(MainActivity.this,
+                                            ArscEditorActivity.class)
+                                            .putExtra(ArscEditorActivity.EXTRA_APK,
+                                                    p.archiveFile.getAbsolutePath())
+                                            .putExtra(ArscEditorActivity.EXTRA_ENTRY,
+                                                    it.archPath()));
+                                } else {
+                                    openArchArscPlus(p, it);
+                                }
+                            }
+                        })
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     /** v1.64.0：压缩包内 .arsc → ARSC++ 编辑（树状列表 + values XML 源码编辑） */
@@ -1493,6 +1520,8 @@ public class MainActivity extends BaseActivity {
                     err = t.getMessage();
                 }
                 final File tmpFile = new File(tmpDir, it.archPath());
+                // v1.66.0：会话中有该条目未落地修改则取最新内容
+                ApkEditSession.overlayPending(p.archiveFile, it.archPath(), tmpFile);
                 final String ferr = (err == null && tmpFile.isFile()) ? null
                         : (err != null ? err : "提取失败");
                 runOnUiThread(new Runnable() {
@@ -1523,6 +1552,8 @@ public class MainActivity extends BaseActivity {
                     err = t.getMessage();
                 }
                 final File tmpFile = new File(tmpDir, it.archPath());
+                // v1.66.0：会话中有该条目未落地修改则取最新内容
+                ApkEditSession.overlayPending(p.archiveFile, it.archPath(), tmpFile);
                 final String ferr = (err == null && tmpFile.isFile()) ? null
                         : (err != null ? err : "提取失败");
                 runOnUiThread(new Runnable() {
@@ -1659,27 +1690,35 @@ public class MainActivity extends BaseActivity {
                     err = t.getClass().getSimpleName() + ": " + t.getMessage();
                 }
                 if (err == null) {
-                    // 2) 逐文件写入目标归档
+                    // 2) 逐文件写入目标归档（APK → 统一会话生成 _edit.apk；其他压缩包原地写）
+                    final boolean dstApk = ApkEditSession.isApk(dst.archiveFile);
                     try {
                         for (FileItem it : entries) {
                             String root = entries.size() == 1 && nameOverride != null
                                     ? nameOverride : it.archShort;
                             File extracted = new File(tmp, it.archPath());
                             if (extracted.isDirectory()) {
-                                writeTree(extracted, root, dst.archiveFile);
+                                writeTree(extracted, root, dst.archiveFile, dstApk);
                             } else if (extracted.isFile()) {
-                                if (!ArchiveWrite.writeEntry(dst.archiveFile, root, extracted)) {
+                                if (dstApk) {
+                                    ApkEditSession.stageAdd(MainActivity.this, dst.archiveFile, root, extracted);
+                                } else if (!ArchiveWrite.writeEntry(dst.archiveFile, root, extracted)) {
                                     throw new RuntimeException("写入失败: " + root);
                                 }
                             } else {
                                 throw new RuntimeException("提取失败: " + it.archPath());
                             }
                         }
+                        // 批量登记完成 → 一次性重生成 <名>_edit.apk
+                        if (dstApk && err == null)
+                            ApkEditSession.flushRegen(MainActivity.this, dst.archiveFile);
                         // 3) move：从源归档删除原条目
                         if (move) {
                             List<String> names = new ArrayList<String>();
                             for (FileItem it : entries) names.add(it.archPath());
-                            if (!ArchiveWrite.removeEntries(src.archiveFile, names)) {
+                            if (ApkEditSession.isApk(src.archiveFile)) {
+                                ApkEditSession.putRemove(MainActivity.this, src.archiveFile, names);
+                            } else if (!ArchiveWrite.removeEntries(src.archiveFile, names)) {
                                 throw new RuntimeException("源归档删除失败（内容已复制）");
                             }
                         }
@@ -1692,15 +1731,17 @@ public class MainActivity extends BaseActivity {
                 final String ferr = err;
                 runOnUiThread(new Runnable() {
                     public void run() {
-                        if (ferr != null) toast("失败: " + ferr);
-                        else toast(move ? "已移动进压缩包" : "已复制进压缩包");
+                        if (ferr != null) { toast("失败: " + ferr); return; }
+                        if (dst.archiveFile != null && ApkEditSession.isApk(dst.archiveFile)
+                                && ApkEditSession.hasEdits(dst.archiveFile)) {
+                            toast((move ? "已移动进压缩包" : "已复制进压缩包")
+                                    + "，修改版 → " + ApkEditSession.editName(dst.archiveFile));
+                        } else {
+                            toast(move ? "已移动进压缩包" : "已复制进压缩包");
+                        }
                         showArchiveDir(dst);
-                        if (dst.archiveFile.getName().toLowerCase().endsWith(".apk"))
-                            askAutoSign(dst.archiveFile);
                         if (src.archiveFile != null) {
                             showArchiveDir(src);
-                            if (move && src.archiveFile.getName().toLowerCase().endsWith(".apk"))
-                                askAutoSign(src.archiveFile);
                         } else if (src.dir != null) {
                             loadDir(src, src.dir, false);
                         }
@@ -1720,37 +1761,35 @@ public class MainActivity extends BaseActivity {
                 .setPositiveButton("删除", new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         toast("删除中…");
+                final boolean apkMode = ApkEditSession.isApk(p.archiveFile);
                 new Thread(new Runnable() {
                     public void run() {
-                        final boolean ok = ArchiveWrite.removeEntries(p.archiveFile, names);
-                                runOnUiThread(new Runnable() {
-                                    public void run() {
-                                        if (!ok) { toast("删除失败"); return; }
-                                        toast("已删除 " + names.size() + " 项");
-                                        showArchiveDir(p);
-                                        if (p.archiveFile.getName().toLowerCase().endsWith(".apk"))
-                                            askAutoSign(p.archiveFile);
-                                    }
-                                });
+                        String err = null;
+                        try {
+                            if (apkMode) {
+                                // v1.66.0：APK 删除条目 → 会话登记 + 统一生成 <名>_edit.apk
+                                ApkEditSession.putRemove(MainActivity.this, p.archiveFile, names);
+                            } else if (!ArchiveWrite.removeEntries(p.archiveFile, names)) {
+                                err = "删除失败";
                             }
-                        }, "arch-del").start();
+                        } catch (Throwable t) {
+                            err = t.getMessage();
+                        }
+                        final String ferr = err;
+                        runOnUiThread(new Runnable() {
+                            public void run() {
+                                if (ferr != null) { toast(ferr); return; }
+                                toast("已删除 " + names.size() + " 项"
+                                        + (apkMode ? "，修改版 → "
+                                        + ApkEditSession.editName(p.archiveFile) : ""));
+                                showArchiveDir(p);
+                            }
+                        });
+                    }
+                }, "arch-del").start();
                     }
                 })
                 .setNegativeButton("取消", null)
-                .show();
-    }
-
-    /** APK 被修改（写回/删除/添加）后询问是否自动签名 */
-    private void askAutoSign(final File apk) {
-        new AlertDialog.Builder(this)
-                .setTitle("APK 已修改")
-                .setMessage(apk.getName() + " 内容已变更，原签名已失效。\n是否立即用内置密钥重新签名？")
-                .setPositiveButton("自动签名", new android.content.DialogInterface.OnClickListener() {
-                    public void onClick(android.content.DialogInterface d, int w) {
-                        signApkBuiltin(apk);
-                    }
-                })
-                .setNegativeButton("暂不", null)
                 .show();
     }
 
@@ -1780,6 +1819,86 @@ public class MainActivity extends BaseActivity {
                 });
             }
         }, "apk-sign").start();
+    }
+
+    /**
+     * v1.66.1 长按菜单「APK 签名 / 自定义密钥签名」统一入口：
+     *  - 目标是 _edit.apk（修改版）→ 原地签名（保持「只生成一个修改版文件」）；
+     *  - 目标是原包但存在未签名修改版 → 先询问签哪个（防止误装未修改的原包）；
+     *  - 其余情况维持原行为：生成 <名>_signed.apk / <名>_csigned.apk。
+     */
+    private void startSign(final File apk, final boolean custom) {
+        if (apk.getName().toLowerCase().endsWith("_edit.apk")) {
+            if (custom) askCustomSign(apk, true);
+            else signApkInPlace(apk);
+            return;
+        }
+        if (ApkEditSession.isApk(apk) && ApkEditSession.hasEdits(apk)) {
+            new AlertDialog.Builder(this)
+                    .setTitle("选择签名目标")
+                    .setMessage("该 APK 有未签名的修改版：\n"
+                            + ApkEditSession.editName(apk)
+                            + "\n\n修改版包含全部已保存的修改（smali/arsc/清单等）；"
+                            + "原包未被改动。要安装修改后的应用请签修改版。")
+                    .setPositiveButton("签名修改版",
+                            new android.content.DialogInterface.OnClickListener() {
+                        public void onClick(android.content.DialogInterface d, int w) {
+                            if (custom) askCustomSign(ApkEditSession.editApkOf(apk), true);
+                            else signApkInPlace(ApkEditSession.editApkOf(apk));
+                        }
+                    })
+                    .setNegativeButton("仅签原包",
+                            new android.content.DialogInterface.OnClickListener() {
+                        public void onClick(android.content.DialogInterface d, int w) {
+                            if (custom) askCustomSign(apk, false);
+                            else signApkBuiltin(apk);
+                        }
+                    })
+                    .setNeutralButton("取消", null)
+                    .show();
+            return;
+        }
+        if (custom) askCustomSign(apk, false);
+        else signApkBuiltin(apk);
+    }
+
+    /** 内置密钥原地签名 _edit.apk（v1.66.1）：临时文件 → 原子覆盖，不产生新文件 */
+    private void signApkInPlace(final File apk) {
+        toast("签名中…");
+        new Thread(new Runnable() {
+            public void run() {
+                String err = null;
+                try {
+                    File tmp = new File(apk.getParentFile(), apk.getName() + ".signtmp");
+                    if (tmp.exists()) tmp.delete();
+                    java.io.InputStream ks = getAssets().open("hexfile.p12");
+                    ApkSignerTool.sign(ks, ApkSignerTool.KEY_PASSWORD, apk, tmp, 21);
+                    ks.close();
+                    if (apk.exists()) apk.delete();
+                    if (!tmp.renameTo(apk)) {
+                        java.io.FileInputStream in = new java.io.FileInputStream(tmp);
+                        java.io.FileOutputStream out = new java.io.FileOutputStream(apk);
+                        byte[] buf = new byte[65536];
+                        int n;
+                        while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                        in.close();
+                        out.close();
+                        tmp.delete();
+                    }
+                    try { ApkEditSession.markSigned(apk); } catch (Throwable ignored) {}
+                } catch (Throwable t) {
+                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                }
+                final String ferr = err;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        toast(ferr != null ? "签名失败: " + ferr
+                                : "已签名（原地覆盖）→ " + apk.getName());
+                        refreshAll();
+                    }
+                });
+            }
+        }, "apk-sign-inplace").start();
     }
 
     /** 图片批处理参数对话框（v1.58）：缩放/格式/质量/水印 → 后台逐张处理 */
@@ -2062,7 +2181,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 自定义密钥签名（v1.57）：选 keystore → 输密码 → signAutoAlias → _csigned.apk */
-    private void askCustomSign(final File apk) {
+    private void askCustomSign(final File apk, final boolean inPlace) {
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
         i.setType("*/*");
@@ -2073,6 +2192,7 @@ public class MainActivity extends BaseActivity {
             toast("无法打开文件选择器: " + t.getMessage());
         }
         mCustomSignSrc = apk;
+        mCustomSignInPlace = inPlace;   // v1.66.1：_edit.apk 原地签名
     }
 
     /** 解包目录 → 打包为 APK（v1.57）：产物未签名，询问是否用内置密钥直接签 */
@@ -2105,7 +2225,7 @@ public class MainActivity extends BaseActivity {
                                 })
                                 .setNeutralButton("自定义密钥签名", new android.content.DialogInterface.OnClickListener() {
                                     public void onClick(android.content.DialogInterface d, int w) {
-                                        askCustomSign(fout);
+                                        askCustomSign(fout, false);
                                     }
                                 })
                                 .setNegativeButton("先不签", null)
@@ -2121,6 +2241,7 @@ public class MainActivity extends BaseActivity {
             final String nameOverride, final boolean move) {
         if (!ensureArchiveWritable(archPane.archiveFile)) return;
         toast("写入压缩包…");
+        final boolean apkMode = ApkEditSession.isApk(archPane.archiveFile);
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -2130,7 +2251,11 @@ public class MainActivity extends BaseActivity {
                     try {
                         if (f.isDirectory()) {
                             // 目录整树写入：root 作为压缩包内前缀
-                            writeTree(f, root, archPane.archiveFile);
+                            writeTree(f, root, archPane.archiveFile, apkMode);
+                        } else if (apkMode) {
+                            // v1.66.0：APK → 会话登记（加 lib/assets 文件等），统一生成 _edit.apk
+                            ApkEditSession.stageAdd(MainActivity.this,
+                                    archPane.archiveFile, root, f);
                         } else {
                             if (!ArchiveWrite.writeEntry(archPane.archiveFile, root, f)) {
                                 err = "写入失败: " + root;
@@ -2142,17 +2267,27 @@ public class MainActivity extends BaseActivity {
                         break;
                     }
                 }
+                if (apkMode && err == null) {
+                    try {
+                        ApkEditSession.flushRegen(MainActivity.this, archPane.archiveFile);
+                    } catch (Throwable t) {
+                        err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                }
                 final String ferr = err;
                 runOnUiThread(new Runnable() {
                     public void run() {
                         if (ferr != null) { toast("失败: " + ferr); return; }
-                        toast(move ? "已移动进压缩包" : "已复制进压缩包");
+                        if (apkMode) {
+                            toast((move ? "已移动进压缩包" : "已复制进压缩包")
+                                    + "，修改版 → " + ApkEditSession.editName(archPane.archiveFile));
+                        } else {
+                            toast(move ? "已移动进压缩包" : "已复制进压缩包");
+                        }
                         if (move) {
                             for (File f : sources) deleteRecursiveOrTrash(f);
                         }
                         showArchiveDir(archPane);
-                        if (archPane.archiveFile.getName().toLowerCase().endsWith(".apk"))
-                            askAutoSign(archPane.archiveFile);
                         refreshAll();
                     }
                 });
@@ -2160,14 +2295,18 @@ public class MainActivity extends BaseActivity {
         }, "arch-add").start();
     }
 
-    /** 把目录 dir 整树写入归档，条目前缀 = prefix（如 "myfolder" → myfolder/a.txt） */
-    private void writeTree(File dir, String prefix, File archive) {
+    /** 把目录 dir 整树写入归档，条目前缀 = prefix（如 "myfolder" → myfolder/a.txt）；
+     *  apkMode = APK 目标：条目登记进 ApkEditSession（调用方随后 flushRegen），否则原地写入 */
+    private void writeTree(File dir, String prefix, File archive, boolean apkMode)
+            throws java.io.IOException {
         File[] kids = dir.listFiles();
         if (kids == null) return;
         for (File k : kids) {
             String entry = prefix + "/" + k.getName();
             if (k.isDirectory()) {
-                writeTree(k, entry, archive);
+                writeTree(k, entry, archive, apkMode);
+            } else if (apkMode) {
+                ApkEditSession.stageAdd(MainActivity.this, archive, entry, k);
             } else {
                 if (!ArchiveWrite.writeEntry(archive, entry, k)) {
                     throw new RuntimeException("写入失败: " + entry);
@@ -3022,7 +3161,7 @@ public class MainActivity extends BaseActivity {
             case 11: extractApkDexes(f, false); break;  // 仅提取 dex
             case 12: extractApkIcon(f); break;    // 提取图标
             case 13: showSignDialog(f); break;    // 签名详情
-            case 20: signApkBuiltin(f); break;    // APK 签名（内置密钥 → _signed.apk）
+            case 20: startSign(f, false); break;  // APK 签名（内置密钥；_edit.apk 原地签）
             case 14:                              // 独立 dex → Dex 编辑器++
                 startActivity(new Intent(this, DexEditorActivity.class)
                         .putExtra(DexEditorActivity.EXTRA_FILE, f.getAbsolutePath()));
@@ -3085,7 +3224,7 @@ public class MainActivity extends BaseActivity {
                 doApkUnpack(f);
                 break;
             case 34:                              // 自定义密钥签名（v1.57）
-                askCustomSign(f);
+                askCustomSign(f, false);
                 break;
             case 35:                              // 去除签名 → 未签名 APK（v1.57）
                 doRemoveSignature(f);
@@ -4256,7 +4395,10 @@ public class MainActivity extends BaseActivity {
                         ok++;
                     }
                     if (alsoDelete && writableArchive(p.archiveFile) && !done.isEmpty()) {
-                        ArchiveWrite.removeEntries(p.archiveFile, done);
+                        if (ApkEditSession.isApk(p.archiveFile))
+                            ApkEditSession.putRemove(MainActivity.this, p.archiveFile, done);
+                        else
+                            ArchiveWrite.removeEntries(p.archiveFile, done);
                     }
                 } catch (Throwable t) {
                     if (archPwError(p, t)) return;
@@ -4268,8 +4410,9 @@ public class MainActivity extends BaseActivity {
                     public void run() {
                         if (ferr != null) toast("部分失败(" + fok + "): " + ferr);
                         else toast((alsoDelete ? "已提取并删除 " : "已提取 ") + fok + " 项");
-                        if (alsoDelete && p.archiveFile.getName().toLowerCase().endsWith(".apk"))
-                            askAutoSign(p.archiveFile);
+                        if (alsoDelete && ApkEditSession.isApk(p.archiveFile)
+                                && ApkEditSession.hasEdits(p.archiveFile))
+                            toast("修改版 → " + ApkEditSession.editName(p.archiveFile));
                         showArchiveDir(p);
                         if (dst.archiveFile == null) loadDir(dst, dst.dir);
                     }
@@ -4443,30 +4586,54 @@ public class MainActivity extends BaseActivity {
                     public void onClick(android.content.DialogInterface d, int w) {
                         final String pwd = pass.getText().toString();
                         if (pwd.isEmpty()) { toast("密码不能为空"); return; }
+                        final boolean inPlace = mCustomSignInPlace;
                         final ProgressDialog pd = ProgressDialog.show(MainActivity.this,
                                 "自定义签名", apk.getName(), true, false);
                         new Thread(new Runnable() {
                             public void run() {
                                 String err = null;
-                                File out = new File(apk.getParentFile(),
-                                        stripExt(apk.getName()) + "_csigned.apk");
+                                // inPlace（_edit.apk）→ 临时文件原地覆盖；否则 <名>_csigned.apk
+                                File out = inPlace
+                                        ? new File(apk.getParentFile(), apk.getName() + ".signtmp")
+                                        : new File(apk.getParentFile(),
+                                                stripExt(apk.getName()) + "_csigned.apk");
                                 try {
                                     byte[] ksBytes = readUriBytes(keystoreUri);
                                     ApkSignerTool.signAutoAlias(ksBytes, pwd.toCharArray(),
                                             apk, out, 21);
+                                    if (inPlace) {
+                                        if (apk.exists()) apk.delete();
+                                        if (!out.renameTo(apk)) {
+                                            java.io.FileInputStream in =
+                                                    new java.io.FileInputStream(out);
+                                            java.io.FileOutputStream o =
+                                                    new java.io.FileOutputStream(apk);
+                                            byte[] buf = new byte[65536];
+                                            int n;
+                                            while ((n = in.read(buf)) > 0) o.write(buf, 0, n);
+                                            in.close();
+                                            o.close();
+                                            out.delete();
+                                        }
+                                        try { ApkEditSession.markSigned(apk); }
+                                        catch (Throwable ignored) {}
+                                    }
                                 } catch (Throwable t) {
                                     err = t.getMessage() != null
                                             ? t.getMessage()
                                             : t.getClass().getSimpleName();
                                 }
                                 final String ferr = err;
-                                final File fout = out;
+                                final File fout = apk;
+                                final boolean finPlace = inPlace;
                                 runOnUiThread(new Runnable() {
                                     public void run() {
                                         pd.dismiss();
                                         if (ferr != null) toast("签名失败: " + ferr);
                                         else {
-                                            toast("已签名 → " + fout.getName());
+                                            toast("已签名 → " + (finPlace
+                                                    ? fout.getName() + "（原地覆盖）"
+                                                    : fout.getName()));
                                             refreshAll();
                                         }
                                     }

@@ -333,26 +333,26 @@ public class ManifestEditorActivity extends BaseActivity {
     private void askSave() {
         if (axml == null) { toast("尚未加载完成"); return; }
         if (!dirty) { toast("没有修改"); return; }
-        final File outApk = new File(apk.getParentFile(), apkBase + "_mfpp.apk");
         new AlertDialog.Builder(this)
-                .setTitle("保存并重新签名")
-                .setMessage("将 " + edits.size() + " 处修改写回 AndroidManifest.xml 并重打包签名：\n\n"
-                        + outApk.getPath() + "\n\n（签 v1+v2+v3，可直接安装）")
+                .setTitle("保存修改")
+                .setMessage("将 " + edits.size() + " 处修改写回 AndroidManifest.xml 并统一生成：\n\n"
+                        + ApkEditSession.editName(apk)
+                        + "\n\n（原包首次修改时自动备份为 同名_bak.apk；"
+                        + "退出 APK 后统一提示签名）")
                 .setPositiveButton("保存", new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface d, int w) { doSave(outApk); }
+                    public void onClick(DialogInterface d, int w) { doSave(); }
                 })
                 .setNegativeButton("取消", null)
                 .show();
     }
 
-    private void doSave(final File outApk) {
+    private void doSave() {
         final ProgressDialog pd = new ProgressDialog(this);
         pd.setMessage("写入 AndroidManifest.xml …");
         pd.setCancelable(false);
         pd.show();
         new Thread() { public void run() {
             String err = null;
-            File unsigned = null;
             try {
                 List<AxmlWriter.Edit> list = new ArrayList<AxmlWriter.Edit>();
                 for (Map.Entry<AxmlFile.XAttr, String> en : edits.entrySet())
@@ -372,18 +372,9 @@ public class ManifestEditorActivity extends BaseActivity {
                                 + " 实际 " + check.valueDisplay(fresh));
                 }
 
-                unsigned = new File(getCacheDir(), "mfpp_" + apkBase + "/unsigned.apk");
-                // 关键：FileOutputStream 不会自动创建父目录，必须手动 mkdirs，
-                // 否则 repack 写未签名文件时抛 FileNotFoundException → “保存失败”
-                File up = unsigned.getParentFile();
-                if (up != null && !up.exists()) up.mkdirs();
-                Map<String, byte[]> replace = new java.util.HashMap<String, byte[]>();
-                replace.put("AndroidManifest.xml", newAxml);
-                ApkRepack.repack(apk, replace, unsigned);
-                if (outApk.exists()) outApk.delete();
-                InputStream ksIn = getAssets().open("hexfile.p12");
-                ApkSignerTool.sign(ksIn, ApkSignerTool.KEY_PASSWORD, unsigned, outApk, 21);
-                ksIn.close();
+                // v1.66.0：登记 + 统一重生成 <名>_edit.apk（不再单独签出 _mfpp.apk）
+                ApkEditSession.putEdit(ManifestEditorActivity.this,
+                        apk, "AndroidManifest.xml", newAxml);
             } catch (Throwable t) {
                 err = t.getClass().getSimpleName() + ": " + t.getMessage();
                 Throwable c = t.getCause();
@@ -402,24 +393,8 @@ public class ManifestEditorActivity extends BaseActivity {
                 } else {
                     dirty = false;
                     refresh();
-                    new AlertDialog.Builder(ManifestEditorActivity.this)
-                            .setTitle("已生成并签名")
-                            .setMessage("已签名保存为:\n" + outApk.getPath()
-                                    + "\n\n「写回原 APK」= 用此修改版覆盖原 APK（覆盖后重新打开该 APK 即为修改版）")
-                            .setPositiveButton("写回原 APK",
-                                    new DialogInterface.OnClickListener() {
-                                public void onClick(DialogInterface d, int w) {
-                                    writeBack(outApk, apk);
-                                }
-                            })
-                            .setNeutralButton("直接安装",
-                                    new DialogInterface.OnClickListener() {
-                                public void onClick(DialogInterface d, int w) {
-                                    installSigned(outApk);
-                                }
-                            })
-                            .setNegativeButton("关闭", null)
-                            .show();
+                    toast("已保存，修改版 → " + ApkEditSession.editName(apk)
+                            + "\n（退出 APK 后可统一签名）");
                 }
             }});
         }}.start();
@@ -428,51 +403,10 @@ public class ManifestEditorActivity extends BaseActivity {
     // ---------- IO 小工具 ----------
 
     /** 签名产物覆盖写回原 APK（后台 + 进度框，完成提示刷新） */
-    private void writeBack(final File signed, final File orig) {
-        final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("写回原 APK …");
-        pd.setCancelable(false);
-        pd.show();
-        new Thread() { public void run() {
-            String err = null;
-            try {
-                java.io.FileInputStream in = new java.io.FileInputStream(signed);
-                java.io.FileOutputStream out = new java.io.FileOutputStream(orig);
-                byte[] buf = new byte[65536];
-                int n;
-                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-                in.close();
-                out.close();
-            } catch (Throwable t) {
-                err = t.getMessage();
-            }
-            final String e = err;
-            ui.post(new Runnable() { public void run() {
-                pd.dismiss();
-                if (e != null) {
-                    toast("写回失败: " + e);
-                } else {
-                    toast("已写回原 APK（重新打开即可看到修改）");
-                }
-            }});
-        }}.start();
-    }
-
     /** 调起系统安装器安装签名产物（与 MainActivity.installApk 同通道） */
-    private void installSigned(File f) {
-        try {
-            android.net.Uri uri = android.net.Uri.parse(
-                    "content://" + getPackageName() + ".files" + f.getAbsolutePath());
-            Intent i = new Intent(Intent.ACTION_INSTALL_PACKAGE);
-            i.setData(uri);
-            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(i);
-        } catch (Exception e) {
-            toast("安装失败: " + e.getMessage());
-        }
-    }
-
     private static byte[] readZipEntry(File zip, String entryName) throws Exception {
+        byte[] pending = ApkEditSession.editBytes(zip, entryName);   // v1.66.0 会话修改优先
+        if (pending != null) return pending;
         ZipFile zf = null;
         try {
             zf = new ZipFile(zip);

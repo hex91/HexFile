@@ -252,6 +252,8 @@ public class DexEditorActivity extends BaseActivity {
                                 err = "提取失败: " + dexName;
                                 break;
                             }
+                            // v1.66.0：会话中该 dex 有未落地修改则优先
+                            ApkEditSession.overlayPending(apk, dexName, src);
                         }
                         String base = stripExt(new File(dexName).getName());
                         File outDir = new File(workDir, "smali_" + base);
@@ -547,7 +549,7 @@ public class DexEditorActivity extends BaseActivity {
 
     // ---------- 写回 APK（v1.10） ----------
 
-    /** 把编译出的 dex 写回源 APK：替换首个选中 dex 条目、移除其余选中的 dex，重打包+重签名 */
+    /** 把编译出的 dex 登记进 ApkEditSession：替换首个选中 dex 条目、移除其余选中的 dex，统一生成 <apk名>_edit.apk */
     private void writeBackApk(final File outDex) {
         int mcnt = SmaliTool.dexMethodCount(outDex);
         if (mcnt > 65535) {
@@ -558,41 +560,35 @@ public class DexEditorActivity extends BaseActivity {
                     .setPositiveButton("知道了", null).show();
             return;
         }
-        final File outApk = new File(apk.getParentFile(), projName + "_dexpp.apk");
         new AlertDialog.Builder(this)
-                .setTitle("确认写回")
-                .setMessage("输出: " + outApk.getPath()
+                .setTitle("确认保存")
+                .setMessage("输出: " + apk.getParentFile().getPath() + "/"
+                        + ApkEditSession.editName(apk)
                         + "\n\n替换: " + dexes.get(0)
                         + (dexes.size() > 1 ? "\n移除: " + dexes.subList(1, dexes.size()) : "")
-                        + "\n\n（编辑的是哪几个 dex 就替换/移除哪几个，未选中的 dex 不受影响）")
-                .setPositiveButton("写回", new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface d, int w) { doWriteBack(outDex, outApk); }
+                        + "\n\n（编辑的是哪几个 dex 就替换/移除哪几个，未选中的 dex 不受影响；"
+                        + "原包首次修改时自动备份为 同名_bak.apk）")
+                .setPositiveButton("保存", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) { doWriteBack(outDex); }
                 })
                 .setNegativeButton("取消", null)
                 .show();
     }
 
-    private void doWriteBack(final File outDex, final File outApk) {
+    private void doWriteBack(final File outDex) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("写回 APK …");
+        pd.setMessage("生成修改版 APK …");
         pd.setCancelable(false);
         pd.show();
         new Thread() { public void run() {
             String err = null;
-            File unsigned = null;
             try {
                 byte[] dexBytes = readAllBytes(outDex);
-                unsigned = new File(getCacheDir(), "dexpp_" + projName + "/unsigned.apk");
-                Map<String, byte[]> replace = new HashMap<String, byte[]>();
-                replace.put(dexes.get(0), dexBytes);
-                java.util.Set<String> remove = new java.util.HashSet<String>();
-                for (int i = 1; i < dexes.size(); i++) remove.add(dexes.get(i));
-                ApkRepack.repack(apk, replace, remove, unsigned);
-                if (outApk.exists()) outApk.delete();
-                InputStream ksIn = getAssets().open("hexfile.p12");
-                // 与 ARSC 编辑器一致：minSdk 21 → v1+v2+v3 全签
-                ApkSignerTool.sign(ksIn, ApkSignerTool.KEY_PASSWORD, unsigned, outApk, 21);
-                ksIn.close();
+                // v1.66.0：登记进 ApkEditSession → 统一 <名>_edit.apk（不再单独签出 _dexpp.apk）
+                ApkEditSession.putEdit(DexEditorActivity.this, apk, dexes.get(0), dexBytes);
+                if (dexes.size() > 1)
+                    ApkEditSession.putRemove(DexEditorActivity.this, apk,
+                            dexes.subList(1, dexes.size()));
             } catch (Throwable t) {
                 err = t.getClass().getSimpleName() + ": " + t.getMessage();
             }
@@ -601,13 +597,13 @@ public class DexEditorActivity extends BaseActivity {
                 pd.dismiss();
                 if (e == null) {
                     new AlertDialog.Builder(DexEditorActivity.this)
-                            .setTitle("写回成功")
-                            .setMessage(outApk.getPath()
-                                    + "\n\n可直接安装（覆盖原应用需先卸载原版）。")
+                            .setTitle("已保存")
+                            .setMessage(ApkEditSession.editName(apk)
+                                    + "\n\n退出 APK 后统一提示签名。")
                             .setPositiveButton("知道了", null).show();
                 } else {
                     new AlertDialog.Builder(DexEditorActivity.this)
-                            .setTitle("写回失败").setMessage(e)
+                            .setTitle("保存失败").setMessage(e)
                             .setPositiveButton("知道了", null).show();
                 }
             }});

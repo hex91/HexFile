@@ -96,7 +96,9 @@ public class TextEditorActivity extends BaseActivity {
     private TextView titleView;
     private String encoding = "UTF-8";
     private String titleSuffix = "";
-    private volatile boolean modified = false;
+    private volatile boolean modified;   // dirty 状态，统一经 setModified() 维护（联动保存图标可点态）
+    private View saveBtn;                // 保存图标
+    private boolean pendingFinishAfterSave = false;   // v1.64.3：返回时选「保存」→ 保存完成后自动退出
     private boolean loaded = false;
     private boolean suppressWatch = false;
     private boolean binaryConfirmed = false;
@@ -196,7 +198,7 @@ public class TextEditorActivity extends BaseActivity {
             public void beforeTextChanged(CharSequence s, int a, int c, int d) {}
             public void onTextChanged(CharSequence s, int a, int c, int d) {}
             public void afterTextChanged(Editable s) {
-                if (!suppressWatch) modified = true;
+                if (!suppressWatch) setModified(true);
                 if (searchPanel != null && searchPanel.getVisibility() == View.VISIBLE) {
                     clearSearchHighlight();
                     matches.clear();
@@ -219,7 +221,8 @@ public class TextEditorActivity extends BaseActivity {
         findViewById(R.id.editor_redo).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { editor.onTextContextMenuItem(android.R.id.redo); }
         });
-        findViewById(R.id.editor_save).setOnClickListener(new View.OnClickListener() {
+        saveBtn = findViewById(R.id.editor_save);
+        saveBtn.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { save(); }
         });
         // v1.63.1：「转 Java」图标 —— 仅 smali 文件显示，一键反编译为 Java 源码
@@ -294,6 +297,8 @@ public class TextEditorActivity extends BaseActivity {
         cbWord.setOnCheckedChangeListener(optLis);
         cbRegex.setOnCheckedChangeListener(optLis);
 
+        // v1.64.3：初始未修改 → 保存图标置灰不可点；有改动后自动恢复可点
+        setModified(false);
         loadAsync();
     }
 
@@ -427,7 +432,7 @@ public class TextEditorActivity extends BaseActivity {
             s.replace(m[0], m[1], repl);
         }
         suppressWatch = false;
-        modified = true;
+        setModified(true);
         doSearch();
         if (!matches.isEmpty()) gotoMatch(Math.min(oldCur, matches.size() - 1));
     }
@@ -456,7 +461,7 @@ public class TextEditorActivity extends BaseActivity {
             }
         }
         suppressWatch = false;
-        modified = true;
+        setModified(true);
         clearSearchHighlight();
         matches.clear();
         searchCount.setText("0/0");
@@ -743,7 +748,7 @@ public class TextEditorActivity extends BaseActivity {
         else if (" ".equals(sym)) sym = " ";
         editor.insertOrReplaceTextOnCursor(sym);
         suppressWatch = false;
-        modified = true;
+        setModified(true);
         ensureCursorVisible();
     }
 
@@ -805,7 +810,7 @@ public class TextEditorActivity extends BaseActivity {
         suppressWatch = true;
         s.delete(r[0], lineEnd);
         suppressWatch = false;
-        modified = true;
+        setModified(true);
         editor.setSelection(r[0]);
     }
 
@@ -817,7 +822,7 @@ public class TextEditorActivity extends BaseActivity {
         suppressWatch = true;
         s.delete(r[0], lineEnd);
         suppressWatch = false;
-        modified = true;
+        setModified(true);
         editor.setSelection(r[0]);
     }
 
@@ -828,7 +833,7 @@ public class TextEditorActivity extends BaseActivity {
         suppressWatch = true;
         s.replace(r[0], r[1], "");
         suppressWatch = false;
-        modified = true;
+        setModified(true);
         editor.setSelection(r[0]);
     }
 
@@ -846,7 +851,7 @@ public class TextEditorActivity extends BaseActivity {
                         suppressWatch = true;
                         s.replace(r[0], r[1], input.getText().toString());
                         suppressWatch = false;
-                        modified = true;
+                        setModified(true);
                         editor.setSelection(r[0]);
                     }
                 })
@@ -862,7 +867,7 @@ public class TextEditorActivity extends BaseActivity {
         suppressWatch = true;
         s.insert(r[1], add);
         suppressWatch = false;
-        modified = true;
+        setModified(true);
         editor.setSelection(r[1] + add.length());
     }
 
@@ -879,7 +884,7 @@ public class TextEditorActivity extends BaseActivity {
         suppressWatch = true;
         s.replace(a, b, t);
         suppressWatch = false;
-        modified = true;
+        setModified(true);
         editor.setSelection(a, a + t.length());
     }
 
@@ -912,7 +917,7 @@ public class TextEditorActivity extends BaseActivity {
         suppressWatch = true;
         s.replace(0, s.length(), sb.toString());
         suppressWatch = false;
-        modified = true;
+        setModified(true);
         editor.setSelection(firstLineStart + (add ? 1 : 0));
     }
 
@@ -961,7 +966,7 @@ public class TextEditorActivity extends BaseActivity {
                             if (lineEnd < text.length() && text.charAt(lineEnd) == '\r'
                                     && pos < text.length() && text.charAt(pos) == '\n') pos++;
                         }
-                        modified = true;
+                        setModified(true);
                     }
                 })
                 .setNegativeButton("取消", null).show();
@@ -978,7 +983,7 @@ public class TextEditorActivity extends BaseActivity {
         suppressWatch = true;
         s.replace(0, s.length(), sb.toString());
         suppressWatch = false;
-        modified = true;
+        setModified(true);
         toast("已删除空行");
     }
 
@@ -994,7 +999,7 @@ public class TextEditorActivity extends BaseActivity {
         suppressWatch = true;
         editor.getText().replace(0, editor.length(), sb.toString());
         suppressWatch = false;
-        modified = true;
+        setModified(true);
         toast("已按行排序");
     }
 
@@ -1009,7 +1014,7 @@ public class TextEditorActivity extends BaseActivity {
         suppressWatch = true;
         editor.getText().replace(0, editor.length(), sb.toString());
         suppressWatch = false;
-        modified = true;
+        setModified(true);
         toast("已删除重复行");
     }
 
@@ -1077,7 +1082,7 @@ public class TextEditorActivity extends BaseActivity {
                 .setTitle("文件")
                 .setItems(items, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
-                        if (w == 0) { modified = false; loadAsync(); }
+                        if (w == 0) { setModified(false); loadAsync(); }
                         else if (w == 1) saveAsCopy();
                         else shareFile();
                     }
@@ -1177,7 +1182,7 @@ public class TextEditorActivity extends BaseActivity {
             editor.setText(out);
             suppressWatch = false;
             if (caret >= 0 && caret <= editor.length()) editor.setSelection(caret);
-            modified = true;
+            setModified(true);
             toast("已格式化（可点工具栏撤销恢复）");
         } catch (FormatUtil.FormatException e) {
             toast("格式化失败：" + e.getMessage());
@@ -1239,7 +1244,7 @@ public class TextEditorActivity extends BaseActivity {
                 suppressWatch = true;
                 e.insert(cur, rest);
                 suppressWatch = false;
-                modified = true;
+                setModified(true);
                 dismissCompletion();
             }
         });
@@ -1307,7 +1312,7 @@ public class TextEditorActivity extends BaseActivity {
                     ok = RootIO.writeBytes(file, data);   // root 区回退
                 }
                 if (!ok) { toast("保存失败，无法反编译最新内容"); return; }
-                modified = false;
+                setModified(false);
             } catch (Exception e) {
                 toast("保存失败: " + e.getMessage());
                 return;
@@ -1321,6 +1326,19 @@ public class TextEditorActivity extends BaseActivity {
     }
 
     // ============================================================ 保存 / 退出
+
+    /**
+     * v1.64.3：修改状态统一入口 ——
+     * 未修改时保存图标置灰不可点（防误触保存），产生改动后恢复可点。
+     * 全部 dirty 写入（TextWatcher/行操作/替换/补全等）都走这里。
+     */
+    private void setModified(boolean m) {
+        modified = m;
+        if (saveBtn != null) {
+            saveBtn.setEnabled(m);
+            saveBtn.setAlpha(m ? 1f : 0.35f);
+        }
+    }
 
     private byte[] encodeForSave(String text) throws Exception {
         byte[] body = text.getBytes(encoding.equals("UTF-8-BOM") ? "UTF-8" : encoding);
@@ -1392,18 +1410,9 @@ public class TextEditorActivity extends BaseActivity {
                     AxmlFile check = AxmlFile.parse(newAxml);
                     if (check.elements.size() != axml.elements.size())
                         throw new IllegalStateException("回读校验失败：元素数不一致");
-                    String base = rtApkFile.getName().toLowerCase().endsWith(".apk")
-                            ? rtApkFile.getName().substring(0, rtApkFile.getName().length() - 4)
-                            : rtApkFile.getName();
-                    File unsigned = new File(getCacheDir(), "rt_unsigned.apk");
-                    Map<String, byte[]> replace = new java.util.HashMap<String, byte[]>();
-                    replace.put("AndroidManifest.xml", newAxml);
-                    ApkRepack.repack(rtApkFile, replace, unsigned);
-                    outApk = new File(rtApkFile.getParentFile(), base + "_xmlpp.apk");
-                    if (outApk.exists()) outApk.delete();
-                    java.io.InputStream ks = getAssets().open("hexfile.p12");
-                    ApkSignerTool.sign(ks, ApkSignerTool.KEY_PASSWORD, unsigned, outApk, 21);
-                    ks.close();
+                    // v1.66.0：登记 + 统一重生成 <名>_edit.apk（不再单独签出 _xmlpp.apk）
+                    outApk = ApkEditSession.putEdit(TextEditorActivity.this,
+                            rtApkFile, "AndroidManifest.xml", newAxml);
                 } catch (IllegalArgumentException e) {
                     err = e.getMessage();
                     userError = true;
@@ -1417,31 +1426,17 @@ public class TextEditorActivity extends BaseActivity {
                     public void run() {
                         pd.dismiss();
                         if (ferr != null) {
+                            pendingFinishAfterSave = false;
                             new AlertDialog.Builder(TextEditorActivity.this)
                                     .setTitle(fuerr ? "不支持的修改" : "编译失败")
                                     .setMessage(ferr)
                                     .setPositiveButton("知道了", null).show();
                             return;
                         }
-                        modified = false;
-                        new AlertDialog.Builder(TextEditorActivity.this)
-                                .setTitle("已编译并签名")
-                                .setMessage("XML 已编译写回并签名:\n" + fout.getPath()
-                                        + "\n\n「写回原 APK」= 用此修改版覆盖原 APK")
-                                .setPositiveButton("写回原 APK",
-                                        new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface d, int w) {
-                                        writeBackSigned(fout, rtApkFile);
-                                    }
-                                })
-                                .setNeutralButton("直接安装",
-                                        new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface d, int w) {
-                                        installSigned(fout);
-                                    }
-                                })
-                                .setNegativeButton("关闭", null)
-                                .show();
+                        setModified(false);
+                        toast("已生成 " + fout.getName()
+                                + "\n（退出 APK 后可统一签名）");
+                        if (pendingFinishAfterSave) finish();
                     }
                 });
             }
@@ -1456,49 +1451,6 @@ public class TextEditorActivity extends BaseActivity {
         while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
         in.close();
         return bo.toByteArray();
-    }
-
-    private void writeBackSigned(final File signed, final File orig) {
-        final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("写回原 APK …");
-        pd.setCancelable(false);
-        pd.show();
-        new Thread(new Runnable() {
-            public void run() {
-                String err = null;
-                try {
-                    java.io.FileInputStream in = new java.io.FileInputStream(signed);
-                    java.io.FileOutputStream out = new java.io.FileOutputStream(orig);
-                    byte[] buf = new byte[65536];
-                    int n;
-                    while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-                    in.close();
-                    out.close();
-                } catch (Throwable t) {
-                    err = t.getMessage();
-                }
-                final String ferr = err;
-                runOnUiThread(new Runnable() {
-                    public void run() {
-                        pd.dismiss();
-                        toast(ferr != null ? "写回失败: " + ferr
-                                : "已写回原 APK（重新打开即可看到修改）");
-                    }
-                });
-            }
-        }, "rt-writeback").start();
-    }
-
-    private void installSigned(File apkFile) {
-        try {
-            Uri uri = Uri.parse("content://com.hex91.file.files" + apkFile.getAbsolutePath());
-            Intent i = new Intent(Intent.ACTION_INSTALL_PACKAGE);
-            i.setData(uri);
-            i.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(i);
-        } catch (Exception e) {
-            toast("无法启动安装: " + e);
-        }
     }
 
     private void save() {
@@ -1523,8 +1475,13 @@ public class TextEditorActivity extends BaseActivity {
                         if (!saved) throw ro;
                     }
                     if (archiveFile != null && entryName != null) {
-                        if (!ArchiveWrite.writeEntry(archiveFile, entryName, data))
+                        if (ApkEditSession.isApk(archiveFile)) {
+                            // v1.66.0：不原地写回 —— 登记修改并重生成 <名>_edit.apk（原包备份 _bak.apk）
+                            ApkEditSession.putEdit(TextEditorActivity.this,
+                                    archiveFile, entryName, data);
+                        } else if (!ArchiveWrite.writeEntry(archiveFile, entryName, data)) {
                             err = "写回压缩包失败";
+                        }
                     } else if (exportDir != null) {
                         exportDir.mkdirs();
                         FileOutputStream ex = new FileOutputStream(
@@ -1537,20 +1494,28 @@ public class TextEditorActivity extends BaseActivity {
                 }
                 final boolean done = err == null;
                 final String ferr = err;
+                final boolean editGenerated = done && archiveFile != null && entryName != null
+                        && ApkEditSession.isApk(archiveFile);
                 runOnUiThread(new Runnable() {
                     public void run() {
                         if (done) {
-                            modified = false;
-                            if (archiveFile != null) {
+                            setModified(false);
+                            if (editGenerated) {
+                                toast("已保存，修改版 → " + ApkEditSession.editName(archiveFile)
+                                        + "\n（退出 APK 后可统一签名）");
+                                if (pendingFinishAfterSave) finish();
+                            } else if (archiveFile != null) {
                                 toast("已写回压缩包 (" + encoding + ")");
-                                if (archiveFile.getName().toLowerCase().endsWith(".apk"))
-                                    askAutoSign();
+                                if (pendingFinishAfterSave) finish();
                             } else if (exportDir != null) {
                                 toast("已保存并导出到 " + exportDir.getPath());
+                                if (pendingFinishAfterSave) finish();
                             } else {
                                 toast("已保存 (" + encoding + ")");
+                                if (pendingFinishAfterSave) finish();
                             }
                         } else {
+                            pendingFinishAfterSave = false;  // 保存失败留在编辑器，可重试
                             toast("保存失败: " + ferr);
                         }
                     }
@@ -1562,7 +1527,7 @@ public class TextEditorActivity extends BaseActivity {
     /**
      * v1.64.0：ARSC++ 编辑保存 —— 编辑的是 values 风格 XML，
      * 保存时解析 XML → 生成对 resources.arsc 的修改（ArscPlus.applyXml → ArscWriter.write）
-     * → 重打包（.so 4096 对齐）覆盖原 APK → 提示重签名。
+     * → v1.66.0：登记到 ApkEditSession 统一重生成 <名>_edit.apk（不原地写回、不再单独签名）。
      */
     private void saveArscPlus() {
         final String text = editor.getText().toString();
@@ -1580,8 +1545,9 @@ public class TextEditorActivity extends BaseActivity {
                     } catch (Exception ro) {
                         if (!RootIO.writeBytes(file, data)) throw ro;
                     }
-                    // 2) 重新解析 APK 内的 arsc（避免用过期模型）
-                    byte[] arscBytes = readZipEntry(archiveFile, arscppEntry);
+                    // 2) 重新解析 arsc（会话中有未落地修改则优先，避免用过期模型）
+                    byte[] arscBytes = ApkEditSession.editBytes(archiveFile, arscppEntry);
+                    if (arscBytes == null) arscBytes = readZipEntry(archiveFile, arscppEntry);
                     ArscFile af = ArscFile.parse(arscBytes);
                     // 3) XML → 编辑列表（值级 + 结构化 v1.64.2: rename/delete/add）
                     java.util.List<ArscEditor.Op> ops =
@@ -1592,15 +1558,9 @@ public class TextEditorActivity extends BaseActivity {
                     if (nEdits > 0) {
                         // ArscEditor：无结构化编辑走兼容补丁路径；有 delete/add 走全量重编码
                         byte[] newArsc = ArscEditor.write(af, edits, ops);
-                        // 4) 重打包覆盖原 APK（保持 .so 4096 对齐），随后提示重签名
-                        java.util.Map<String, byte[]> replace =
-                                new java.util.HashMap<String, byte[]>();
-                        replace.put(arscppEntry, newArsc);
-                        File tmp = new File(getCacheDir(), "arscpp_save.apk");
-                        if (tmp.exists()) tmp.delete();
-                        ApkRepack.repack(archiveFile, replace, tmp);
-                        copyFileTo(tmp, archiveFile);
-                        tmp.delete();
+                        // 4) 登记 + 统一重生成 <名>_edit.apk（原包首次修改时备份 _bak.apk）
+                        ApkEditSession.putEdit(TextEditorActivity.this,
+                                archiveFile, arscppEntry, newArsc);
                     }
                 } catch (Exception e) {
                     err = e.getMessage() != null ? e.getMessage()
@@ -1611,18 +1571,21 @@ public class TextEditorActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         if (ferr != null) {
+                            pendingFinishAfterSave = false;
                             new AlertDialog.Builder(TextEditorActivity.this)
-                                    .setTitle("写回失败")
+                                    .setTitle("保存失败")
                                     .setMessage(ferr)
                                     .setPositiveButton("知道了", null).show();
                         } else if (fn == 0) {
-                            modified = false;
-                            toast("没有需要写回的修改");
+                            setModified(false);
+                            toast("没有需要保存的修改");
+                            if (pendingFinishAfterSave) finish();
                         } else {
-                            modified = false;
-                            toast("已写回 " + arscppEntry + "（" + fn + " 处修改）");
-                            if (archiveFile.getName().toLowerCase().endsWith(".apk"))
-                                askAutoSign();
+                            setModified(false);
+                            toast("已保存 " + arscppEntry + "（" + fn + " 处修改）\n修改版 → "
+                                    + ApkEditSession.editName(archiveFile)
+                                    + "\n（退出 APK 后可统一签名）");
+                            if (pendingFinishAfterSave) finish();
                         }
                     }
                 });
@@ -1647,53 +1610,6 @@ public class TextEditorActivity extends BaseActivity {
         }
     }
 
-    private static void copyFileTo(File src, File dst) throws Exception {
-        java.io.FileInputStream in = new java.io.FileInputStream(src);
-        java.io.FileOutputStream out = new java.io.FileOutputStream(dst);
-        byte[] buf = new byte[65536];
-        int n;
-        while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-        out.close();
-        in.close();
-    }
-
-    private void askAutoSign() {
-        new AlertDialog.Builder(this)
-                .setTitle("APK 已修改")
-                .setMessage(archiveFile.getName()
-                        + " 内容已变更，签名已失效。\n是否立即用内置密钥重新签名？")
-                .setPositiveButton("自动签名", new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface d, int w) {
-                        toast("签名中…");
-                        new Thread(new Runnable() {
-                            public void run() {
-                                String err = null;
-                                File out = new File(archiveFile.getParentFile(),
-                                        stripExt(archiveFile.getName()) + "_signed.apk");
-                                try {
-                                    java.io.InputStream ks = getAssets().open("hexfile.p12");
-                                    ApkSignerTool.sign(ks, ApkSignerTool.KEY_PASSWORD,
-                                            archiveFile, out, 21);
-                                    ks.close();
-                                } catch (Throwable t) {
-                                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
-                                }
-                                final String ferr = err;
-                                final File fout = out;
-                                runOnUiThread(new Runnable() {
-                                    public void run() {
-                                        toast(ferr != null ? "签名失败: " + ferr
-                                                : "已签名 → " + fout.getName());
-                                    }
-                                });
-                            }
-                        }, "editor-sign").start();
-                    }
-                })
-                .setNegativeButton("暂不", null)
-                .show();
-    }
-
     private static String stripExt(String name) {
         int dot = name.lastIndexOf('.');
         return dot > 0 ? name.substring(0, dot) : name;
@@ -1715,8 +1631,9 @@ public class TextEditorActivity extends BaseActivity {
                 .setMessage("内容已修改，是否保存？")
                 .setPositiveButton("保存", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
+                        // v1.64.3：不立即退出 —— 保存完成后按场景提示自动签名，再统一退出
+                        pendingFinishAfterSave = true;
                         save();
-                        finish();
                     }
                 })
                 .setNegativeButton("不保存", new DialogInterface.OnClickListener() {

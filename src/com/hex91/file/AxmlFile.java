@@ -267,14 +267,23 @@ public final class AxmlFile {
 
 	private void renderElement(StringBuilder sb, XElem e) {
 		for (int i = 0; i < e.depth; i++) sb.append("    ");
-		sb.append('<').append(e.name == null ? "?" : e.name);
+		sb.append('<').append(escLine(e.name == null ? "?" : e.name));
 		for (XAttr a : e.attrs) {
 			sb.append('\n');
 			for (int i = 0; i < e.depth + 1; i++) sb.append("    ");
-			sb.append(attrDisplayName(a)).append("=\"")
-					.append(xmlEscape(valueDisplay(a))).append('"');
+			sb.append(escLine(attrDisplayName(a))).append("=\"")
+					.append(escLine(valueDisplay(a))).append('"');
 		}
 		sb.append(" />\n");
+	}
+
+	/**
+	 * v1.65.0：pretty 单行转义——加固包 manifest 含垃圾属性（名/值带换行、<、> 等），
+	 * 直接渲染会破坏「每属性行单行」的受控格式，AxmlTextSync 回解析失败。
+	 * 实体转义后换行编码为 &amp;#10;（& 已先转义，可安全往返）。
+	 */
+	public static String escLine(String s) {
+		return xmlEscape(s).replace("\n", "&#10;").replace("\r", "&#13;");
 	}
 
 	private static String xmlEscape(String s) {

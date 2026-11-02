@@ -2,9 +2,7 @@ package com.hex91.file;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Manifest 文本往返（v1.24）：把编辑后的 pretty XML 文本 diff 回属性级补丁。
@@ -40,36 +38,43 @@ public final class AxmlTextSync {
 		for (int i = 0; i < orig.size(); i++) {
 			AxmlFile.XElem oe = orig.get(i);
 			ParsedElem pe = parsed.get(i);
-			if (!oe.name.equals(pe.name))
+			// v1.65.0：元素名按 pretty 转义形式比较（加固包元素名可能含 <> 等）
+			if (!AxmlFile.escLine(oe.name).equals(pe.name))
 				throw new IllegalArgumentException("不支持改名元素: " + oe.name + " → " + pe.name);
 
-			Map<String, AxmlFile.XAttr> byName = new HashMap<String, AxmlFile.XAttr>();
-			for (AxmlFile.XAttr a : oe.attrs) byName.put(axml.attrDisplayName(a), a);
-
-			Map<String, String> editedVals = new HashMap<String, String>();
-			for (String[] pa : pe.attrs) editedVals.put(pa[0], pa[1]);
-
-			// 修改 / 新增检查（按编辑文本遍历）
-			for (String[] pa : pe.attrs) {
-				AxmlFile.XAttr oa = byName.get(pa[0]);
-				if (oa == null)
-					throw new IllegalArgumentException("暂不支持新增属性 " + pa[0]
-							+ " @" + oe.path + "，请在 Manifest 编辑器++ 中操作");
+			// v1.65.0：贪心配对——加固包 manifest 存在重名垃圾属性，
+			// 按「名字相同优先、显示值也相同者优先」一一配对，避免错配成假编辑
+			boolean[] used = new boolean[pe.attrs.size()];
+			for (AxmlFile.XAttr oa : oe.attrs) {
+				// trim：parseAttrs 对属性行做 trim，垃圾属性名首尾空格需一致化
+				String key = AxmlFile.escLine(axml.attrDisplayName(oa)).trim();
 				String oldV = axml.valueDisplay(oa);
 				if (oldV == null) oldV = "";
-				if (!oldV.equals(pa[1])) {
-					if (oa.dataType != ArscDefs.TYPE_STRING
-							&& AxmlWriter.parseValue(axml, oa, pa[1]) == null)
-						throw new IllegalArgumentException("属性 " + pa[0] + " @" + oe.path
-								+ " 的值 [" + pa[1] + "] 不是合法的 " + typeName(oa.dataType));
-					edits.add(new AxmlWriter.Edit(oa, pa[1]));
+				int pick = -1, pickSame = -1;
+				for (int j = 0; j < pe.attrs.size(); j++) {
+					if (used[j] || !key.equals(pe.attrs.get(j)[0])) continue;
+					if (pick < 0) pick = j;
+					if (pickSame < 0 && oldV.equals(pe.attrs.get(j)[1])) { pickSame = j; break; }
 				}
-			}
-			// 删除检查（按原属性遍历）
-			for (AxmlFile.XAttr oa : oe.attrs) {
-				if (!editedVals.containsKey(axml.attrDisplayName(oa)))
+				int j = pickSame >= 0 ? pickSame : pick;
+				if (j < 0)
 					throw new IllegalArgumentException("暂不支持删除属性 "
 							+ axml.attrDisplayName(oa) + " @" + oe.path);
+				used[j] = true;
+				String paV = pe.attrs.get(j)[1];
+				if (!oldV.equals(paV)) {
+					if (oa.dataType != ArscDefs.TYPE_STRING
+							&& AxmlWriter.parseValue(axml, oa, paV) == null)
+						throw new IllegalArgumentException("属性 " + axml.attrDisplayName(oa)
+								+ " @" + oe.path + " 的值 [" + paV + "] 不是合法的 " + typeName(oa.dataType));
+					edits.add(new AxmlWriter.Edit(oa, paV));
+				}
+			}
+			// 未被消费的解析属性行 = 用户新增
+			for (int j = 0; j < pe.attrs.size(); j++) {
+				if (!used[j])
+					throw new IllegalArgumentException("暂不支持新增属性 " + pe.attrs.get(j)[0]
+							+ " @" + oe.path + "，请在 Manifest 编辑器++ 中操作");
 			}
 		}
 		return AxmlWriter.write(axml, edits);
@@ -157,7 +162,8 @@ public final class AxmlTextSync {
 	}
 
 	private static String unescape(String s) {
-		return s.replace("&quot;", "\"").replace("&lt;", "<")
+		return s.replace("&#10;", "\n").replace("&#13;", "\r")
+				.replace("&quot;", "\"").replace("&lt;", "<")
 				.replace("&gt;", ">").replace("&amp;", "&");
 	}
 

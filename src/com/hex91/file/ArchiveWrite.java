@@ -45,6 +45,7 @@ public class ArchiveWrite {
 
     /** 写入或替换归档内单个条目（内存数据） */
     public static boolean writeEntry(File archive, String entryName, byte[] data) {
+        if (!ZipUtil.entryNameSafe(entryName)) return false;  // v1.66.3 写入侧穿越防护（覆盖 tar/7z）
         if (isTar(archive)) return TarArc.writeEntry(archive, entryName, data);
         if (is7z(archive)) return SevenZArc.writeEntry(archive, entryName, data);
         return ZipUtil.writeEntry(archive, entryName, data);
@@ -52,6 +53,7 @@ public class ArchiveWrite {
 
     /** 写入或替换归档内单个条目（文件流式写入，避免大文件整体进内存） */
     public static boolean writeEntry(File archive, String entryName, File dataFile) {
+        if (!ZipUtil.entryNameSafe(entryName)) return false;  // v1.66.3 写入侧穿越防护（覆盖 tar/7z）
         if (isTar(archive)) return TarArc.writeEntry(archive, entryName, dataFile);
         if (is7z(archive)) return SevenZArc.writeEntry(archive, entryName, dataFile);
         return ZipUtil.writeEntry(archive, entryName, dataFile);

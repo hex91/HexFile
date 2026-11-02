@@ -24,11 +24,20 @@ public class FileOps {
     }
 
     private static boolean moveOrCopy(File src, File dstDir, boolean isMove) {
+        // v1.66.3：区分「拷贝未完成」与「拷贝已完成仅删源失败」——
+        // 后者绝不能再走 RootIO.moveInto（会把数据再拷一遍，造成源/目标双份重复）
+        boolean copied = false;
         try {
             File dst = new File(dstDir, src.getName());
             if (src.isDirectory()) {
                 copyDir(src, dst);
-                if (isMove) deleteRecursive(src);
+                copied = true;
+                if (isMove && !deleteRecursive(src)) {
+                    // 拷贝已完成、源删除失败（只读文件系统等）：目标已有完整数据，
+                    // 仅残留源 → 尝试 root 删除，不再重复拷贝
+                    if (RootUtil.isRootAvailable()) RootIO.delete(src);
+                    return true;
+                }
             } else {
                 dstDir.mkdirs();
                 InputStream in = new FileInputStream(src);
@@ -38,11 +47,21 @@ public class FileOps {
                 while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
                 in.close();
                 out.close();
-                if (isMove) src.delete();
+                copied = true;
+                if (isMove && !src.delete()) {
+                    // src.delete() 静默失败：目标已写入，尝试 root 删除源，不重复拷贝
+                    if (RootUtil.isRootAvailable()) RootIO.delete(src);
+                    return true;
+                }
             }
             return true;
         } catch (Exception e) {
-            // v1.44.0：root 区回退（/data 等 File API 无权限 → su cp/mv）
+            // v1.44.0：root 区回退（/data 等 File API 无权限 → su cp/mv）。
+            // 仅当拷贝本身未完成才回退；已完成拷贝的删除失败不回退（防重复）
+            if (copied) {
+                if (isMove && RootUtil.isRootAvailable()) RootIO.delete(src);
+                return true;
+            }
             return isMove ? RootIO.moveInto(src, dstDir) : RootIO.copyInto(src, dstDir);
         }
     }

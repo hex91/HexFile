@@ -150,6 +150,7 @@ public class ArscPlusActivity extends BaseActivity {
                 File arscFile = new File(workDir, "resources.arsc");
                 if (!extractZipEntry(apk, entryName, arscFile))
                     throw new IllegalStateException("提取失败: " + entryName);
+                ApkEditSession.overlayPending(apk, entryName, arscFile); // 会话修改优先
                 arsc = ArscFile.parse(arscFile);
                 buildTree();
             } catch (Throwable t) {

@@ -91,6 +91,16 @@ public class ZipBrowserActivity extends BaseActivity {
     }
 
     @Override
+    public void finish() {
+        // v1.66.0：退出 APK 浏览时，有未签名修改版 → 统一弹窗（不签名/内置签名文件/自有签名文件）
+        if (archiveFile != null && ApkEditSession.isApk(archiveFile)
+                && ApkEditSession.needsSignPrompt(archiveFile)) {
+            ApkEditSession.launchSignPrompt(this, archiveFile);
+        }
+        super.finish();
+    }
+
+    @Override
     protected void onDestroy() {
         if (archive != null) {
             try { archive.close(); } catch (IOException ignored) {}

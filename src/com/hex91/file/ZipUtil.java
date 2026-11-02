@@ -138,12 +138,29 @@ public class ZipUtil {
      * .apk 会顺带剥离 META-INF 旧签名（.SF/.RSA/.DSA/MANIFEST.MF），便于重签。
      */
     public static boolean writeEntry(File zip, String entryName, byte[] data) {
+        if (!entryNameSafe(entryName)) return false;   // v1.66.3 写入侧穿越防护
         InputStream in = new ByteArrayInputStream(data);
         try {
             return writeEntry(zip, entryName, in, data.length);
         } finally {
             try { in.close(); } catch (IOException ignored) {}
         }
+    }
+
+    /**
+     * v1.66.3 写入侧路径防护：拒绝路径穿越/绝对路径条目名。
+     * 解压侧已有 safeTarget 防护（zip-slip），本方法防「写出含 ../ 条目的恶意压缩包」
+     * ——本应用自身解压安全，但别的解压工具可能受影响。
+     */
+    public static boolean entryNameSafe(String entryName) {
+        if (entryName == null || entryName.isEmpty()) return false;
+        if (entryName.indexOf('\0') >= 0) return false;
+        String n = entryName.replace('\\', '/');
+        if (n.startsWith("/") || n.contains(":")) return false;
+        for (String seg : n.split("/")) {
+            if (seg.equals("..")) return false;
+        }
+        return true;
     }
 
     /**
@@ -166,6 +183,7 @@ public class ZipUtil {
 
     private static boolean writeEntry(File zip, String entryName,
             InputStream data, long size) {
+        if (!entryNameSafe(entryName)) return false;   // v1.66.3 双重防护
         try {
             File tmp = tempFile(zip);
             CountingOutputStream cos = new CountingOutputStream(new FileOutputStream(tmp));

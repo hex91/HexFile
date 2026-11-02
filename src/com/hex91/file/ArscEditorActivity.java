@@ -134,6 +134,7 @@ public class ArscEditorActivity extends BaseActivity {
                 File arscFile = new File(workDir, "resources.arsc");
                 if (!extractZipEntry(apk, entryName, arscFile))
                     throw new IllegalStateException("提取失败: " + entryName);
+                ApkEditSession.overlayPending(apk, entryName, arscFile); // 会话修改优先
                 arsc = ArscFile.parse(arscFile);
                 buildRows();
             } catch (Throwable t) {
@@ -508,37 +509,30 @@ public class ArscEditorActivity extends BaseActivity {
     private void askSave() {
         if (arsc == null) { toast("尚未加载完成"); return; }
         if (!dirty) { toast("没有修改"); return; }
-        final File outApk = new File(apk.getParentFile(), apkBase + "_arscpp.apk");
         new AlertDialog.Builder(this)
-                .setTitle("保存并重新签名")
-                .setMessage("将修改写入 " + entryName + " 并重打包签名：\n\n" + outApk.getPath()
-                        + "\n\n（.so 保持 4096 对齐，签 v1+v2+v3，可直接安装）")
+                .setTitle("保存修改")
+                .setMessage("将修改写入 " + entryName + " 并统一生成：\n\n"
+                        + ApkEditSession.editName(apk)
+                        + "\n\n（原包首次修改时自动备份为 同名_bak.apk；"
+                        + "退出 APK 后统一提示签名）")
                 .setPositiveButton("保存", new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface d, int w) { doSave(outApk); }
+                    public void onClick(DialogInterface d, int w) { doSave(); }
                 })
                 .setNegativeButton("取消", null)
                 .show();
     }
 
-    private void doSave(final File outApk) {
+    private void doSave() {
         final ProgressDialog pd = new ProgressDialog(this);
         pd.setMessage("写入 arsc …");
         pd.setCancelable(false);
         pd.show();
         new Thread() { public void run() {
             String err = null;
-            File unsigned = null;
             try {
                 byte[] newArsc = ArscWriter.write(arsc, edits);
-                unsigned = new File(getCacheDir(), "arscpp_" + apkBase + "/unsigned.apk");
-                Map<String, byte[]> replace = new HashMap<String, byte[]>();
-                replace.put(entryName, newArsc);
-                ApkRepack.repack(apk, replace, unsigned);
-                if (outApk.exists()) outApk.delete();
-                InputStream ksIn = getAssets().open("hexfile.p12");
-                // minSdk 21 → v1+v2+v3 全签（覆盖 Android 5.0+；仅 v2/v3 无法装到 API<24 设备）
-                ApkSignerTool.sign(ksIn, ApkSignerTool.KEY_PASSWORD, unsigned, outApk, 21);
-                ksIn.close();
+                // v1.66.0：登记 + 统一重生成 <名>_edit.apk（不再单独签出 _arscpp.apk）
+                ApkEditSession.putEdit(ArscEditorActivity.this, apk, entryName, newArsc);
             } catch (Throwable t) {
                 err = t.getClass().getSimpleName() + ": " + t.getMessage();
             }
@@ -552,66 +546,14 @@ public class ArscEditorActivity extends BaseActivity {
                 } else {
                     dirty = false;
                     refresh();
-                    new AlertDialog.Builder(ArscEditorActivity.this)
-                            .setTitle("已保存并签名")
-                            .setMessage("已签名保存为:\n" + outApk.getPath()
-                                    + "\n\n「写回原 APK」= 用此修改版覆盖原 APK（覆盖后重新打开该 APK 即为修改版）")
-                            .setPositiveButton("写回原 APK",
-                                    new DialogInterface.OnClickListener() {
-                                public void onClick(DialogInterface d, int w) {
-                                    writeBack(outApk, apk);
-                                }
-                            })
-                            .setNeutralButton("安装", new DialogInterface.OnClickListener() {
-                                public void onClick(DialogInterface d, int w) { installApk(outApk); }
-                            })
-                            .setNegativeButton("关闭", null)
-                            .show();
+                    toast("已保存，修改版 → " + ApkEditSession.editName(apk)
+                            + "\n（退出 APK 后可统一签名）");
                 }
             }});
         }}.start();
     }
 
-    private void installApk(File apkFile) {
-        try {
-            Uri uri = Uri.parse("content://com.hex91.file.files" + apkFile.getAbsolutePath());
-            Intent i = new Intent(Intent.ACTION_INSTALL_PACKAGE);
-            i.setData(uri);
-            i.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(i);
-        } catch (Exception e) {
-            toast("无法启动安装: " + e);
-        }
-    }
-
     /** 签名产物覆盖写回原 APK（后台 + 进度框） */
-    private void writeBack(final File signed, final File orig) {
-        final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("写回原 APK …");
-        pd.setCancelable(false);
-        pd.show();
-        new Thread() { public void run() {
-            String err = null;
-            try {
-                java.io.FileInputStream in = new java.io.FileInputStream(signed);
-                java.io.FileOutputStream out = new java.io.FileOutputStream(orig);
-                byte[] buf = new byte[65536];
-                int n;
-                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-                in.close();
-                out.close();
-            } catch (Throwable t) {
-                err = t.getMessage();
-            }
-            final String e = err;
-            runOnUiThread(new Runnable() { public void run() {
-                pd.dismiss();
-                toast(e != null ? "写回失败: " + e
-                        : "已写回原 APK（重新打开即可看到修改）");
-            }});
-        }}.start();
-    }
-
     // ---------- 退出确认 ----------
 
     public void onBackPressed() {

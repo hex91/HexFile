@@ -1662,6 +1662,137 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.66.3 —— 代码审查修复（UTF-8 池长度截断 / 移动重复 / 写入侧 zip-slip）
+
+对 5 项审查报告逐一核实的处理结果（2 项属实修复、1 项属实加固、1 项 v1.65.0 已修、1 项不成立）：
+
+**Bug 1（poolBytes 4 字节对齐）— 此前已修，无需处理**：v1.65.0 已在 `AxmlWriter.poolBytes()` 第 215 行对字符串数据区补零对齐（`while ((data.size() & 3) != 0) data.write(0)`），且 `dataLen` 在补零后计算，整体自洽。审查引用的是旧版代码。
+
+**Bug 2（encodeUtf8 长度截断）— 属实，已修**：UTF-8 池串的两个长度字段（字符数/字节数）此前只写低 7 位，>127 的长字符串（长权限名等）池必然损坏。现改双字节变长编码（`0x80|高8位 + 低8位`，与 `ArscWriter.writeLen8` 及解析端 `strEnd` 解码同语义）。新增 `test/AxmlUtf8Test`：手工构造 UTF-8 池最小 AXML 全链路（300/350 字符长串编辑往返 + 对齐校验 + 短串回归），15/15 通过。
+
+**Bug 3（moveOrCopy 移动重复）— 属实，已修**：`FileOps.moveOrCopy` 用 `copied` 标志区分两阶段——拷贝未完成才回退 `RootIO.moveInto/copyInto`（root 场景）；拷贝已完成但删源失败时，只尝试 root 删除源并返回成功，绝不再拷贝一遍（消除源/目标双份数据）。同时覆盖 `src.delete()` 静默返回 false 的场景。
+
+**Bug 4（写入侧 zip-slip）— 属实，已加固**：解压侧本有 `safeTarget` 防护；现写入侧也拒绝路径穿越——`ZipUtil.entryNameSafe()`（`..` 段、绝对路径、NUL、盘符），在 `ZipUtil.writeEntry`（内存/流式/私有重建三处）与 `ArchiveWrite.writeEntry`（同时覆盖 tar/7z 后端）统一拦截，防止写出含 `../` 条目的恶意压缩包。
+
+**Bug 5（findViewById 空指针）— 不成立**：`editor_lines`/`editor_symbols`/`editor_search_panel` 均定义于唯一的 `activity_editor.xml`（项目无 `layout-*` 配置变体目录），运行时 `findViewById` 不可能返回 null，无需降级判断。
+
+回归：AxmlTest 16/16、SessionTest 20/20、真实 APK 链路 9/9。versionCode 118。
+
+---
+
+## v1.66.2 —— 签名目标一致性保护（长按菜单签名）
+
+补充 v1.66.1 的统一模型，长按菜单「APK 签名 / 自定义密钥签名」新增目标判断：
+
+- **长按的是 `_edit.apk`（修改版）** → **原地签名**（不再额外生成 `xxx_edit_signed.apk`，保持「只生成一个修改版文件」）；
+- **长按的是原包且存在未签名修改版** → 弹窗询问：**签名修改版**（推荐，含全部修改，原地签）/ **仅签原包**（生成 `_signed.apk`，不含修改）——防止把不含修改的包签名后误装；
+- 其余情况行为不变（原包 → `_signed.apk`）。
+
+背景：任何对 APK 内容的修改（smali/dex/arsc/清单/增删文件）都会使原签名失效——重打包会重写 ZIP 并剔除原签名，因此 `_edit.apk` 一定是未签名的，**安装前必须签名**。若出现"未签名也能装"的情况，装的一定不是含修改的包（常见于误签了原包或签了旧的已签名文件）。
+
+versionCode 117。
+
+---
+
+## v1.66.1 —— 修复签名目标错误（签到了原包）+ 签名弹窗美化
+
+**修复（重要）**：v1.66.0 的统一签名弹窗把**原始 APK** 路径传给了签名流程——选「签名」后内置密钥直接重签了原包，而 `<名>_edit.apk` 一直是未签名状态（安装/查看时报「无法解析包名、签名未通过」，因为系统解析器拒绝无签名 APK）。现修复为只签 `<名>_edit.apk`，签名原地覆盖，原包始终不被改动。
+
+> 若已用 v1.66.0 误签过原包：同目录的 `<名>_bak.apk` 是未被动过的最早原版，直接用它覆盖回去即可。
+
+**签名弹窗重做**：弃用系统 AlertDialog（大黑框），改为自绘圆角卡片：
+- 配色全部取自当前主题（22 色板 × 亮/暗自动适配，跟随主题切换）；
+- 卡片式布局：标题 + 说明 + 文件名信息条 + 主按钮（内置签名，accent 实底）/ 次按钮（自有签名文件）/「暂不签名」文字项；
+- 自有 keystore 密码输入同样为卡片页；签名中显示进度页；点空白处/返回键关闭。
+
+验证：SessionTest 20/20（新增 2.7 签名目标 = `_edit.apk` 断言）。versionCode 116。
+
+---
+
+## v1.66.0 —— APK 修改统一模型：只生成一个 `_edit.apk` + 统一签名弹窗
+
+**规则**：任何 APK 修改不再原地写回、不再产出 `_xmlpp/_arscpp/_dexpp/_mfpp` 等一堆文件。
+所有修改登记进新的 `ApkEditSession` 会话，统一重打包为 `<原名>_edit.apk`（未签名）；
+首次修改时原包自动备份为 `<原名>_bak.apk`（已存在则保留最早原版）。
+未发生实质性修改 → 不生成任何文件，原包保持不变。
+
+- **覆盖所有修改场景**：smali/dex 编辑写回、resources.arsc（ARSC/ARSC++）、
+  AndroidManifest（Manifest 编辑器++ / XML 源码编辑）、文本条目（smali/xml 文本）、
+  lib/assets 新增文件/目录、压缩包条目删除、提取并删除。
+- **重复编辑一致性**：重新打开被改过的条目时自动取会话中最新内容
+  （`overlayPending`/`editBytes`），多次保存始终 = 原包 + 全部会话修改。
+- **统一签名弹窗**（`SignPromptActivity`，透明）：退出 APK 浏览时若有未签名修改版，
+  统一弹出「不签名 / 内置签名文件签名 / 自有签名文件签名（选 .p12/.jks/.keystore +
+  输密码）」；签名成功后**原地覆盖** `_edit.apk`，仍然只有一个文件。
+  选择不签名后同一轮修改不再重复弹。
+- **单独签名** APK 仍输出 `<名>_signed.apk`（长按菜单，不变）。
+- `ApkRepack` 支持新增条目（`lib/*.so` 按 STORED + 4096 对齐）；备份名统一 `_bak.apk`。
+- 移除各编辑器内散落的「写回原 APK / 自动签名」弹窗与 `_xmlpp/_arscpp/_dexpp/_mfpp` 产物。
+- 桌面 `SessionTest` 19 项全过（无修改零产物、备份保留原版、修改叠加、加 .so STORED、
+  删条目、overlay、签名后 aapt2/apksigner 验证）；`AxmlTest` 16/16 无回归。
+- versionCode 115。
+
+---
+
+## v1.65.1 —— APK 原地写回前自动备份原包
+
+### 新增
+- **所有 APK 修改在覆盖原包前自动备份**：新增 `ApkRepack.backupOriginal()`，
+  覆盖前把最初版本复制为同目录 `<名>_原始备份.apk`；备份已存在则保留最早原版
+  （多次修改不会丢真原包）。覆盖场景（5 处）全部接入：
+  - 文本编辑器写回压缩包条目（smali/xml 等，`TextEditorActivity.save`）；
+  - ARSC++ XML 编辑写回（`saveArscPlus`）；
+  - Manifest XML 往返编译「写回原 APK」（`writeBackSigned`）；
+  - ARSC 编辑器「写回原 APK」；
+  - Manifest 编辑器++「写回原 APK」。
+  成功提示会注明备份文件名。签名产物类（`_signed.apk`/`_xmlpp.apk`/`_dexpp.apk`）
+  本就是独立文件，不覆盖原包，无需备份。
+- versionCode 114。
+
+---
+
+## v1.65.0 —— 修复「Manifest XML 编辑保存后 APK 无法解析」+ arsc 点击选择框
+
+### 修复（关键）
+- **`AxmlWriter.poolBytes` 字符串池补零对齐**：二进制 XML 所有 chunk 必须 4 字节对齐。
+  旧版追加字符串（改 versionName 即触发）重建池后长度非 4 倍数，aapt2/PackageManager 报
+  `XML size ... is not on an integer boundary` → **安装时解析包失败**（APK 无法解析）。
+  用真实 APK 全链路复现并修复：pretty → AxmlTextSync → repack → aapt2 dump badging/xmltree
+  → apksigner verify 全部通过。
+- **加固包 manifest 往返兼容**：加固样本 manifest 含垃圾属性（名/值带换行、`<`/`>`、
+  首尾空格、重名属性），旧版 pretty 渲染破坏「每属性行单行」受控格式导致保存必失败：
+  - `AxmlFile.renderElement` 元素名/属性名/值统一实体转义，换行编码 `&#10;`（可安全往返）；
+  - `AxmlTextSync.sync` 重写为贪心配对（名字相同优先、显示值也相同者优先），
+    解决重名垃圾属性错配成假编辑；键名 trim 一致化。
+- `encodeUtf16` 长串标记修正（首 u16 = 0x8000 | (n>>16)）。
+
+### 新增/修改
+- APK 内点击 `.arsc` 改为**弹选择框**（ARSC 编辑 / ARSC++ 编辑），不再直接进入修改
+  （`MainActivity.openArchArsc`）。
+
+### 测试
+- 新增 `test/AxmlRealChainTest.java`：88 个真实样本全链路（提取 manifest → 模拟改
+  versionName → sync → 对齐校验 → repack → aapt2 → 签名 → apksigner verify）。
+- versionCode 113。
+
+---
+
+## v1.64.3 —— 编辑器保存状态联动（未修改禁保存 / 返回保存提示签名）
+
+### 新增/修改
+- **保存图标联动 dirty 状态**：打开/刚保存后保存图标置灰不可点（alpha 0.35）；
+  任何改动（输入、行操作、替换、补全、格式化等）立即恢复可点。
+  全部 dirty 写入统一走新入口 `setModified()`（`TextEditorActivity`）。
+- **返回未保存提示**：返回（或关闭文件）时若有未保存修改，弹「保存 / 不保存 / 取消」；
+  选「保存」不再立即退出 —— 保存完成后按场景统一处理：
+  - 普通文件 / 导出：保存成功后自动退出；
+  - 压缩包（非 APK）：写回成功后自动退出；
+  - APK：写回后弹「是否自动签名」—— 选签名则签名成功后退出，选「暂不」也退出；
+    保存失败则留在编辑器可重试。
+- versionCode 112。
+
+---
+
 ## v1.64.2 —— ARSC++ 全量解析器 ArscEditor（参考 NP Manager 架构逆向）
 
 逆向 NP Manager（com.wn.app.np）的 ARSC 实现后，在原「字符串池追加 + 4 字节补丁」
