@@ -6,7 +6,7 @@ public class BakTest {
         File apk = new File(d, "app.apk");
         write(apk, "ORIGINAL_V1");
         File bak = ApkRepack.backupOriginal(apk);
-        chk("备份生成", bak.exists() && bak.getName().equals("app_原始备份.apk"), bak.getName());
+        chk("备份生成", bak.exists() && bak.getName().equals("app_bak.apk"), bak.getName());
         chk("备份内容=原版", read(bak).equals("ORIGINAL_V1"), read(bak));
         write(apk, "MODIFIED_V2");
         File bak2 = ApkRepack.backupOriginal(apk);

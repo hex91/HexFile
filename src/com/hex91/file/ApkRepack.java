@@ -140,9 +140,12 @@ public final class ApkRepack {
     private static byte[] readAll(InputStream in) throws IOException {
         ByteArrayOutputStream bo = new ByteArrayOutputStream();
         byte[] buf = new byte[65536];
-        int n;
-        while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
-        in.close();
+        try {
+            int n;
+            while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+        } finally {
+            try { in.close(); } catch (IOException ignored) {}
+        }
         return bo.toByteArray();
     }
 

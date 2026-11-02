@@ -117,14 +117,38 @@ public final class ApkEditSession {
     public static boolean overlayPending(File apk, String entry, File target) {
         byte[] b = editBytes(apk, entry);
         if (b == null) return false;
+        FileOutputStream out = null;
         try {
-            FileOutputStream out = new FileOutputStream(target);
+            out = new FileOutputStream(target);
             out.write(b);
-            out.close();
             return true;
         } catch (IOException e) {
             return false;
+        } finally {
+            if (out != null) try { out.close(); } catch (IOException ignored) {}
         }
+    }
+
+    /** entry 全路径 SHA-1 摘要（缓存文件名用；String.hashCode 可碰撞，同名不同目录会互覆） */
+    private static String entryKey(String entry) {
+        try {
+            java.security.MessageDigest md =
+                    java.security.MessageDigest.getInstance("SHA-1");
+            byte[] d = md.digest(entry.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(d.length * 2);
+            for (byte b : d) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+                sb.append(Character.forDigit(b & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            return Integer.toHexString(entry.hashCode()); // 理论上不可达
+        }
+    }
+
+    /** 缓存文件名：entry 全路径 SHA-1 + 末段文件名（保留可读性） */
+    private static File cacheFileFor(Context ctx, File apk, String entry) {
+        return new File(cacheRoot(ctx, apk), entryKey(entry) + "_" + new File(entry).getName());
     }
 
     /**
@@ -134,11 +158,14 @@ public final class ApkEditSession {
     public static File putEdit(Context ctx, File apk, String entry, byte[] data)
             throws IOException {
         Session s = get(apk);
-        File cache = new File(cacheRoot(ctx, apk),
-                Integer.toHexString(entry.hashCode()) + "_" + new File(entry).getName());
-        FileOutputStream out = new FileOutputStream(cache);
-        out.write(data);
-        out.close();
+        File cache = cacheFileFor(ctx, apk, entry);
+        FileOutputStream out = null;
+        try {
+            out = new FileOutputStream(cache);
+            out.write(data);
+        } finally {
+            if (out != null) try { out.close(); } catch (IOException ignored) {}
+        }
         s.edits.put(entry, cache);
         return regen(ctx, apk);
     }
@@ -147,8 +174,7 @@ public final class ApkEditSession {
     public static File putAdd(Context ctx, File apk, String entry, File srcFile)
             throws IOException {
         Session s = get(apk);
-        File cache = new File(cacheRoot(ctx, apk),
-                Integer.toHexString(entry.hashCode()) + "_" + new File(entry).getName());
+        File cache = cacheFileFor(ctx, apk, entry);
         copy(srcFile, cache);
         s.edits.put(entry, cache);
         return regen(ctx, apk);
@@ -158,8 +184,7 @@ public final class ApkEditSession {
     public static void stageAdd(Context ctx, File apk, String entry, File srcFile)
             throws IOException {
         Session s = get(apk);
-        File cache = new File(cacheRoot(ctx, apk),
-                Integer.toHexString(entry.hashCode()) + "_" + new File(entry).getName());
+        File cache = cacheFileFor(ctx, apk, entry);
         File parent = cache.getParentFile();
         if (parent != null && !parent.exists()) parent.mkdirs();
         copy(srcFile, cache);
@@ -265,6 +290,31 @@ public final class ApkEditSession {
         } finally {
             in.close();
             out.close();
+        }
+    }
+
+    /**
+     * 用 tmp 安全替换 target（签名原地覆盖用）：
+     * Linux/Android 的 rename 本可【原子替换】已存在文件，所以先直接 rename——
+     * 不要「先 delete 后 rename」：delete 成功而 rename 失败会丢原文件。
+     * rename 失败（跨挂载点等）才降级为 备份→复制→失败恢复：
+     * 原文件先 rename 成 .replacebak，复制失败时尝试还原，还原失败保留备份不删。
+     */
+    public static void safeReplace(File tmp, File target) throws IOException {
+        if (tmp.renameTo(target)) return;
+        File bak = new File(target.getParentFile(), target.getName() + ".replacebak");
+        if (bak.exists()) bak.delete();
+        boolean hasOld = target.exists();
+        if (hasOld && !target.renameTo(bak))
+            throw new IOException("无法备份原文件: " + target.getName());
+        try {
+            copy(tmp, target);
+            bak.delete();                       // 成功 → 备份使命完成
+        } catch (IOException e) {
+            if (hasOld && !target.exists() && bak.exists()) bak.renameTo(target);
+            throw e;                            // 还原失败时保留 .replacebak 供手工恢复
+        } finally {
+            if (tmp.exists()) tmp.delete();
         }
     }
 

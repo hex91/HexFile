@@ -1662,6 +1662,22 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.66.4 —— 代码审查修复（资源泄漏 / 签名原子性 / 缓存名碰撞）
+
+对 4 项审查报告的处置（3 项属实修复、1 项属实的结构收敛）：
+
+**1. `ApkEditSession.putEdit`/`overlayPending` 流泄漏 — 属实，已修**：`FileOutputStream` 改 try-finally 关闭，`write` 抛异常不再泄漏句柄。
+
+**2. `ApkRepack.readAll` 流泄漏 — 属实，已修**：`in.close()` 移入 try-finally，`read` 中途抛异常时也能关闭。
+
+**3. 原地签名「先删后改」原子性 — 属实，已修**：3 处（`MainActivity.signApkInPlace`、MainActivity 自定义签名原地覆盖、`SignPromptActivity.signInPlace`）统一收敛到新工具方法 `ApkEditSession.safeReplace(tmp, target)`——Linux/Android 的 `rename` 本可原子替换已存在文件，故**先直接 rename（去掉先 delete）**；rename 失败（跨挂载点等罕见场景）才降级为「原文件 rename 成 `.replacebak` → 复制 → 成功删备份 / 失败尝试还原（还原失败保留备份不删）」，彻底消除「删成功、写失败 → 原包丢失」窗口。顺带 `signApkInPlace` 的 keystore 流也移入 finally。
+
+**4. 会话缓存文件名碰撞 — 属实，已修**：缓存名此前用 `entry.hashCode()`（可碰撞）+ 末段文件名，`lib/arm64/libx.so` 与 `lib/x86/libx.so` 理论上会互相覆盖。改用 **entry 全路径 SHA-1 摘要**（`entryKey`）+ 末段文件名，putEdit/putAdd/stageAdd 三处统一走 `cacheFileFor`。
+
+回归：BakTest 4/4、SessionTest 20/20、AxmlTest 16/16、AxmlUtf8Test 全过。versionCode 119。
+
+---
+
 ## v1.66.3 —— 代码审查修复（UTF-8 池长度截断 / 移动重复 / 写入侧 zip-slip）
 
 对 5 项审查报告逐一核实的处理结果（2 项属实修复、1 项属实加固、1 项 v1.65.0 已修、1 项不成立）：

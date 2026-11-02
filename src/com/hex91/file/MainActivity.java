@@ -1872,19 +1872,14 @@ public class MainActivity extends BaseActivity {
                     File tmp = new File(apk.getParentFile(), apk.getName() + ".signtmp");
                     if (tmp.exists()) tmp.delete();
                     java.io.InputStream ks = getAssets().open("hexfile.p12");
-                    ApkSignerTool.sign(ks, ApkSignerTool.KEY_PASSWORD, apk, tmp, 21);
-                    ks.close();
-                    if (apk.exists()) apk.delete();
-                    if (!tmp.renameTo(apk)) {
-                        java.io.FileInputStream in = new java.io.FileInputStream(tmp);
-                        java.io.FileOutputStream out = new java.io.FileOutputStream(apk);
-                        byte[] buf = new byte[65536];
-                        int n;
-                        while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-                        in.close();
-                        out.close();
-                        tmp.delete();
+                    try {
+                        ApkSignerTool.sign(ks, ApkSignerTool.KEY_PASSWORD, apk, tmp, 21);
+                    } finally {
+                        ks.close();
                     }
+                    // v1.66.4：safeReplace 先原子 rename（Linux 可替换已存在文件），
+                    // 失败才备份+复制——不再「先 delete」，避免写失败丢原包
+                    ApkEditSession.safeReplace(tmp, apk);
                     try { ApkEditSession.markSigned(apk); } catch (Throwable ignored) {}
                 } catch (Throwable t) {
                     err = t.getClass().getSimpleName() + ": " + t.getMessage();
@@ -4602,19 +4597,9 @@ public class MainActivity extends BaseActivity {
                                     ApkSignerTool.signAutoAlias(ksBytes, pwd.toCharArray(),
                                             apk, out, 21);
                                     if (inPlace) {
-                                        if (apk.exists()) apk.delete();
-                                        if (!out.renameTo(apk)) {
-                                            java.io.FileInputStream in =
-                                                    new java.io.FileInputStream(out);
-                                            java.io.FileOutputStream o =
-                                                    new java.io.FileOutputStream(apk);
-                                            byte[] buf = new byte[65536];
-                                            int n;
-                                            while ((n = in.read(buf)) > 0) o.write(buf, 0, n);
-                                            in.close();
-                                            o.close();
-                                            out.delete();
-                                        }
+                                        // v1.66.4：safeReplace 先原子 rename，失败才
+                                        // 备份+复制，不再先 delete 防写失败丢原包
+                                        ApkEditSession.safeReplace(out, apk);
                                         try { ApkEditSession.markSigned(apk); }
                                         catch (Throwable ignored) {}
                                     }

@@ -292,22 +292,12 @@ public class SignPromptActivity extends Activity {
         void sign(File out) throws Exception;
     }
 
-    /** 签名到临时文件 → 原子覆盖 _edit.apk */
+    /** 签名到临时文件 → 原子覆盖 _edit.apk（safeReplace：先 rename，失败才备份+复制） */
     private void signInPlace(Signer signer) throws Exception {
         File tmp = new File(apk.getParentFile(), apk.getName() + ".signtmp");
         if (tmp.exists()) tmp.delete();
         signer.sign(tmp);
-        if (apk.exists()) apk.delete();
-        if (!tmp.renameTo(apk)) {
-            java.io.FileInputStream in = new java.io.FileInputStream(tmp);
-            java.io.FileOutputStream out = new java.io.FileOutputStream(apk);
-            byte[] buf = new byte[65536];
-            int n;
-            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-            in.close();
-            out.close();
-            tmp.delete();
-        }
+        ApkEditSession.safeReplace(tmp, apk);
         ApkEditSession.markSigned(apk);
     }
 
