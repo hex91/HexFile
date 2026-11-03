@@ -57,6 +57,23 @@ public final class ApkEditSession {
         return apk.getAbsolutePath();
     }
 
+    /**
+     * v1.66.7：markSigned 的 key 规范化——签名弹窗/原地签名拿到的是
+     * <名>_edit.apk，但会话状态（dirty/prompted）挂在【原包】路径上。
+     * 直接 markSigned(_edit.apk) 会写到幽灵会话上，原包会话仍 dirty=true，
+     * 下次退出可能重复弹签名框。传 _edit.apk 时映射回原包。
+     */
+    private static String sessionKeyOf(String path) {
+        String name = path.substring(path.lastIndexOf('/') + 1);
+        int dot = name.lastIndexOf('.');
+        String base = dot > 0 ? name.substring(0, dot) : name;
+        if (base.endsWith("_edit")) {
+            String origName = base.substring(0, base.length() - 5) + ".apk";
+            return path.substring(0, path.length() - name.length()) + origName;
+        }
+        return path;
+    }
+
     public static synchronized Session get(File apk) {
         String k = key(apk);
         Session s = MAP.get(k);
@@ -81,7 +98,7 @@ public final class ApkEditSession {
     }
 
     public static synchronized void markSigned(File apk) {
-        Session s = get(apk);
+        Session s = get(new File(sessionKeyOf(apk.getAbsolutePath())));
         s.dirty = false;
         s.prompted = false;
     }

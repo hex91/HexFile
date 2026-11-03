@@ -2533,6 +2533,21 @@ public class MainActivity extends BaseActivity {
     }
 
     /** MT 风格 APK 信息弹窗：图标 + 逐行信息；点行复制，点「签名状态」行进签名详情页 */
+    private static String apkFileRole(File f) {
+        String n = f.getName().toLowerCase();
+        if (n.endsWith("_edit.apk"))
+            return "修改版（全部修改在此文件，签名后安装它；原包与 _bak 未被改动）";
+        if (n.endsWith("_bak.apk"))
+            return "原包备份（首次修改时自动生成，保持原厂签名，用于还原；勿安装）";
+        if (n.endsWith("_signed.apk"))
+            return "签名副本（长按「APK 签名」用内置密钥生成的独立文件）";
+        if (n.endsWith("_csigned.apk"))
+            return "自定义签名副本（用自有 keystore 签名的独立文件）";
+        if (n.endsWith("_unsigned.apk"))
+            return "去除签名副本（仅剥离签名文件，内容同原包）";
+        return null;
+    }
+
     private void showApkInfo(final File f) {
         final PackageManager pm = getPackageManager();
         List<String[]> rows = ApkUtil.rows(f, pm);
@@ -2547,6 +2562,10 @@ public class MainActivity extends BaseActivity {
             rows.add(new String[]{"APK 路径", f.getAbsolutePath()});
         }
         final List<String[]> rowsF = rows;
+        // v1.66.7：修改版/备份文件角色说明——原包与 _bak 永远保持原厂签名（设计如此），
+        // 全部修改在 _edit.apk；不加这行用户容易把三者混淆（"怎么还是原始签名"）
+        String role = apkFileRole(f);
+        if (role != null) rowsF.add(1, new String[]{"文件角色", role});
 
         View view = getLayoutInflater().inflate(R.layout.dialog_apk_info, null);
         Drawable icon = ApkUtil.icon(f, pm);
