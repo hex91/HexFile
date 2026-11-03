@@ -1410,28 +1410,43 @@ public class MainActivity extends BaseActivity {
 
     /** 压缩包内点击 .dex → 操作菜单（MT 风格） */
     private void askArchDexAction(final Panel p, final FileItem it) {
-        String[] ops = {"Dex 编辑器++（可多选 dex，直接改指令）", "反编译为 smali",
-                "HEX 查看", "提取到当前窗格"};
+        // v1.66.5：属性/修复放点击弹窗（对标 NP 打开方式），长按菜单不再重复
+        final java.util.List<String> ops = new ArrayList<String>();
+        ops.add("Dex 编辑器++（可多选 dex，直接改指令）");
+        ops.add("反编译为 smali");
+        ops.add("Dex 属性");
+        final boolean isApk = ApkEditSession.isApk(p.archiveFile);
+        if (isApk) ops.add("Dex 修复");
+        ops.add("HEX 查看");
+        ops.add("提取到当前窗格");
         new AlertDialog.Builder(this)
                 .setTitle(it.archShort)
-                .setItems(ops, new android.content.DialogInterface.OnClickListener() {
-                    public void onClick(android.content.DialogInterface d, int w) {
-                        if (w == 0) {
-                            Intent i = new Intent(MainActivity.this, DexEditorActivity.class);
-                            i.putExtra(DexEditorActivity.EXTRA_APK,
-                                    p.archiveFile.getAbsolutePath());
-                            i.putExtra(DexEditorActivity.EXTRA_DEXES,
-                                    new String[]{it.archPath()});
-                            startActivity(i);
-                        } else if (w == 1) {
-                            decompileArchDex(p, it);
-                        } else if (w == 2) {
-                            hexArchEntry(p, it);
-                        } else {
-                            extractArchEntry(p, it.archPath(), p);
-                        }
-                    }
-                })
+                .setItems(ops.toArray(new String[0]),
+                        new android.content.DialogInterface.OnClickListener() {
+                            public void onClick(android.content.DialogInterface d, int w) {
+                                // 用文案分派（Dex 修复仅 APK 归档出现，索引会移位）
+                                String op = ops.get(w);
+                                if (op.startsWith("Dex 编辑器++")) {
+                                    Intent i = new Intent(MainActivity.this,
+                                            DexEditorActivity.class);
+                                    i.putExtra(DexEditorActivity.EXTRA_APK,
+                                            p.archiveFile.getAbsolutePath());
+                                    i.putExtra(DexEditorActivity.EXTRA_DEXES,
+                                            new String[]{it.archPath()});
+                                    startActivity(i);
+                                } else if (op.equals("反编译为 smali")) {
+                                    decompileArchDex(p, it);
+                                } else if (op.equals("Dex 属性")) {
+                                    showArchDexProps(p, it);
+                                } else if (op.equals("Dex 修复")) {
+                                    askArchDexFix(p, it);
+                                } else if (op.equals("HEX 查看")) {
+                                    hexArchEntry(p, it);
+                                } else {
+                                    extractArchEntry(p, it.archPath(), p);
+                                }
+                            }
+                        })
                 .show();
     }
 
@@ -1729,7 +1744,7 @@ public class MainActivity extends BaseActivity {
         final boolean canToArch = other().archiveFile != null;
         final int A_EDIT = 0, A_HERE = 1, A_OTHER = 2, A_DEL = 3, A_PROP = 4,
                 A_TOARCH_C = 5, A_TOARCH_M = 6, A_DEXPP = 7, A_SMALI = 8, A_HEX = 9, A_ARSCPP = 10, A_MANIFEST = 11,
-                A_ARSCPP2 = 12, A_DEXPROPS = 13, A_DEXFIX = 14;
+                A_ARSCPP2 = 12;
         String low = it.archShort.toLowerCase();
         final boolean isDex = low.endsWith(".dex");
         final boolean isArs = low.endsWith(".arsc");
@@ -1739,8 +1754,6 @@ public class MainActivity extends BaseActivity {
         if (isManifest) { ops.add("Manifest 编辑器++"); acts.add(A_MANIFEST); }
         if (isDex) { ops.add("Dex 编辑器++"); acts.add(A_DEXPP); }
         if (isDex) { ops.add("反编译 smali"); acts.add(A_SMALI); }
-        if (isDex) { ops.add("Dex 属性"); acts.add(A_DEXPROPS); }
-        if (isDex && ApkEditSession.isApk(p.archiveFile)) { ops.add("Dex 修复"); acts.add(A_DEXFIX); }
         if (isArs) { ops.add("ARSC 编辑"); acts.add(A_ARSCPP); }
         if (isArs) { ops.add("ARSC++ 编辑"); acts.add(A_ARSCPP2); }
         if (isText) { ops.add("文本编辑"); acts.add(A_EDIT); }
@@ -1765,10 +1778,6 @@ public class MainActivity extends BaseActivity {
                     startActivity(i);
                 } else if (act == A_SMALI) {
                     decompileArchDex(p, it);
-                } else if (act == A_DEXPROPS) {
-                    showArchDexProps(p, it);
-                } else if (act == A_DEXFIX) {
-                    askArchDexFix(p, it);
                 } else if (act == A_ARSCPP) {
                     openArchArsc(p, it);
                 } else if (act == A_ARSCPP2) {

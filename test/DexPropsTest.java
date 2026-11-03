@@ -32,15 +32,15 @@ public class DexPropsTest {
         String props = SmaliTool.dexProps(dex);
         chk("1.1 props 非空", props != null, String.valueOf(props));
         chk("1.2 版本行", props.contains("Dex 版本: 0"), firstLine(props, "Dex 版本"));
-        chk("1.3 String 数", props.contains("String 数: "), firstLine(props, "String 数"));
-        chk("1.4 Type 数", props.contains("Type 数:"), firstLine(props, "Type 数"));
-        chk("1.5 Proto 数", props.contains("Proto 数:"), firstLine(props, "Proto 数"));
-        chk("1.6 Field 数", props.contains("Field 数:"), firstLine(props, "Field 数"));
-        chk("1.7 Method 数", props.contains("Method 数:"), firstLine(props, "Method 数"));
-        chk("1.8 Class 数", props.contains("Class 数:"), firstLine(props, "Class 数"));
+        chk("1.3 String 数", props.contains("String Count: "), firstLine(props, "String Count"));
+        chk("1.4 Type 数", props.contains("Type Count:"), firstLine(props, "Type Count"));
+        chk("1.5 Proto 数", props.contains("Proto Count:"), firstLine(props, "Proto Count"));
+        chk("1.6 Field 数", props.contains("Field Count:"), firstLine(props, "Field Count"));
+        chk("1.7 Method 数", props.contains("Method Count:"), firstLine(props, "Method Count"));
+        chk("1.8 Class 数", props.contains("Class Count:"), firstLine(props, "Class Count"));
 
         // 2) 完好 dex 校验状态
-        chk("2.1 校验和正常", props.contains("校验和:    正常"), firstLine(props, "校验和"));
+        chk("2.1 校验和正常", props.contains("校验和: 正常"), firstLine(props, "校验和"));
         chk("2.2 签名正常", props.contains("SHA-1 签名: 正常"), firstLine(props, "SHA-1"));
 
         // 3) 破坏 → 修复
@@ -60,7 +60,7 @@ public class DexPropsTest {
         chk("3.1 修复成功", err == null, String.valueOf(err));
         chk("3.2 修复了 4 处", countLines(rep.toString()) >= 4, rep.toString());
         String props2 = SmaliTool.dexProps(dex);
-        chk("3.3 修后校验和正常", props2.contains("校验和:    正常"), firstLine(props2, "校验和"));
+        chk("3.3 修后校验和正常", props2.contains("校验和: 正常"), firstLine(props2, "校验和"));
         chk("3.4 修后签名正常", props2.contains("SHA-1 签名: 正常"), firstLine(props2, "SHA-1"));
         chk("3.5 修后 dexlib2 可解析（repairDex 内含）",
                 rep.toString().contains("dexlib2 解析校验: 通过"), rep.toString());

@@ -171,13 +171,13 @@ public final class SmaliTool {
             StringBuilder sb = new StringBuilder();
             sb.append("Dex 版本: ").append(ver).append(api).append('\n');
             sb.append("文件大小: ").append(fmtSize(dexFile.length())).append('\n');
-            sb.append("String 数: ").append(fmtN(u32(h, 56))).append('\n');
-            sb.append("Type 数:   ").append(fmtN(u32(h, 64))).append('\n');
-            sb.append("Proto 数:  ").append(fmtN(u32(h, 72))).append('\n');
-            sb.append("Field 数:  ").append(fmtN(u32(h, 80))).append('\n');
-            sb.append("Method 数: ").append(fmtN(u32(h, 88))).append('\n');
-            sb.append("Class 数:  ").append(fmtN(u32(h, 96))).append('\n');
-            sb.append("校验和:    ").append(ckOk ? "正常" : "不一致（可用 Dex 修复）").append('\n');
+            sb.append("String Count: ").append(fmtN(u32(h, 56))).append('\n');
+            sb.append("Type Count: ").append(fmtN(u32(h, 64))).append('\n');
+            sb.append("Proto Count: ").append(fmtN(u32(h, 72))).append('\n');
+            sb.append("Field Count: ").append(fmtN(u32(h, 80))).append('\n');
+            sb.append("Method Count: ").append(fmtN(u32(h, 88))).append('\n');
+            sb.append("Class Count: ").append(fmtN(u32(h, 96))).append('\n');
+            sb.append("校验和: ").append(ckOk ? "正常" : "不一致（可用 Dex 修复）").append('\n');
             sb.append("SHA-1 签名: ").append(sigOk ? "正常" : "不一致（可用 Dex 修复）");
             return sb.toString();
         } catch (Throwable t) {

@@ -1666,9 +1666,9 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 对照 NP Manager「打开方式」菜单盘点 Dex 功能缺口，实现其中两项：
 
-**Dex 属性（新）**：dex 长按菜单新增。读取 dex 头部展示 **Dex 版本**（035/037/038/039 + 对应 Android 版本提示）、**String 数 / Type 数 / Proto 数 / Field 数 / Method 数 / Class 数**（直接读 header 各索引区大小字段，与加载器语义一致）、文件大小、校验和与 SHA-1 签名状态（不一致时提示可用 Dex 修复）。
+**Dex 属性（新）**：**点击 APK/zip 内 dex 弹出的「打开方式」对话框**新增（对标 NP，长按菜单不放）。读取 dex 头部展示 **Dex 版本**（035/037/038/039 + 对应 Android 版本提示）、**String Count / Type Count / Proto Count / Field Count / Method Count / Class Count**（直接读 header 各索引区大小字段，与加载器语义一致）、文件大小、校验和与 SHA-1 签名状态（不一致时提示可用 Dex 修复）。
 
-**Dex 修复（新）**：修正 file_size / header_size（→0x70）/ endian_tag（→0x12345678），重算 SHA-1 签名（offset 12，覆盖字节 32..末尾）与 Adler-32 校验和（offset 8，覆盖字节 12..末尾），最后用 dexlib2 从内存字节实际解析验证可加载性。独立 dex：首次自动备份 `<名>_bak.dex` 后原地覆盖；APK 内 dex：走会话模型写入 `<名>_edit.apk`（原包不动）。适用于头部被十六进制编辑改坏的 dex；索引区/数据区等结构级损坏无法恢复（会如实报告）。
+**Dex 修复（新）**：入口同上（点击弹窗，仅 APK 归档；走会话模型写 `<名>_edit.apk`）。修正 file_size / header_size（→0x70）/ endian_tag（→0x12345678），重算 SHA-1 签名（offset 12，覆盖字节 32..末尾）与 Adler-32 校验和（offset 8，覆盖字节 12..末尾），最后用 dexlib2 从内存字节实际解析验证可加载性。独立 dex（长按菜单入口）：首次自动备份 `<名>_bak.dex` 后原地覆盖。适用于头部被十六进制编辑改坏的 dex；索引区/数据区等结构级损坏无法恢复（会如实报告）。
 
 **附带修复**：`ZipUtil.extractEntry` 输出 `FileOutputStream` 从不关闭（泄漏句柄，Windows 上锁死提取出的文件、后续 rename/delete 全部失败）——try-finally 关闭。`ApkEditSession.safeReplace` 备份步骤 rename 失败时加 copy 兜底；`SmaliTool.repairDex` 用 `DexBackedDexFile(byte[])` 内存验证替代临时文件 mmap 验证，避免 Windows 文件锁。
 
