@@ -163,7 +163,7 @@ adb 实测 Dex 编辑器++ 全流程（MultiDex 多选对话框 → 浏览/搜�
 - **临时工程**：选择的 dex 自动提取 + baksmali 到缓存工程；`project.ini` 记录选择，**重复打开秒开**（复用已反编译结果）
 - **类树浏览**：树形列表（▸/▾ 展开/收起包、蓝色 ● 标记类、按层级缩进、大小写不敏感排序）；顶部实时**搜索类名**（匹配全路径高亮计数）
 - **编辑 smali**：点类 → 自带文本编辑器打开对应 .smali（改动保存后工程内即时生效）
-- **⚙ 编译**：整个工程（含多 dex 合并）smali → 单个 `classes.dex`，输出到 APK 同目录 `<apk名>_dexpp/`；失败弹窗提示检查最近改过的类
+- **⚙ 编译**：整个工程（含多 dex 合并）smali → 单个 `classes.dex`（v1.66.10 起输出到应用内部缓存工程目录，不再在 APK 旁生成 `<apk名>_dexpp/`）；失败弹窗提示检查最近改过的类
 - 引擎复用 v1.7 的 baksmali/smali 2.5.2（新增 `SmaliTool.assembleMulti` 多目录合并编译）
 - 真机实测：huangguo_1.0.8.apk 2 个 dex → 3883 个类全部加载，类树/展开渲染正确
 
@@ -1661,6 +1661,15 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - versionCode 109，APK 约 13MB。
 
 ---
+
+## v1.66.10 —— 去掉 APK 旁的 `<名>_dexpp` 产物目录
+
+用户反馈：修改 smali 后 APK 同目录会多出 `<apk名>_dexpp/classes.dex`，又乱又没必要。
+
+- **编译输出转入应用内部缓存**：编译产物改写到缓存工程目录内（`getCacheDir()/dexpp_<名>/out_classes.dex`），APK / dex 旁边不再生成任何可见目录。
+- **APK 模式**：中间 dex 写回压缩包成功后即删除内部副本（它只 serve 写回这一步）。
+- **单 dex 模式**：与 APK 原地模型对齐——编译结果直接原子写回原 dex（`safeReplace`），原文件首次修改备份到工程缓存（`origin_<名>.dex`），不再往原 dex 旁边输出目录。
+- 旧版本已生成的 `<名>_dexpp/` 目录不再被使用，可手动删除。
 
 ## v1.66.9 —— Dex 编辑器浏览与写回体验重构
 

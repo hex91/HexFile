@@ -48,7 +48,8 @@ import java.util.zip.ZipFile;
  *   3. 类树浏览（包可展开/收起，目录图标随主题，单链包合并为 com.baidu 格式）+ 实时搜索类名
  *   4. 点类 → 直接进自带文本编辑器改 smali（v1.63.1 去掉选择对话框；
  *      编辑器顶栏「</>」图标一键转 Java；长按列表项直接反编译；v1.66.9 返回静默保存）
- *   5. ⚙ 编译：整个工程 smali → 单个 classes.dex（跨 dex 合并），输出到 APK 同目录 <apk名>_dexpp/
+ *   5. ⚙ 编译：整个工程 smali → 单个 classes.dex（跨 dex 合并），输出到应用内部缓存
+ *      工程目录（v1.66.10 起，不再在 APK 旁生成 <名>_dexpp 目录）
  *   6. 写回 APK（v1.66.9 单一流程）：编译（进度条）→ 更新确认弹窗（含自动签名复选框，
  *      长按复选框进签名设置：内置/自定义密钥 + v1/v2/v3 方案）→ 写回 → 签名 → 完成。
  *      退出编辑器时有未写回 smali → 单弹窗「是否编译并保存文件」走同一流程。
@@ -660,10 +661,8 @@ public class DexEditorActivity extends BaseActivity {
             Toast.makeText(this, "工程尚未加载完成", Toast.LENGTH_SHORT).show();
             return;
         }
-        File outDir;
-        if (apk != null) outDir = new File(apk.getParentFile(), projName + "_dexpp");
-        else outDir = new File(singleDex.getParentFile(), projName + "_dexpp");
-        final File outDex = new File(outDir, "classes.dex");
+        // v1.66.10：编译输出放应用内部缓存工程目录（不再在 APK/Dex 旁生成 <名>_dexpp 目录）
+        final File outDex = new File(workDir, "out_classes.dex");
 
         // 进度条（横向滚动式，编译期间平滑走动）
         final ProgressDialog pd = new ProgressDialog(this);
@@ -686,6 +685,19 @@ public class DexEditorActivity extends BaseActivity {
             } catch (Throwable t) {
                 err = t.getClass().getSimpleName() + ": " + t.getMessage();
             }
+            // v1.66.10：单 dex 模式直接原地写回（原文件首次备份到工程缓存，模型与 APK 一致）
+            if (err == null && apk == null) {
+                try {
+                    File bak = new File(workDir, "origin_" + singleDex.getName());
+                    if (!bak.isFile()) copyFile(singleDex, bak);
+                    File tmp = new File(workDir, "repl_tmp.dex");
+                    copyFile(outDex, tmp);
+                    ApkEditSession.safeReplace(tmp, singleDex);
+                    outDex.delete();
+                } catch (Throwable t) {
+                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                }
+            }
             final String e = err;
             ui.post(new Runnable() { public void run() {
                 pd.dismiss();
@@ -693,8 +705,8 @@ public class DexEditorActivity extends BaseActivity {
                     if (apk != null) askUpdateArchive(outDex, exitWhenDone);
                     else {
                         Toast.makeText(DexEditorActivity.this,
-                                "编译成功: " + outDex.getPath()
-                                        + " (" + FileOps.formatSize(outDex.length()) + ")",
+                                "已写回 → " + singleDex.getName()
+                                        + "（原文件已备份到工程缓存）",
                                 Toast.LENGTH_LONG).show();
                         if (exitWhenDone) finish();
                     }
@@ -782,6 +794,8 @@ public class DexEditorActivity extends BaseActivity {
                 // 未写回检测基线刷新（之后的 smali 改动才算未写回）
                 editBaseAt = System.currentTimeMillis();
                 saveEditBase();
+                // v1.66.10：中间产物已写进包，删除内部缓存副本
+                outDex.delete();
             } catch (Throwable t) {
                 err = t.getClass().getSimpleName() + ": " + t.getMessage();
             }
@@ -972,6 +986,23 @@ public class DexEditorActivity extends BaseActivity {
     }
 
     // ---------- IO 小工具 ----------
+
+    /** 文件复制（内部缓存目录内使用，v1.66.10 单 dex 原地写回用） */
+    private static void copyFile(File src, File dst) throws java.io.IOException {
+        FileInputStream fi = new FileInputStream(src);
+        try {
+            FileOutputStream fo = new FileOutputStream(dst);
+            try {
+                byte[] buf = new byte[65536];
+                int n;
+                while ((n = fi.read(buf)) > 0) fo.write(buf, 0, n);
+            } finally {
+                fo.close();
+            }
+        } finally {
+            fi.close();
+        }
+    }
 
     private static boolean extractZipEntry(File zip, String entryName, File out) {
         ZipFile zf = null;
