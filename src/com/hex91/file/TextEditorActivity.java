@@ -74,6 +74,9 @@ public class TextEditorActivity extends BaseActivity {
     /** v1.63.1：smali 编辑时的类名（com/foo/Bar）与所属 dex，用于「转 Java」反编译 */
     public static final String EXTRA_J2S_CLS = "j2s_cls";
     public static final String EXTRA_J2S_DEX = "j2s_dex";
+    /** v1.66.9：Dex 编辑器打开的工程 smali——返回时有改动直接静默保存，不再弹「是否保存」
+     *  （编译/写回集中在退出 Dex 编辑器时一次完成） */
+    public static final String EXTRA_SILENT_SAVE = "silent_save";
     /** v1.64.0：ARSC++ 编辑 —— 保存时把 values XML 应用回 resources.arsc */
     public static final String EXTRA_ARSCPP_TYPE = "arscpp_type";
     public static final String EXTRA_ARSCPP_CFG = "arscpp_cfg";
@@ -89,6 +92,7 @@ public class TextEditorActivity extends BaseActivity {
     private File rtApkFile;
     private String j2sCls;   // smali 类名（转 Java 用），null = 非 smali 场景
     private String j2sDex;   // 所属工程 dex（CFR 类型库），可为 null
+    private boolean silentSave; // v1.66.9：返回时静默保存（Dex 编辑器工程 smali）
     private String arscppType, arscppCfg, arscppEntry; // ARSC++ 编辑（非空 = 保存走 XML→arsc）
     private HighlightingEditor editor;
     private ScrollView editorScroll;
@@ -145,6 +149,7 @@ public class TextEditorActivity extends BaseActivity {
             rtApkFile = new File(rtApk);
         }
         j2sDex = getIntent().getStringExtra(EXTRA_J2S_DEX);
+        silentSave = getIntent().getBooleanExtra(EXTRA_SILENT_SAVE, false);
         arscppType = getIntent().getStringExtra(EXTRA_ARSCPP_TYPE);
         arscppCfg = getIntent().getStringExtra(EXTRA_ARSCPP_CFG);
         arscppEntry = getIntent().getStringExtra(EXTRA_ARSCPP_ENTRY);
@@ -1624,6 +1629,12 @@ public class TextEditorActivity extends BaseActivity {
     @Override
     public void onBackPressed() {
         if (!loaded || !modified) { super.onBackPressed(); return; }
+        // v1.66.9：Dex 编辑器工程 smali → 静默保存退出（无弹窗；编译/写回集中在退出 Dex 编辑器时）
+        if (silentSave) {
+            pendingFinishAfterSave = true;
+            save();
+            return;
+        }
         new AlertDialog.Builder(this)
                 .setTitle("未保存的修改")
                 .setMessage("内容已修改，是否保存？")

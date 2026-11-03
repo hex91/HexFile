@@ -21,9 +21,20 @@ public final class ApkSignerTool {
     public static final String KEY_ALIAS = "hexfile";
     public static final char[] KEY_PASSWORD = "android".toCharArray();
 
-    /** 用内置调试密钥签名 apk（输入未签名或已剥离旧签名） */
+    /** 用内置调试密钥签名 apk（输入未签名或已剥离旧签名），签 v1+v2+v3 */
     public static void sign(InputStream keyStoreIn, char[] password, File in, File out, int minSdk)
             throws Exception {
+        sign(keyStoreIn, password, in, out, minSdk, true, true, true);
+    }
+
+    /**
+     * v1.66.9：内置密钥签名，签名方案可选（v1/v2/v3 任意组合）。
+     * 至少启用一种方案，否则抛 IllegalArgumentException。
+     */
+    public static void sign(InputStream keyStoreIn, char[] password, File in, File out,
+            int minSdk, boolean v1, boolean v2, boolean v3) throws Exception {
+        if (!v1 && !v2 && !v3)
+            throw new IllegalArgumentException("至少需要启用一种签名方案 (v1/v2/v3)");
         KeyStore ks = KeyStore.getInstance("PKCS12");
         ks.load(keyStoreIn, password);
         java.security.Key key = ks.getKey(KEY_ALIAS, password);
@@ -43,9 +54,9 @@ public final class ApkSignerTool {
                 Collections.singletonList(signerConfig))
                 .setInputApk(in)
                 .setOutputApk(out)
-                .setV1SigningEnabled(true)
-                .setV2SigningEnabled(true)
-                .setV3SigningEnabled(true)
+                .setV1SigningEnabled(v1)
+                .setV2SigningEnabled(v2)
+                .setV3SigningEnabled(v3)
                 .setMinSdkVersion(minSdk)
                 .setAlignmentPreserved(true)          // 输入已由 ApkRepack 对齐
                 .setLibraryPageAlignmentBytes(4096)   // .so 按 4096 对齐（extractNativeLibs=false 需要）
@@ -57,15 +68,29 @@ public final class ApkSignerTool {
     /** 便捷重载：从字节数组加载 keystore */
     public static void sign(byte[] keyStoreBytes, char[] password, File in, File out, int minSdk)
             throws Exception {
-        sign(new java.io.ByteArrayInputStream(keyStoreBytes), password, in, out, minSdk);
+        sign(new java.io.ByteArrayInputStream(keyStoreBytes), password, in, out, minSdk, true, true, true);
+    }
+
+    /** v1.66.9：字节数组 keystore + 可选签名方案 */
+    public static void sign(byte[] keyStoreBytes, char[] password, File in, File out,
+            int minSdk, boolean v1, boolean v2, boolean v3) throws Exception {
+        sign(new java.io.ByteArrayInputStream(keyStoreBytes), password, in, out, minSdk, v1, v2, v3);
     }
 
     /**
      * 自定义密钥签名（v1.57.0）：自动选取 keystore 中第一个含私钥+证书链的别名。
-     *  兼容 PKCS12(.p12/.pfx) 与 JKS(.jks/.keystore)。
+     *  兼容 PKCS12(.p12/.pfx) 与 JKS(.jks/.keystore)，签 v1+v2+v3。
      */
     public static void signAutoAlias(byte[] keyStoreBytes, char[] password,
             File in, File out, int minSdk) throws Exception {
+        signAutoAlias(keyStoreBytes, password, in, out, minSdk, true, true, true);
+    }
+
+    /** v1.66.9：自定义密钥 + 可选签名方案 */
+    public static void signAutoAlias(byte[] keyStoreBytes, char[] password,
+            File in, File out, int minSdk, boolean v1, boolean v2, boolean v3) throws Exception {
+        if (!v1 && !v2 && !v3)
+            throw new IllegalArgumentException("至少需要启用一种签名方案 (v1/v2/v3)");
         KeyStore ks = loadAny(keyStoreBytes, password);
         String alias = null;
         for (java.util.Enumeration<String> en = ks.aliases(); en.hasMoreElements();) {
@@ -87,9 +112,9 @@ public final class ApkSignerTool {
         new ApkSigner.Builder(Collections.singletonList(signerConfig))
                 .setInputApk(in)
                 .setOutputApk(out)
-                .setV1SigningEnabled(true)
-                .setV2SigningEnabled(true)
-                .setV3SigningEnabled(true)
+                .setV1SigningEnabled(v1)
+                .setV2SigningEnabled(v2)
+                .setV3SigningEnabled(v3)
                 .setMinSdkVersion(minSdk)
                 .setAlignmentPreserved(true)
                 .setLibraryPageAlignmentBytes(4096)

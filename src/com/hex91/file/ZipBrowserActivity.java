@@ -121,6 +121,13 @@ public class ZipBrowserActivity extends BaseActivity {
         }
     }
 
+    /** v1.66.9：从编辑器（如 Dex 编辑器写回）返回时重新加载列表——原地模型下包内容可能已变 */
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (archive != null && archiveFile != null) load();
+    }
+
     private void goUp() {
         if (prefix.isEmpty()) return;
         String up = prefix.substring(0, prefix.length() - 1); // 去掉末尾 '/'

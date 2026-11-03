@@ -4,6 +4,12 @@ import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RectF;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.text.Editable;
@@ -11,9 +17,13 @@ import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
+import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -35,11 +45,13 @@ import java.util.zip.ZipFile;
  * Dex 编辑器++（v1.8，对标 MT Manager 同名功能）：
  *   1. MultiDex 选择对话框（复选全部 classes*.dex，全选/取消/确定）
  *   2. 临时工程：dex 提取 + baksmali（重复打开自动复用，秒开）
- *   3. 类树浏览（包可展开/收起，类蓝色标记）+ 实时搜索类名
+ *   3. 类树浏览（包可展开/收起，目录图标随主题，单链包合并为 com.baidu 格式）+ 实时搜索类名
  *   4. 点类 → 直接进自带文本编辑器改 smali（v1.63.1 去掉选择对话框；
- *      编辑器顶栏「</>」图标一键转 Java；长按列表项直接反编译）
+ *      编辑器顶栏「</>」图标一键转 Java；长按列表项直接反编译；v1.66.9 返回静默保存）
  *   5. ⚙ 编译：整个工程 smali → 单个 classes.dex（跨 dex 合并），输出到 APK 同目录 <apk名>_dexpp/
- *   6. 写回 APK（v1.10）：替换首个选中 dex + 移除其余选中的 dex → 重打包 → 重签名（64K 方法数守卫）
+ *   6. 写回 APK（v1.66.9 单一流程）：编译（进度条）→ 更新确认弹窗（含自动签名复选框，
+ *      长按复选框进签名设置：内置/自定义密钥 + v1/v2/v3 方案）→ 写回 → 签名 → 完成。
+ *      退出编辑器时有未写回 smali → 单弹窗「是否编译并保存文件」走同一流程。
  */
 public class DexEditorActivity extends BaseActivity {
 
@@ -76,6 +88,7 @@ public class DexEditorActivity extends BaseActivity {
     }
 
     private Node root;
+    private RowAdapter adapter;
     private final List<Object> rows = new ArrayList<Object>(); // Node 或 String(类path，搜索态)
     private final Map<String, File> classFiles = new HashMap<String, File>();
     /** v1.63.0：smali_ 目录名 → 对应 dex 文件（反编译时用作 CFR 类型库） */
@@ -97,6 +110,9 @@ public class DexEditorActivity extends BaseActivity {
         titleSub = (TextView) findViewById(R.id.dexpp_sub);
         searchBox = (EditText) findViewById(R.id.dexpp_search);
         listView = (ListView) findViewById(R.id.dexpp_list);
+        // v1.66.9：单一 adapter + notifyDataSetChanged——展开/收起不重建列表，滚动位置原地保持
+        adapter = new RowAdapter();
+        listView.setAdapter(adapter);
 
         if (apkPath != null) {
             apk = new File(apkPath);
@@ -335,16 +351,18 @@ public class DexEditorActivity extends BaseActivity {
 
     @Override
     public void onBackPressed() {
-        if (hasUnwrittenSmali()) {
+        // v1.66.9：有未写回的 smali → 唯一一次弹窗「是否编译并保存文件」，
+        // 确定后走 编译（进度条）→ 更新压缩包（含自动签名复选框）→ 完成退出
+        if (apk != null && hasUnwrittenSmali()) {
             new AlertDialog.Builder(this)
                     .setTitle("smali 修改尚未写回")
-                    .setMessage("工程里的 smali 改动还没有编译写回 APK，直接退出会丢失这些修改"
-                            + "（不会写回原包，退出 APK 时也不会提示签名）。\n\n"
-                            + "要现在编译并写回吗？")
-                    .setPositiveButton("编译并写回", new DialogInterface.OnClickListener() {
-                        public void onClick(DialogInterface d, int w) { askCompile(); }
+                    .setMessage("是否编译并保存文件？\n\n"
+                            + "工程里的 smali 改动还没有写回 " + apk.getName()
+                            + "，不编译保存的话这些修改不会生效。")
+                    .setPositiveButton("编译并保存", new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface d, int w) { compileAndOfferUpdate(true); }
                     })
-                    .setNegativeButton("仍要退出", new DialogInterface.OnClickListener() {
+                    .setNegativeButton("不保存退出", new DialogInterface.OnClickListener() {
                         public void onClick(DialogInterface d, int w) { finish(); }
                     })
                     .setNeutralButton("取消", null)
@@ -366,6 +384,8 @@ public class DexEditorActivity extends BaseActivity {
         }
         classCount = classFiles.size();
         sortNode(root);
+        mergeChains(root);
+        sortNode(root);   // 合并后的节点名（com.baidu）重新参与排序
     }
 
     private void walk(File base, File dir, String prefix) {
@@ -412,6 +432,22 @@ public class DexEditorActivity extends BaseActivity {
         for (Node c : n.children) sortNode(c);
     }
 
+    /**
+     * v1.66.9：单链包合并——只有一个子包的包链条合并为一个节点，
+     * 按 java 包格式显示（com.baidu）；类节点不参与合并。
+     */
+    private void mergeChains(Node n) {
+        for (Node c : n.children) mergeChains(c);
+        for (int i = 0; i < n.children.size(); i++) {
+            Node c = n.children.get(i);
+            while (!c.isClass && c.children.size() == 1 && !c.children.get(0).isClass) {
+                Node only = c.children.get(0);
+                c.name = c.name + "." + only.name;
+                c.children = only.children;
+            }
+        }
+    }
+
     // ---------- 列表刷新（浏览树 / 搜索） ----------
 
     private void refresh() {
@@ -430,7 +466,9 @@ public class DexEditorActivity extends BaseActivity {
             flatten(root, 0);
             titleSub.setText(dexes.size() + " 个 dex · " + classCount + " 个类 · 临时工程");
         }
-        listView.setAdapter(new RowAdapter());
+        // v1.66.9：复用单一 adapter + notifyDataSetChanged——
+        // ListView 原地刷新，展开/收起时点击项位置不变（子项插在其后），不再跳回顶部
+        adapter.notifyDataSetChanged();
     }
 
     private void flatten(Node n, int depth) {
@@ -446,29 +484,88 @@ public class DexEditorActivity extends BaseActivity {
         public Object getItem(int i) { return rows.get(i); }
         public long getItemId(int i) { return i; }
 
-        public View getView(int i, View cv, ViewGroup parent) {
-            float den = getResources().getDisplayMetrics().density;
+        private TextView baseTv(float den) {
             TextView tv = new TextView(DexEditorActivity.this);
             tv.setTextSize(15);
             tv.setGravity(Gravity.CENTER_VERTICAL);
+            tv.setIncludeFontPadding(false);
+            tv.setPadding(0, 0, (int) (8 * den), 0);
+            return tv;
+        }
+
+        public View getView(int i, View cv, ViewGroup parent) {
+            float den = getResources().getDisplayMetrics().density;
+            LinearLayout row = new LinearLayout(DexEditorActivity.this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
             int depth = 0;
             Object o = rows.get(i);
             if (o instanceof Node) {
                 Node n = (Node) o;
                 depth = n.depth;
                 if (n.isClass) {
+                    TextView tv = baseTv(den);
                     tv.setTextColor(ThemeManager.accent(DexEditorActivity.this));
                     tv.setText("● " + n.name);
+                    row.addView(tv);
                 } else {
+                    // v1.66.9：目录图标（随主题变色；展开态换色区分）
+                    FolderIconView ic = new FolderIconView(DexEditorActivity.this);
+                    ic.setOpen(n.expanded);
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                            (int) (18 * den), (int) (14 * den));
+                    lp.rightMargin = (int) (7 * den);
+                    row.addView(ic, lp);
+                    TextView tv = baseTv(den);
                     tv.setTextColor(ThemeManager.text(DexEditorActivity.this));
-                    tv.setText(n.expanded ? "▾ " + n.name : "▸ " + n.name);
+                    tv.setText(n.name);
+                    row.addView(tv);
                 }
             } else {
+                TextView tv = baseTv(den);
                 tv.setTextColor(ThemeManager.accent(DexEditorActivity.this));
                 tv.setText("● " + (String) o);
+                row.addView(tv);
             }
-            tv.setPadding((int) (16 * den + depth * 18 * den), (int) (10 * den), (int) (8 * den), (int) (10 * den));
-            return tv;
+            row.setPadding((int) (16 * den + depth * 18 * den), (int) (10 * den), 0, (int) (10 * den));
+            return row;
+        }
+    }
+
+    /** v1.66.9：自绘目录图标（资源管理器风格），颜色取主题色，展开/收起形态不同 */
+    private static final class FolderIconView extends View {
+        private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private boolean open;
+
+        FolderIconView(android.content.Context c) { super(c); }
+
+        void setOpen(boolean o) { open = o; }
+
+        @Override
+        protected void onDraw(Canvas cv) {
+            float w = getWidth(), h = getHeight();
+            float tabH = h * 0.34f, r = w * 0.14f;
+            int color = ThemeManager.textSub(getContext());
+            p.setColor(color);
+            if (!open) {
+                // 收起：左上小耳 + 主体圆角矩形
+                RectF tab = new RectF(0, 0, w * 0.46f, tabH + r);
+                cv.drawRoundRect(tab, r, r, p);
+                RectF body = new RectF(0, tabH, w, h);
+                cv.drawRoundRect(body, r, r, p);
+            } else {
+                // 展开：背板 + 前板后倾（颜色用主题强调色区分）
+                p.setColor(ThemeManager.accent(getContext()));
+                RectF back = new RectF(0, 0, w * 0.58f, tabH * 1.15f);
+                cv.drawRoundRect(back, r, r, p);
+                Path front = new Path();
+                front.moveTo(0, tabH * 0.75f);
+                front.lineTo(w, tabH * 0.75f);
+                front.lineTo(w * 0.88f, h);
+                front.lineTo(w * 0.06f, h);
+                front.close();
+                cv.drawPath(front, p);
+            }
         }
     }
 
@@ -496,6 +593,8 @@ public class DexEditorActivity extends BaseActivity {
         Intent i = new Intent(this, TextEditorActivity.class);
         i.putExtra(TextEditorActivity.EXTRA_FILE, f.getAbsolutePath());
         i.putExtra(TextEditorActivity.EXTRA_J2S_CLS, clsOf(f));
+        // v1.66.9：返回静默保存，不再弹「是否保存」——写回集中在退出本编辑器时
+        i.putExtra(TextEditorActivity.EXTRA_SILENT_SAVE, true);
         File dx = dexOf(f);
         if (dx != null)
             i.putExtra(TextEditorActivity.EXTRA_J2S_DEX, dx.getAbsolutePath());
@@ -541,9 +640,22 @@ public class DexEditorActivity extends BaseActivity {
         return null;
     }
 
-    // ---------- 编译 ----------
+    // ---------- 编译 + 更新压缩包（v1.66.9 统一流程） ----------
 
     private void askCompile() {
+        if (root == null) {
+            Toast.makeText(this, "工程尚未加载完成", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        compileAndOfferUpdate(false);
+    }
+
+    /**
+     * 编译工程 → 弹「更新压缩包」确认（含自动签名复选框）→ 写回 → 签名。
+     * 全程仅两个弹窗：进度条 + 更新确认；不再有 编译确认/写回确认/已保存 三个弹窗。
+     * @param exitWhenDone 退出拦截触发的流程完成后结束本 Activity
+     */
+    private void compileAndOfferUpdate(final boolean exitWhenDone) {
         if (root == null) {
             Toast.makeText(this, "工程尚未加载完成", Toast.LENGTH_SHORT).show();
             return;
@@ -552,22 +664,16 @@ public class DexEditorActivity extends BaseActivity {
         if (apk != null) outDir = new File(apk.getParentFile(), projName + "_dexpp");
         else outDir = new File(singleDex.getParentFile(), projName + "_dexpp");
         final File outDex = new File(outDir, "classes.dex");
-        new AlertDialog.Builder(this)
-                .setTitle("编译工程")
-                .setMessage("把全部 smali 编译为 dex？\n\n输出: " + outDex.getPath()
-                        + "\n\n提示: 改过的 smali 需先在编辑器里保存")
-                .setPositiveButton("编译", new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface d, int w) { doCompile(outDex); }
-                })
-                .setNegativeButton("取消", null)
-                .show();
-    }
 
-    private void doCompile(final File outDex) {
+        // 进度条（横向滚动式，编译期间平滑走动）
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("编译中…（几千个类需 10-60 秒）");
+        pd.setTitle("正在编译");
+        pd.setMessage("把全部 smali 编译为 dex…（几千个类需 10-60 秒）");
+        pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+        pd.setIndeterminate(true);
         pd.setCancelable(false);
         pd.show();
+
         final List<File> dirs = new ArrayList<File>();
         for (File f : workDir.listFiles())
             if (f.isDirectory() && f.getName().startsWith("smali_")) dirs.add(f);
@@ -584,26 +690,13 @@ public class DexEditorActivity extends BaseActivity {
             ui.post(new Runnable() { public void run() {
                 pd.dismiss();
                 if (e == null) {
-                    if (apk != null) {
-                        // v1.10：APK 工程 → 直接提供写回（替换首个选中 dex + 移除其余选中 dex + 重签名）
-                        new AlertDialog.Builder(DexEditorActivity.this)
-                                .setTitle("编译成功")
-                                .setMessage(outDex.getPath()
-                                        + " (" + FileOps.formatSize(outDex.length()) + ")"
-                                        + "\n\n是否写回 APK？"
-                                        + (dexes.size() > 1 ? "\n\n注意: 多个 dex 已合并为一个，写回时将替换 "
-                                        + dexes.get(0) + " 并移除其余 " + (dexes.size() - 1) + " 个 dex。" : "")
-                                        + "\n\n（直接写回该 APK，未签名；退出 APK 后统一提示签名）")
-                                .setPositiveButton("写回 APK", new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface d, int w) { writeBackApk(outDex); }
-                                })
-                                .setNegativeButton("仅保留 dex 文件", null)
-                                .show();
-                    } else {
+                    if (apk != null) askUpdateArchive(outDex, exitWhenDone);
+                    else {
                         Toast.makeText(DexEditorActivity.this,
                                 "编译成功: " + outDex.getPath()
                                         + " (" + FileOps.formatSize(outDex.length()) + ")",
                                 Toast.LENGTH_LONG).show();
+                        if (exitWhenDone) finish();
                     }
                 } else {
                     new AlertDialog.Builder(DexEditorActivity.this)
@@ -616,10 +709,9 @@ public class DexEditorActivity extends BaseActivity {
         }}.start();
     }
 
-    // ---------- 写回 APK（v1.10） ----------
-
-    /** 把编译出的 dex 登记进 ApkEditSession：替换首个选中 dex 条目、移除其余选中的 dex，重打包写回原包 */
-    private void writeBackApk(final File outDex) {
+    /** 编译成功 → 「哪个 dex 已被修改，是否更新压缩包」+ 自动签名复选框（长按进签名设置） */
+    private void askUpdateArchive(final File outDex, final boolean exitWhenDone) {
+        // 64K 方法数守卫
         int mcnt = SmaliTool.dexMethodCount(outDex);
         if (mcnt > 65535) {
             new AlertDialog.Builder(this)
@@ -629,23 +721,53 @@ public class DexEditorActivity extends BaseActivity {
                     .setPositiveButton("知道了", null).show();
             return;
         }
+
+        StringBuilder msg = new StringBuilder();
+        msg.append(dexes.get(0)).append(" 已被修改");
+        if (dexes.size() > 1)
+            msg.append("\n\n多个 dex 已合并为一个：写回时将替换 ").append(dexes.get(0))
+               .append(" 并移除其余 ").append(dexes.size() - 1).append(" 个 dex");
+        msg.append("\n\n是否更新到压缩包 ").append(apk.getName()).append(" ？")
+           .append("\n（首次修改自动备份 同名_bak.apk）");
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (20 * getResources().getDisplayMetrics().density);
+        box.setPadding(pad, pad / 2, pad, 0);
+        TextView tv = new TextView(this);
+        tv.setText(msg.toString());
+        tv.setTextSize(15);
+        tv.setTextColor(ThemeManager.text(this));
+        box.addView(tv);
+        final CheckBox autoSign = new CheckBox(this);
+        autoSign.setText("自动签名（长按可设置密钥与签名方案）");
+        autoSign.setTextSize(14);
+        autoSign.setChecked(true);
+        autoSign.setOnLongClickListener(new View.OnLongClickListener() {
+            public boolean onLongClick(View v) {
+                showSignSettings();
+                return true;
+            }
+        });
+        box.addView(autoSign);
+
         new AlertDialog.Builder(this)
-                .setTitle("确认保存")
-                .setMessage("写回: " + apk.getPath()
-                        + "\n\n替换: " + dexes.get(0)
-                        + (dexes.size() > 1 ? "\n移除: " + dexes.subList(1, dexes.size()) : "")
-                        + "\n\n（编辑的是哪几个 dex 就替换/移除哪几个，未选中的 dex 不受影响；"
-                        + "原包首次修改时自动备份为 同名_bak.apk）")
-                .setPositiveButton("保存", new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface d, int w) { doWriteBack(outDex); }
+                .setTitle("编译成功")
+                .setView(box)
+                .setPositiveButton("更新", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        doUpdateArchive(outDex, autoSign.isChecked(), exitWhenDone);
+                    }
                 })
                 .setNegativeButton("取消", null)
                 .show();
     }
 
-    private void doWriteBack(final File outDex) {
+    private void doUpdateArchive(final File outDex, final boolean autoSign, final boolean exitWhenDone) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("写回 APK …");
+        pd.setMessage("写回 " + apk.getName() + " …");
+        pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+        pd.setIndeterminate(true);
         pd.setCancelable(false);
         pd.show();
         new Thread() { public void run() {
@@ -657,29 +779,183 @@ public class DexEditorActivity extends BaseActivity {
                 if (dexes.size() > 1)
                     ApkEditSession.putRemove(DexEditorActivity.this, apk,
                             dexes.subList(1, dexes.size()));
-                // v1.66.6：写回成功 → 未写回检测基线刷新（之后的 smali 改动才算未写回）
+                // 未写回检测基线刷新（之后的 smali 改动才算未写回）
                 editBaseAt = System.currentTimeMillis();
                 saveEditBase();
             } catch (Throwable t) {
                 err = t.getClass().getSimpleName() + ": " + t.getMessage();
             }
+            if (err == null && autoSign) {
+                try {
+                    signApkByPrefs();
+                } catch (Throwable t) {
+                    // 签名失败不算写回失败——包已更新，仅提示
+                    err = "已写回，但签名失败: " + t.getMessage();
+                }
+            }
             final String e = err;
             ui.post(new Runnable() { public void run() {
                 pd.dismiss();
                 if (e == null) {
-                    new AlertDialog.Builder(DexEditorActivity.this)
-                            .setTitle("已保存")
-                            .setMessage("已写回 " + apk.getName()
-                                    + "\n（首次修改时已自动备份 <名>_bak.apk）"
-                                    + "\n\n退出 APK 后统一提示签名。")
-                            .setPositiveButton("知道了", null).show();
+                    Toast.makeText(DexEditorActivity.this,
+                            autoSign ? "已写回并签名 → " + apk.getName()
+                                     : "已写回 → " + apk.getName() + "（未签名）",
+                            Toast.LENGTH_LONG).show();
+                    if (exitWhenDone) finish();
                 } else {
                     new AlertDialog.Builder(DexEditorActivity.this)
-                            .setTitle("保存失败").setMessage(e)
-                            .setPositiveButton("知道了", null).show();
+                            .setTitle("完成（有提示）").setMessage(e)
+                            .setPositiveButton("知道了", new DialogInterface.OnClickListener() {
+                                public void onClick(DialogInterface d, int w) {
+                                    if (exitWhenDone) finish();
+                                }
+                            }).show();
                 }
             }});
         }}.start();
+    }
+
+    // ---------- v1.66.9 签名设置（长按「自动签名」复选框） ----------
+
+    private static final String[] SCHEMES = {"v1+v2+v3（推荐）", "v1", "v2", "v3", "v1+v2", "v2+v3"};
+
+    private SharedPreferences signPrefs() {
+        return getSharedPreferences("dexpp_sign", MODE_PRIVATE);
+    }
+
+    /** 按签名设置原地签名 apk（临时文件 → 原子覆盖） */
+    private void signApkByPrefs() throws Exception {
+        SharedPreferences sp = signPrefs();
+        boolean v1, v2, v3;
+        switch (sp.getInt("scheme", 0)) {
+            case 1: v1 = true; v2 = false; v3 = false; break;
+            case 2: v1 = false; v2 = true; v3 = false; break;
+            case 3: v1 = false; v2 = false; v3 = true; break;
+            case 4: v1 = true; v2 = true; v3 = false; break;
+            case 5: v1 = false; v2 = true; v3 = true; break;
+            default: v1 = true; v2 = true; v3 = true; break;
+        }
+        File tmp = new File(apk.getParentFile(), apk.getName() + ".signtmp");
+        if (tmp.exists()) tmp.delete();
+        byte[] ksBytes;
+        char[] pass;
+        if (sp.getInt("ks_mode", 0) == 1) {
+            ksBytes = readAllBytes(new File(sp.getString("ks_path", "")));
+            pass = sp.getString("ks_pass", "").toCharArray();
+            ApkSignerTool.signAutoAlias(ksBytes, pass, apk, tmp, 21, v1, v2, v3);
+        } else {
+            java.io.InputStream ks = getAssets().open("hexfile.p12");
+            try {
+                ApkSignerTool.sign(ks, ApkSignerTool.KEY_PASSWORD, apk, tmp, 21, v1, v2, v3);
+            } finally {
+                ks.close();
+            }
+        }
+        ApkEditSession.safeReplace(tmp, apk);
+        ApkEditSession.markSigned(apk);
+    }
+
+    /** 签名设置弹窗：密钥（内置/自定义）+ 签名方案下拉；确定后持久化 */
+    private void showSignSettings() {
+        final SharedPreferences sp = signPrefs();
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (20 * getResources().getDisplayMetrics().density);
+        box.setPadding(pad, pad / 2, pad, 0);
+        float den = getResources().getDisplayMetrics().density;
+
+        TextView l1 = new TextView(this);
+        l1.setText("签名密钥");
+        l1.setTextSize(13);
+        l1.setTextColor(ThemeManager.textSub(this));
+        box.addView(l1);
+        final Spinner ksSpinner = new Spinner(this);
+        ksSpinner.setAdapter(new ArrayAdapter<String>(this,
+                android.R.layout.simple_spinner_dropdown_item,
+                new String[]{"内置签名文件", "自定义签名文件"}));
+        ksSpinner.setSelection(sp.getInt("ks_mode", 0));
+        box.addView(ksSpinner);
+        final TextView ksPath = new TextView(this);
+        String saved = sp.getString("ks_path", null);
+        ksPath.setText(saved != null ? "已选择: " + saved : "（未选择，点此选择 keystore 文件）");
+        ksPath.setTextSize(13);
+        ksPath.setTextColor(ThemeManager.accent(this));
+        ksPath.setPadding(0, (int) (6 * den), 0, 0);
+        ksPath.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("*/*");
+                try {
+                    startActivityForResult(
+                            Intent.createChooser(i, "选择签名文件（.p12/.pfx/.jks/.keystore）"),
+                            REQ_PICK_KS);
+                } catch (Throwable ignored) {
+                    Toast.makeText(DexEditorActivity.this, "无法打开文件选择器", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        box.addView(ksPath);
+        final EditText ksPass = new EditText(this);
+        ksPass.setHint("keystore 密码（自定义签名文件时必填）");
+        ksPass.setTextSize(14);
+        String savedPass = sp.getString("ks_pass", "");
+        if (savedPass.length() > 0) ksPass.setText(savedPass);
+        ksPass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        box.addView(ksPass);
+
+        TextView l2 = new TextView(this);
+        l2.setText("签名方案");
+        l2.setTextSize(13);
+        l2.setTextColor(ThemeManager.textSub(this));
+        l2.setPadding(0, (int) (10 * den), 0, 0);
+        box.addView(l2);
+        final Spinner scheme = new Spinner(this);
+        scheme.setAdapter(new ArrayAdapter<String>(this,
+                android.R.layout.simple_spinner_dropdown_item, SCHEMES));
+        scheme.setSelection(sp.getInt("scheme", 0));
+        box.addView(scheme);
+
+        new AlertDialog.Builder(this)
+                .setTitle("自动签名设置")
+                .setView(box)
+                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        sp.edit()
+                          .putInt("ks_mode", ksSpinner.getSelectedItemPosition())
+                          .putString("ks_pass", ksPass.getText().toString())
+                          .putInt("scheme", scheme.getSelectedItemPosition())
+                          .apply();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private static final int REQ_PICK_KS = 4101;
+
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req == REQ_PICK_KS && res == RESULT_OK && data != null && data.getData() != null) {
+            // SAF Uri 不能持久使用 → 拷贝到工程目录，后续签名直接读文件
+            try {
+                File dst = new File(workDir, "custom_sign.keystore");
+                java.io.InputStream in = getContentResolver().openInputStream(data.getData());
+                FileOutputStream fo = new FileOutputStream(dst);
+                byte[] buf = new byte[65536];
+                int n;
+                while ((n = in.read(buf)) > 0) fo.write(buf, 0, n);
+                fo.close();
+                in.close();
+                
+                signPrefs().edit().putString("ks_path", dst.getAbsolutePath()).apply();
+                Toast.makeText(this, "签名文件已就绪", Toast.LENGTH_SHORT).show();
+            } catch (Throwable t) {
+                Toast.makeText(this, "读取签名文件失败: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
     private static byte[] readAllBytes(File f) throws java.io.IOException {
