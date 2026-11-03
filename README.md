@@ -1662,6 +1662,22 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.66.5 —— Dex 属性 / Dex 修复（对标 NP 菜单缺口盘点后补齐）
+
+对照 NP Manager「打开方式」菜单盘点 Dex 功能缺口，实现其中两项：
+
+**Dex 属性（新）**：dex 长按菜单新增。读取 dex 头部展示 **Dex 版本**（035/037/038/039 + 对应 Android 版本提示）、**String 数 / Type 数 / Proto 数 / Field 数 / Method 数 / Class 数**（直接读 header 各索引区大小字段，与加载器语义一致）、文件大小、校验和与 SHA-1 签名状态（不一致时提示可用 Dex 修复）。
+
+**Dex 修复（新）**：修正 file_size / header_size（→0x70）/ endian_tag（→0x12345678），重算 SHA-1 签名（offset 12，覆盖字节 32..末尾）与 Adler-32 校验和（offset 8，覆盖字节 12..末尾），最后用 dexlib2 从内存字节实际解析验证可加载性。独立 dex：首次自动备份 `<名>_bak.dex` 后原地覆盖；APK 内 dex：走会话模型写入 `<名>_edit.apk`（原包不动）。适用于头部被十六进制编辑改坏的 dex；索引区/数据区等结构级损坏无法恢复（会如实报告）。
+
+**附带修复**：`ZipUtil.extractEntry` 输出 `FileOutputStream` 从不关闭（泄漏句柄，Windows 上锁死提取出的文件、后续 rename/delete 全部失败）——try-finally 关闭。`ApkEditSession.safeReplace` 备份步骤 rename 失败时加 copy 兜底；`SmaliTool.repairDex` 用 `DexBackedDexFile(byte[])` 内存验证替代临时文件 mmap 验证，避免 Windows 文件锁。
+
+**实现范围说明**（NP 菜单对照）：Dex 编辑器++（类树 + smali 编辑 + 回编译）✅ 已有；反编译 smali ✅ 已有；Dex 属性 ✅ 本次新增；Dex 修复 ✅ 本次新增；Dex 转 Jar / Dex 字符串解密 / 翻译模式 ❌ 未实现（转 Jar 需 dex→class 字节码重写，工作量大；字符串解密依赖混淆特征，启发式为主）。
+
+测试：新增 `test/DexPropsTest`（真实 dex 属性读取 8 项 / 破坏 4 处头部后修复 / 完好 dex 无需修复 / 非 dex 拒绝，20/20）；回归 AxmlTest 16/16、SessionTest 20/20、BakTest 4/4、AxmlUtf8Test 全过。versionCode 120。
+
+---
+
 ## v1.66.4 —— 代码审查修复（资源泄漏 / 签名原子性 / 缓存名碰撞）
 
 对 4 项审查报告的处置（3 项属实修复、1 项属实的结构收敛）：

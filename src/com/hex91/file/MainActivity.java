@@ -1504,6 +1504,160 @@ public class MainActivity extends BaseActivity {
         }, "arch-dex-dec").start();
     }
 
+    /** Dex 属性（v1.66.5）：版本 + String/Type/Proto/Field/Method/Class 数量 + 校验状态 */
+    private void showDexProps(final File dex) {
+        toast("正在读取…");
+        new Thread(new Runnable() {
+            public void run() {
+                final String info = SmaliTool.dexProps(dex);
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        if (info == null) { toast("不是有效的 DEX 文件"); return; }
+                        showTextDialog(dex.getName(), info);
+                    }
+                });
+            }
+        }, "dex-props").start();
+    }
+
+    /** 等宽只读弹窗（Dex 属性等用） */
+    private void showTextDialog(String title, String text) {
+        TextView tv = new TextView(this);
+        tv.setText(text);
+        tv.setTextSize(14);
+        tv.setTypeface(android.graphics.Typeface.MONOSPACE);
+        tv.setTextIsSelectable(true);
+        float den = getResources().getDisplayMetrics().density;
+        tv.setPadding((int) (24 * den), (int) (16 * den), (int) (24 * den), (int) (8 * den));
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setView(tv)
+                .setPositiveButton("确定", null)
+                .show();
+    }
+
+    /** Dex 修复（v1.66.5，独立 dex）：确认 → 备份 → 修头部校验 → dexlib2 验证 */
+    private void askDexFix(final File dex) {
+        new AlertDialog.Builder(this)
+                .setTitle("Dex 修复")
+                .setMessage("将修正 file_size / header_size / endian_tag，重算 SHA-1 签名与 "
+                        + "Adler-32 校验和，并用 dexlib2 实际解析验证。\n"
+                        + "首次修改自动备份 <名>_bak.dex。适用于头部被十六进制编辑改坏的 "
+                        + "dex；结构级损坏（索引区/数据区错乱）无法恢复。")
+                .setPositiveButton("修复", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        toast("修复中…");
+                        new Thread(new Runnable() {
+                            public void run() {
+                                String err = null;
+                                StringBuilder rep = new StringBuilder();
+                                try {
+                                    ApkRepack.backupOriginal(dex);
+                                    err = SmaliTool.repairDex(dex, rep);
+                                } catch (Throwable t) {
+                                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                                }
+                                final String msg = err != null ? "修复失败: " + err
+                                        : "修复完成:\n" + rep;
+                                runOnUiThread(new Runnable() {
+                                    public void run() {
+                                        toast(msg);
+                                        refreshAll();
+                                    }
+                                });
+                            }
+                        }, "dex-fix").start();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    /** 压缩包内 dex → 提取到缓存后查看属性（v1.66.5） */
+    private void showArchDexProps(final Panel p, final FileItem it) {
+        final File apk = p.archiveFile;
+        final File tmpDir = new File(getCacheDir(), "arch_dexprops");
+        toast("正在读取…");
+        new Thread(new Runnable() {
+            public void run() {
+                String info = null, err = null;
+                try {
+                    FileOps.deleteRecursive(tmpDir);
+                    tmpDir.mkdirs();
+                    if (!ZipUtil.extractEntry(apk, it.archPath(), tmpDir))
+                        throw new IllegalStateException("提取失败: " + it.archPath());
+                    info = SmaliTool.dexProps(new File(tmpDir, it.archPath()));
+                } catch (Throwable t) {
+                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                }
+                FileOps.deleteRecursive(tmpDir);
+                final String fInfo = info, fErr = err;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        if (fErr != null) { toast(fErr); return; }
+                        if (fInfo == null) { toast("不是有效的 DEX 文件"); return; }
+                        showTextDialog(new File(it.archPath()).getName(), fInfo);
+                    }
+                });
+            }
+        }, "arch-dex-props").start();
+    }
+
+    /** 压缩包内 dex 修复（v1.66.5，仅 APK 归档）：提取 → 修复 → 走会话生成 _edit.apk */
+    private void askArchDexFix(final Panel p, final FileItem it) {
+        final File apk = p.archiveFile;
+        new AlertDialog.Builder(this)
+                .setTitle("Dex 修复")
+                .setMessage("对 " + it.archShort + " 修正 file_size / header_size / endian_tag，"
+                        + "重算 SHA-1 签名与 Adler-32 校验和，并用 dexlib2 实际解析验证。\n"
+                        + "原 APK 不动，修复结果写入 <名>_edit.apk（会话模型）。")
+                .setPositiveButton("修复", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        toast("修复中…");
+                        new Thread(new Runnable() {
+                            public void run() {
+                                final File tmpDir = new File(getCacheDir(), "arch_dexfix");
+                                String err = null;
+                                StringBuilder rep = new StringBuilder();
+                                try {
+                                    FileOps.deleteRecursive(tmpDir);
+                                    tmpDir.mkdirs();
+                                    if (!ZipUtil.extractEntry(apk, it.archPath(), tmpDir))
+                                        throw new IllegalStateException("提取失败: " + it.archPath());
+                                    File dex = new File(tmpDir, it.archPath());
+                                    err = SmaliTool.repairDex(dex, rep);
+                                    if (err == null) {
+                                        byte[] fixed = new byte[(int) dex.length()];
+                                        java.io.FileInputStream fi = new java.io.FileInputStream(dex);
+                                        try {
+                                            if (fi.read(fixed) != fixed.length)
+                                                throw new IllegalStateException("读取修复结果失败");
+                                        } finally {
+                                            fi.close();
+                                        }
+                                        ApkEditSession.putEdit(MainActivity.this, apk,
+                                                it.archPath(), fixed);
+                                    }
+                                } catch (Throwable t) {
+                                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                                }
+                                FileOps.deleteRecursive(tmpDir);
+                                final String msg = err != null ? "修复失败: " + err
+                                        : "修复完成，已写入 _edit.apk:\n" + rep;
+                                runOnUiThread(new Runnable() {
+                                    public void run() {
+                                        toast(msg);
+                                        refreshAll();
+                                    }
+                                });
+                            }
+                        }, "arch-dex-fix").start();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
     /** 压缩包内任意条目 → 提取到缓存后 HEX 查看 */
     private void hexArchEntry(final Panel p, final FileItem it) {
         final File tmpDir = new File(getCacheDir(), "arch_hex");
@@ -1575,7 +1729,7 @@ public class MainActivity extends BaseActivity {
         final boolean canToArch = other().archiveFile != null;
         final int A_EDIT = 0, A_HERE = 1, A_OTHER = 2, A_DEL = 3, A_PROP = 4,
                 A_TOARCH_C = 5, A_TOARCH_M = 6, A_DEXPP = 7, A_SMALI = 8, A_HEX = 9, A_ARSCPP = 10, A_MANIFEST = 11,
-                A_ARSCPP2 = 12;
+                A_ARSCPP2 = 12, A_DEXPROPS = 13, A_DEXFIX = 14;
         String low = it.archShort.toLowerCase();
         final boolean isDex = low.endsWith(".dex");
         final boolean isArs = low.endsWith(".arsc");
@@ -1585,6 +1739,8 @@ public class MainActivity extends BaseActivity {
         if (isManifest) { ops.add("Manifest 编辑器++"); acts.add(A_MANIFEST); }
         if (isDex) { ops.add("Dex 编辑器++"); acts.add(A_DEXPP); }
         if (isDex) { ops.add("反编译 smali"); acts.add(A_SMALI); }
+        if (isDex) { ops.add("Dex 属性"); acts.add(A_DEXPROPS); }
+        if (isDex && ApkEditSession.isApk(p.archiveFile)) { ops.add("Dex 修复"); acts.add(A_DEXFIX); }
         if (isArs) { ops.add("ARSC 编辑"); acts.add(A_ARSCPP); }
         if (isArs) { ops.add("ARSC++ 编辑"); acts.add(A_ARSCPP2); }
         if (isText) { ops.add("文本编辑"); acts.add(A_EDIT); }
@@ -1609,6 +1765,10 @@ public class MainActivity extends BaseActivity {
                     startActivity(i);
                 } else if (act == A_SMALI) {
                     decompileArchDex(p, it);
+                } else if (act == A_DEXPROPS) {
+                    showArchDexProps(p, it);
+                } else if (act == A_DEXFIX) {
+                    askArchDexFix(p, it);
                 } else if (act == A_ARSCPP) {
                     openArchArsc(p, it);
                 } else if (act == A_ARSCPP2) {
@@ -3021,6 +3181,8 @@ public class MainActivity extends BaseActivity {
         }
         if (isDex) { ops.add("Dex 编辑器++"); acts.add(A_DEXPP); }
         if (isDex) { ops.add("反编译 smali"); acts.add(A_SMALI); }
+        if (isDex) { ops.add("Dex 属性"); acts.add(41); }
+        if (isDex) { ops.add("Dex 修复"); acts.add(42); }
         if (isFile) { ops.add("文本编辑"); acts.add(A_EDIT); }
         if (isFile) { ops.add("计算哈希"); acts.add(38);   // v1.59：MD5/SHA1/SHA256
         }
@@ -3236,6 +3398,12 @@ public class MainActivity extends BaseActivity {
             case 39:                              // 查找重复文件（v1.59）
                 startActivity(new Intent(this, DupFinderActivity.class)
                         .putExtra(DupFinderActivity.EXTRA_ROOT, f.getAbsolutePath()));
+                break;
+            case 41:                              // Dex 属性（v1.66.5）
+                showDexProps(f);
+                break;
+            case 42:                              // Dex 修复（v1.66.5）
+                askDexFix(f);
                 break;
         }
     }

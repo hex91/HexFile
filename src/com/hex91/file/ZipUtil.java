@@ -117,7 +117,12 @@ public class ZipUtil {
                             target.mkdirs();
                         } else {
                             target.getParentFile().mkdirs();
-                            copyStream(zis, new FileOutputStream(target));
+                            FileOutputStream fos = new FileOutputStream(target);
+                            try {
+                                copyStream(zis, fos);
+                            } finally {
+                                fos.close();   // v1.66.5 修复：不关会在 Windows 上锁住目标文件
+                            }
                         }
                         found = true;
                     }

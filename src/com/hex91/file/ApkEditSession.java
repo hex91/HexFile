@@ -305,8 +305,14 @@ public final class ApkEditSession {
         File bak = new File(target.getParentFile(), target.getName() + ".replacebak");
         if (bak.exists()) bak.delete();
         boolean hasOld = target.exists();
-        if (hasOld && !target.renameTo(bak))
-            throw new IOException("无法备份原文件: " + target.getName());
+        if (hasOld) {
+            if (!target.renameTo(bak)) {
+                // rename 失败（目标被锁/跨卷等）→ copy 兜底，仍保住原文件内容
+                copy(target, bak);
+                if (!target.delete())
+                    throw new IOException("无法备份或删除原文件: " + target.getName());
+            }
+        }
         try {
             copy(tmp, target);
             bak.delete();                       // 成功 → 备份使命完成
@@ -314,7 +320,7 @@ public final class ApkEditSession {
             if (hasOld && !target.exists() && bak.exists()) bak.renameTo(target);
             throw e;                            // 还原失败时保留 .replacebak 供手工恢复
         } finally {
-            if (tmp.exists()) tmp.delete();
+            if (tmp.exists()) tmp.delete();     // 可能被 mmap 锁住删不掉，容忍
         }
     }
 
