@@ -1662,6 +1662,26 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.66.6 —— smali 未写回退出拦截（修复「退出不提示签名」）
+
+**问题定位**（桌面全流程模拟 SignPromptFlowTest 10/10 证明会话逻辑正确）：
+用户改 smali → 保存（仅存本地工程）→ 直接退出 Dex 编辑器 → 修改**从未编译写回 APK**
+→ 会话无修改 → 退出 APK 不弹签名框；此时看到的「有签名」是上一轮已签名的
+`_edit.apk` 或本就带签名的原包/`_bak.apk`。
+
+**修复**：
+- DexEditorActivity 新增返回拦截：APK 工程存在 mtime 晚于基线的 smali（改了但没写回）
+  时弹「smali 修改尚未写回」（编译并写回 / 仍要退出）。基线记录在工程目录
+  `.editbase`（重开工程续用，防状态丢失），写回成功后刷新。
+- 编译成功对话框文案纠正：写回**不再签名**（v1.66.0 起统一生成未签名 `_edit.apk`，
+  退出 APK 后统一提示签名），旧文案「写回 APK 并重新签名（签 v1+v2+v3）」误导。
+- 新增 test/SignPromptFlowTest：真实签名原包 → putEdit → needsSignPrompt →
+  _edit.apk 无签名残留 → 暂不签名/再修改/签名后 各状态断言，10/10。
+
+versionCode 121。
+
+---
+
 ## v1.66.5 —— Dex 属性 / Dex 修复（对标 NP 菜单缺口盘点后补齐）
 
 对照 NP Manager「打开方式」菜单盘点 Dex 功能缺口，实现其中两项：

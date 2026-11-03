@@ -54,6 +54,12 @@ public class DexEditorActivity extends BaseActivity {
     private String projName;
     private File workDir;           // 工程根：src_*.dex + smali/<dex>/
     private final List<String> dexes = new ArrayList<String>();
+    /**
+     * v1.66.6：smali 未写回检测基线——mtime 大于此值的 smali 视为「改了但没编译写回」。
+     * 工程加载成功时初始化（复用旧工程则读 .editbase 续用，防重开丢失状态），
+     * 写回 APK 成功后刷新。仅 APK 工程用（独立 dex 无签名概念）。
+     */
+    private long editBaseAt;
 
     private TextView titleSub;
     private EditText searchBox;
@@ -278,11 +284,74 @@ public class DexEditorActivity extends BaseActivity {
                                 public void onClick(DialogInterface d, int w) { finish(); }
                             }).show();
                 } else {
+                    initEditBase();
                     titleSub.setText(dexes.size() + " 个 dex · " + classCount + " 个类 · 临时工程");
                     refresh();
                 }
             }});
         }}.start();
+    }
+
+    // ---------- v1.66.6：smali 未写回检测（退出拦截） ----------
+
+    /** 加载成功后初始化未写回检测基线：复用旧工程读 .editbase 续用，否则记当前时间 */
+    private void initEditBase() {
+        if (apk == null) return;
+        File f = new File(workDir, ".editbase");
+        if (f.isFile()) {
+            try {
+                editBaseAt = Long.parseLong(readText(f).toString().trim());
+                return;
+            } catch (Throwable ignored) {}
+        }
+        editBaseAt = System.currentTimeMillis();
+        saveEditBase();
+    }
+
+    private void saveEditBase() {
+        try { writeText(new File(workDir, ".editbase"), String.valueOf(editBaseAt)); }
+        catch (Throwable ignored) {}
+    }
+
+    /** 工程里是否有 mtime 晚于基线的 smali（= 改了但没编译写回 APK） */
+    private boolean hasUnwrittenSmali() {
+        if (apk == null || workDir == null || !workDir.isDirectory() || editBaseAt <= 0) return false;
+        for (File dir : workDir.listFiles()) {
+            if (!dir.isDirectory() || !dir.getName().startsWith("smali_")) continue;
+            if (hasNewer(dir, editBaseAt)) return true;
+        }
+        return false;
+    }
+
+    private static boolean hasNewer(File dir, long base) {
+        File[] cs = dir.listFiles();
+        if (cs == null) return false;
+        for (File c : cs) {
+            if (c.isDirectory()) { if (hasNewer(c, base)) return true; }
+            else if (c.getName().endsWith(".smali") && c.lastModified() > base) return true;
+        }
+        return false;
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (hasUnwrittenSmali()) {
+            new AlertDialog.Builder(this)
+                    .setTitle("smali 修改尚未写回")
+                    .setMessage("工程里的 smali 改动还没有编译写回 APK，直接退出会丢失这些修改"
+                            + "（不会生成 _edit.apk，退出 APK 时也不会提示签名）。\n\n"
+                            + "要现在编译并写回吗？")
+                    .setPositiveButton("编译并写回", new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface d, int w) { askCompile(); }
+                    })
+                    .setNegativeButton("仍要退出", new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface d, int w) { finish(); }
+                    })
+                    .setNeutralButton("取消", null)
+                    .show();
+            return;
+        }
+        super.onBackPressed();
     }
 
     /** 扫描 smali_* 目录建类树 */
@@ -521,11 +590,12 @@ public class DexEditorActivity extends BaseActivity {
                                 .setTitle("编译成功")
                                 .setMessage(outDex.getPath()
                                         + " (" + FileOps.formatSize(outDex.length()) + ")"
-                                        + "\n\n是否写回 APK 并重新签名？"
+                                        + "\n\n是否写回 APK？"
                                         + (dexes.size() > 1 ? "\n\n注意: 多个 dex 已合并为一个，写回时将替换 "
                                         + dexes.get(0) + " 并移除其余 " + (dexes.size() - 1) + " 个 dex。" : "")
-                                        + "\n\n（签 v1+v2+v3，产物可直接安装）")
-                                .setPositiveButton("写回 APK 并签名", new DialogInterface.OnClickListener() {
+                                        + "\n\n（写入修改版 " + ApkEditSession.editName(apk)
+                                        + "（未签名）；退出 APK 后统一提示签名）")
+                                .setPositiveButton("写回 APK", new DialogInterface.OnClickListener() {
                                     public void onClick(DialogInterface d, int w) { writeBackApk(outDex); }
                                 })
                                 .setNegativeButton("仅保留 dex 文件", null)
@@ -589,6 +659,9 @@ public class DexEditorActivity extends BaseActivity {
                 if (dexes.size() > 1)
                     ApkEditSession.putRemove(DexEditorActivity.this, apk,
                             dexes.subList(1, dexes.size()));
+                // v1.66.6：写回成功 → 未写回检测基线刷新（之后的 smali 改动才算未写回）
+                editBaseAt = System.currentTimeMillis();
+                saveEditBase();
             } catch (Throwable t) {
                 err = t.getClass().getSimpleName() + ": " + t.getMessage();
             }
