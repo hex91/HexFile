@@ -1662,6 +1662,28 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.67.0 —— 签名管理（导入内部化 + JKS/BKS 支持）+ 进度条修复
+
+**① 签名管理器（新 SignKeyManagerActivity）**：
+
+- **导入签名到应用内部**：`.p12/.pfx/.jks/.keystore/.bks` 一次性导入应用私有目录，名称/keystore 密码/私钥密码一并保存——之后签名**直接从列表选择，不再从文件加载、不用重复输密码**。
+- **查看签名信息**：逐别名显示 证书主题/签发者/有效期/签名算法/私钥算法/SHA-1/SHA-256 指纹。
+- **管理**：设为默认签名密钥（★ 标记，Dex 编辑器自动签名与自定义签名入口直接使用）/ 删除（默认密钥被删自动回落内置签名）。
+- 首条导入自动设为默认；纯证书 keystore（无私钥）导入时明确拒绝。
+
+**② JKS 签名无效修复**（用户反馈选了自定义 jks 签名不生效）：
+
+- 根因一：旧 `loadAny` 只试 PKCS12/JKS，**BKS 完全不支持**；现 KeyStoreUtil.loadAny 统一支持 PKCS12 → JKS → BKS。
+- 根因二：**JKS 私钥密码可与 keystore 密码不同**（`Cannot recover key`），旧代码一律用 keystore 密码取私钥 → 取不到就报"无可用私钥条目"。现私钥密码独立传递，自动模式逐别名尝试；导入与设置界面单独提供「私钥密码（可空=同 keystore 密码）」。
+- 根因三：旧 keystore 拷贝到 Dex 工程缓存目录，工程重建即丢失 → 自定义签名静默失效。现签名存应用私有目录，与工程生命周期解耦。
+- `ApkSignerTool.signAutoAlias` 新增完整重载（显式别名 + 独立私钥密码 + 方案组合），错误信息人话化。
+
+**③ 进度条一直 0% 修复**：Dex 编辑器 编译/写回 弹窗改横向真实走动（渐近曲线平滑推进 0→90%，完成打满 100%），替代部分设备上显示 0% 的 indeterminate 横条。
+
+**④ MainActivity 自定义签名入口重构**：已导入签名 → 列表直接选择并签名（★ 默认排前），辅以「从文件选择（一次性）/ 管理签名…」；无导入签名时保持旧流程。
+
+**测试**：新增 KeyStoreUtilTest（keytool 现场生成 PKCS12/JKS/双密码 JKS/纯证书 keystore，解析+签名+apksig 验证 21/21）；回归 SessionTest、SignPromptFlowTest、CustomSignE2ETest、SignSchemeTest、DexPropsTest 全过。versionCode 126。
+
 ## v1.66.10 —— 去掉 APK 旁的 `<名>_dexpp` 产物目录
 
 用户反馈：修改 smali 后 APK 同目录会多出 `<apk名>_dexpp/classes.dex`，又乱又没必要。

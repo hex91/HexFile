@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hex91.file"
-    android:versionCode="125"
-    android:versionName="1.66.10">
+    android:versionCode="126"
+    android:versionName="1.67.0">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
 
@@ -75,6 +75,12 @@
 
         <activity
             android:name="com.hex91.file.DexEditorActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <!-- v1.67.0：签名管理（导入 JKS/BKS/PKCS12 到应用内部 + 查看证书信息 + 默认密钥） -->
+        <activity
+            android:name="com.hex91.file.SignKeyManagerActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 

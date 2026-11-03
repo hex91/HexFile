@@ -664,14 +664,22 @@ public class DexEditorActivity extends BaseActivity {
         // v1.66.10：编译输出放应用内部缓存工程目录（不再在 APK/Dex 旁生成 <名>_dexpp 目录）
         final File outDex = new File(workDir, "out_classes.dex");
 
-        // 进度条（横向滚动式，编译期间平滑走动）
+        // 进度条（v1.67.0：横向真实走动——smali 编译拿不到阶段回调，用渐近曲线平滑推进，完成打满）
         final ProgressDialog pd = new ProgressDialog(this);
         pd.setTitle("正在编译");
         pd.setMessage("把全部 smali 编译为 dex…（几千个类需 10-60 秒）");
         pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
-        pd.setIndeterminate(true);
+        pd.setMax(100);
         pd.setCancelable(false);
         pd.show();
+        final android.os.Handler ph = new android.os.Handler();
+        final long t0 = System.currentTimeMillis();
+        final Runnable tick = new Runnable() { public void run() {
+            double sec = (System.currentTimeMillis() - t0) / 1000.0;
+            pd.setProgress((int) Math.min(90, 90 * (1 - Math.exp(-sec / 12.0))));
+            ph.postDelayed(this, 200);
+        }};
+        ph.post(tick);
 
         final List<File> dirs = new ArrayList<File>();
         for (File f : workDir.listFiles())
@@ -700,6 +708,8 @@ public class DexEditorActivity extends BaseActivity {
             }
             final String e = err;
             ui.post(new Runnable() { public void run() {
+                ph.removeCallbacksAndMessages(null);
+                pd.setProgress(100);
                 pd.dismiss();
                 if (e == null) {
                     if (apk != null) askUpdateArchive(outDex, exitWhenDone);
@@ -779,9 +789,17 @@ public class DexEditorActivity extends BaseActivity {
         final ProgressDialog pd = new ProgressDialog(this);
         pd.setMessage("写回 " + apk.getName() + " …");
         pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
-        pd.setIndeterminate(true);
+        pd.setMax(100);
         pd.setCancelable(false);
         pd.show();
+        final android.os.Handler ph = new android.os.Handler();
+        final long t0 = System.currentTimeMillis();
+        final Runnable tick = new Runnable() { public void run() {
+            double sec = (System.currentTimeMillis() - t0) / 1000.0;
+            pd.setProgress((int) Math.min(90, 90 * (1 - Math.exp(-sec / 8.0))));
+            ph.postDelayed(this, 200);
+        }};
+        ph.post(tick);
         new Thread() { public void run() {
             String err = null;
             try {
@@ -809,6 +827,8 @@ public class DexEditorActivity extends BaseActivity {
             }
             final String e = err;
             ui.post(new Runnable() { public void run() {
+                ph.removeCallbacksAndMessages(null);
+                pd.setProgress(100);
                 pd.dismiss();
                 if (e == null) {
                     Toast.makeText(DexEditorActivity.this,
@@ -851,12 +871,16 @@ public class DexEditorActivity extends BaseActivity {
         }
         File tmp = new File(apk.getParentFile(), apk.getName() + ".signtmp");
         if (tmp.exists()) tmp.delete();
-        byte[] ksBytes;
-        char[] pass;
         if (sp.getInt("ks_mode", 0) == 1) {
-            ksBytes = readAllBytes(new File(sp.getString("ks_path", "")));
-            pass = sp.getString("ks_pass", "").toCharArray();
-            ApkSignerTool.signAutoAlias(ksBytes, pass, apk, tmp, 21, v1, v2, v3);
+            // v1.67.0：从签名管理读取已导入密钥（密码一并保存，无需再从文件加载）
+            SignKeyManagerActivity.KeyEntry e = SignKeyManagerActivity.defaultEntry(this);
+            if (e == null) throw new IllegalStateException(
+                    "自定义签名已失效（可能已删除），请在自动签名设置中重新选择");
+            byte[] ksBytes = SignKeyManagerActivity.loadKeyBytes(this, e.id);
+            ApkSignerTool.signAutoAlias(ksBytes,
+                    e.storePass.toCharArray(),
+                    e.keyPass != null ? e.keyPass.toCharArray() : null,
+                    e.alias, apk, tmp, 21, v1, v2, v3);
         } else {
             java.io.InputStream ks = getAssets().open("hexfile.p12");
             try {
@@ -869,7 +893,7 @@ public class DexEditorActivity extends BaseActivity {
         ApkEditSession.markSigned(apk);
     }
 
-    /** 签名设置弹窗：密钥（内置/自定义）+ 签名方案下拉；确定后持久化 */
+    /** 签名设置弹窗：密钥（内置 / 已导入签名，点选进入选择列表）/ 签名方案下拉；确定后持久化 */
     private void showSignSettings() {
         final SharedPreferences sp = signPrefs();
         LinearLayout box = new LinearLayout(this);
@@ -879,45 +903,20 @@ public class DexEditorActivity extends BaseActivity {
         float den = getResources().getDisplayMetrics().density;
 
         TextView l1 = new TextView(this);
-        l1.setText("签名密钥");
+        l1.setText("签名密钥（点选更换）");
         l1.setTextSize(13);
         l1.setTextColor(ThemeManager.textSub(this));
         box.addView(l1);
-        final Spinner ksSpinner = new Spinner(this);
-        ksSpinner.setAdapter(new ArrayAdapter<String>(this,
-                android.R.layout.simple_spinner_dropdown_item,
-                new String[]{"内置签名文件", "自定义签名文件"}));
-        ksSpinner.setSelection(sp.getInt("ks_mode", 0));
-        box.addView(ksSpinner);
-        final TextView ksPath = new TextView(this);
-        String saved = sp.getString("ks_path", null);
-        ksPath.setText(saved != null ? "已选择: " + saved : "（未选择，点此选择 keystore 文件）");
-        ksPath.setTextSize(13);
-        ksPath.setTextColor(ThemeManager.accent(this));
-        ksPath.setPadding(0, (int) (6 * den), 0, 0);
-        ksPath.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                Intent i = new Intent(Intent.ACTION_GET_CONTENT);
-                i.addCategory(Intent.CATEGORY_OPENABLE);
-                i.setType("*/*");
-                try {
-                    startActivityForResult(
-                            Intent.createChooser(i, "选择签名文件（.p12/.pfx/.jks/.keystore）"),
-                            REQ_PICK_KS);
-                } catch (Throwable ignored) {
-                    Toast.makeText(DexEditorActivity.this, "无法打开文件选择器", Toast.LENGTH_SHORT).show();
-                }
-            }
+        final TextView ksSel = new TextView(this);
+        ksSel.setTextSize(15);
+        ksSel.setTextColor(ThemeManager.accent(this));
+        ksSel.setPadding(0, (int) (6 * den), 0, (int) (10 * den));
+        ksSel.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { showKeyPicker(); }
         });
-        box.addView(ksPath);
-        final EditText ksPass = new EditText(this);
-        ksPass.setHint("keystore 密码（自定义签名文件时必填）");
-        ksPass.setTextSize(14);
-        String savedPass = sp.getString("ks_pass", "");
-        if (savedPass.length() > 0) ksPass.setText(savedPass);
-        ksPass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
-                | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        box.addView(ksPass);
+        box.addView(ksSel);
+        ksSelRef = ksSel;
+        updateKeySelText(ksSel);
 
         TextView l2 = new TextView(this);
         l2.setText("签名方案");
@@ -937,8 +936,6 @@ public class DexEditorActivity extends BaseActivity {
                 .setPositiveButton("确定", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         sp.edit()
-                          .putInt("ks_mode", ksSpinner.getSelectedItemPosition())
-                          .putString("ks_pass", ksPass.getText().toString())
                           .putInt("scheme", scheme.getSelectedItemPosition())
                           .apply();
                     }
@@ -947,30 +944,65 @@ public class DexEditorActivity extends BaseActivity {
                 .show();
     }
 
-    private static final int REQ_PICK_KS = 4101;
-
-    @Override
-    protected void onActivityResult(int req, int res, Intent data) {
-        super.onActivityResult(req, res, data);
-        if (req == REQ_PICK_KS && res == RESULT_OK && data != null && data.getData() != null) {
-            // SAF Uri 不能持久使用 → 拷贝到工程目录，后续签名直接读文件
-            try {
-                File dst = new File(workDir, "custom_sign.keystore");
-                java.io.InputStream in = getContentResolver().openInputStream(data.getData());
-                FileOutputStream fo = new FileOutputStream(dst);
-                byte[] buf = new byte[65536];
-                int n;
-                while ((n = in.read(buf)) > 0) fo.write(buf, 0, n);
-                fo.close();
-                in.close();
-                
-                signPrefs().edit().putString("ks_path", dst.getAbsolutePath()).apply();
-                Toast.makeText(this, "签名文件已就绪", Toast.LENGTH_SHORT).show();
-            } catch (Throwable t) {
-                Toast.makeText(this, "读取签名文件失败: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-            }
+    /** 「签名密钥」行当前选择文案 */
+    private void updateKeySelText(TextView tv) {
+        SharedPreferences sp = signPrefs();
+        if (sp.getInt("ks_mode", 0) == 1) {
+            SignKeyManagerActivity.KeyEntry e = SignKeyManagerActivity.defaultEntry(this);
+            tv.setText(e != null ? "自定义签名：" + e.name + "（点选更换）"
+                    : "自定义签名已失效（点选更换）");
+        } else {
+            tv.setText("内置签名文件（点选更换）");
         }
     }
+
+    /** 密钥选择列表：内置 / 已导入签名（★默认）/ 管理签名… */
+    private void showKeyPicker() {
+        final SharedPreferences sp = signPrefs();
+        final List<SignKeyManagerActivity.KeyEntry> keys = new ArrayList<SignKeyManagerActivity.KeyEntry>();
+        // 枚举已导入签名（复用管理页的存储）
+        File dir = new File(getFilesDir(), "signkeys");
+        File[] fs = dir.listFiles();
+        List<String> ids = new ArrayList<String>();
+        if (fs != null) for (File f : fs)
+            if (f.getName().endsWith(".meta")) ids.add(f.getName().substring(0, f.getName().length() - 5));
+        java.util.Collections.sort(ids);
+        String defId = sp.getString("key_id", null);
+        if (defId != null && ids.remove(defId)) ids.add(0, defId);
+        for (String id : ids) {
+            SignKeyManagerActivity.KeyEntry e = SignKeyManagerActivity.loadEntry(this, id);
+            if (e != null) keys.add(e);
+        }
+
+        List<String> items = new ArrayList<String>();
+        items.add("内置签名文件");
+        String defId2 = sp.getString("key_id", null);
+        for (SignKeyManagerActivity.KeyEntry e : keys)
+            items.add((e.id.equals(defId2) ? "★ " : "") + e.name
+                    + (e.keyCount > 0 ? "（" + e.keyCount + " 个私钥别名）" : ""));
+        items.add("管理签名…（导入 / 查看证书信息 / 删除）");
+
+        new AlertDialog.Builder(this)
+                .setTitle("选择签名密钥")
+                .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int which) {
+                        if (which == 0) {
+                            sp.edit().putInt("ks_mode", 0).remove("key_id").apply();
+                        } else if (which == items.size() - 1) {
+                            startActivity(new Intent(DexEditorActivity.this,
+                                    SignKeyManagerActivity.class));
+                        } else {
+                            SignKeyManagerActivity.KeyEntry e = keys.get(which - 1);
+                            sp.edit().putInt("ks_mode", 1).putString("key_id", e.id).apply();
+                        }
+                        updateKeySelText(ksSelRef);
+                    }
+                })
+                .show();
+    }
+
+    /** showKeyPicker 选择后刷新「签名密钥」行文案（弱引用当前行） */
+    private TextView ksSelRef;
 
     private static byte[] readAllBytes(File f) throws java.io.IOException {
         FileInputStream fi = new FileInputStream(f);

@@ -89,23 +89,54 @@ public final class ApkSignerTool {
     /** v1.66.9：自定义密钥 + 可选签名方案 */
     public static void signAutoAlias(byte[] keyStoreBytes, char[] password,
             File in, File out, int minSdk, boolean v1, boolean v2, boolean v3) throws Exception {
+        signAutoAlias(keyStoreBytes, password, null, null, in, out, minSdk, v1, v2, v3);
+    }
+
+    /** v1.67.0：显式别名 + 独立私钥密码，默认签 v1+v2+v3 */
+    public static void signAutoAlias(byte[] keyStoreBytes, char[] storePass, char[] keyPass,
+            String alias, File in, File out, int minSdk) throws Exception {
+        signAutoAlias(keyStoreBytes, storePass, keyPass, alias, in, out, minSdk, true, true, true);
+    }
+
+    /**
+     * v1.67.0：完整签名入口——显式别名 + 独立私钥密码（JKS 私钥密码可与 keystore 密码不同）。
+     * @param alias    null = 自动选第一个可用私钥条目
+     * @param keyPass  null = 用 keystore 密码当私钥密码
+     */
+    public static void signAutoAlias(byte[] keyStoreBytes, char[] storePass, char[] keyPass,
+            String alias, File in, File out, int minSdk,
+            boolean v1, boolean v2, boolean v3) throws Exception {
         if (!v1 && !v2 && !v3)
             throw new IllegalArgumentException("至少需要启用一种签名方案 (v1/v2/v3)");
-        KeyStore ks = loadAny(keyStoreBytes, password);
-        String alias = null;
-        for (java.util.Enumeration<String> en = ks.aliases(); en.hasMoreElements();) {
-            String a = en.nextElement();
-            if (ks.isKeyEntry(a) && ks.getKey(a, password) instanceof PrivateKey
-                    && ks.getCertificateChain(a) != null
-                    && ks.getCertificateChain(a).length > 0) {
-                alias = a;
-                break;
+        KeyStore ks = KeyStoreUtil.loadAny(keyStoreBytes, storePass);
+        char[] kp = keyPass != null ? keyPass : storePass;
+        if (alias == null) {
+            for (java.util.Enumeration<String> en = ks.aliases(); en.hasMoreElements();) {
+                String a = en.nextElement();
+                if (!ks.isKeyEntry(a)) continue;
+                try {
+                    if (ks.getKey(a, kp) instanceof PrivateKey
+                            && ks.getCertificateChain(a) != null
+                            && ks.getCertificateChain(a).length > 0) {
+                        alias = a;
+                        break;
+                    }
+                } catch (Exception ignored) {
+                    // 该别名私钥密码不符（如 JKS 双密码），试下一个
+                }
             }
         }
-        if (alias == null) throw new IllegalStateException("keystore 中无可用私钥条目");
-        PrivateKey privateKey = (PrivateKey) ks.getKey(alias, password);
+        if (alias == null) throw new IllegalStateException(
+                "keystore 中无可用私钥条目（密码错误，或私钥密码与 keystore 密码不同）");
+        java.security.Key k = ks.getKey(alias, kp);
+        if (!(k instanceof PrivateKey))
+            throw new IllegalStateException("别名 " + alias + " 私钥无法读取（私钥密码错误？）");
+        PrivateKey privateKey = (PrivateKey) k;
+        java.security.cert.Certificate[] rawChain = ks.getCertificateChain(alias);
+        if (rawChain == null || rawChain.length == 0)
+            throw new IllegalStateException("别名 " + alias + " 无证书链");
         List<X509Certificate> chain = new ArrayList<X509Certificate>();
-        for (java.security.cert.Certificate c : ks.getCertificateChain(alias))
+        for (java.security.cert.Certificate c : rawChain)
             chain.add((X509Certificate) c);
         ApkSigner.SignerConfig signerConfig = new ApkSigner.SignerConfig.Builder(
                 "HexFileCustom", privateKey, chain).build();
@@ -121,17 +152,5 @@ public final class ApkSignerTool {
                 .setCreatedBy("HexFile Custom Sign")
                 .build()
                 .sign();
-    }
-
-    private static KeyStore loadAny(byte[] bytes, char[] password) throws Exception {
-        Exception last = null;
-        for (String type : new String[]{"PKCS12", "JKS"}) {
-            try {
-                KeyStore ks = KeyStore.getInstance(type);
-                ks.load(new java.io.ByteArrayInputStream(bytes), password);
-                return ks;
-            } catch (Exception e) { last = e; }
-        }
-        throw last != null ? last : new IllegalStateException("无法加载 keystore");
     }
 }

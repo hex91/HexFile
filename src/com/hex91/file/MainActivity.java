@@ -2322,19 +2322,120 @@ public class MainActivity extends BaseActivity {
         }, "apk-rmsign").start();
     }
 
-    /** 自定义密钥签名（v1.57）：选 keystore → 输密码 → signAutoAlias → _csigned.apk */
+    /**
+     * 自定义密钥签名（v1.57；v1.67.0 重构）：
+     * 已导入签名 → 列表直接选择并签名（密码已在导入时保存，无需再从文件加载/输密码）；
+     * 没有导入 → 走旧版「选文件 + 输密码」一次性流程；两个入口都可进「签名管理」。
+     */
     private void askCustomSign(final File apk, final boolean inPlace) {
-        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        i.addCategory(Intent.CATEGORY_OPENABLE);
-        i.setType("*/*");
-        try {
-            startActivityForResult(Intent.createChooser(i, "选择 keystore（.p12/.jks）"),
-                    REQ_CUSTOM_KEYSTORE);
-        } catch (Throwable t) {
-            toast("无法打开文件选择器: " + t.getMessage());
+        List<SignKeyManagerActivity.KeyEntry> keys = new ArrayList<SignKeyManagerActivity.KeyEntry>();
+        File dir = new File(getFilesDir(), "signkeys");
+        File[] fs = dir.listFiles();
+        List<String> ids = new ArrayList<String>();
+        if (fs != null) for (File f : fs)
+            if (f.getName().endsWith(".meta"))
+                ids.add(f.getName().substring(0, f.getName().length() - 5));
+        java.util.Collections.sort(ids);
+        String defId = SignKeyManagerActivity.signPrefs(this).getString("key_id", null);
+        if (defId != null && ids.remove(defId)) ids.add(0, defId);
+        for (String id : ids) {
+            SignKeyManagerActivity.KeyEntry e = SignKeyManagerActivity.loadEntry(this, id);
+            if (e != null) keys.add(e);
         }
-        mCustomSignSrc = apk;
-        mCustomSignInPlace = inPlace;   // v1.66.1：_edit.apk 原地签名
+
+        if (keys.isEmpty()) {
+            // 无导入签名 → 旧版一次性流程
+            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            i.addCategory(Intent.CATEGORY_OPENABLE);
+            i.setType("*/*");
+            try {
+                startActivityForResult(Intent.createChooser(i, "选择 keystore（.p12/.jks/.keystore/.bks）"),
+                        REQ_CUSTOM_KEYSTORE);
+            } catch (Throwable t) {
+                toast("无法打开文件选择器: " + t.getMessage());
+            }
+            mCustomSignSrc = apk;
+            mCustomSignInPlace = inPlace;
+            return;
+        }
+
+        List<String> items = new ArrayList<String>();
+        for (SignKeyManagerActivity.KeyEntry e : keys)
+            items.add((e.id.equals(defId) ? "★ " : "") + e.name
+                    + (e.keyCount > 0 ? "（" + e.keyCount + " 个私钥别名）" : ""));
+        items.add("从文件选择（一次性）…");
+        items.add("管理签名…（导入 / 查看证书信息 / 删除）");
+        new AlertDialog.Builder(this)
+                .setTitle("自定义密钥签名 — " + apk.getName())
+                .setItems(items.toArray(new String[0]), new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        if (w < keys.size()) {
+                            doCustomSignWithEntry(keys.get(w), apk, inPlace);
+                        } else if (w == keys.size()) {
+                            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                            i.addCategory(Intent.CATEGORY_OPENABLE);
+                            i.setType("*/*");
+                            try {
+                                startActivityForResult(Intent.createChooser(i,
+                                        "选择 keystore（.p12/.jks/.keystore/.bks）"),
+                                        REQ_CUSTOM_KEYSTORE);
+                            } catch (Throwable t) {
+                                toast("无法打开文件选择器: " + t.getMessage());
+                            }
+                            mCustomSignSrc = apk;
+                            mCustomSignInPlace = inPlace;
+                        } else {
+                            startActivity(new Intent(MainActivity.this,
+                                    SignKeyManagerActivity.class));
+                        }
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    /** 用已导入签名直接签（密码已保存）；inPlace = 原地覆盖，否则 <名>_csigned.apk */
+    private void doCustomSignWithEntry(final SignKeyManagerActivity.KeyEntry entry,
+            final File apk, final boolean inPlace) {
+        final ProgressDialog pd = ProgressDialog.show(MainActivity.this,
+                "自定义签名", entry.name + " → " + apk.getName(), true, false);
+        new Thread(new Runnable() {
+            public void run() {
+                String err = null;
+                File out = inPlace
+                        ? new File(apk.getParentFile(), apk.getName() + ".signtmp")
+                        : new File(apk.getParentFile(),
+                                stripExt(apk.getName()) + "_csigned.apk");
+                try {
+                    byte[] ksBytes = SignKeyManagerActivity.loadKeyBytes(MainActivity.this, entry.id);
+                    ApkSignerTool.signAutoAlias(ksBytes,
+                            entry.storePass.toCharArray(),
+                            entry.keyPass != null ? entry.keyPass.toCharArray() : null,
+                            entry.alias, apk, out, 21);
+                    if (inPlace) {
+                        ApkEditSession.safeReplace(out, apk);
+                        try { ApkEditSession.markSigned(apk); }
+                        catch (Throwable ignored) {}
+                    }
+                } catch (Throwable t) {
+                    err = t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
+                }
+                final String ferr = err;
+                final File fout = apk;
+                final boolean finPlace = inPlace;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        pd.dismiss();
+                        if (ferr != null) toast("签名失败: " + ferr);
+                        else {
+                            toast("已签名（" + entry.name + "）→ "
+                                    + (finPlace ? fout.getName() + "（原地覆盖）" : fout.getName()));
+                            refreshAll();
+                        }
+                    }
+                });
+            }
+        }, "apk-csign").start();
     }
 
     /** 解包目录 → 打包为 APK（v1.57）：产物未签名，询问是否用内置密钥直接签 */
