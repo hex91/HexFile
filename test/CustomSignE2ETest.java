@@ -6,15 +6,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.security.MessageDigest;
-import java.security.cert.Certificate;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.Enumeration;
 
 /**
- * 复现用户报告：「修改后原始文件/备份文件也改了，还是原始签名不是自定义签名」。
- * 端到端：原包(SHA基线) → 修改 → 自定义签名 → 校验原包/_bak 未被动过、
- * _edit.apk 证书=自定义 → 内置签后再自定义签 → 检查旧证书残留。
+ * v1.66.8 原地修改模型端到端核验：
+ * 签名原包 → 修改（原地写回）→ 自定义签名 → 校验 _bak 冻结原版、
+ * 工作包证书=自定义 → 内置签后再自定义签 → 检查旧证书残留 → 二次修改重打包。
  */
 public class CustomSignE2ETest {
 
@@ -49,7 +48,7 @@ public class CustomSignE2ETest {
         return bo.toByteArray();
     }
 
-    /** 列出 META-INF 下的签名相关文件 + V1 证书主题 */
+    /** 列出 META-INF 下的签名相关文件 */
     static String sigDetail(File apk) throws Exception {
         StringBuilder sb = new StringBuilder();
         ZipFile zf = new ZipFile(apk);
@@ -77,38 +76,38 @@ public class CustomSignE2ETest {
     public static void main(String[] args) throws Exception {
         File work = new File("test/csign_tmp");
         rmrf(work); work.mkdirs();
-        File orig = new File(work, "app.apk");
+        File apk = new File(work, "app.apk");
         File sample = new File(args[0]);
 
-        // 0) 原包用内置密钥签名（贴近真机：原包是带签名的）
+        // 0) 用内置密钥签名（贴近真机：原包是带签名的）
         InputStream ks = new FileInputStream("assets/hexfile.p12");
-        ApkSignerTool.sign(ks, ApkSignerTool.KEY_PASSWORD, sample, orig, 21);
+        ApkSignerTool.sign(ks, ApkSignerTool.KEY_PASSWORD, sample, apk, 21);
         ks.close();
-        String origSha = sha1(orig);
+        String origSha = sha1(apk);
         System.out.println("原包基线 SHA-1: " + origSha.substring(0, 12) + "...");
 
-        // 1) 修改 smali → putEdit（未签名 _edit.apk）
-        ZipFile zf = new ZipFile(orig);
+        // 1) 修改 → putEdit（原地写回，首次修改生成 _bak）
+        ZipFile zf = new ZipFile(apk);
         byte[] dex = readAll2(zf.getInputStream(zf.getEntry("classes.dex")));
         zf.close();
         dex[100] ^= 0x55;
-        ApkEditSession.clear(orig);
-        File edit = ApkEditSession.putEdit(null, orig, "classes.dex", dex);
+        ApkEditSession.clear(apk);
+        File edit = ApkEditSession.putEdit(null, apk, "classes.dex", dex);
         File bak = new File(work, "app_bak.apk");
 
-        chk("1 原包未被修改", sha1(orig).equals(origSha));
-        chk("2 _bak=原包副本", bak.exists() && sha1(bak).equals(origSha));
-        chk("3 _edit 未签名", !ApkSignCheck.schemes(edit).contains("V"), ApkSignCheck.schemes(edit));
+        chk("1 写回=apk 本身(原地模型)", edit.equals(apk));
+        chk("2 _bak=最初原版副本", bak.exists() && sha1(bak).equals(origSha));
+        chk("3 工作包已重打包(字节变化)", !sha1(apk).equals(origSha));
+        chk("4 修改后未签名", !ApkSignCheck.schemes(edit).contains("V"), ApkSignCheck.schemes(edit));
 
-        // 2) 弹窗 → 自定义签名（自定义 JKS，别 MYKEY）
+        // 2) 弹窗 → 自定义签名（自定义 JKS，别名 mykey → V1 文件 HEXFILEC.SF）
         File tmp = new File(work, "sign_tmp");
         byte[] ksBytes = readAll(new File("test/custom_test.jks"));
         ApkSignerTool.signAutoAlias(ksBytes, "mypass123".toCharArray(), edit, tmp, 21);
         ApkEditSession.safeReplace(tmp, edit);
-        chk("4 自定义签名后 _edit 有签名", ApkSignCheck.schemes(edit).contains("V"), ApkSignCheck.schemes(edit));
-        chk("5 _edit 证书=自定义(MYKEY 无内置残留)", v1CertOwner(edit).equals("自定义"), v1CertOwner(edit) + " | " + sigDetail(edit));
-        chk("6 原包仍未被修改", sha1(orig).equals(origSha));
-        chk("7 _bak 仍未被修改", sha1(bak).equals(origSha));
+        chk("5 自定义签名后有签名", ApkSignCheck.schemes(edit).contains("V"), ApkSignCheck.schemes(edit));
+        chk("6 工作包证书=自定义(无内置残留)", v1CertOwner(edit).equals("自定义"), v1CertOwner(edit) + " | " + sigDetail(edit));
+        chk("7 _bak 仍冻结在最初原版", sha1(bak).equals(origSha));
 
         // 3) 内置签过的包再自定义重签（模拟用户先内置后自定义）→ 不残留旧证书
         File mixed = new File(work, "mixed.apk");
@@ -120,13 +119,12 @@ public class CustomSignE2ETest {
         ApkSignerTool.signAutoAlias(ksBytes, "mypass123".toCharArray(), mixed, tmp2, 21);
         chk("9 内置→自定义重签后无旧证书残留", v1CertOwner(tmp2).equals("自定义"), v1CertOwner(tmp2) + " | " + sigDetail(tmp2));
 
-        // 4) 自定义签名后再次修改 → regen（_edit 重建为未签名；原包/_bak 依旧不动）
+        // 4) 自定义签名后再次修改 → 重打包（工作包重建为未签名；_bak 依旧冻结）
         byte[] dex2 = dex.clone(); dex2[200] ^= 0xAA;
-        ApkEditSession.putEdit(null, orig, "classes.dex", dex2);
-        chk("10 再修改后 _edit 重建为未签名", !ApkSignCheck.schemes(edit).contains("V"), ApkSignCheck.schemes(edit));
-        chk("11 原包依旧未被动过", sha1(orig).equals(origSha));
-        chk("12 _bak 依旧未被动过", sha1(bak).equals(origSha));
-        chk("13 _edit 仍含第一次+第二次修改", true, "大小=" + edit.length());
+        ApkEditSession.putEdit(null, apk, "classes.dex", dex2);
+        chk("10 再修改后工作包重建为未签名", !ApkSignCheck.schemes(edit).contains("V"), ApkSignCheck.schemes(edit));
+        chk("11 _bak 依旧冻结在最初原版", sha1(bak).equals(origSha));
+        chk("12 工作包含两轮修改（大小正常）", true, "大小=" + edit.length());
 
         System.out.println("\nPASS=" + pass + " FAIL=" + fail);
         System.exit(fail == 0 ? 0 : 1);

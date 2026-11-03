@@ -339,7 +339,7 @@ public class DexEditorActivity extends BaseActivity {
             new AlertDialog.Builder(this)
                     .setTitle("smali 修改尚未写回")
                     .setMessage("工程里的 smali 改动还没有编译写回 APK，直接退出会丢失这些修改"
-                            + "（不会生成 _edit.apk，退出 APK 时也不会提示签名）。\n\n"
+                            + "（不会写回原包，退出 APK 时也不会提示签名）。\n\n"
                             + "要现在编译并写回吗？")
                     .setPositiveButton("编译并写回", new DialogInterface.OnClickListener() {
                         public void onClick(DialogInterface d, int w) { askCompile(); }
@@ -593,8 +593,7 @@ public class DexEditorActivity extends BaseActivity {
                                         + "\n\n是否写回 APK？"
                                         + (dexes.size() > 1 ? "\n\n注意: 多个 dex 已合并为一个，写回时将替换 "
                                         + dexes.get(0) + " 并移除其余 " + (dexes.size() - 1) + " 个 dex。" : "")
-                                        + "\n\n（写入修改版 " + ApkEditSession.editName(apk)
-                                        + "（未签名）；退出 APK 后统一提示签名）")
+                                        + "\n\n（直接写回该 APK，未签名；退出 APK 后统一提示签名）")
                                 .setPositiveButton("写回 APK", new DialogInterface.OnClickListener() {
                                     public void onClick(DialogInterface d, int w) { writeBackApk(outDex); }
                                 })
@@ -619,7 +618,7 @@ public class DexEditorActivity extends BaseActivity {
 
     // ---------- 写回 APK（v1.10） ----------
 
-    /** 把编译出的 dex 登记进 ApkEditSession：替换首个选中 dex 条目、移除其余选中的 dex，统一生成 <apk名>_edit.apk */
+    /** 把编译出的 dex 登记进 ApkEditSession：替换首个选中 dex 条目、移除其余选中的 dex，重打包写回原包 */
     private void writeBackApk(final File outDex) {
         int mcnt = SmaliTool.dexMethodCount(outDex);
         if (mcnt > 65535) {
@@ -632,8 +631,7 @@ public class DexEditorActivity extends BaseActivity {
         }
         new AlertDialog.Builder(this)
                 .setTitle("确认保存")
-                .setMessage("输出: " + apk.getParentFile().getPath() + "/"
-                        + ApkEditSession.editName(apk)
+                .setMessage("写回: " + apk.getPath()
                         + "\n\n替换: " + dexes.get(0)
                         + (dexes.size() > 1 ? "\n移除: " + dexes.subList(1, dexes.size()) : "")
                         + "\n\n（编辑的是哪几个 dex 就替换/移除哪几个，未选中的 dex 不受影响；"
@@ -647,14 +645,14 @@ public class DexEditorActivity extends BaseActivity {
 
     private void doWriteBack(final File outDex) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("生成修改版 APK …");
+        pd.setMessage("写回 APK …");
         pd.setCancelable(false);
         pd.show();
         new Thread() { public void run() {
             String err = null;
             try {
                 byte[] dexBytes = readAllBytes(outDex);
-                // v1.66.0：登记进 ApkEditSession → 统一 <名>_edit.apk（不再单独签出 _dexpp.apk）
+                // v1.66.8：登记进 ApkEditSession → 重打包写回原包（首次修改自动备份 _bak.apk）
                 ApkEditSession.putEdit(DexEditorActivity.this, apk, dexes.get(0), dexBytes);
                 if (dexes.size() > 1)
                     ApkEditSession.putRemove(DexEditorActivity.this, apk,
@@ -671,7 +669,8 @@ public class DexEditorActivity extends BaseActivity {
                 if (e == null) {
                     new AlertDialog.Builder(DexEditorActivity.this)
                             .setTitle("已保存")
-                            .setMessage(ApkEditSession.editName(apk)
+                            .setMessage("已写回 " + apk.getName()
+                                    + "\n（首次修改时已自动备份 <名>_bak.apk）"
                                     + "\n\n退出 APK 后统一提示签名。")
                             .setPositiveButton("知道了", null).show();
                 } else {

@@ -16,17 +16,19 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
- * v1.66.0 APK 修改会话（统一「只生成一个 _edit.apk」模型）：
+ * v1.66.8 APK 修改会话（原地修改模型）：
  *
  *  - 所有对 APK 的修改（smali/dex、arsc、AndroidManifest、文本条目、lib/assets 加文件、
- *    删条目）不再原地写回、不再各产一个 _xmlpp/_arscpp/_dexpp/_mfpp 文件，
- *    而是登记到本会话后统一重打包为 <原名>_edit.apk（未签名）；
- *  - 首次修改时把最初原包备份为 <原名>_bak.apk（已存在则保留最早原版）；
- *  - 未发生实质性修改时不生成任何文件，原包保持不变；
+ *    删条目）登记到本会话后统一重打包，直接【原地覆盖原 APK】；
+ *  - 首次修改时先把原包备份为 <原名>_bak.apk（已存在则保留最早原版），备份成功才允许写入；
+ *  - 未发生实质性修改时不做任何写入；
  *  - 退出 APK 浏览时检查：有修改且未签名 → 统一弹窗（不签名 / 内置签名文件签名 /
- *    自有签名文件签名），签名成功后原地覆盖 _edit.apk（仍然只有一个文件）。
+ *    自有签名文件签名），签名成功后同样原地覆盖（仍只有一个文件）。
  *
- *  会话按 APK 绝对路径隔离，多次修改叠加；重打包始终以「原包 + 全部会话修改」为准，
+ *  历史版本说明：v1.66.0~v1.66.7 的产物是 <名>_edit.apk；v1.66.8 起不再生成
+ *  _edit.apk（旧的 _edit 文件仍可正常打开/签名，长按签名入口兼容它）。
+ *
+ *  会话按 APK 绝对路径隔离，多次修改叠加；重打包始终以「备份时的原版 + 全部会话修改」为准，
  *  因此多次保存结果一致，且重新打开被改过的条目时能读到最新内容（editBytes/overlayPending）。
  */
 public final class ApkEditSession {
@@ -38,7 +40,7 @@ public final class ApkEditSession {
         public final LinkedHashMap<String, File> edits = new LinkedHashMap<String, File>();
         /** 需从产物剔除的条目（如多 dex 合并后的多余 classesN.dex、删除的条目） */
         public final LinkedHashSet<String> removes = new LinkedHashSet<String>();
-        /** true = 修改后已重新生成过 _edit.apk（未签名状态） */
+        /** true = 修改后已重新生成过（APK 当前为未签名状态） */
         public boolean dirty = false;
         /** 统一签名弹窗已处理过（选择不签名后不再重复弹） */
         public boolean prompted = false;
@@ -81,7 +83,7 @@ public final class ApkEditSession {
         return s;
     }
 
-    /** 是否有未落地的修改（_edit.apk 需要存在/更新） */
+    /** 是否有未落地的修改（需要重打包写入） */
     public static synchronized boolean hasEdits(File apk) {
         Session s = MAP.get(key(apk));
         return s != null && (!s.edits.isEmpty() || !s.removes.isEmpty());
@@ -169,8 +171,8 @@ public final class ApkEditSession {
     }
 
     /**
-     * 登记「修改/新增条目」并立即重生成 <base>_edit.apk。
-     * @return 生成的 _edit.apk；失败抛 IOException
+     * 登记「修改/新增条目」并立即重打包写回。
+     * @return 写入结果（即 apk 本身，v1.66.8 原地模型）；失败抛 IOException
      */
     public static File putEdit(Context ctx, File apk, String entry, byte[] data)
             throws IOException {
@@ -226,20 +228,23 @@ public final class ApkEditSession {
     }
 
     /**
-     * 统一重生成：<base>_bak.apk（仅首次，保留最早原版）+ <base>_edit.apk（未签名）。
-     * 内容 = 原包 + 会话全部修改。
+     * 统一重生成（v1.66.8 原地模型）：
+     * 1) <base>_bak.apk 备份（仅首次，保留最早原版）——备份成功才允许继续；
+     * 2) 重打包到临时文件 → 原子覆盖原 APK。
+     * 内容 = 备份基线上的原包 + 会话全部修改。
      */
     public static File regen(Context ctx, File apk) throws IOException {
         Session s = get(apk);
         File parent = apk.getParentFile();
         String base = stripExt(apk.getName());
 
-        // 1) 原包备份（只备份一次，保留最早版本）
+        // 1) 原包备份（只备份一次，保留最早版本）——这是原地写入的安全网，必须成功
         File bak = new File(parent, base + "_bak.apk");
         if (!bak.exists()) copy(apk, bak);
+        if (!bak.exists() || bak.length() <= 0)
+            throw new IOException("原包备份失败，已取消写入: " + bak.getName());
 
-        // 2) 重打包 → 临时文件 → 原子覆盖 _edit.apk
-        File edit = new File(parent, base + "_edit.apk");
+        // 2) 重打包 → 临时文件 → 原子覆盖原 APK
         File tmpOut = new File(cacheRoot(ctx, apk), "out.apk");
         if (tmpOut.exists()) tmpOut.delete();
 
@@ -260,32 +265,30 @@ public final class ApkEditSession {
         }
 
         ApkRepack.repack(apk, replace, s.removes, add, tmpOut);
-        if (edit.exists()) edit.delete();
-        if (!tmpOut.renameTo(edit)) {
-            copy(tmpOut, edit);
-            tmpOut.delete();
-        }
+        safeReplace(tmpOut, apk);
         s.dirty = true;
         s.prompted = false;
-        return edit;
+        return apk;
     }
 
     /**
      * 启动统一签名弹窗（透明 Activity，不阻塞调用方关闭浏览页）。
-     * v1.66.1 修复：必须把 <名>_edit.apk 传给弹窗签名——
-     * 此前误传原始 APK，导致签名写到原包上、_edit.apk 一直是未签名状态。
+     * v1.66.8 原地模型：直接签当前 APK（修改就在它身上）。
      */
     public static void launchSignPrompt(Context ctx, File apk) {
         Intent i = new Intent(ctx, SignPromptActivity.class);
-        i.putExtra("apk", editApkOf(apk).getAbsolutePath());
+        i.putExtra("apk", apk.getAbsolutePath());
         if (!(ctx instanceof android.app.Activity)) i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         ctx.startActivity(i);
         markPrompted(apk);
     }
 
-    /** 修改版文件：<同目录>/<名>_edit.apk */
+    /**
+     * 兼容保留（v1.66.0~v1.66.7 语义：修改版文件）。
+     * v1.66.8 起修改原地写回，修改版就是 apk 本身。
+     */
     public static File editApkOf(File apk) {
-        return new File(apk.getParentFile(), editName(apk));
+        return apk;
     }
 
     public static String editName(File apk) {

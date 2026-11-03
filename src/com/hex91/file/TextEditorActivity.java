@@ -1410,7 +1410,7 @@ public class TextEditorActivity extends BaseActivity {
                     AxmlFile check = AxmlFile.parse(newAxml);
                     if (check.elements.size() != axml.elements.size())
                         throw new IllegalStateException("回读校验失败：元素数不一致");
-                    // v1.66.0：登记 + 统一重生成 <名>_edit.apk（不再单独签出 _xmlpp.apk）
+                    // v1.66.8：登记 + 会话重打包写回原包（首次修改自动备份 _bak.apk）
                     outApk = ApkEditSession.putEdit(TextEditorActivity.this,
                             rtApkFile, "AndroidManifest.xml", newAxml);
                 } catch (IllegalArgumentException e) {
@@ -1476,7 +1476,7 @@ public class TextEditorActivity extends BaseActivity {
                     }
                     if (archiveFile != null && entryName != null) {
                         if (ApkEditSession.isApk(archiveFile)) {
-                            // v1.66.0：不原地写回 —— 登记修改并重生成 <名>_edit.apk（原包备份 _bak.apk）
+                            // v1.66.8：登记修改并重打包写回原包（首次修改自动备份 _bak.apk）
                             ApkEditSession.putEdit(TextEditorActivity.this,
                                     archiveFile, entryName, data);
                         } else if (!ArchiveWrite.writeEntry(archiveFile, entryName, data)) {
@@ -1501,8 +1501,7 @@ public class TextEditorActivity extends BaseActivity {
                         if (done) {
                             setModified(false);
                             if (editGenerated) {
-                                toast("已保存，修改版 → " + ApkEditSession.editName(archiveFile)
-                                        + "\n（退出 APK 后可统一签名）");
+                                toast("已保存，已写回原包\n（首次修改自动备份 同名_bak.apk；退出 APK 后可统一签名）");
                                 if (pendingFinishAfterSave) finish();
                             } else if (archiveFile != null) {
                                 toast("已写回压缩包 (" + encoding + ")");
@@ -1558,7 +1557,7 @@ public class TextEditorActivity extends BaseActivity {
                     if (nEdits > 0) {
                         // ArscEditor：无结构化编辑走兼容补丁路径；有 delete/add 走全量重编码
                         byte[] newArsc = ArscEditor.write(af, edits, ops);
-                        // 4) 登记 + 统一重生成 <名>_edit.apk（原包首次修改时备份 _bak.apk）
+                        // 4) 登记 + 会话重打包写回原包（首次修改时备份 _bak.apk）
                         ApkEditSession.putEdit(TextEditorActivity.this,
                                 archiveFile, arscppEntry, newArsc);
                     }
@@ -1582,9 +1581,8 @@ public class TextEditorActivity extends BaseActivity {
                             if (pendingFinishAfterSave) finish();
                         } else {
                             setModified(false);
-                            toast("已保存 " + arscppEntry + "（" + fn + " 处修改）\n修改版 → "
-                                    + ApkEditSession.editName(archiveFile)
-                                    + "\n（退出 APK 后可统一签名）");
+                            toast("已保存 " + arscppEntry + "（" + fn + " 处修改）\n已写回原包"
+                                    + "\n（首次修改自动备份 同名_bak.apk；退出 APK 后可统一签名）");
                             if (pendingFinishAfterSave) finish();
                         }
                     }

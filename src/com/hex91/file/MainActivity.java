@@ -1618,14 +1618,14 @@ public class MainActivity extends BaseActivity {
         }, "arch-dex-props").start();
     }
 
-    /** 压缩包内 dex 修复（v1.66.5，仅 APK 归档）：提取 → 修复 → 走会话生成 _edit.apk */
+    /** 压缩包内 dex 修复（v1.66.5，仅 APK 归档）：提取 → 修复 → 会话写回原包 */
     private void askArchDexFix(final Panel p, final FileItem it) {
         final File apk = p.archiveFile;
         new AlertDialog.Builder(this)
                 .setTitle("Dex 修复")
                 .setMessage("对 " + it.archShort + " 修正 file_size / header_size / endian_tag，"
                         + "重算 SHA-1 签名与 Adler-32 校验和，并用 dexlib2 实际解析验证。\n"
-                        + "原 APK 不动，修复结果写入 <名>_edit.apk（会话模型）。")
+                        + "修复直接写回该 APK（首次修改自动备份 <名>_bak.apk）。")
                 .setPositiveButton("修复", new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         toast("修复中…");
@@ -1658,7 +1658,7 @@ public class MainActivity extends BaseActivity {
                                 }
                                 FileOps.deleteRecursive(tmpDir);
                                 final String msg = err != null ? "修复失败: " + err
-                                        : "修复完成，已写入 _edit.apk:\n" + rep;
+                                        : "修复完成，已写回:\n" + rep;
                                 runOnUiThread(new Runnable() {
                                     public void run() {
                                         toast(msg);
@@ -1859,7 +1859,7 @@ public class MainActivity extends BaseActivity {
                     err = t.getClass().getSimpleName() + ": " + t.getMessage();
                 }
                 if (err == null) {
-                    // 2) 逐文件写入目标归档（APK → 统一会话生成 _edit.apk；其他压缩包原地写）
+                    // 2) 逐文件写入目标归档（APK → 会话重打包写回原包；其他压缩包原地写）
                     final boolean dstApk = ApkEditSession.isApk(dst.archiveFile);
                     try {
                         for (FileItem it : entries) {
@@ -1878,7 +1878,7 @@ public class MainActivity extends BaseActivity {
                                 throw new RuntimeException("提取失败: " + it.archPath());
                             }
                         }
-                        // 批量登记完成 → 一次性重生成 <名>_edit.apk
+                        // 批量登记完成 → 一次性重打包写回
                         if (dstApk && err == null)
                             ApkEditSession.flushRegen(MainActivity.this, dst.archiveFile);
                         // 3) move：从源归档删除原条目
@@ -1904,7 +1904,7 @@ public class MainActivity extends BaseActivity {
                         if (dst.archiveFile != null && ApkEditSession.isApk(dst.archiveFile)
                                 && ApkEditSession.hasEdits(dst.archiveFile)) {
                             toast((move ? "已移动进压缩包" : "已复制进压缩包")
-                                    + "，修改版 → " + ApkEditSession.editName(dst.archiveFile));
+                                    + "（已写回原包，首次修改自动备份 _bak.apk）");
                         } else {
                             toast(move ? "已移动进压缩包" : "已复制进压缩包");
                         }
@@ -1936,7 +1936,7 @@ public class MainActivity extends BaseActivity {
                         String err = null;
                         try {
                             if (apkMode) {
-                                // v1.66.0：APK 删除条目 → 会话登记 + 统一生成 <名>_edit.apk
+                                // v1.66.8：APK 删除条目 → 会话登记 + 重打包写回原包
                                 ApkEditSession.putRemove(MainActivity.this, p.archiveFile, names);
                             } else if (!ArchiveWrite.removeEntries(p.archiveFile, names)) {
                                 err = "删除失败";
@@ -1949,8 +1949,7 @@ public class MainActivity extends BaseActivity {
                             public void run() {
                                 if (ferr != null) { toast(ferr); return; }
                                 toast("已删除 " + names.size() + " 项"
-                                        + (apkMode ? "，修改版 → "
-                                        + ApkEditSession.editName(p.archiveFile) : ""));
+                                        + (apkMode ? "（已写回原包，首次修改自动备份 _bak.apk）" : ""));
                                 showArchiveDir(p);
                             }
                         });
@@ -1991,47 +1990,26 @@ public class MainActivity extends BaseActivity {
     }
 
     /**
-     * v1.66.1 长按菜单「APK 签名 / 自定义密钥签名」统一入口：
-     *  - 目标是 _edit.apk（修改版）→ 原地签名（保持「只生成一个修改版文件」）；
-     *  - 目标是原包但存在未签名修改版 → 先询问签哪个（防止误装未修改的原包）；
-     *  - 其余情况维持原行为：生成 <名>_signed.apk / <名>_csigned.apk。
+     * 长按菜单「APK 签名 / 自定义密钥签名」统一入口（v1.66.8 原地模型）：
+     *  - APK 有本会话修改 → 原地签名（修改就在这个文件上，签完直接装）；
+     *  - 文件名是 _edit.apk（v1.66.7 及更早版本的修改版）→ 原地签名（兼容）；
+     *  - 其余（未动过的 APK）维持原行为：生成 <名>_signed.apk / <名>_csigned.apk，
+     *    不动原包。
      */
     private void startSign(final File apk, final boolean custom) {
-        if (apk.getName().toLowerCase().endsWith("_edit.apk")) {
+        String n = apk.getName().toLowerCase();
+        boolean legacyEdit = n.endsWith("_edit.apk");
+        boolean modified = legacyEdit || ApkEditSession.hasEdits(apk);
+        if (modified) {
             if (custom) askCustomSign(apk, true);
             else signApkInPlace(apk);
-            return;
-        }
-        if (ApkEditSession.isApk(apk) && ApkEditSession.hasEdits(apk)) {
-            new AlertDialog.Builder(this)
-                    .setTitle("选择签名目标")
-                    .setMessage("该 APK 有未签名的修改版：\n"
-                            + ApkEditSession.editName(apk)
-                            + "\n\n修改版包含全部已保存的修改（smali/arsc/清单等）；"
-                            + "原包未被改动。要安装修改后的应用请签修改版。")
-                    .setPositiveButton("签名修改版",
-                            new android.content.DialogInterface.OnClickListener() {
-                        public void onClick(android.content.DialogInterface d, int w) {
-                            if (custom) askCustomSign(ApkEditSession.editApkOf(apk), true);
-                            else signApkInPlace(ApkEditSession.editApkOf(apk));
-                        }
-                    })
-                    .setNegativeButton("仅签原包",
-                            new android.content.DialogInterface.OnClickListener() {
-                        public void onClick(android.content.DialogInterface d, int w) {
-                            if (custom) askCustomSign(apk, false);
-                            else signApkBuiltin(apk);
-                        }
-                    })
-                    .setNeutralButton("取消", null)
-                    .show();
             return;
         }
         if (custom) askCustomSign(apk, false);
         else signApkBuiltin(apk);
     }
 
-    /** 内置密钥原地签名 _edit.apk（v1.66.1）：临时文件 → 原子覆盖，不产生新文件 */
+    /** 内置密钥原地签名（v1.66.1 引入，v1.66.8 起为修改 APK 的默认签名方式）：临时文件 → 原子覆盖 */
     private void signApkInPlace(final File apk) {
         toast("签名中…");
         new Thread(new Runnable() {
@@ -2417,7 +2395,7 @@ public class MainActivity extends BaseActivity {
                             // 目录整树写入：root 作为压缩包内前缀
                             writeTree(f, root, archPane.archiveFile, apkMode);
                         } else if (apkMode) {
-                            // v1.66.0：APK → 会话登记（加 lib/assets 文件等），统一生成 _edit.apk
+                            // v1.66.8：APK → 会话登记（加 lib/assets 文件等），重打包写回原包
                             ApkEditSession.stageAdd(MainActivity.this,
                                     archPane.archiveFile, root, f);
                         } else {
@@ -2444,7 +2422,7 @@ public class MainActivity extends BaseActivity {
                         if (ferr != null) { toast("失败: " + ferr); return; }
                         if (apkMode) {
                             toast((move ? "已移动进压缩包" : "已复制进压缩包")
-                                    + "，修改版 → " + ApkEditSession.editName(archPane.archiveFile));
+                                    + "（已写回原包，首次修改自动备份 _bak.apk）");
                         } else {
                             toast(move ? "已移动进压缩包" : "已复制进压缩包");
                         }
@@ -2536,7 +2514,7 @@ public class MainActivity extends BaseActivity {
     private static String apkFileRole(File f) {
         String n = f.getName().toLowerCase();
         if (n.endsWith("_edit.apk"))
-            return "修改版（全部修改在此文件，签名后安装它；原包与 _bak 未被改动）";
+            return "修改版（v1.66.7 及更早版本生成；新版本修改直接写回原包，不再生成 _edit）";
         if (n.endsWith("_bak.apk"))
             return "原包备份（首次修改时自动生成，保持原厂签名，用于还原；勿安装）";
         if (n.endsWith("_signed.apk"))
@@ -2562,8 +2540,8 @@ public class MainActivity extends BaseActivity {
             rows.add(new String[]{"APK 路径", f.getAbsolutePath()});
         }
         final List<String[]> rowsF = rows;
-        // v1.66.7：修改版/备份文件角色说明——原包与 _bak 永远保持原厂签名（设计如此），
-        // 全部修改在 _edit.apk；不加这行用户容易把三者混淆（"怎么还是原始签名"）
+        // v1.66.7：备份文件角色说明——_bak 永远保持原厂签名（设计如此，用于还原）；
+        // v1.66.8 起修改直接写回原包，签名状态行即可判断当前包是否已重签
         String role = apkFileRole(f);
         if (role != null) rowsF.add(1, new String[]{"文件角色", role});
 
@@ -4603,7 +4581,7 @@ public class MainActivity extends BaseActivity {
                         else toast((alsoDelete ? "已提取并删除 " : "已提取 ") + fok + " 项");
                         if (alsoDelete && ApkEditSession.isApk(p.archiveFile)
                                 && ApkEditSession.hasEdits(p.archiveFile))
-                            toast("修改版 → " + ApkEditSession.editName(p.archiveFile));
+                            toast("已写回原包（首次修改自动备份 _bak.apk）");
                         showArchiveDir(p);
                         if (dst.archiveFile == null) loadDir(dst, dst.dir);
                     }

@@ -511,9 +511,9 @@ public class ArscEditorActivity extends BaseActivity {
         if (!dirty) { toast("没有修改"); return; }
         new AlertDialog.Builder(this)
                 .setTitle("保存修改")
-                .setMessage("将修改写入 " + entryName + " 并统一生成：\n\n"
-                        + ApkEditSession.editName(apk)
-                        + "\n\n（原包首次修改时自动备份为 同名_bak.apk；"
+                .setMessage("将修改写入 " + entryName + " 并直接保存到该 APK：\n\n"
+                        + apk.getName()
+                        + "\n\n（首次修改时自动备份为 同名_bak.apk；"
                         + "退出 APK 后统一提示签名）")
                 .setPositiveButton("保存", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) { doSave(); }
@@ -531,7 +531,7 @@ public class ArscEditorActivity extends BaseActivity {
             String err = null;
             try {
                 byte[] newArsc = ArscWriter.write(arsc, edits);
-                // v1.66.0：登记 + 统一重生成 <名>_edit.apk（不再单独签出 _arscpp.apk）
+                // v1.66.8：登记 + 会话重打包写回原包（首次修改自动备份 _bak.apk）
                 ApkEditSession.putEdit(ArscEditorActivity.this, apk, entryName, newArsc);
             } catch (Throwable t) {
                 err = t.getClass().getSimpleName() + ": " + t.getMessage();
@@ -546,8 +546,7 @@ public class ArscEditorActivity extends BaseActivity {
                 } else {
                     dirty = false;
                     refresh();
-                    toast("已保存，修改版 → " + ApkEditSession.editName(apk)
-                            + "\n（退出 APK 后可统一签名）");
+                    toast("已保存，已写回原包\n（首次修改自动备份 同名_bak.apk；退出 APK 后可统一签名）");
                 }
             }});
         }}.start();

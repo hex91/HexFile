@@ -12,7 +12,7 @@ import java.util.Enumeration;
 
 /**
  * 复现用户真机流程：已签名的原包 → 修改 smali（putEdit 模拟 dex 修改）→
- * 退出时是否应弹签名框（needsSignPrompt）→ _edit.apk 的签名状态检测。
+ * 退出时是否应弹签名框（needsSignPrompt）→ 修改后 APK（原地写回）的签名状态检测。
  */
 public class SignPromptFlowTest {
 
@@ -68,17 +68,20 @@ public class SignPromptFlowTest {
         zf.close();
         dex[100] ^= 0x55;
         ApkEditSession.clear(orig);
+        File origSnap = new File(work, "orig_snap.apk");
+        copyFile(orig, origSnap);
         File edit = ApkEditSession.putEdit(null, orig, "classes.dex", dex);
+        chk("0b 写回=apk 本身(原地模型)", edit.equals(orig));
 
         // 2) 退出时应弹签名框？
         chk("1 needsSignPrompt=true(退出应弹窗)", ApkEditSession.needsSignPrompt(orig));
         chk("2 dirty=true", ApkEditSession.get(orig).dirty);
 
-        // 3) _edit.apk 应为未签名状态（无 V1 签名文件残留）
-        chk("3 _edit.apk 无 META-INF 签名文件", !hasSigFiles(edit));
+        // 3) 修改后的 apk 应为未签名状态（无 V1 签名文件残留）
+        chk("3 修改后无 META-INF 签名文件", !hasSigFiles(edit));
         String sc = ApkSignCheck.schemes(edit);
-        chk("4 _edit.apk 签名检测=未签名", sc.equals("未签名") || sc.equals("检测失败") == false && !sc.contains("V1"), sc);
-        chk("5 _edit.apk 不等于原包字节", !eq(orig, edit));
+        chk("4 修改后签名检测=未签名", sc.equals("未签名") || sc.equals("检测失败") == false && !sc.contains("V1"), sc);
+        chk("5 已不同于签名原包字节", !eq(origSnap, edit));
 
         // 4) 模拟用户选"暂不签名"→ prompted=true → 不再弹
         ApkEditSession.markPrompted(orig);
@@ -89,7 +92,7 @@ public class SignPromptFlowTest {
         ApkEditSession.putEdit(null, orig, "classes.dex", dex2);
         chk("7 二次修改后 needsSignPrompt=true", ApkEditSession.needsSignPrompt(orig));
 
-        // 6) 模拟签名 _edit.apk → markSigned → 不再弹
+        // 6) 模拟签名（原地覆盖）→ markSigned → 不再弹
         File tmp = new File(work, "sign_tmp.apk");
         ks = new FileInputStream("assets/hexfile.p12");
         ApkSignerTool.sign(ks, ApkSignerTool.KEY_PASSWORD, edit, tmp, 21);
@@ -97,10 +100,18 @@ public class SignPromptFlowTest {
         ApkEditSession.safeReplace(tmp, edit);
         ApkEditSession.markSigned(orig);
         chk("8 签名后 needsSignPrompt=false", !ApkEditSession.needsSignPrompt(orig));
-        chk("9 签名后 _edit.apk 检测有签名", ApkSignCheck.schemes(edit).contains("V"), ApkSignCheck.schemes(edit));
+        chk("9 签名后检测有签名", ApkSignCheck.schemes(edit).contains("V"), ApkSignCheck.schemes(edit));
 
         System.out.println("\nPASS=" + pass + " FAIL=" + fail);
         System.exit(fail == 0 ? 0 : 1);
+    }
+
+    static void copyFile(File src, File dst) throws Exception {
+        java.io.InputStream in = new FileInputStream(src);
+        java.io.FileOutputStream out = new java.io.FileOutputStream(dst);
+        byte[] b = new byte[65536]; int n;
+        while ((n = in.read(b)) > 0) out.write(b, 0, n);
+        in.close(); out.close();
     }
 
     static byte[] readAll2(InputStream in) throws Exception {
