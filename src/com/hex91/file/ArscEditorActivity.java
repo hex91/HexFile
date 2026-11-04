@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
@@ -43,6 +44,8 @@ import jadx.core.xmlgen.entry.ResourceEntry;
  *   1. 从 APK/zip 提取 resources.arsc，基于 jadx 的二进制解析器（Apache-2.0）解码
  *   2. 类型分组列表（可折叠）+ 实时搜索（名称/值/资源ID）
  *   3. 点条目编辑：字符串值 / 整数布尔颜色 / 引用 / 条目名；bag 条目可逐项编辑
+ *      v1.67.5：确定后立刻在列表里显示新值并标「✎ 已修改」（附原值），
+ *      同时重建三级树并把列表滚到刚改的条目 —— 与 AndroidManifest 编辑器一致
  *   4. 💾 保存：写 arsc（池追加 + 4 字节补丁）→ 重打包（.so 4096 对齐）→ 设备端重签名 → 安装
  */
 public class ArscEditorActivity extends BaseActivity {
@@ -69,7 +72,39 @@ public class ArscEditorActivity extends BaseActivity {
     private String apkBase;
     private ArscFile arsc;
     private boolean dirty;
-    private final List<ArscWriter.Edit> edits = new ArrayList<ArscWriter.Edit>();
+    /**
+     * 待保存修改：key = 条目 + 修改类别（+bag 下标），value = 写盘用的 Edit。
+     * v1.67.5：改成按 key 归并 —— 同一条目重复编辑只保留最后一次，改回原值即撤销。
+     */
+    private final LinkedHashMap<EditKey, ArscWriter.Edit> edits =
+            new LinkedHashMap<EditKey, ArscWriter.Edit>();
+
+    /** 有未保存修改的条目（按对象身份），供列表绘制快速判断 */
+    private final java.util.Set<ResourceEntry> changedEntries =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<ResourceEntry, Boolean>());
+
+    /** edits 的复合键（条目按对象身份区分，与 ArscWriter 的 EntrySpan 身份查找一致） */
+    private static final class EditKey {
+        final ResourceEntry entry;
+        final int kind;
+        final int mapIndex;
+
+        EditKey(ResourceEntry entry, int kind, int mapIndex) {
+            this.entry = entry;
+            this.kind = kind;
+            this.mapIndex = mapIndex;
+        }
+
+        public boolean equals(Object o) {
+            if (!(o instanceof EditKey)) return false;
+            EditKey k = (EditKey) o;
+            return entry == k.entry && kind == k.kind && mapIndex == k.mapIndex;
+        }
+
+        public int hashCode() {
+            return System.identityHashCode(entry) * 31 + kind * 7 + mapIndex;
+        }
+    }
 
     private final List<Row> allRows = new ArrayList<Row>();
     private final List<Row> viewRows = new ArrayList<Row>();
@@ -162,14 +197,14 @@ public class ArscEditorActivity extends BaseActivity {
 
     /** 三级树组行：类型 → 资源名 → 各配置值（与 Dex 编辑器同风格） */
     private void buildRows() {
-        allRows.clear();
-        // 保留旧展开状态（编辑重建后不丢失折叠位置）
+        // 保留旧展开状态（编辑重建后不丢失折叠位置）——必须在 clear 之前采集
         Map<String, Boolean> typeExp = new HashMap<String, Boolean>();
         Map<String, Boolean> nameExp = new HashMap<String, Boolean>();
         for (Row r : allRows) {
-            if (r.isHeader) typeExp.put(r.typeName, r.expanded);
-            else if (r.isName) nameExp.put(r.typeName + "/" + r.name, r.expanded);
+            if (r.isHeader) typeExp.put(r.typeName, Boolean.valueOf(r.expanded));
+            else if (r.isName) nameExp.put(r.typeName + "/" + r.name, Boolean.valueOf(r.expanded));
         }
+        allRows.clear();
         Map<String, Map<String, List<Row>>> tree =
                 new java.util.LinkedHashMap<String, Map<String, List<Row>>>();
         for (ResourceEntry e : arsc.storage.getResources()) {
@@ -231,6 +266,72 @@ public class ArscEditorActivity extends BaseActivity {
         }
     }
 
+    // ---------- 未保存修改的预览（v1.67.5） ----------
+    // arsc 对象在保存前不会被改动，所以行文本不能只读 r.value / r.name，
+    // 必须叠加 edits 里的待写值，否则「确定」后看不见任何变化。
+
+    /** 该条目的简单值修改（字符串 / 整数），无则 null */
+    private ArscWriter.Edit valueEdit(ResourceEntry e) {
+        ArscWriter.Edit ed = edits.get(new EditKey(e, ArscWriter.Edit.VALUE_STRING, -1));
+        if (ed == null) ed = edits.get(new EditKey(e, ArscWriter.Edit.VALUE_RAW, -1));
+        return ed;
+    }
+
+    /** bag 条目的待改命名值：mapIndex → 新值文本 */
+    private Map<Integer, String> bagOverrides(ResourceEntry e) {
+        Map<Integer, String> ov = new LinkedHashMap<Integer, String>();
+        List<RawNamedValue> nvs = e.getNamedValues();
+        if (nvs == null) return ov;
+        for (int i = 0; i < nvs.size(); i++) {
+            ArscWriter.Edit ed = edits.get(new EditKey(e, ArscWriter.Edit.MAP_STRING, i));
+            if (ed != null) ov.put(Integer.valueOf(i), ed.str);
+        }
+        return ov;
+    }
+
+    /** 该行当前显示的键名（含未保存的重命名） */
+    private String currentName(Row r) {
+        ArscWriter.Edit ed = edits.get(new EditKey(r.entry, ArscWriter.Edit.NAME, -1));
+        return ed != null ? ed.str : (r.name == null ? "" : r.name);
+    }
+
+    /** 该行当前显示的值（含未保存的修改） */
+    private String displayValue(Row r) {
+        ArscWriter.Edit ed = valueEdit(r.entry);
+        if (ed != null) {
+            if (ed.kind == ArscWriter.Edit.VALUE_STRING) return ed.str;
+            RawValue v = r.entry.getSimpleValue();
+            return ArscValues.displayTyped(arsc,
+                    v == null ? ArscDefs.TYPE_INT_DEC : v.getDataType(), ed.raw);
+        }
+        if (r.entry.getNamedValues() != null) {
+            Map<Integer, String> ov = bagOverrides(r.entry);
+            if (!ov.isEmpty()) return ArscValues.bagDisplay(arsc, r.entry, ov);
+        }
+        return r.value == null ? "" : r.value;
+    }
+
+    private boolean isChanged(ResourceEntry e) {
+        return changedEntries.contains(e);
+    }
+
+    private void putEdit(ArscWriter.Edit e) {
+        edits.put(new EditKey(e.entry, e.kind, e.mapIndex), e);
+        refreshChangedSet();
+    }
+
+    private void removeEdit(ResourceEntry entry, int kind, int mapIndex) {
+        edits.remove(new EditKey(entry, kind, mapIndex));
+        refreshChangedSet();
+    }
+
+    /** dirty 与「已改动条目」集合唯一的重算入口（列表绘制按它打标记 / 上色） */
+    private void refreshChangedSet() {
+        changedEntries.clear();
+        for (ArscWriter.Edit ed : edits.values()) changedEntries.add(ed.entry);
+        dirty = !edits.isEmpty();
+    }
+
     // ---------- 列表刷新（浏览 / 搜索） ----------
 
     private void refresh() { refresh(false); }
@@ -262,8 +363,10 @@ public class ArscEditorActivity extends BaseActivity {
                     new java.util.LinkedHashMap<String, Map<String, List<Row>>>();
             for (Row r : allRows) {
                 if (r.isHeader || r.isName) continue;
-                if (r.name.toLowerCase().contains(q)
-                        || r.value.toLowerCase().contains(q)
+                // 搜索按「当前值」（含未保存修改）匹配，刚改完也能搜到新值
+                String cur = displayValue(r);
+                if (currentName(r).toLowerCase().contains(q)
+                        || cur.toLowerCase().contains(q)
                         || r.resId.toLowerCase().contains(q)
                         || r.config.toLowerCase().contains(q)) {
                     Map<String, List<Row>> nm = hit.get(r.typeName);
@@ -334,31 +437,74 @@ public class ArscEditorActivity extends BaseActivity {
             int indent = (int) (r.level * 18 * den);
             box.setPadding(indent + pad, pad, pad, pad);
             if (r.isHeader) {                       // level 0：类型
+                boolean ch = false;
+                if (r.children != null) {
+                    for (Row nh : r.children) {
+                        if (nh.children == null) continue;
+                        for (Row leaf : nh.children) {
+                            if (isChanged(leaf.entry)) { ch = true; break; }
+                        }
+                        if (ch) break;
+                    }
+                }
                 TextView tv = new TextView(ctx);
-                tv.setText((r.expanded ? "▾ " : "▸ ") + r.typeName + "  (" + r.count + ")");
+                tv.setText((r.expanded ? "▾ " : "▸ ") + r.typeName + "  (" + r.count + ")"
+                        + (ch ? "  ✎" : ""));
                 tv.setTextSize(15);
                 tv.setTextColor(ThemeManager.accent(ArscEditorActivity.this));
                 tv.setTypeface(null, android.graphics.Typeface.BOLD);
                 box.addView(tv);
             } else if (r.isName) {                  // level 1：资源名
+                Row first = (r.children != null && !r.children.isEmpty()) ? r.children.get(0) : null;
+                String nm = first != null ? currentName(first) : r.name;
+                boolean renamed = first != null && !nm.equals(r.name);
+                boolean ch = false;
+                if (r.children != null) {
+                    for (Row leaf : r.children) {
+                        if (isChanged(leaf.entry)) { ch = true; break; }
+                    }
+                }
                 TextView tv = new TextView(ctx);
-                tv.setText((r.expanded ? "▾ " : "▸ ") + r.name
-                        + "   " + r.resId + "  (" + r.count + ")");
+                tv.setText((r.expanded ? "▾ " : "▸ ") + nm
+                        + "   " + r.resId + "  (" + r.count + ")"
+                        + (ch || renamed ? "  ✎" : ""));
                 tv.setTextSize(14);
                 tv.setTextColor(ThemeManager.accent(ArscEditorActivity.this));
                 box.addView(tv);
+                if (renamed) {
+                    TextView old = new TextView(ctx);      // 重命名后保留原名，便于核对
+                    old.setText("原资源名: " + r.name);
+                    old.setTextSize(11);
+                    old.setTextColor(ThemeManager.textSub(ArscEditorActivity.this));
+                    box.addView(old);
+                }
             } else {                                // level 2：配置值
+                boolean changed = isChanged(r.entry);
                 TextView val = new TextView(ctx);
-                String v = r.value == null ? "" : r.value;
-                val.setText("[" + r.config + "] "
-                        + (v.length() > 150 ? v.substring(0, 150) + "…" : v));
+                String v = shorten(displayValue(r), 150);
+                val.setText("[" + r.config + "] " + v + (changed ? "   ✎ 已修改" : ""));
                 val.setTextSize(13);
-                val.setTextColor(ThemeManager.text(ArscEditorActivity.this));
-                val.setMaxLines(3);
+                val.setTextColor(changed
+                        ? ThemeManager.accent(ArscEditorActivity.this)
+                        : ThemeManager.text(ArscEditorActivity.this));
+                val.setMaxLines(changed ? 6 : 3);
                 box.addView(val);
+                if (changed) {
+                    TextView old = new TextView(ctx);
+                    old.setText("原值: " + shorten(r.value == null ? "" : r.value, 150));
+                    old.setTextSize(11);
+                    old.setTextColor(ThemeManager.textSub(ArscEditorActivity.this));
+                    old.setMaxLines(3);
+                    box.addView(old);
+                }
             }
             return box;
         }
+    }
+
+    private static String shorten(String s, int max) {
+        if (s == null) return "";
+        return s.length() > max ? s.substring(0, max) + "…" : s;
     }
 
     private void onRowClick(Row r) {
@@ -382,9 +528,9 @@ public class ArscEditorActivity extends BaseActivity {
         box.setPadding(pad, pad, pad, pad);
 
         final EditText nameEt = new EditText(this);
-        nameEt.setText(r.name);
+        nameEt.setText(currentName(r));   // 已改过则显示待保存的新名
         nameEt.setTextSize(14);
-        box.addView(label("资源名"));
+        box.addView(label("资源名（同资源各配置一起改名）"));
         box.addView(nameEt);
 
         TextView cfgTv = new TextView(this);
@@ -395,7 +541,7 @@ public class ArscEditorActivity extends BaseActivity {
         box.addView(cfgTv);
 
         final EditText valEt = new EditText(this);
-        valEt.setText(r.value);
+        valEt.setText(displayValue(r));   // 已改过则显示待保存的新值
         valEt.setTextSize(14);
         RawValue v = r.entry.getSimpleValue();
         boolean editable = v != null && ArscValues.editable(r.entry);
@@ -409,6 +555,15 @@ public class ArscEditorActivity extends BaseActivity {
         box.addView(label("值"));
         box.addView(valEt);
 
+        if (isChanged(r.entry)) {
+            TextView old = new TextView(this);
+            old.setText("原值: " + shorten(r.value == null ? "" : r.value, 200)
+                    + "\n（确定后标记为已修改，保存才写盘）");
+            old.setTextSize(11);
+            old.setTextColor(ThemeManager.textSub(this));
+            box.addView(old);
+        }
+
         new AlertDialog.Builder(this)
                 .setTitle("编辑资源")
                 .setView(box)
@@ -418,19 +573,31 @@ public class ArscEditorActivity extends BaseActivity {
                     }
                 })
                 .setNegativeButton("取消", null)
+                .setNeutralButton("还原", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        // 撤销该资源的所有待保存修改（重命名 + 值）
+                        removeRenameGroup(r);
+                        removeEdit(r.entry, ArscWriter.Edit.VALUE_STRING, -1);
+                        removeEdit(r.entry, ArscWriter.Edit.VALUE_RAW, -1);
+                        rebuildAndReveal(r.entry);
+                    }
+                })
                 .show();
     }
 
     /** bag（style 等复杂条目）：列出命名值，点字符串项可改 */
     private void showBagDialog(final Row r) {
         final List<RawNamedValue> nvs = r.entry.getNamedValues();
+        final Map<Integer, String> ov = bagOverrides(r.entry);
         String[] labels = new String[nvs.size()];
         for (int i = 0; i < nvs.size(); i++) {
+            String cur = ov.get(Integer.valueOf(i));
             labels[i] = ArscValues.namedValueName(arsc, nvs.get(i))
-                    + " = " + ArscValues.rawDisplay(arsc, nvs.get(i).getRawValue());
+                    + " = " + (cur != null ? cur : ArscValues.rawDisplay(arsc, nvs.get(i).getRawValue()))
+                    + (cur != null ? "   ✎" : "");
         }
         new AlertDialog.Builder(this)
-                .setTitle(r.name + "  (bag " + nvs.size() + " 项)")
+                .setTitle(currentName(r) + "  (bag " + nvs.size() + " 项)")
                 .setItems(labels, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int which) {
                         RawNamedValue nv = nvs.get(which);
@@ -449,6 +616,8 @@ public class ArscEditorActivity extends BaseActivity {
     private void showNamedValueDialog(final Row r, final int mapIndex) {
         final List<RawNamedValue> nvs = r.entry.getNamedValues();
         final RawNamedValue nv = nvs.get(mapIndex);
+        final String orig = ArscValues.rawDisplay(arsc, nv.getRawValue());
+        final String cur = bagOverrides(r.entry).get(Integer.valueOf(mapIndex));
         float den = getResources().getDisplayMetrics().density;
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
@@ -460,7 +629,7 @@ public class ArscEditorActivity extends BaseActivity {
         t.setTextColor(ThemeManager.accent(this));
         box.addView(t);
         final EditText et = new EditText(this);
-        et.setText(ArscValues.rawDisplay(arsc, nv.getRawValue()));
+        et.setText(cur != null ? cur : orig);   // 已改过则显示待保存值
         et.setTextSize(14);
         et.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         et.setMinLines(2);
@@ -471,16 +640,23 @@ public class ArscEditorActivity extends BaseActivity {
                 .setPositiveButton("确定", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         String s = et.getText().toString();
-                        if (!s.equals(ArscValues.rawDisplay(arsc, nv.getRawValue()))) {
-                            edits.add(new ArscWriter.Edit(r.entry, mapIndex, s));
-                            dirty = true;
-                            buildRows();
-                            refresh();
-                            toast("已修改（记得保存）");
+                        if (s.equals(orig)) {
+                            removeEdit(r.entry, ArscWriter.Edit.MAP_STRING, mapIndex); // 改回原值＝撤销
+                        } else if (s.equals(cur)) {
+                            // 未变，保持原样
+                        } else {
+                            putEdit(new ArscWriter.Edit(r.entry, mapIndex, s));
                         }
+                        rebuildAndReveal(r.entry);
                     }
                 })
                 .setNegativeButton("取消", null)
+                .setNeutralButton("还原", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        removeEdit(r.entry, ArscWriter.Edit.MAP_STRING, mapIndex);
+                        rebuildAndReveal(r.entry);
+                    }
+                })
                 .show();
     }
 
@@ -492,34 +668,154 @@ public class ArscEditorActivity extends BaseActivity {
         return tv;
     }
 
+    /**
+     * 应用对话框的修改（v1.67.5）：
+     * 1. 先校验，校验失败整单不动（不会出现「名字改了值没改」的半截状态）；
+     * 2. 登记待写值 —— arsc 对象本身不动，列表靠 edits 叠加重绘，所以立刻能看到新值；
+     * 3. 重建三级树（改名会影响分组）并把列表定位到刚改的条目。
+     */
     private void applyEdit(Row r, String newName, String newValue) {
         ResourceEntry e = r.entry;
-        boolean changed = false;
-        if (!newName.equals(r.name)) {
-            edits.add(new ArscWriter.Edit(e, newName, true));
-            r.name = newName;
-            changed = true;
+        String name = newName.trim();
+        if (name.length() == 0) {
+            toast("资源名不能为空");
+            return;
         }
+
+        // ---- 1. 校验值 ----
         RawValue v = e.getSimpleValue();
-        if (v != null && !newValue.equals(r.value)) {
-            if (ArscValues.isStringValue(v)) {
-                edits.add(new ArscWriter.Edit(e, newValue));
-                changed = true;
-            } else {
-                Integer raw = ArscValues.parseInput(v.getDataType(), newValue, arsc);
+        boolean editable = v != null && ArscValues.editable(e);
+        boolean valueChanged = false;
+        Integer raw = null;
+        if (editable && !newValue.equals(displayValue(r))) {
+            if (!ArscValues.isStringValue(v)) {
+                raw = ArscValues.parseInput(v.getDataType(), newValue, arsc);
                 if (raw == null) {
-                    toast("数值格式错误或该类型不支持编辑");
+                    toast("值格式不符合类型（" + typeHint(v.getDataType()) + "）");
                     return;
                 }
-                edits.add(new ArscWriter.Edit(e, raw.intValue()));
-                changed = true;
+            }
+            valueChanged = true;
+        }
+
+        // ---- 2. 资源名：同一资源的所有配置一起改名 ----
+        if (!name.equals(currentName(r))) renameGroup(r, name);
+
+        // ---- 3. 值：改回原值即撤销该处修改 ----
+        if (valueChanged) {
+            if (ArscValues.isStringValue(v)) {
+                if (newValue.equals(r.value)) {
+                    removeEdit(e, ArscWriter.Edit.VALUE_STRING, -1);
+                } else {
+                    putEdit(new ArscWriter.Edit(e, newValue));
+                }
+            } else if (raw != null) {
+                // 用「展示文本」判断是否回到原值：RGB8/ARGB4 等类型解析后高位会被归一化，
+                // 直接比 raw 会把「只是大小写不同」的输入误判成改动
+                if (ArscValues.displayTyped(arsc, v.getDataType(), raw.intValue()).equals(r.value)) {
+                    removeEdit(e, ArscWriter.Edit.VALUE_RAW, -1);
+                } else {
+                    putEdit(new ArscWriter.Edit(e, raw.intValue()));
+                }
             }
         }
-        if (changed) {
-            dirty = true;
-            buildRows();   // 全量重建：同步更新三级树的资源名头与值
-            refresh();
-            toast("已修改（记得保存）");
+        refreshChangedSet();
+
+        // ---- 4. 重绘 + 定位 ----
+        rebuildAndReveal(e);
+        toast(isChanged(e) ? "已标记修改，记得保存" : "已恢复为原值");
+    }
+
+    /** 同一个资源（类型 + 原资源名）的所有配置条目一起改名 */
+    private void renameGroup(Row leaf, String newName) {
+        for (Row h : allRows) {
+            if (!h.isHeader || h.children == null) continue;
+            if (!h.typeName.equals(leaf.typeName)) continue;
+            for (Row nh : h.children) {
+                if (nh.children == null || !leaf.name.equals(nh.name)) continue;
+                for (Row c : nh.children) {
+                    if (newName.equals(c.name)) {
+                        removeEdit(c.entry, ArscWriter.Edit.NAME, -1);   // 改回原名
+                    } else {
+                        putEdit(new ArscWriter.Edit(c.entry, newName, true));
+                    }
+                }
+                return;
+            }
+        }
+    }
+
+    /** 撤销该资源整组的重命名 */
+    private void removeRenameGroup(Row leaf) {
+        renameGroup(leaf, leaf.name);
+    }
+
+    /**
+     * 重建三级树并把列表滚动到目标条目（v1.67.5：改完不再「停在原地看不出变化」）。
+     * 改名会改变分组键，所以必须重建；展开状态由 buildRows 保留，这里再强制展开目标所在的两级。
+     */
+    private void rebuildAndReveal(ResourceEntry target) {
+        buildRows();
+        Row found = null;
+        for (Row h : allRows) {
+            if (!h.isHeader || h.children == null) continue;
+            boolean hit = false;
+            for (Row nh : h.children) {
+                if (nh.children == null) continue;
+                for (Row c : nh.children) {
+                    if (c.entry == target) {
+                        h.expanded = true;
+                        nh.expanded = true;
+                        found = c;
+                        hit = true;
+                        break;
+                    }
+                }
+                if (hit) break;
+            }
+            if (hit) break;
+        }
+        refresh();
+        if (found == null) return;
+        int pos = viewRows.indexOf(found);
+        if (pos < 0 && searchBox.getText().length() > 0) {
+            searchBox.setText("");        // 搜索过滤把目标挡住了 → 清空搜索（会同步触发 refresh）
+            pos = viewRows.indexOf(found);
+        }
+        if (pos < 0) return;
+        final int p = pos;
+        listView.post(new Runnable() {
+            public void run() {
+                listView.setSelectionFromTop(Math.max(0, p - 1), 0);
+            }
+        });
+    }
+
+    private static String typeHint(int dataType) {
+        switch (dataType) {
+            case ArscDefs.TYPE_REFERENCE:
+            case ArscDefs.TYPE_ATTRIBUTE:
+            case ArscDefs.TYPE_DYNAMIC_REFERENCE:
+            case ArscDefs.TYPE_DYNAMIC_ATTRIBUTE:
+                return "@0x 资源id 或 @type/name";
+            case ArscDefs.TYPE_INT_DEC:
+                return "十进制整数";
+            case ArscDefs.TYPE_INT_HEX:
+                return "0x 十六进制";
+            case ArscDefs.TYPE_INT_BOOLEAN:
+                return "true / false";
+            case ArscDefs.TYPE_INT_COLOR_ARGB8:
+                return "#aarrggbb";
+            case ArscDefs.TYPE_INT_COLOR_RGB8:
+                return "#rrggbb";
+            case ArscDefs.TYPE_INT_COLOR_ARGB4:
+                return "#argb";
+            case ArscDefs.TYPE_INT_COLOR_RGB4:
+                return "#rgb";
+            case ArscDefs.TYPE_FLOAT:
+                return "浮点数";
+            default:
+                return "该类型暂不支持编辑";
         }
     }
 
@@ -578,10 +874,15 @@ public class ArscEditorActivity extends BaseActivity {
         new Thread() { public void run() {
             String err = null;
             try {
-                byte[] newArsc = ArscWriter.write(arsc, edits);
+                byte[] newArsc = ArscWriter.write(arsc,
+                        new ArrayList<ArscWriter.Edit>(edits.values()));
                 // v1.66.8：登记 + 会话重打包写回原包（首次修改自动备份 _bak.apk）
                 ApkEditSession.putEdit(ArscEditorActivity.this, apk, entryName, newArsc);
                 if (autoSign) ApkSignHelper.signInPlace(ArscEditorActivity.this, apk);
+                // v1.67.5：保存后以新文件为新基线 —— 重解析 + 重建树，
+                // 否则列表还按旧的 arsc 渲染（保存了却看不到新值），且再次保存会重复叠加编辑
+                arsc = ArscFile.parse(newArsc);
+                buildRows();
             } catch (Throwable t) {
                 err = t.getClass().getSimpleName() + ": " + t.getMessage();
             }
@@ -595,7 +896,8 @@ public class ArscEditorActivity extends BaseActivity {
                             .setTitle("保存失败").setMessage(e)
                             .setPositiveButton("知道了", null).show();
                 } else {
-                    dirty = false;
+                    edits.clear();          // 已写盘，待写队列清空（基线已换成新文件）
+                    refreshChangedSet();
                     refresh();
                     toast(autoSign ? "已保存并签名 → " + apk.getName()
                                    : "已保存 → " + apk.getName() + "（未签名，可能无法安装）");
@@ -632,7 +934,7 @@ public class ArscEditorActivity extends BaseActivity {
                 .setNeutralButton("放弃修改", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         edits.clear();
-                        dirty = false;
+                        refreshChangedSet();
                         finish();
                     }
                 })

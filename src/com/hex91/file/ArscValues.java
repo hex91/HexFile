@@ -35,14 +35,20 @@ public final class ArscValues {
 
 	public static String valueDisplay(ArscFile a, ResourceEntry e) {
 		if (e.getNamedValues() != null) {
-			return bagDisplay(a, e);
+			return bagDisplay(a, e, null);
 		}
 		RawValue v = e.getSimpleValue();
 		if (v == null) {
 			return "";
 		}
-		int t = v.getDataType();
-		int d = v.getData();
+		return displayTyped(a, v.getDataType(), v.getData());
+	}
+
+	/**
+	 * 按数据类型渲染一个原始值。
+	 * 编辑器预览「尚未写盘的修改」时用它与 {@link #valueDisplay} 保持一致。
+	 */
+	public static String displayTyped(ArscFile a, int t, int d) {
 		switch (t) {
 			case ArscDefs.TYPE_STRING:
 				return a.globalPool.get(d);
@@ -85,21 +91,33 @@ public final class ArscValues {
 	}
 
 	public static String bagDisplay(ArscFile a, ResourceEntry e) {
+		return bagDisplay(a, e, null);
+	}
+
+	/**
+	 * bag 条目的展示文本。
+	 *
+	 * @param overrides mapIndex → 当前（未保存的）新值文本；null 表示全部按原始值显示
+	 */
+	public static String bagDisplay(ArscFile a, ResourceEntry e, Map<Integer, String> overrides) {
 		StringBuilder sb = new StringBuilder();
 		sb.append("(bag ");
 		if (e.getParentRef() != 0) {
 			sb.append("parent=").append(resIdStr(e.getParentRef())).append(' ');
 		}
-		sb.append(e.getNamedValues().size()).append(" 项)");
+		List<RawNamedValue> nvs = e.getNamedValues();
+		sb.append(nvs.size()).append(" 项)");
 		int shown = 0;
-		for (RawNamedValue nv : e.getNamedValues()) {
+		for (int i = 0; i < nvs.size(); i++) {
 			if (shown >= 4) {
 				sb.append(" …");
 				break;
 			}
+			RawNamedValue nv = nvs.get(i);
 			String n = a.globalPool.get(nv.getNameRef());
+			String ov = overrides == null ? null : overrides.get(Integer.valueOf(i));
 			sb.append('\n').append(n == null ? ("#" + nv.getNameRef()) : n)
-					.append(" = ").append(rawDisplay(a, nv.getRawValue()));
+					.append(" = ").append(ov != null ? ov : rawDisplay(a, nv.getRawValue()));
 			shown++;
 		}
 		return sb.toString();
@@ -180,11 +198,13 @@ public final class ArscValues {
 					if (s.equalsIgnoreCase("false") || s.equals("0")) return Integer.valueOf(0);
 					return null;
 				case ArscDefs.TYPE_INT_COLOR_ARGB8:
-				case ArscDefs.TYPE_INT_COLOR_RGB8:
 					return parseColor(s, 8);
+				case ArscDefs.TYPE_INT_COLOR_RGB8:
+					return parseColor(s, 6);   // 展示为 #rrggbb，只接受 6 位
 				case ArscDefs.TYPE_INT_COLOR_ARGB4:
-				case ArscDefs.TYPE_INT_COLOR_RGB4:
 					return parseColor(s, 4);
+				case ArscDefs.TYPE_INT_COLOR_RGB4:
+					return parseColor(s, 3);   // 展示为 #rgb
 				case ArscDefs.TYPE_FLOAT:
 					return Integer.valueOf(Float.floatToIntBits(Float.parseFloat(s)));
 				default:
@@ -197,6 +217,12 @@ public final class ArscValues {
 
 	private static Integer parseRef(String s, ArscFile a) {
 		String t = s.startsWith("@") ? s.substring(1) : s;
+		t = t.trim();
+		// 展示文本会带 " (type/name)" 后缀（见 valueDisplay），解析时忽略
+		int sp = t.indexOf(' ');
+		if (sp > 0) {
+			t = t.substring(0, sp);
+		}
 		Map<Integer, String> names = a.storage.getResourcesNames();
 		if (t.startsWith("0x") || t.startsWith("0X")) {
 			return Integer.valueOf((int) Long.parseLong(t.substring(2), 16));
