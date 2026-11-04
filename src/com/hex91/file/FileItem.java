@@ -71,6 +71,20 @@ public class FileItem implements Serializable {
         return (n != null && n.endsWith("/")) ? n.substring(0, n.length() - 1) : n;
     }
 
+    /** 钥匙图标（不分平台统一用 emoji；源码里写转义避免编码问题） */
+    public static final String KEY_ICON = "\uD83D\uDD11";
+
+    /**
+     * v1.69.0：签名文件判定（扩展名）。
+     * jks / keystore / bks / p12 / pfx / ks —— 文件列表据此显示 🔑 而不是 JKS / BIN 角标。
+     */
+    public static boolean isKeystoreName(String name) {
+        if (name == null) return false;
+        String n = name.toLowerCase(Locale.CHINA);
+        return n.endsWith(".jks") || n.endsWith(".keystore") || n.endsWith(".bks")
+                || n.endsWith(".p12") || n.endsWith(".pfx") || n.endsWith(".ks");
+    }
+
     /** 图标角标文字：DIR / APK / DEX / TXT / SO…（MT 式类型缩写） */
     public String typeLabel() {
         return typeLabel(name(), isDir());
@@ -80,6 +94,7 @@ public class FileItem implements Serializable {
     public static String typeLabel(String name, boolean isDir) {
         if (isDir) return "DIR";
         String n = name.toLowerCase(Locale.CHINA);
+        if (isKeystoreName(n)) return KEY_ICON;   // v1.69.0：签名文件 → 🔑
         int dot = n.lastIndexOf('.');
         String ext = dot >= 0 ? n.substring(dot + 1) : "";
         if (ext.isEmpty() || ext.length() > 4) return "BIN";
@@ -95,6 +110,7 @@ public class FileItem implements Serializable {
     public static int typeColor(String name, boolean isDir) {
         if (isDir) return 0xFF263238;                       // 深灰黑：文件夹
         String e = name.toLowerCase(Locale.CHINA);
+        if (isKeystoreName(e))        return 0xFF6D4C41;    // v1.69.0 深棕：签名文件（衬 🔑）
         if (e.endsWith(".apk"))       return 0xFF43A047;    // 绿：APK
         if (e.endsWith(".dex") || e.endsWith(".jar"))
                                       return 0xFF2E7D32;    // 深绿：dex/jar

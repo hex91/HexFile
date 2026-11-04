@@ -1662,6 +1662,52 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.69.0 —— 签名文件 🔑 图标 + Activity 记录（无障碍监听 + 透明浮窗）
+
+### 签名文件统一显示 🔑
+- 文件列表里 `.jks / .keystore / .bks / .p12 / .pfx / .ks` 不再显示成 `JKS` / `BIN` 角标，
+  统一换成 🔑（深棕底 + 19sp emoji，与其它类型的彩色方块同一套视觉）；
+- 判定是「扩展名 + 魔数」双通道：把 keystore 改名成 `sign` 或 `xxx.bin` 也能认出来
+  （`JKS` = `FEEDFEED`、`BKS`），魔数结果按「路径 + 大小 + mtime」缓存，滚动列表不重复 IO；
+- 文件列表的判定与「点击签名文件」的判定合并到同一个 `FileItem.isKeystoreName()`，
+  两处口径不会再出现「图标是 🔑 但点开没反应」。
+
+### Activity 记录
+- **入口**：抽屉菜单「🧭 Activity 记录」。
+- **原理**：Android 5.1 起 `ActivityManager.getRunningTasks()` 只返回自己的任务，普通应用
+  拿不到别人的栈顶页面。这里走无障碍服务（`ActivityTraceService`），监听
+  `typeWindowStateChanged | typeWindowContentChanged`，从事件里取 `packageName` + `className`
+  —— 后者就是当前 Activity 的完整类名。只读这两个字段，`canRetrieveWindowContent=false`，
+  不读屏幕内容、不联网、不落盘（记录只在内存，重启即清空）。
+- **过滤**：`ActivityLog.looksLikeActivity()` 挡掉 `android.widget.*` / `android.view.*` /
+  `android.app.*` 等容器与弹层（`TYPE_WINDOW_CONTENT_CHANGED` 事件里 className 常是
+  `FrameLayout`，不过滤会把列表刷满 ViewGroup），并排除本应用自己的页面。
+- **浮窗**：`ActivityFloatService`（前台服务 + `TYPE_APPLICATION_OVERLAY`），半透明黑卡片
+  （85% 不透明、14dp 圆角、白色描边），默认显示最近 **3** 条，可切 3/4/5；
+  每行「应用名 · Activity 短名」，连续重复合并为 `×N`，最新一条带绿色竖条；
+  可拖动（位置记忆）、右上角 ✕ 关闭、点卡片其余区域进入完整列表。
+- **完整列表**：应用图标（`LruCache` + 后台线程加载，tag 校验防复用串图）+
+  「应用名 · Activity 短名」+ `包名 : 完整类名` + 时间 + 次数；点条目可
+  **复制** / **启动该 Activity**（显式 Intent）/ **应用信息**，长按直接复制。
+- **权限引导**：开关打开时依次检查无障碍与悬浮窗，缺哪个直接跳哪个设置页，返回后 `onResume`
+  自动续上；对话框里额外提示 Android 13+ 的「受限制的设置」（应用信息 → ⋮ → 允许受限制的设置）。
+
+### 踩到的坑
+- 开关 `setChecked()` 必须在 `setOnCheckedChangeListener()` **之前**，否则恢复到「已开启」
+  时会立刻回调一次 `startRecording()`，表现为「刚进页面就弹无障碍对话框」；
+- 通知栏小图标换成单色 `ic_activity_trace`（Material timeline 路径），自适应启动图标
+  直接当 smallIcon 在部分 ROM 上会渲染成白块。
+
+### 测试
+- 新增 `ActivityLogTest`（31 项）：类名过滤（容器/对话框/PopupWindow/无包名/null）、
+  队列行为（连续重复合并计数、被别的页面隔开重新计数、超 `MAX=500` 淘汰最旧、快照最新在前）、
+  展示字段（短名/full/标题/应用名兜底）；
+- `run_core.sh` 扩到 13 项，全量 PASS。
+
+`versionCode 135`，APK 约 13MB。
+
+---
+
 ## v1.68.2 —— Hex 编辑器：一行 8 字节（00-07）+ 特殊符号可见
 
 用户反馈：「预览显示的字体没那么多，有些特殊符号无法显示」「手机端没那么长，显示 00-07

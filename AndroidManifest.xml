@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hex91.file"
-    android:versionCode="134"
-    android:versionName="1.68.2">
+    android:versionCode="135"
+    android:versionName="1.69.0">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
 
@@ -16,6 +16,10 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- v1.50.0 远程管理：传输期间持有高性能 Wi-Fi 锁防休眠断流 -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <!-- v1.69.0 Activity 记录浮窗：叠在其他应用上层显示 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <!-- v1.69.0 浮窗必须跑在前台服务里（Android 8+ 后台限制） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
 
     <application
         android:label="HexFile"
@@ -197,6 +201,32 @@
             android:name="com.hex91.file.SmaliDocActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <!-- v1.69.0：Activity 记录页（开关 + 权限 + 完整记录列表） -->
+        <activity
+            android:name="com.hex91.file.ActivityLogActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <!-- v1.69.0：Activity 记录浮窗（前台服务，TYPE_APPLICATION_OVERLAY） -->
+        <service
+            android:name="com.hex91.file.ActivityFloatService"
+            android:label="Activity 记录浮窗"
+            android:exported="false"/>
+
+        <!-- v1.69.0：Activity 记录（无障碍服务，只读包名/类名，不读窗口内容） -->
+        <service
+            android:name="com.hex91.file.ActivityTraceService"
+            android:label="Activity 记录"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_trace"/>
+        </service>
 
         <!-- 迷你文件共享 Provider：安装 APK 时向系统安装器提供文件 -->
         <provider

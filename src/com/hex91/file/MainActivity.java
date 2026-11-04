@@ -253,6 +253,13 @@ public class MainActivity extends BaseActivity {
                 startActivity(new Intent(MainActivity.this, SignKeyManagerActivity.class));
             }
         });
+        // v1.69.0：Activity 记录（无障碍监听页面切换 + 透明浮窗）
+        findViewById(R.id.drawer_activity_log).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                closeDrawer();
+                startActivity(new Intent(MainActivity.this, ActivityLogActivity.class));
+            }
+        });
         findViewById(R.id.drawer_theme).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 closeDrawer();
@@ -789,8 +796,8 @@ public class MainActivity extends BaseActivity {
 
     /** keystore 类文件（扩展名或魔数）——点击时给「导入签名管理 / 查看 / HEX」 */
     public static boolean isKeystoreFile(File f, String lower) {
-        if (lower.endsWith(".jks") || lower.endsWith(".bks") || lower.endsWith(".keystore")
-                || lower.endsWith(".p12") || lower.endsWith(".pfx")) return true;
+        // v1.69.0：判定口径与文件列表 🔑 图标统一（FileItem.isKeystoreName，含 .ks）
+        if (FileItem.isKeystoreName(lower)) return true;
         if (f == null || !f.isFile() || f.length() < 12) return false;
         byte[] head = FileInspect.readHead(f, 16);
         String m = FileInspect.magicName(head);

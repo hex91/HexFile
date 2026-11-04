@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.69.0 Activity 记录：只监听窗口切换事件，不读取窗口内容（canRetrieveWindowContent=false） -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault"
+    android:canRetrieveWindowContent="false"
+    android:description="@string/activity_trace_desc"
+    android:notificationTimeout="200"
+    android:settingsActivity="com.hex91.file.ActivityLogActivity"/>

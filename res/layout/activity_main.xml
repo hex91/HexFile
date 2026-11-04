@@ -478,6 +478,18 @@
             android:textColor="?attr/hfText"
             android:background="?android:attr/selectableItemBackground"/>
 
+        <!-- v1.69.0：Activity 记录（无障碍监听 + 透明浮窗） -->
+        <TextView
+            android:id="@+id/drawer_activity_log"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:gravity="center_vertical"
+            android:paddingLeft="16dp"
+            android:text="🧭  Activity 记录"
+            android:textSize="15sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+
         <TextView
             android:id="@+id/drawer_storage"
             android:layout_width="match_parent"

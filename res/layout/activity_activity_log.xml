@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.69.0 Activity 记录：开关 + 权限状态 + 浮窗条数 + 完整记录列表 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/hfBg">
+
+    <!-- 顶栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingLeft="4dp"
+        android:paddingRight="8dp"
+        android:background="?attr/hfSurfaceAlt">
+
+        <TextView
+            android:id="@+id/al_back"
+            android:layout_width="40dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="‹"
+            android:textSize="24sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Activity 记录"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="?attr/hfText"/>
+
+            <TextView
+                android:id="@+id/al_sub"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="实时观察页面切换"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textSize="11sp"
+                android:textColor="?attr/hfTextSub"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/al_clear"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:paddingLeft="12dp"
+            android:paddingRight="8dp"
+            android:text="清空"
+            android:textSize="13sp"
+            android:textColor="?attr/hfTextSub"
+            android:background="?android:attr/selectableItemBackground"/>
+    </LinearLayout>
+
+    <!-- 设置卡：总开关 / 两处授权状态 / 浮窗条数 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingLeft="14dp"
+        android:paddingRight="14dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="10dp"
+        android:background="?attr/hfSurface">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="开启记录（含浮窗）"
+                    android:textSize="15sp"
+                    android:textColor="?attr/hfText"/>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="记录别的应用打开了哪个 Activity，浮窗只显示最近几条"
+                    android:textSize="11sp"
+                    android:textColor="?attr/hfTextSub"/>
+            </LinearLayout>
+
+            <Switch
+                android:id="@+id/al_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/al_perm"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textSize="11sp"
+            android:lineSpacingExtra="3dp"
+            android:textColor="?attr/hfTextSub"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="浮窗显示条数"
+                android:textSize="12sp"
+                android:textColor="?attr/hfTextSub"/>
+
+            <TextView
+                android:id="@+id/al_rows_3"
+                style="@style/HexChip"
+                android:text="3"/>
+
+            <TextView
+                android:id="@+id/al_rows_4"
+                style="@style/HexChip"
+                android:text="4"/>
+
+            <TextView
+                android:id="@+id/al_rows_5"
+                style="@style/HexChip"
+                android:text="5"/>
+        </LinearLayout>
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <ListView
+            android:id="@+id/al_list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="?attr/hfDivider"
+            android:dividerHeight="0.6dp"
+            android:scrollbars="none"/>
+
+        <TextView
+            android:id="@+id/al_empty"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:paddingLeft="36dp"
+            android:paddingRight="36dp"
+            android:lineSpacingExtra="4dp"
+            android:text="还没有记录。\n\n① 打开上方开关；\n② 在系统「无障碍」里允许 HexFile；\n③ 切到别的应用翻几页，回来就能看到。"
+            android:textSize="12.5sp"
+            android:textColor="?attr/hfTextSub"
+            android:visibility="gone"/>
+    </FrameLayout>
+</LinearLayout>

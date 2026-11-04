@@ -209,13 +209,27 @@ public class FileAdapter extends BaseAdapter {
             badge.setVisibility(View.GONE);
             thumb.setTag(null);
             thumb.setVisibility(View.GONE);
-            // MT 式类型图标：圆角彩色方块 + 缩写
-            icon.setText(it.typeLabel());
-            GradientDrawable bg = new GradientDrawable();
-            bg.setColor(it.typeColor());
-            bg.setCornerRadius(TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP, 7, ctx.getResources().getDisplayMetrics()));
-            icon.setBackground(bg);
+            // v1.69.0：签名文件 → 🔑 图标（含魔数判定：改了扩展名的 keystore 也认得）
+            boolean ks = isKeystoreItem(it, low, isRealFile);
+            if (ks) {
+                icon.setText(FileItem.KEY_ICON);
+                icon.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 19f);
+                GradientDrawable bg = new GradientDrawable();
+                bg.setColor(0xFF6D4C41);
+                bg.setCornerRadius(TypedValue.applyDimension(
+                        TypedValue.COMPLEX_UNIT_DIP, 7, ctx.getResources().getDisplayMetrics()));
+                icon.setBackground(bg);
+            } else {
+                // 复用 convert 时必须把字号还原，否则滚动后普通条目会残留大号 emoji 字号
+                icon.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 10f);
+                // MT 式类型图标：圆角彩色方块 + 缩写
+                icon.setText(it.typeLabel());
+                GradientDrawable bg = new GradientDrawable();
+                bg.setColor(it.typeColor());
+                bg.setCornerRadius(TypedValue.applyDimension(
+                        TypedValue.COMPLEX_UNIT_DIP, 7, ctx.getResources().getDisplayMetrics()));
+                icon.setBackground(bg);
+            }
         }
         if (isImg || isApk) thumb.setVisibility(View.VISIBLE);
 
@@ -225,6 +239,47 @@ public class FileAdapter extends BaseAdapter {
         convert.setBackgroundColor(sel ? ThemeManager.selected(ctx) : 0x00000000);
         return convert;
     }
+
+    /**
+     * v1.69.0：是否签名文件。
+     * <p>先看扩展名（零开销）；扩展名不认识时再看魔数 —— 有人会把 keystore 改名成
+     * {@code sign} / {@code xxx.bin} 藏在目录里，这一步能把它认出来。
+     * 魔数只读前 4 字节，并按「路径+大小+修改时间」缓存，列表滚动不会反复 IO。
+     */
+    private boolean isKeystoreItem(FileItem it, String low, boolean isRealFile) {
+        if (it.upEntry || it.isDir()) return false;
+        if (FileItem.isKeystoreName(low)) return true;
+        if (!isRealFile) return false;
+        // 只对「看起来可能是密钥库」的文件读魔数，避免整个目录逐个 open
+        int dot = low.lastIndexOf('.');
+        String ext = dot >= 0 ? low.substring(dot + 1) : "";
+        if (!(ext.isEmpty() || "bin".equals(ext) || "dat".equals(ext)
+                || "key".equals(ext) || "store".equals(ext) || "bks".equals(ext))) {
+            return false;
+        }
+        final File f = it.file;
+        if (f.length() < 12) return false;
+        String ck = f.getAbsolutePath() + "#" + f.length() + "#" + f.lastModified();
+        synchronized (KS_CACHE) {
+            Boolean hit = KS_CACHE.get(ck);
+            if (hit != null) return hit;
+        }
+        boolean ks = false;
+        try {
+            byte[] head = FileInspect.readHead(f, 8);
+            String m = FileInspect.magicName(head);
+            ks = "JKS".equals(m) || "BKS".equals(m);
+        } catch (Throwable ignore) {
+        }
+        synchronized (KS_CACHE) {
+            if (KS_CACHE.size() > 512) KS_CACHE.clear();
+            KS_CACHE.put(ck, ks);
+        }
+        return ks;
+    }
+
+    /** 魔数判定缓存（key = 路径#大小#mtime） */
+    private static final java.util.HashMap<String, Boolean> KS_CACHE = new java.util.HashMap<String, Boolean>();
 
     /** v1.43.0：详情行 = 权限串（rw-r--r--，如有）+ 原详情；未缓存则异步取后整表刷新 */
     private String detailWithPerm(FileItem it) {
