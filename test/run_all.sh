@@ -13,6 +13,12 @@ ANDJ="E:/repo/android/Sdk/platforms/android-35/android.jar"
 CP="build/obj;libs/*;$BT/lib/apksigner.jar;$ANDJ"
 OUT="test/bin_all"
 
+# v1.67.2：单个测试 JVM 内存上限（防止某个测试把整机内存吃满、表现为「卡死」）
+TEST_XMX="${TEST_XMX:--Xmx512m}"
+# 需要命令行参数的测试统一喂样本：apk + keystore
+TEST_APK="${TEST_APK:-test/huangguo.apk}"
+TEST_KS="${TEST_KS:-assets/hexfile.p12}"
+
 FILTER="${1:-}"
 rm -rf "$OUT" && mkdir -p "$OUT"
 
@@ -29,6 +35,7 @@ mapfile -t CLASSES < <(find "$OUT" -name "*Test.class" ! -name "*\$*" | sed "s|$
 pass=0; fail=0; skip=0; failed_names=()
 # 需真机样本/本机不可用原生库的测试：跳过并在括号注明原因
 SKIP_REASONS=(
+    "AxmlRealChainTest|大样本重打包，分钟级且吃 GB 级内存（HEXFILE_SLOW=1 才跑）"
     "ArchiveWriteTest|需真机样本 test/_dbg/sample.zip|tar|tgz（/sdcard/Download/HexFile_test/）"
     "ZstdTest|zstd-jni classes 包不含 Windows 原生库，桌面无法加载"
     "ArchZstTest|同上（MakeSample 生成 zstd 样本需原生库）"
@@ -41,16 +48,24 @@ for cls in "${CLASSES[@]}"; do
         name="${entry%%|*}"; reason="${entry#*|}"
         if [[ "$short" == "$name" ]]; then skip_reason="$reason"; break; fi
     done
+    if [[ "$short" == "AxmlRealChainTest" && "${HEXFILE_SLOW:-0}" == "1" ]]; then skip_reason=""; fi
     if [[ -n "$skip_reason" ]]; then
         printf '%-40sSKIP (%s)\n' "$cls" "$skip_reason"
         skip=$((skip+1)); continue
     fi
+    # 需要样本参数的测试：SessionTest 要 apk+keystore，其余给 apk 即可（多余参数被忽略）
+    case "$short" in
+        SessionTest) TARGS="$TEST_APK $TEST_KS" ;;
+        KeyStoreUtilTest|SignSchemeTest|TreeMergeTest|BakTest|SignPromptFlowTest|CustomSignE2ETest|DexPropsTest) TARGS="$TEST_APK" ;;
+        *) TARGS="" ;;
+    esac
     printf '%-40s' "$cls"
-    if timeout 300 "$JAVA" -Dfile.encoding=UTF-8 -cp "$OUT;$CP" "$cls" > "$OUT/$cls.log" 2>&1; then
-        echo "PASS"
+    t_start=$(date +%s)
+    if timeout 300 "$JAVA" $TEST_XMX -Dfile.encoding=UTF-8 -cp "$OUT;$CP" "$cls" $TARGS > "$OUT/$cls.log" 2>&1; then
+        echo "PASS ($(( $(date +%s) - t_start ))s)"
         pass=$((pass+1))
     else
-        echo "FAIL (exit=$?)"
+        echo "FAIL (exit=$?, $(( $(date +%s) - t_start ))s)"
         fail=$((fail+1)); failed_names+=("$cls")
     fi
 done

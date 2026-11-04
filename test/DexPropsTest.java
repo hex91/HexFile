@@ -68,16 +68,42 @@ public class DexPropsTest {
 
         // 4) 完好 dex 无需修复
         writeAll(dex, orig);
+        long mtime = dex.lastModified();
         StringBuilder rep2 = new StringBuilder();
         String err2 = SmaliTool.repairDex(dex, rep2);
         chk("4.1 完好 dex 修复成功(无动作)", err2 == null, String.valueOf(err2));
         chk("4.2 报告无需修复", rep2.toString().contains("无需修复"), rep2.toString());
+        chk("4.3 无修复时不写盘（mtime 未变）", dex.lastModified() == mtime,
+                "before=" + mtime + " after=" + dex.lastModified());
+        chk("4.4 内容未被改动", java.util.Arrays.equals(readAll(dex), orig), "-");
 
         // 5) 非 dex 文件
         File notDex = new File(work, "not.dex");
         writeAll(notDex, "hello world this is not a dex".getBytes("UTF-8"));
         chk("5.1 非 dex props=null", SmaliTool.dexProps(notDex) == null, "-");
         chk("5.2 非 dex 修复报错", SmaliTool.repairDex(notDex, new StringBuilder()) != null, "-");
+
+        // 6) 超大 DEX（>32MB）走流式结构校验，不整文件入内存
+        File big = new File(work, "big.dex");
+        FileOutputStream bo = new FileOutputStream(big);
+        try {
+            bo.write(orig);
+            byte[] pad = new byte[1 << 20];
+            for (int i = 0; i < 40; i++) bo.write(pad);   // 追加 40MB，越过 32MB 深度解析阈值
+        } finally {
+            bo.close();
+        }
+        long tBig = System.currentTimeMillis();
+        StringBuilder rep3 = new StringBuilder();
+        String err3 = SmaliTool.repairDex(big, rep3);
+        long bigMs = System.currentTimeMillis() - tBig;
+        chk("6.1 超大 dex 修复成功（无 OOM）", err3 == null, String.valueOf(err3));
+        chk("6.2 走流式结构校验", rep3.toString().contains("结构校验（流式）"), rep3.toString());
+        chk("6.3 大文件 file_size 已修正", rep3.toString().contains("file_size"), rep3.toString());
+        chk("6.4 大文件校验和正常",
+                SmaliTool.dexProps(big).contains("校验和: 正常"), "-");
+        System.out.println("     （46MB 流式修复耗时 " + bigMs + " ms）");
+        big.delete();
 
         System.out.println("PASS=" + pass + " FAIL=" + fail);
         if (fail > 0) System.exit(1);

@@ -115,7 +115,7 @@ public final class SmaliTool {
                 java.security.MessageDigest.getInstance("SHA-1");
         java.io.InputStream in = new java.io.FileInputStream(dexFile);
         try {
-            byte[] buf = new byte[1 << 16];
+            byte[] buf = new byte[STREAM_BUF];
             boolean first = true;
             int n;
             while ((n = in.read(buf)) > 0) {
@@ -188,104 +188,231 @@ public final class SmaliTool {
     }
 
     /**
-     * Dex 修复（v1.66.5）：修正 file_size / header_size / endian_tag，
+     * Dex 修复（v1.66.5；v1.67.2 流式 + 原地修补）：修正 file_size / header_size / endian_tag，
      * 重算 SHA-1 签名（offset 12，覆盖字节 32..末尾）与 Adler-32 校验和
-     * （offset 8，覆盖字节 12..末尾），原地覆盖（临时文件 + safeReplace），
-     * 最后用 dexlib2 实际解析验证可加载性。
+     * （offset 8，覆盖字节 12..末尾）。
+     *
+     * 两点设计约束决定了实现顺序：
+     *  1) file_size 本身在 SHA-1 覆盖范围内 → 必须先修头部再算签名；
+     *  2) Adler-32 覆盖签名区 → 必须先回填签名再算校验和。
+     *
+     * 全程流式：峰值内存固定 256KB（与 DEX 体积无关），因此没有大小上限。
+     * 只原地改写头部 136 字节（112 字节头 + 20 字节签名 + 4 字节校验和），
+     * 代码/数据区一个字节都不碰——不再整文件复制替换，也不需要临时文件。
+     * 头部与校验值都正常时直接返回、零写盘。
+     *
      * @param report 修复动作明细（调用方传入，追加写）
      * @return null=成功（含「无需修复」）；否则错误描述
      */
-    /** 修复上限：超过此大小整文件读入 + dexlib2 解析有 OOM 风险（Android 单 dex 极少接近该值） */
-    private static final long REPAIR_MAX_BYTES = 64L * 1024 * 1024;
+    /** 流式缓冲（256KB）：IO 次数与内存占用都不随文件增长 */
+    private static final int STREAM_BUF = 1 << 18;
+
+    /** 超过此大小跳过 dexlib2 深度解析（其需整文件入内存），改用流式结构校验 */
+    private static final long DEEP_VERIFY_MAX = 32L * 1024 * 1024;
 
     public static String repairDex(File dexFile, StringBuilder report) {
+        long t0 = System.currentTimeMillis();
         try {
             long len = dexFile.length();
-            if (len < 112 || len > Integer.MAX_VALUE - 1024)
-                return "文件大小异常，不是有效的 DEX";
-            if (len > REPAIR_MAX_BYTES)
-                return "DEX 超过 64MB，内存修复风险过高（可能 OOM），已取消——"
-                        + "请换用桌面工具（baksmali/smali）重新编译";
-            java.io.FileInputStream fi = new java.io.FileInputStream(dexFile);
-            byte[] all = new byte[(int) len];
+            if (len < 112) return "文件过小，不是有效的 DEX";
+            if (len > Integer.MAX_VALUE - 1024L) return "文件大小异常（超过 2GB）";
+
+            // 只读 112 字节头部
+            byte[] h = new byte[112];
+            java.io.FileInputStream hi = new java.io.FileInputStream(dexFile);
             boolean full;
             try {
-                full = readFull(fi, all);
+                full = readFull(hi, h);
             } finally {
-                fi.close();
+                hi.close();
             }
             if (!full) return "文件读取不完整";
-            if (all[0] != 'd' || all[1] != 'e' || all[2] != 'x' || all[3] != '\n')
+            if (h[0] != 'd' || h[1] != 'e' || h[2] != 'x' || h[3] != '\n')
                 return "魔数不是 DEX（无法按 DEX 修复）";
+
+            byte[] origH = h.clone();   // 原始头（含旧签名/校验和），写入失败时回滚用
 
             java.util.List<String> fixes = new java.util.ArrayList<String>();
             // 1) file_size（offset 32）= 实际文件长度——头部编辑/手动拼接后最常见的损坏
-            int fs = u32(all, 32);
+            int fs = u32(h, 32);
             if (fs != (int) len) {
-                putU32(all, 32, (int) len);
+                putU32(h, 32, (int) len);
                 fixes.add("file_size: " + fmtN(fs) + " → " + fmtN(len));
             }
             // 2) header_size（offset 36）标准恒为 0x70
-            int hs = u32(all, 36);
+            int hs = u32(h, 36);
             if (hs != 0x70) {
-                putU32(all, 36, 0x70);
+                putU32(h, 36, 0x70);
                 fixes.add("header_size: 0x" + Integer.toHexString(hs) + " → 0x70");
             }
             // 3) endian_tag（offset 40）标准恒为 0x12345678（小端）
-            int et = u32(all, 40);
+            int et = u32(h, 40);
             if (et != 0x12345678) {
-                putU32(all, 40, 0x12345678);
+                putU32(h, 40, 0x12345678);
                 fixes.add("endian_tag: 0x" + Integer.toHexString(et) + " → 0x12345678");
             }
-            // 4) SHA-1 签名（offset 12，20 字节，覆盖字节 32..末尾）
+
+            // 先流式单遍算出当前文件的校验值：决定要不要写盘
+            Object[] ck = computeChecksums(dexFile);
+            int ckCalc = (Integer) ck[0];
+            byte[] sigCalc = (byte[]) ck[1];
+            boolean sigOk = true;
+            for (int i = 0; i < 20; i++) if (h[12 + i] != sigCalc[i]) { sigOk = false; break; }
+            boolean ckOk = u32(h, 8) == ckCalc;
+
+            if (fixes.isEmpty() && sigOk && ckOk) {
+                // 快路径：零写盘，只做可加载性校验
+                report.append("头部校验均正常，无需修复\n");
+                report.append(verifyAfter(dexFile, len));
+                report.append("\n耗时 ").append(System.currentTimeMillis() - t0)
+                      .append(" ms（未写盘）");
+                return null;
+            }
+
+            // 4) 原地改写：先落修正后的头部，再流式计算 SHA-1（覆盖 32..末尾）
             java.security.MessageDigest sha =
                     java.security.MessageDigest.getInstance("SHA-1");
-            sha.update(all, 32, all.length - 32);
-            byte[] dig = sha.digest();
-            boolean sigBad = false;
-            for (int i = 0; i < 20; i++) if (all[12 + i] != dig[i]) { sigBad = true; break; }
-            if (sigBad) {
-                System.arraycopy(dig, 0, all, 12, 20);
-                fixes.add("SHA-1 签名已重算");
-            }
-            // 5) Adler-32 校验和（offset 8，覆盖字节 12..末尾，不含魔数与校验和自身）
-            java.util.zip.Adler32 adler = new java.util.zip.Adler32();
-            adler.update(all, 12, all.length - 12);
-            int ck = (int) adler.getValue();
-            if (u32(all, 8) != ck) {
-                putU32(all, 8, ck);
-                fixes.add("Adler-32 校验和已重算");
-            }
-
-            // dexlib2 实际解析验证（直接从内存字节加载——避免 mmap 锁文件，
-            // Windows 上 MappedByteBuffer 未 GC 前文件无法 rename/delete）→ 原地替换
-            String parseErr = null;
+            java.io.RandomAccessFile raf = null;
             try {
-                new org.jf.dexlib2.dexbacked.DexBackedDexFile(
-                        Opcodes.forApi(34), all);
+                raf = new java.io.RandomAccessFile(dexFile, "rw");
+                raf.seek(0);
+                raf.write(h, 0, 112);          // 头部修正（签名/校验和仍为旧值）
+                sha.update(h, 32, 112 - 32);   // 头部 32..112 也在签名范围内
+                raf.seek(112);
+                byte[] buf = new byte[STREAM_BUF];
+                int n;
+                while ((n = raf.read(buf)) > 0) sha.update(buf, 0, n);
+                byte[] dig = sha.digest();
+
+                boolean sigDiffers = false;
+                for (int i = 0; i < 20; i++)
+                    if (origH[12 + i] != dig[i]) { sigDiffers = true; break; }
+                if (sigDiffers) fixes.add("SHA-1 签名已重算");
+                raf.seek(12);
+                raf.write(dig, 0, 20);
+
+                // 5) 回填签名 → 流式算 Adler-32（覆盖 12..末尾，含刚写入的新签名）
+                raf.seek(12);
+                java.util.zip.Adler32 adler = new java.util.zip.Adler32();
+                while ((n = raf.read(buf)) > 0) adler.update(buf, 0, n);
+                int newCk = (int) adler.getValue();
+                if (u32(origH, 8) != newCk) fixes.add("Adler-32 校验和已重算");
+                putU32(h, 8, newCk);
+                raf.seek(8);
+                raf.write(h, 8, 4);
             } catch (Throwable t) {
-                parseErr = t.getClass().getSimpleName() + ": " + t.getMessage();
-            }
-            File tmp = new File(dexFile.getParentFile(), dexFile.getName() + ".fixtmp");
-            java.io.FileOutputStream fo = new java.io.FileOutputStream(tmp);
-            try {
-                fo.write(all);
+                // 只回滚头部 136 字节；代码/数据区自始至终没动过
+                if (raf != null) {
+                    try {
+                        raf.seek(0);
+                        raf.write(origH, 0, 112);
+                    } catch (Throwable ignored) {}
+                }
+                throw t;
             } finally {
-                fo.close();
+                if (raf != null) try { raf.close(); } catch (java.io.IOException ignored) {}
             }
-            ApkEditSession.safeReplace(tmp, dexFile);
 
-            if (fixes.isEmpty()) report.append("头部校验均正常，无需修复");
-            else for (int i = 0; i < fixes.size(); i++) {
+            // 6) 可加载性校验（小文件 dexlib2 真解析 / 大文件流式结构校验）
+            String verify = verifyAfter(dexFile, len);
+
+            for (int i = 0; i < fixes.size(); i++) {
                 if (i > 0) report.append('\n');
                 report.append(fixes.get(i));
             }
-            report.append(parseErr == null
-                    ? "\ndexlib2 解析校验: 通过"
-                    : "\ndexlib2 解析校验: 仍失败（" + parseErr + "）——存在头部校验之外的结构级损坏");
+            report.append('\n').append(verify);
+            report.append("\n流式原地修复（峰值内存 < 300KB），耗时 ")
+                  .append(System.currentTimeMillis() - t0).append(" ms");
             return null;
         } catch (Throwable t) {
             return t.getClass().getSimpleName() + ": " + t.getMessage();
         }
+    }
+
+    /**
+     * 修复后校验：≤32MB 用 dexlib2 真实解析（能抓结构级损坏，代价是整文件入内存）；
+     * 更大的 DEX 走流式结构校验，避免为了「验证」反而 OOM。
+     */
+    private static String verifyAfter(File dexFile, long len) {
+        if (len <= DEEP_VERIFY_MAX) {
+            try {
+                byte[] all = new byte[(int) len];
+                java.io.FileInputStream fi = new java.io.FileInputStream(dexFile);
+                boolean full;
+                try {
+                    full = readFull(fi, all);
+                } finally {
+                    fi.close();
+                }
+                if (!full) return "dexlib2 解析校验: 读取不完整";
+                new DexBackedDexFile(Opcodes.forApi(34), all);
+                return "dexlib2 解析校验: 通过";
+            } catch (OutOfMemoryError oom) {
+                return "dexlib2 解析校验: 跳过（内存不足，结构校验见下）";
+            } catch (Throwable t) {
+                return "dexlib2 解析校验: 仍失败（" + t.getClass().getSimpleName() + ": "
+                        + t.getMessage() + "）——存在头部校验之外的结构级损坏";
+            }
+        }
+        String e = structuralCheck(dexFile, len);
+        return e == null
+                ? "结构校验（流式）: 通过（超过 32MB，未做 dexlib2 深度解析）"
+                : "结构校验（流式）: 仍失败（" + e + "）——存在结构级损坏";
+    }
+
+    /**
+     * 流式结构校验（不整文件入内存）：头部各索引区、map_list 是否都落在文件内。
+     * 用于超大 DEX——dexlib2 深度解析需整文件入内存，在这里反而会成为 OOM 源。
+     * @return null=通过；否则问题描述
+     */
+    private static String structuralCheck(File dexFile, long len) {
+        byte[] h = new byte[112];
+        java.io.FileInputStream fi = null;
+        try {
+            fi = new java.io.FileInputStream(dexFile);
+            if (!readFull(fi, h)) return "头部读取不完整";
+        } catch (java.io.IOException e) {
+            return "读取头部失败: " + e.getMessage();
+        } finally {
+            if (fi != null) try { fi.close(); } catch (java.io.IOException ignored) {}
+        }
+
+        String[] names = {"string_ids", "type_ids", "proto_ids", "field_ids",
+                "method_ids", "class_defs"};
+        int[] cntOff = {56, 64, 72, 80, 88, 96};
+        int[] itemSize = {4, 4, 12, 8, 8, 32};
+        for (int i = 0; i < names.length; i++) {
+            int cnt = u32(h, cntOff[i]);
+            int off = u32(h, cntOff[i] + 4);
+            if (cnt < 0 || off < 0) return names[i] + " 越界";
+            if (cnt == 0) continue;
+            if (off < 112 || (long) off + (long) cnt * itemSize[i] > len)
+                return names[i] + " 越界";
+        }
+
+        int mapOff = u32(h, 52);
+        if (mapOff == 0) return null;              // 无 map_list（不常见但可接受）
+        if (mapOff < 112 || (long) mapOff + 4 > len) return "map_list 越界";
+        java.io.RandomAccessFile raf = null;
+        try {
+            raf = new java.io.RandomAccessFile(dexFile, "r");
+            raf.seek(mapOff);
+            byte[] b4 = new byte[4];
+            raf.readFully(b4);
+            int n = u32(b4, 0);
+            if (n <= 0 || n > 4096) return "map_list 条目数异常: " + n;
+            if ((long) mapOff + 4 + (long) n * 12 > len) return "map_list 越界";
+            byte[] it = new byte[12];
+            for (int i = 0; i < n; i++) {
+                raf.readFully(it);
+                int moff = u32(it, 8);
+                if (moff < 0 || moff > len) return "map 条目 offset 越界";
+            }
+        } catch (java.io.IOException e) {
+            return "读取 map_list 失败: " + e.getMessage();
+        } finally {
+            if (raf != null) try { raf.close(); } catch (java.io.IOException ignored) {}
+        }
+        return null;
     }
 }

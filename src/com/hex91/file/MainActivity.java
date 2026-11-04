@@ -1642,16 +1642,11 @@ public class MainActivity extends BaseActivity {
                                     File dex = new File(tmpDir, it.archPath());
                                     err = SmaliTool.repairDex(dex, rep);
                                     if (err == null) {
-                                        byte[] fixed = new byte[(int) dex.length()];
-                                        java.io.FileInputStream fi = new java.io.FileInputStream(dex);
-                                        try {
-                                            if (fi.read(fixed) != fixed.length)
-                                                throw new IllegalStateException("读取修复结果失败");
-                                        } finally {
-                                            fi.close();
-                                        }
-                                        ApkEditSession.putEdit(MainActivity.this, apk,
-                                                it.archPath(), fixed);
+                                        // v1.67.2：登记为「文件型修改」再统一重打包——
+                                        // 不再把整个 dex 读成 byte[]（大 dex 的额外一份内存占用）
+                                        ApkEditSession.stageAdd(MainActivity.this, apk,
+                                                it.archPath(), dex);
+                                        ApkEditSession.flushRegen(MainActivity.this, apk);
                                     }
                                 } catch (Throwable t) {
                                     err = t.getClass().getSimpleName() + ": " + t.getMessage();
