@@ -27,7 +27,7 @@ public class HexLayoutTest {
         int col = HexCore.textColumn(HEX, ROW);
         check(col == 60, "HEX 文本列 = 60（实际 " + col + "）");
         check(HexCore.textColumn(BIN, ROW) == 156, "BIN 文本列 = 156");
-        check(HexCore.textColumn(HEX, 8) == 36, "8 字节行文本列 = 36");
+        check(HexCore.textColumn(HEX, 8) == 35, "8 字节行文本列 = 35（无分组空格）");
 
         // ---- 列头与行文本对齐（核心断言）----
         String head = HexCore.headerLine(HEX, ROW);
@@ -92,6 +92,36 @@ public class HexLayoutTest {
         check(HexCore.columnAt(9999, HEX, ROW) == 15, "超出右边界收敛到最后一列");
         check(HexCore.columnAt(-5, HEX, ROW) == 0, "负下标收敛到第 0 列");
         check(HexCore.columnAt(HexCore.byteStart(3, BIN), BIN, ROW) == 3, "BIN 进制同样可反算");
+
+        // ---- v1.68.2 手机端 8 字节/行：列头、行、反算全部对齐 ----
+        final int R8 = 8;
+        String h8 = HexCore.headerLine(HEX, R8);
+        int c8 = HexCore.textColumn(HEX, R8);
+        check(c8 == 35, "8 字节行文本列 = 35（实际 " + c8 + "）");
+        check(h8.length() == c8 + R8, "8 字节列头总长 = 43（实际 " + h8.length() + "）");
+        check(h8.charAt(c8) == '0', "8 字节列头文本列从 0 开始");
+        String r8 = HexCore.rowLine(d, 0, HEX, R8, "HelloHex");
+        check(r8.length() == h8.length(), "8 字节行宽与列头一致（" + r8.length() + "）");
+        check(r8.indexOf("HelloHex") == c8, "8 字节行文本落在文本列");
+        check(r8.contains("48 65 6C 6C 6F 48 65 78"), "8 字节行字节区格式正确");
+        boolean rt8 = true;
+        for (int c = 0; c < R8; c++) {
+            if (HexCore.columnAt(c8 + c, HEX, R8) != c) rt8 = false;
+            if (HexCore.columnAt(HexCore.byteStart(c, HEX), HEX, R8) != c) rt8 = false;
+        }
+        check(rt8, "8 字节行：字节区与文本列都能反算回本列");
+        check(HexCore.columnAt(9999, HEX, R8) == 7, "8 字节行右越界收敛到第 7 列");
+
+        // ---- v1.68.2 文本列特殊符号：控制字符点，其余按 Latin-1 原样 ----
+        byte[] sym = new byte[]{0x00, 0x1F, 0x20, 0x41, 0x7E, 0x7F, (byte) 0xB0, (byte) 0xE9};
+        String ts = HexCore.textRow(sym, 0, sym.length);
+        check(ts.length() == 8, "textRow 长度恒等于字节数");
+        check(ts.charAt(0) == '.' && ts.charAt(1) == '.', "控制字符 00/1F 显示为点");
+        check(ts.charAt(2) == ' ' && ts.charAt(3) == 'A', "可打印 ASCII 原样显示");
+        check(ts.charAt(4) == '~', "0x7E 显示为 ~");
+        check(ts.charAt(5) == '.', "0x7F(DEL) 显示为点");
+        check(ts.charAt(6) == 0xB0, "0xB0 显示为 °（不再点掉）");
+        check(ts.charAt(7) == 0xE9, "0xE9 显示为 é（不再点掉）");
 
         System.out.println();
         System.out.println("RESULT  pass=" + pass + " fail=" + fail);

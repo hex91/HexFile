@@ -225,6 +225,30 @@ public final class HexCore {
     }
 
     /**
+     * 文本列的单字节渲染（v1.68.2）：控制字符显示为 {@code .}，其余**按字节原样**显示。
+     *
+     * <p>旧版把所有 {@code >= 0x7F} 的字节都点掉了，于是 ° ± × ÷ ¼ ½ é 这些符号全看不见。
+     * 现在 0x80~0xFF 走 Latin-1 码位（与字节值一一对应，正好一个字符占一格），
+     * 由系统字体回退补齐字形，既不破坏对齐也能显示特殊符号。
+     */
+    public static char textChar(int v) {
+        v &= 0xFF;
+        if (v < 0x20 || v == 0x7F) return '.';
+        return (char) v;
+    }
+
+    /** 一段字节的文本列渲染（逐字节 1 字符，长度恒等于 len）。 */
+    public static String textRow(byte[] data, int off, int len) {
+        if (data == null || len <= 0) return "";
+        StringBuilder sb = new StringBuilder(len);
+        for (int i = 0; i < len && off + i < data.length; i++) {
+            sb.append(textChar(data[off + i]));
+        }
+        while (sb.length() < len) sb.append(' ');
+        return sb.toString();
+    }
+
+    /**
      * 行内字符下标 → 字节列（v1.68.1「点哪个字节就选中哪个」用）。
      *
      * <p>偏移区与两个空格归到第 0 字节；文本列第 n 个字符对应第 n 字节；
@@ -245,9 +269,17 @@ public final class HexCore {
 
     // ============ v1.68.0 行/列头排版（Hex 编辑器，纯函数好单测） ============
 
-    /** 文本列在一行里的起始下标：8 位偏移 + 2 空格 + 各字节格 + 1 空格 */
+    /**
+     * 每 8 字节一组时插一个空格；一行只有 8 字节时没有分组空格。
+     * （v1.68.2 起手机端默认 8 字节/行，这里必须跟着变，否则列头与行会差一位）
+     */
+    public static int groupGap(int rowBytes) {
+        return rowBytes > 8 ? 1 : 0;
+    }
+
+    /** 文本列在一行里的起始下标：8 位偏移 + 2 空格 + 各字节格 + （分组空格）+ 1 空格 */
     public static int textColumn(int base, int rowBytes) {
-        return 10 + rowBytes * (codeWidth(base) + 1) + 2;
+        return 10 + rowBytes * (codeWidth(base) + 1) + groupGap(rowBytes) + 1;
     }
 
     /** 列头：偏移占位 + 每字节列号 + 文本列号（与 {@link #rowLine} 同款间距，保证对齐） */

@@ -36,10 +36,11 @@ import java.util.Locale;
 import com.hex91.file.HexCore.Type;
 
 /**
- * HEX 编辑器（v1.68.1）：
+ * HEX 编辑器（v1.68.2）：
  *
  * <p>布局：顶栏（文件名 / 文件解析 / ⌨ 键盘 / 💾 保存）+ 可横滑工具条（含 Aa 字号）
- * + 与行文本严格对齐的列头 + 列表 + 底部十六进制键盘。
+ * + 与行文本严格对齐的列头 + 列表 + 底部十六进制键盘。一行 **8 字节（00-07）**，
+ * 手机竖屏不用横滑就能看全，字号因此比 16 字节/行大近一倍。
  *
  * <p>编辑模型：**逐字节、就地改内存、点 💾 才落盘**
  * <ul>
@@ -60,7 +61,8 @@ public class HexViewerActivity extends BaseActivity {
 
     public static final String EXTRA_FILE = "file";
     private static final long LIMIT = 4L * 1024 * 1024; // 4MB
-    private static final int ROW = 16;
+    /** 一行 8 字节（00-07）：手机竖屏放得下，字号因此能放大一倍，看着更舒服 */
+    private static final int ROW = 8;
     private static final int MAX_UNDO = 200;
     /** 字号设置持久化 */
     private static final String PREF = "hex_view";
@@ -78,7 +80,7 @@ public class HexViewerActivity extends BaseActivity {
             Type.INT8, Type.UINT8, Type.INT16, Type.UINT16, Type.INT32, Type.UINT32,
             Type.INT64, Type.UINT64, Type.FLOAT32, Type.FLOAT64
     };
-    private static final String[] CHARSETS = {"ASCII", "UTF-8", "UTF-16LE", "ISO-8859-1", "Shift_JIS"};
+    private static final String[] CHARSETS = {"LATIN-1", "UTF-8", "UTF-16LE", "ISO-8859-1", "Shift_JIS"};
     private static final int[] BASE_ORDER = {HexCore.BASE_HEX, HexCore.BASE_BIN,
             HexCore.BASE_OCT, HexCore.BASE_DEC};
     private static final String[] BASE_NAME = {"HEX", "BIN", "OCT", "DEC"};
@@ -100,7 +102,7 @@ public class HexViewerActivity extends BaseActivity {
     private LinearLayout keysBox;
 
     private int codeBase = HexCore.BASE_HEX;
-    private String charsetName = "ASCII";
+    private String charsetName = "LATIN-1";
 
     /** 行/列头字号（px）：100% 时按屏幕宽度自适应，保证一行字符正好铺满不换行 */
     private float rowPx, headPx;
@@ -341,8 +343,8 @@ public class HexViewerActivity extends BaseActivity {
             fit = dp(11);
         } else {
             fit = 200f * avail / (charW200 * totalChars);
-            // 下限 9sp 保可读性；BIN 进制一行 172 字符放不下时靠横向滚动而不是缩成蚂蚁字
-            fit = Math.max(dp(9), Math.min(fit, dp(13)));
+            // 下限 11sp 保可读性；BIN 进制一行放不下时靠横向滚动而不是缩成蚂蚁字
+            fit = Math.max(dp(11), Math.min(fit, dp(18)));
         }
         rowPx = fit * fontScale;
         headPx = rowPx;
@@ -528,10 +530,10 @@ public class HexViewerActivity extends BaseActivity {
     private String decodeRow(int base, int len) {
         byte[] slice = new byte[len];
         System.arraycopy(data, base, slice, 0, len);
-        if ("ASCII".equals(charsetName)) {
-            StringBuilder sb = new StringBuilder(len);
-            for (byte b : slice) sb.append((b >= 0x20 && b < 0x7F) ? (char) b : '.');
-            return sb.toString();
+        if ("LATIN-1".equals(charsetName) || "ASCII".equals(charsetName)) {
+            // 只有控制字符显示为点，0x80~0xFF 按 Latin-1 原样显示（° ± × ÷ ¼ é …），
+            // 逐字节仍占一格，不会破坏列对齐
+            return HexCore.textRow(data, base, len);
         }
         try {
             String s = new String(slice, charsetName);
@@ -1219,7 +1221,7 @@ public class HexViewerActivity extends BaseActivity {
 
         final TextView preview = new TextView(this);
         preview.setTypeface(Typeface.MONOSPACE);
-        preview.setText("0F 1A 2B 3C 4D 5E 6F 70  81 92 A3 B4 C5 D6 E7 F8");
+        preview.setText("7F 45 4C 46 02 01 01 00  .ELF....");
         preview.setSingleLine(true);
         preview.setTextColor(ThemeManager.text(this));
         preview.setPadding(0, dp(10), 0, dp(6));
