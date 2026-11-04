@@ -36,16 +36,19 @@ import java.util.Locale;
 import com.hex91.file.HexCore.Type;
 
 /**
- * HEX 编辑器（v1.68.0 重做）：
+ * HEX 编辑器（v1.68.1）：
  *
- * <p>布局：顶栏（文件名 / 文件解析 / ⌨ 键盘 / 💾 保存）+ 可横滑工具条 + 与行文本严格对齐的列头
- * + 列表（偏移灰、字节正文色、文本列可打印字符高亮）+ 底部 16 进制输入面板。
+ * <p>布局：顶栏（文件名 / 文件解析 / ⌨ 键盘 / 💾 保存）+ 可横滑工具条（含 Aa 字号）
+ * + 与行文本严格对齐的列头 + 列表 + 底部十六进制键盘。
  *
- * <p>编辑模型（与旧版最大的区别）：**先改内存、再点保存落盘**
+ * <p>编辑模型：**逐字节、就地改内存、点 💾 才落盘**
  * <ul>
- *   <li>⌨ 打开底部面板，编辑当前 16 字节（◀/▶ 按 8 字节移动），确定只改内存；</li>
+ *   <li>点行内任意字节 → 该字节成为光标（蓝底），底部键盘同步定位到它；</li>
+ *   <li>底部只有 0-9 / A-F 十六进制键：按满 2 位立刻写入该字节并自动右移一格，
+ *       不再有「从行尾追加」的整行输入框，也不用系统键盘；</li>
+ *   <li>◀ / ▶ 逐字节移动，⌫ 退半字节或退回上一字节；</li>
  *   <li>保存图标默认灰掉，内存与磁盘不一致时才点亮，点击后按「差异区间」批量写入；</li>
- *   <li>撤销/重做基于内存快照；退出有未保存修改会提示保存 / 放弃 / 取消。</li>
+ *   <li>字号可调（Aa，60%~250%），放大后列头与正文一起横向滚动，始终对齐。</li>
  * </ul>
  *
  * <p>另有「块跳转」（按 16B~4KB 分块定位）与「文件解析」（{@link FileInspect}：魔数、ELF 头/节表、
@@ -59,6 +62,9 @@ public class HexViewerActivity extends BaseActivity {
     private static final long LIMIT = 4L * 1024 * 1024; // 4MB
     private static final int ROW = 16;
     private static final int MAX_UNDO = 200;
+    /** 字号设置持久化 */
+    private static final String PREF = "hex_view";
+    private static final String KEY_FONT_SCALE = "font_scale";
 
     private static final char[] HEXC = "0123456789ABCDEF".toCharArray();
 
@@ -87,21 +93,31 @@ public class HexViewerActivity extends BaseActivity {
     private boolean dirty;
 
     private ListView list;
+    private android.widget.HorizontalScrollView listScroll, headerScroll;
     private TextView title, sub, header, saveBtn, baseBtn, charsetBtn;
     private View panel;
-    private TextView panelOffTv, panelHint;
-    private EditText panelInput;
+    private TextView panelOffTv, panelCurTv, panelHint;
+    private LinearLayout keysBox;
 
     private int codeBase = HexCore.BASE_HEX;
     private String charsetName = "ASCII";
 
-    /** 行/列头字号（px）：按屏幕宽度自适应，保证 76 字符一行正好铺满不换行 */
+    /** 行/列头字号（px）：100% 时按屏幕宽度自适应，保证一行字符正好铺满不换行 */
     private float rowPx, headPx;
+    /** 用户字号倍数（Aa 调整，持久化到 hex_view） */
+    private float fontScale = 1f;
+    /** 等宽字体在 200px 下 "0" 的宽度，用于任意字号下的列宽反算 */
+    private float charW200 = 120f;
 
     private int selectedRow = 0;
     private int cursorCol = 0;
-    private int panelOff = 0;
+    /** 当前待编辑字节的绝对偏移（点哪个字节就是哪个，不再按 8 对齐） */
+    private int editOff = 0;
     private boolean panelOpen = false;
+    /** 半个字节的输入缓冲：满 2 位才写入，保证「按两位写一个字节」 */
+    private String nibble = "";
+    /** 最近一次按下时的横坐标（相对列表），用于把点击换算成第几个字节 */
+    private float downX = -1;
 
     // 搜索
     private int[] matches = null;
@@ -141,19 +157,27 @@ public class HexViewerActivity extends BaseActivity {
         sub = (TextView) findViewById(R.id.hex_sub);
         header = (TextView) findViewById(R.id.hex_header);
         list = (ListView) findViewById(R.id.hex_list);
+        listScroll = (android.widget.HorizontalScrollView) findViewById(R.id.hex_list_scroll);
+        headerScroll = (android.widget.HorizontalScrollView) findViewById(R.id.hex_header_scroll);
         saveBtn = (TextView) findViewById(R.id.hex_save);
         baseBtn = (TextView) findViewById(R.id.hex_base);
         charsetBtn = (TextView) findViewById(R.id.hex_charset);
         panel = findViewById(R.id.hex_panel);
         panelOffTv = (TextView) findViewById(R.id.hex_panel_off);
+        panelCurTv = (TextView) findViewById(R.id.hex_panel_cur);
         panelHint = (TextView) findViewById(R.id.hex_panel_hint);
-        panelInput = (EditText) findViewById(R.id.hex_panel_input);
+        keysBox = (LinearLayout) findViewById(R.id.hex_keys);
+
+        fontScale = getSharedPreferences(PREF, MODE_PRIVATE).getFloat(KEY_FONT_SCALE, 1f);
+        if (fontScale < 0.6f || fontScale > 2.5f) fontScale = 1f;
 
         title.setText(file.getName());
         header.setTypeface(Typeface.MONOSPACE);
         measureTextSize();
         header.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, headPx);
         header.setText(headerLine());
+        syncScroll();
+        buildKeys();
 
         findViewById(R.id.hex_back).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { onBackPressed(); }
@@ -191,39 +215,37 @@ public class HexViewerActivity extends BaseActivity {
         charsetBtn.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { askCharset(); }
         });
+        findViewById(R.id.hex_font).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { askFontSize(); }
+        });
 
-        panelInput.setTypeface(Typeface.MONOSPACE);
         findViewById(R.id.hex_panel_prev).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { movePanel(-8); }
+            public void onClick(View v) { moveEdit(-1); }
         });
         findViewById(R.id.hex_panel_next).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { movePanel(8); }
+            public void onClick(View v) { moveEdit(1); }
         });
-        findViewById(R.id.hex_panel_cancel).setOnClickListener(new View.OnClickListener() {
+        findViewById(R.id.hex_panel_close).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { closePanel(); }
         });
-        findViewById(R.id.hex_panel_ok).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { applyPanel(); }
-        });
 
-        list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            public void onItemClick(AdapterView<?> av, View v, int i, long id) {
-                selectedRow = i;
-                cursorCol = 0;
-                if (panelOpen) {
-                    panelOff = align8(i * ROW);
-                    fillPanel();
-                }
-                adapter.notifyDataSetChanged();
-                updateStatus();
+        // 点击行的哪个字节就选中哪个字节：ListView 的 itemClick 里拿不到 x，这里先把按下坐标留下
+        list.setOnTouchListener(new View.OnTouchListener() {
+            public boolean onTouch(View v, android.view.MotionEvent e) {
+                if (e.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) downX = e.getX();
+                return false;
             }
         });
-        // 长按 = 直接打开该行的 16 进制输入面板（比先点行再点键盘快一步）
+        list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            public void onItemClick(AdapterView<?> av, View v, int i, long id) {
+                selectByte(i * ROW + columnAt(downX, i), i);
+            }
+        });
+        // 长按 = 选中该字节并直接打开十六进制键盘（比先点字节再点 ⌨ 快一步）
         list.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
             public boolean onItemLongClick(AdapterView<?> av, View v, int i, long id) {
-                selectedRow = i;
-                cursorCol = 0;
-                openPanelAt(i * ROW);
+                selectByte(i * ROW + columnAt(downX, i), i);
+                openPanelAt(editOff);
                 return true;
             }
         });
@@ -303,7 +325,8 @@ public class HexViewerActivity extends BaseActivity {
 
     /**
      * 按屏幕可用宽度算字号：HEX 一行 76 字符（8 偏移 + 2 空格 + 16×3 + 2 + 16），
-     * 正好铺满一行 → 列头与行永远对齐、文本列不会被挤出屏幕。
+     * 100% 正好铺满一行 → 列头与行永远对齐、文本列不会被挤出屏幕。
+     * 用户用 Aa 放大后按倍数放大，并把列表加宽交给横向滚动，不再裁字。
      */
     private void measureTextSize() {
         int avail = getResources().getDisplayMetrics().widthPixels - dp(16);
@@ -311,20 +334,95 @@ public class HexViewerActivity extends BaseActivity {
         android.text.TextPaint p = new android.text.TextPaint();
         p.setTypeface(Typeface.MONOSPACE);
         p.setTextSize(200f);
-        float charW = p.measureText("0");
-        if (charW <= 0 || avail <= 0) { rowPx = dp(11); headPx = dp(11); return; }
-        float px = 200f * avail / (charW * totalChars);
-        // 下限 9sp 保可读性；BIN 进制一行 172 字符放不下时宁可裁切也不缩成蚂蚁字
-        px = Math.max(dp(9), Math.min(px, dp(13)));
-        rowPx = px;
-        headPx = px;
+        float w200 = p.measureText("0");
+        charW200 = w200 > 0 ? w200 : 120f;
+        float fit;
+        if (avail <= 0) {
+            fit = dp(11);
+        } else {
+            fit = 200f * avail / (charW200 * totalChars);
+            // 下限 9sp 保可读性；BIN 进制一行 172 字符放不下时靠横向滚动而不是缩成蚂蚁字
+            fit = Math.max(dp(9), Math.min(fit, dp(13)));
+        }
+        rowPx = fit * fontScale;
+        headPx = rowPx;
+        updateListWidth(totalChars);
+    }
+
+    /** 按当前字号把列表/列头加宽到「一行字符完整放得下」，超出屏宽就横向滚动 */
+    private void updateListWidth(int totalChars) {
+        if (list == null) return;
+        float cw = charW200 * rowPx / 200f;
+        int need = dp(16) + Math.round(totalChars * cw) + dp(2);
+        int width = Math.max(getResources().getDisplayMetrics().widthPixels, need);
+        setViewWidth(list, width);
+        if (header != null) setViewWidth(header, width);
+    }
+
+    private void setViewWidth(View v, int w) {
+        ViewGroup.LayoutParams lp = v.getLayoutParams();
+        if (lp == null || lp.width == w) return;
+        lp.width = w;
+        v.setLayoutParams(lp);
+    }
+
+    /** 列头与正文横向滚动双向同步（放大量超过屏宽时两行仍严格对齐） */
+    private void syncScroll() {
+        if (listScroll == null || headerScroll == null) return;
+        headerScroll.getViewTreeObserver().addOnScrollChangedListener(
+                new android.view.ViewTreeObserver.OnScrollChangedListener() {
+                    public void onScrollChanged() {
+                        int x = headerScroll.getScrollX();
+                        if (listScroll.getScrollX() != x) listScroll.scrollTo(x, 0);
+                    }
+                });
+        listScroll.getViewTreeObserver().addOnScrollChangedListener(
+                new android.view.ViewTreeObserver.OnScrollChangedListener() {
+                    public void onScrollChanged() {
+                        int x = listScroll.getScrollX();
+                        if (headerScroll.getScrollX() != x) headerScroll.scrollTo(x, 0);
+                    }
+                });
+    }
+
+    /**
+     * 把点击横坐标换算成「第几个字节」：偏移区/空格归到首字节，文本列也能反查。
+     * list 的触摸坐标不受外层横向滚动影响（滚动发生在外层，list 自己不动）。
+     */
+    private int columnAt(float x, int row) {
+        if (x < 0) return cursorCol;
+        float cw = charW200 * rowPx / 200f;
+        if (cw <= 0) return 0;
+        int ci = (int) Math.floor((x - dp(8)) / cw);
+        int col = HexCore.columnAt(ci, codeBase, ROW);
+        if (data != null) {
+            int max = Math.min(ROW - 1, data.length - 1 - row * ROW);
+            if (max >= 0 && col > max) col = max;
+        }
+        return col;
+    }
+
+    /** 选中某字节（行内点击/长按/键盘联动都走这里） */
+    private void selectByte(int off, int row) {
+        if (data == null) return;
+        if (off < 0) off = 0;
+        if (off >= data.length) off = Math.max(0, data.length - 1);
+        if (row >= 0) selectedRow = row;
+        else selectedRow = off / ROW;
+        cursorCol = off - selectedRow * ROW;
+        if (cursorCol < 0) cursorCol = 0;
+        editOff = off;
+        nibble = "";
+        if (panelOpen) refreshPanel();
+        adapter.notifyDataSetChanged();
+        updateStatus();
     }
 
     private void updateStatus() {
         if (data == null) return;
         StringBuilder sb = new StringBuilder();
         sb.append(FileOps.formatSize(fileSize));
-        sb.append(" · 偏移 0x").append(String.format(Locale.US, "%08X", selectedRow * ROW));
+        sb.append(" · 偏移 0x").append(String.format(Locale.US, "%08X", selectedRow * ROW + cursorCol));
         sb.append(" · ").append(BASE_NAME[idxOfBase(codeBase)]);
         if (truncated) sb.append(" · 仅前 4MB");
         if (dirty) sb.append(" · ✎ 未保存");
@@ -345,10 +443,8 @@ public class HexViewerActivity extends BaseActivity {
 
     /** 列头：偏移区 + 每字节列号 + 文本列（排版在 HexCore.headerLine，桌面可单测） */
     private String headerLine() {
-        String h = HexCore.headerLine(codeBase, ROW);
-        int w = HexCore.codeWidth(codeBase);
-        if (w != 2) h += "（每字节 " + w + " 位 " + BASE_NAME[idxOfBase(codeBase)] + "）";
-        return h;
+        // 进制写在工具条按钮上，列头只保留与行严格等宽的字符，避免加宽后错位
+        return HexCore.headerLine(codeBase, ROW);
     }
 
     /** 一行明文（排版在 HexCore.rowLine，保证与列头同宽） */
@@ -472,105 +568,178 @@ public class HexViewerActivity extends BaseActivity {
         }
     };
 
-    // ============================================================ 底部 16 进制面板
+    // ============================================================ 底部十六进制键盘
 
+    /** ⌨ 开关：打开时定位到「当前选中的那个字节」，不是行首也不是行尾 */
     private void togglePanel() {
         if (panelOpen) closePanel();
-        else openPanelAt(selectedRow * ROW);
+        else openPanelAt(editOff);
     }
 
     private void openPanelAt(int off) {
         if (data == null) { toast("尚未加载完成"); return; }
         panelOpen = true;
-        panelOff = align8(Math.max(0, Math.min(off, Math.max(0, data.length - 1))));
+        editOff = Math.max(0, Math.min(off, Math.max(0, data.length - 1)));
+        nibble = "";
         panel.setVisibility(View.VISIBLE);
-        fillPanel();
-        panelInput.requestFocus();
-        panelInput.post(new Runnable() {
-            public void run() {
-                android.view.inputmethod.InputMethodManager imm =
-                        (android.view.inputmethod.InputMethodManager)
-                                getSystemService(Context.INPUT_METHOD_SERVICE);
-                if (imm != null) imm.showSoftInput(panelInput, 0);
-            }
-        });
+        syncCursor();
+        refreshPanel();
+        ensureVisible();
+        adapter.notifyDataSetChanged();
     }
 
     private void closePanel() {
         panelOpen = false;
+        nibble = "";
         panel.setVisibility(View.GONE);
-        android.view.inputmethod.InputMethodManager imm =
-                (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        if (imm != null) imm.hideSoftInputFromWindow(panelInput.getWindowToken(), 0);
     }
 
-    private static int align8(int off) {
-        return Math.max(0, off - (off % 8));
-    }
-
-    private void movePanel(int delta) {
-        int next = panelOff + delta;
+    /** 逐字节移动光标（◀/▶）：不再按 8 字节对齐，点到哪就是哪 */
+    private void moveEdit(int delta) {
+        if (data == null) return;
+        int next = editOff + delta;
         if (next < 0) next = 0;
-        if (data != null && next >= data.length) next = Math.max(0, data.length - 1);
-        panelOff = align8(next);
-        selectedRow = panelOff / ROW;
-        cursorCol = panelOff % ROW;
-        fillPanel();
-        list.setSelectionFromTop(selectedRow, dp(60));
+        if (next >= data.length) next = Math.max(0, data.length - 1);
+        editOff = next;
+        nibble = "";
+        syncCursor();
+        refreshPanel();
+        ensureVisible();
         adapter.notifyDataSetChanged();
         updateStatus();
     }
 
-    /** 把面板偏移处的 16 字节填进输入框 */
-    private void fillPanel() {
-        if (data == null) return;
-        int len = Math.min(ROW, data.length - panelOff);
-        if (len <= 0) { panelInput.setText(""); return; }
-        panelOffTv.setText(String.format(Locale.US, "%08X", panelOff));
-        byte[] b = new byte[len];
-        System.arraycopy(data, panelOff, b, 0, len);
-        panelInput.setText(HexCore.bytesToHex(b, 0, b.length));
-        panelInput.setSelection(panelInput.getText().length());
-        panelHint.setText("可写 " + len + " 字节 · 空格可省略");
+    /** 生成十六进制键盘：0-9 + A-F + 退格 + 收起（不弹系统键盘，只有这 18 个键） */
+    private void buildKeys() {
+        if (keysBox == null) return;
+        keysBox.removeAllViews();
+        String[] rows = {"012345", "6789AB", "CDEF⌫✕"};
+        for (String row : rows) {
+            LinearLayout line = new LinearLayout(this);
+            line.setOrientation(LinearLayout.HORIZONTAL);
+            keysBox.addView(line, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            for (int i = 0; i < row.length(); i++) {
+                final char c = row.charAt(i);
+                TextView k = new TextView(this);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(42), 1f);
+                lp.setMargins(dp(2), dp(2), dp(2), dp(2));
+                k.setLayoutParams(lp);
+                k.setGravity(android.view.Gravity.CENTER);
+                k.setText(String.valueOf(c));
+                k.setTypeface(Typeface.MONOSPACE);
+                k.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 18f);
+                boolean fn = (c == '⌫' || c == '✕');
+                k.setTextColor(fn ? ThemeManager.textSub(this) : ThemeManager.accent(this));
+                k.setBackground(keyBg());
+                k.setOnClickListener(new View.OnClickListener() {
+                    public void onClick(View v) {
+                        if (c == '⌫') backspace();
+                        else if (c == '✕') closePanel();
+                        else typeHex(c);
+                    }
+                });
+                line.addView(k);
+            }
+        }
     }
 
-    private void applyPanel() {
+    private android.graphics.drawable.Drawable keyBg() {
+        android.graphics.drawable.GradientDrawable g =
+                new android.graphics.drawable.GradientDrawable();
+        g.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+        g.setColor(ThemeManager.surface(this));
+        g.setCornerRadius(dp(8));
+        g.setStroke(Math.max(1, dp(0.6f)), ThemeManager.divider(this));
+        return g;
+    }
+
+    /**
+     * 按下一个十六进制键：第 1 位只进缓冲（显示 "C_" 等第 2 位），第 2 位立刻写入该字节并右移一格。
+     * 这样「选中哪个字节就写哪个字节」，不存在从行尾追加整行的行为。
+     */
+    private void typeHex(char c) {
+        if (data == null || data.length == 0) return;
+        if (editOff < 0 || editOff >= data.length) return;
+        if (nibble.length() == 0) {
+            nibble = String.valueOf(c);
+            refreshPanel();
+            return;
+        }
+        int v = (HexCore.hexVal(nibble.charAt(0)) << 4) | HexCore.hexVal(c);
+        nibble = "";
+        applyBytes(editOff, new byte[]{(byte) v}, true);
+        if (editOff < data.length - 1) editOff++;
+        syncCursor();
+        refreshPanel();
+        ensureVisible();
+        adapter.notifyDataSetChanged();
+        updateStatus();
+    }
+
+    /** 退格：先退半个字节，没有半字节就退回上一字节 */
+    private void backspace() {
         if (data == null) return;
-        String raw = panelInput.getText().toString().replaceAll("[^0-9a-fA-F]", "");
-        if (raw.length() == 0) {
-            panelHint.setText("请输入十六进制内容");
-            return;
+        if (!nibble.isEmpty()) {
+            nibble = "";
+        } else if (editOff > 0) {
+            editOff--;
         }
-        if ((raw.length() & 1) != 0) {
-            panelHint.setText("十六进制位数必须是偶数（每字节 2 位）");
-            return;
+        syncCursor();
+        refreshPanel();
+        ensureVisible();
+        adapter.notifyDataSetChanged();
+    }
+
+    /** 面板/光标同步：光标行 = 当前字节所在行，蓝底格 = 当前字节 */
+    private void syncCursor() {
+        if (data == null) return;
+        if (editOff < 0) editOff = 0;
+        if (editOff >= data.length) editOff = Math.max(0, data.length - 1);
+        selectedRow = editOff / ROW;
+        cursorCol = editOff % ROW;
+    }
+
+    /** 刷新面板文字：偏移 / 当前值 / 原值 / 半字节缓冲 */
+    private void refreshPanel() {
+        if (data == null) return;
+        int off = Math.max(0, Math.min(editOff, Math.max(0, data.length - 1)));
+        int v = off < data.length ? (data[off] & 0xFF) : 0;
+        panelOffTv.setText(String.format(Locale.US, "%08X", off));
+        StringBuilder sb = new StringBuilder(24);
+        sb.append(String.format(Locale.US, "%02X", v));
+        if (orig != null && off < orig.length && (orig[off] & 0xFF) != v) {
+            sb.append(String.format(Locale.US, " (原 %02X)", orig[off] & 0xFF));
         }
-        byte[] bytes = HexCore.hexToBytes(raw);
-        int max = data.length - panelOff;
-        if (bytes.length > max) {
-            panelHint.setText("超出已加载范围（此处最多 " + max + " 字节）");
-            return;
-        }
-        if (applyBytes(panelOff, bytes)) {
-            fillPanel();
-            panelHint.setText("已写入内存（" + bytes.length + " 字节），点 💾 保存");
+        sb.append(nibble.isEmpty() ? "  → 按 2 位十六进制" : "  → " + nibble + "_");
+        panelCurTv.setText(sb.toString());
+    }
+
+    /** 光标滚出可视区时把它带回屏幕中部 */
+    private void ensureVisible() {
+        if (list == null || data == null) return;
+        int first = list.getFirstVisiblePosition();
+        int last = list.getLastVisiblePosition();
+        if (selectedRow < first || selectedRow > last) {
+            list.setSelectionFromTop(selectedRow, dp(80));
         }
     }
 
     // ============================================================ 编辑 / 撤销 / 保存
 
-    /** 改内存；返回是否真的发生变化 */
+    /** 改内存；返回是否真的发生变化（quiet=true 时不弹「内容未变化」，逐字节输入用） */
     private boolean applyBytes(int off, byte[] bytes) {
+        return applyBytes(off, bytes, false);
+    }
+
+    private boolean applyBytes(int off, byte[] bytes, boolean quiet) {
         if (data == null || off < 0 || off + bytes.length > data.length) {
-            toast("超出已加载范围");
+            if (!quiet) toast("超出已加载范围");
             return false;
         }
         byte[] old = new byte[bytes.length];
         System.arraycopy(data, off, old, 0, bytes.length);
-        if (Arrays.equals(old, bytes)) {
-            toast("内容未变化");
-            return false;
-        }
+        if (Arrays.equals(old, bytes)) return false;
         System.arraycopy(bytes, 0, data, off, bytes.length);
         undoStack.push(new HexEdit(off, old, bytes.clone()));
         while (undoStack.size() > MAX_UNDO) undoStack.removeLast();
@@ -588,10 +757,10 @@ public class HexViewerActivity extends BaseActivity {
         if (e == null) { toast("无可撤销"); return; }
         System.arraycopy(e.oldB, 0, data, e.off, e.oldB.length);
         redoStack.push(e);
-        selectedRow = e.off / ROW;
-        cursorCol = e.off % ROW;
+        editOff = e.off;
+        syncCursor();
         setDirty(!Arrays.equals(orig, data));
-        if (panelOpen) { panelOff = align8(e.off); fillPanel(); }
+        if (panelOpen) refreshPanel();
         adapter.notifyDataSetChanged();
         updateStatus();
         toast("已撤销");
@@ -602,10 +771,10 @@ public class HexViewerActivity extends BaseActivity {
         if (e == null) { toast("无可重做"); return; }
         System.arraycopy(e.newB, 0, data, e.off, e.newB.length);
         undoStack.push(e);
-        selectedRow = e.off / ROW;
-        cursorCol = e.off % ROW;
+        editOff = e.off;
+        syncCursor();
         setDirty(!Arrays.equals(orig, data));
-        if (panelOpen) { panelOff = align8(e.off); fillPanel(); }
+        if (panelOpen) refreshPanel();
         adapter.notifyDataSetChanged();
         updateStatus();
         toast("已重做");
@@ -718,13 +887,12 @@ public class HexViewerActivity extends BaseActivity {
     }
 
     private void gotoOffset(int off) {
-        selectedRow = off / ROW;
-        cursorCol = off % ROW;
-        list.setSelectionFromTop(selectedRow, 0);
-        if (panelOpen) {
-            panelOff = align8(off);
-            fillPanel();
-        }
+        if (data == null || data.length == 0) return;
+        editOff = Math.max(0, Math.min(off, data.length - 1));
+        syncCursor();
+        list.setSelectionFromTop(selectedRow, dp(80));
+        if (panelOpen) refreshPanel();
+        nibble = "";
         adapter.notifyDataSetChanged();
         updateStatus();
     }
@@ -1021,6 +1189,105 @@ public class HexViewerActivity extends BaseActivity {
     private int idxOfBase(int base) {
         for (int k = 0; k < BASE_ORDER.length; k++) if (BASE_ORDER[k] == base) return k;
         return 0;
+    }
+
+    // ============================================================ 字号
+
+    /** 「Aa」：字号调节（60%~250%，100% = 按屏宽自适应铺满一行） */
+    private void askFontSize() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(22), dp(14), dp(22), dp(2));
+
+        TextView label = new TextView(this);
+        label.setText("字号");
+        label.setTextSize(15);
+        label.setTextColor(ThemeManager.text(this));
+        box.addView(label);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(8), 0, dp(4));
+
+        final TextView val = new TextView(this);
+        val.setTextSize(18);
+        val.setTextColor(ThemeManager.accent(this));
+        val.setMinWidth(dp(64));
+        val.setGravity(android.view.Gravity.CENTER);
+        val.setText(percentText());
+
+        final TextView preview = new TextView(this);
+        preview.setTypeface(Typeface.MONOSPACE);
+        preview.setText("0F 1A 2B 3C 4D 5E 6F 70  81 92 A3 B4 C5 D6 E7 F8");
+        preview.setSingleLine(true);
+        preview.setTextColor(ThemeManager.text(this));
+        preview.setPadding(0, dp(10), 0, dp(6));
+        preview.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, rowPx);
+
+        final View.OnClickListener minus = new View.OnClickListener() {
+            public void onClick(View v) {
+                applyFontScale(fontScale - 0.1f);
+                val.setText(percentText());
+                preview.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, rowPx);
+            }
+        };
+        final View.OnClickListener plus = new View.OnClickListener() {
+            public void onClick(View v) {
+                applyFontScale(fontScale + 0.1f);
+                val.setText(percentText());
+                preview.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, rowPx);
+            }
+        };
+
+        row.addView(chipKey("A−", minus, true));
+        row.addView(val);
+        row.addView(chipKey("A＋", plus, true));
+        box.addView(row);
+
+        TextView tip = new TextView(this);
+        tip.setTextSize(11);
+        tip.setTextColor(ThemeManager.textSub(this));
+        tip.setText("100% = 按屏宽自适应铺满一行；放大后左右滑动查看整行，列头会跟着对齐。");
+        box.addView(tip);
+
+        box.addView(preview);
+
+        new AlertDialog.Builder(this)
+                .setTitle("显示设置")
+                .setView(box)
+                .setPositiveButton("完成", null)
+                .setNeutralButton("恢复默认", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) { applyFontScale(1f); }
+                })
+                .show();
+    }
+
+    private String percentText() {
+        return Math.round(fontScale * 100) + "%";
+    }
+
+    private TextView chipKey(String text, View.OnClickListener l, boolean wide) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextSize(15);
+        t.setTextColor(ThemeManager.accent(this));
+        t.setGravity(android.view.Gravity.CENTER);
+        t.setPadding(dp(wide ? 18 : 10), dp(8), dp(wide ? 18 : 10), dp(8));
+        t.setBackgroundResource(android.R.drawable.list_selector_background);
+        t.setOnClickListener(l);
+        return t;
+    }
+
+    /** 应用字号：重算自适应基数 × 倍数 → 列头/行同步，并加宽列表交给横向滚动 */
+    private void applyFontScale(float scale) {
+        fontScale = Math.max(0.6f, Math.min(2.5f, Math.round(scale * 10f) / 10f));
+        getSharedPreferences(PREF, MODE_PRIVATE).edit()
+                .putFloat(KEY_FONT_SCALE, fontScale).apply();
+        measureTextSize();
+        header.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, headPx);
+        header.setText(headerLine());
+        adapter.notifyDataSetChanged();
     }
 
     private void askCharset() {

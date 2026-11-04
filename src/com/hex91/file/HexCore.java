@@ -224,6 +224,25 @@ public final class HexCore {
         return 10 + col * (w + 1) + (col >= 8 ? 1 : 0);
     }
 
+    /**
+     * 行内字符下标 → 字节列（v1.68.1「点哪个字节就选中哪个」用）。
+     *
+     * <p>偏移区与两个空格归到第 0 字节；文本列第 n 个字符对应第 n 字节；
+     * 越界一律收敛到 {@code 0..rowBytes-1}，保证点击不会拿到非法列。
+     */
+    public static int columnAt(int charIndex, int base, int rowBytes) {
+        if (rowBytes <= 0) return 0;
+        int w = codeWidth(base);
+        int tcol = textColumn(base, rowBytes);
+        int col;
+        if (charIndex >= tcol) col = charIndex - tcol;        // 文本列：首字符即第 0 字节
+        else if (charIndex < 10) col = 0;                    // 偏移区 / 两个空格
+        else col = (charIndex - 10) / (w + 1);               // 字节区
+        if (col < 0) col = 0;
+        if (col > rowBytes - 1) col = rowBytes - 1;
+        return col;
+    }
+
     // ============ v1.68.0 行/列头排版（Hex 编辑器，纯函数好单测） ============
 
     /** 文本列在一行里的起始下标：8 位偏移 + 2 空格 + 各字节格 + 1 空格 */

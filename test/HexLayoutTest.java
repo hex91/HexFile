@@ -64,6 +64,35 @@ public class HexLayoutTest {
                 "DEC 行文本对齐");
         check(HexCore.headerLine(BIN, ROW).length() > 0, "非 HEX 进制列头非空");
 
+        // ---- v1.68.1 点击反算列：字符下标 ↔ 字节列 必须自洽 ----
+        boolean roundTrip = true;
+        for (int c = 0; c < ROW; c++) {
+            int st = HexCore.byteStart(c, HEX);
+            if (HexCore.columnAt(st, HEX, ROW) != c) {
+                roundTrip = false;
+                System.out.println("      列 " + c + " 起点 " + st + " 反算为 "
+                        + HexCore.columnAt(st, HEX, ROW));
+            }
+            // 该字节的第二位十六进制也应落在同一列
+            if (HexCore.columnAt(st + 1, HEX, ROW) != c) {
+                roundTrip = false;
+                System.out.println("      列 " + c + " 第二位反算失败");
+            }
+        }
+        check(roundTrip, "字节区：任一列的首位/第二位字符都反算回同一列");
+
+        boolean textOk = true;
+        for (int c = 0; c < ROW; c++) {
+            if (HexCore.columnAt(col + c, HEX, ROW) != c) textOk = false;
+        }
+        check(textOk, "文本列：第 n 个字符反算为第 n 字节");
+
+        check(HexCore.columnAt(0, HEX, ROW) == 0, "点偏移区归到第 0 字节");
+        check(HexCore.columnAt(9, HEX, ROW) == 0, "点偏移与字节间的空格归到第 0 字节");
+        check(HexCore.columnAt(9999, HEX, ROW) == 15, "超出右边界收敛到最后一列");
+        check(HexCore.columnAt(-5, HEX, ROW) == 0, "负下标收敛到第 0 列");
+        check(HexCore.columnAt(HexCore.byteStart(3, BIN), BIN, ROW) == 3, "BIN 进制同样可反算");
+
         System.out.println();
         System.out.println("RESULT  pass=" + pass + " fail=" + fail);
         if (fail > 0) System.exit(1);
