@@ -66,7 +66,10 @@ public final class ApkEditSession {
      * 下次退出可能重复弹签名框。传 _edit.apk 时映射回原包。
      */
     private static String sessionKeyOf(String path) {
-        String name = path.substring(path.lastIndexOf('/') + 1);
+        // v1.67.1：同时兼容 '/' 与 '\'（桌面测试在 Windows 上跑，File.getAbsolutePath 用反斜杠，
+        // 原实现只找 '/' 会取到整条路径，_edit 后缀判断失效）
+        int sep = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+        String name = path.substring(sep + 1);
         int dot = name.lastIndexOf('.');
         String base = dot > 0 ? name.substring(0, dot) : name;
         if (base.endsWith("_edit")) {
@@ -301,15 +304,19 @@ public final class ApkEditSession {
     }
 
     private static void copy(File src, File dst) throws IOException {
-        InputStream in = new FileInputStream(src);
-        FileOutputStream out = new FileOutputStream(dst);
-        byte[] buf = new byte[1 << 16];
-        int n;
+        // v1.67.1：两个流都先置 null——FileOutputStream 构造抛异常时 InputStream 已打开，
+        // 不进 try 就没人关（原实现此处泄漏句柄）
+        InputStream in = null;
+        FileOutputStream out = null;
         try {
+            in = new FileInputStream(src);
+            out = new FileOutputStream(dst);
+            byte[] buf = new byte[1 << 16];
+            int n;
             while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
         } finally {
-            in.close();
-            out.close();
+            if (out != null) try { out.close(); } catch (IOException ignored) {}
+            if (in != null) try { in.close(); } catch (IOException ignored) {}
         }
     }
 

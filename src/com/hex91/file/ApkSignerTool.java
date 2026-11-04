@@ -21,7 +21,12 @@ public final class ApkSignerTool {
     public static final String KEY_ALIAS = "hexfile";
     public static final char[] KEY_PASSWORD = "android".toCharArray();
 
-    /** 用内置调试密钥签名 apk（输入未签名或已剥离旧签名），签 v1+v2+v3 */
+    /**
+     * 用内置调试密钥签名 apk（输入未签名或已剥离旧签名），签 v1+v2+v3。
+     * <p><b>所有权约定（v1.67.1）</b>：{@code keyStoreIn} 由<b>调用方</b>负责关闭，
+     * 本方法只读取、不关闭——调用方必须使用 try-finally 或调用方自持流的生命周期。
+     * 需要「一次性字节数组」时优先用 {@link #sign(byte[], char[], File, File, int)} 重载。
+     */
     public static void sign(InputStream keyStoreIn, char[] password, File in, File out, int minSdk)
             throws Exception {
         sign(keyStoreIn, password, in, out, minSdk, true, true, true);

@@ -833,7 +833,8 @@ public class DexEditorActivity extends BaseActivity {
                 if (e == null) {
                     Toast.makeText(DexEditorActivity.this,
                             autoSign ? "已写回并签名 → " + apk.getName()
-                                     : "已写回 → " + apk.getName() + "（未签名）",
+                                     : "已写回 → " + apk.getName()
+                                       + "（未签名，可能无法安装）",
                             Toast.LENGTH_LONG).show();
                     if (exitWhenDone) finish();
                 } else {
@@ -1021,60 +1022,74 @@ public class DexEditorActivity extends BaseActivity {
 
     /** 文件复制（内部缓存目录内使用，v1.66.10 单 dex 原地写回用） */
     private static void copyFile(File src, File dst) throws java.io.IOException {
-        FileInputStream fi = new FileInputStream(src);
+        FileInputStream fi = null;
+        FileOutputStream fo = null;
         try {
-            FileOutputStream fo = new FileOutputStream(dst);
-            try {
-                byte[] buf = new byte[65536];
-                int n;
-                while ((n = fi.read(buf)) > 0) fo.write(buf, 0, n);
-            } finally {
-                fo.close();
-            }
+            fi = new FileInputStream(src);
+            fo = new FileOutputStream(dst);
+            byte[] buf = new byte[65536];
+            int n;
+            while ((n = fi.read(buf)) > 0) fo.write(buf, 0, n);
         } finally {
-            fi.close();
+            // 两个流都可能在对方构造前打开成功，finally 内 null 安全关闭
+            if (fo != null) try { fo.close(); } catch (Exception ignored) {}
+            if (fi != null) try { fi.close(); } catch (Exception ignored) {}
         }
     }
 
     private static boolean extractZipEntry(File zip, String entryName, File out) {
         ZipFile zf = null;
+        InputStream in = null;
+        FileOutputStream fo = null;
         try {
             zf = new ZipFile(zip);
             ZipEntry ze = zf.getEntry(entryName);
             if (ze == null) return false;
-            InputStream in = zf.getInputStream(ze);
-            FileOutputStream fo = new FileOutputStream(out);
+            in = zf.getInputStream(ze);
+            fo = new FileOutputStream(out);
             byte[] buf = new byte[65536];
             int n;
             while ((n = in.read(buf)) > 0) fo.write(buf, 0, n);
-            fo.close();
-            in.close();
             return true;
         } catch (Exception e) {
             return false;
         } finally {
+            // v1.67.1：任一步抛异常也必须关闭，否则 Windows 下句柄锁死文件
+            if (fo != null) try { fo.close(); } catch (Exception ignored) {}
+            if (in != null) try { in.close(); } catch (Exception ignored) {}
             if (zf != null) try { zf.close(); } catch (Exception ignored) {}
         }
     }
 
+    /**
+     * 读文本；失败返回 ""（调用方按「无内容」处理：project.ini 不一致会触发重建，
+     * .editbase 读不到会用当前时间，均安全）。流在 finally 关闭。
+     */
     private static String readText(File f) {
+        FileInputStream fi = null;
         try {
-            FileInputStream fi = new FileInputStream(f);
+            fi = new FileInputStream(f);
             java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
             byte[] b = new byte[4096];
             int n;
             while ((n = fi.read(b)) > 0) bo.write(b, 0, n);
-            fi.close();
             return new String(bo.toByteArray(), "UTF-8");
-        } catch (Exception e) { return ""; }
+        } catch (Exception e) {
+            return "";
+        } finally {
+            if (fi != null) try { fi.close(); } catch (Exception ignored) {}
+        }
     }
 
     private static void writeText(File f, String s) {
+        FileOutputStream fo = null;
         try {
-            FileOutputStream fo = new FileOutputStream(f);
+            fo = new FileOutputStream(f);
             fo.write(s.getBytes("UTF-8"));
-            fo.close();
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        } finally {
+            if (fo != null) try { fo.close(); } catch (Exception ignored) {}
+        }
     }
 
     private static void deleteR(File f) {

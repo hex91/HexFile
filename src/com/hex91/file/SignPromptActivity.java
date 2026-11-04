@@ -85,7 +85,7 @@ public class SignPromptActivity extends Activity {
         card.addView(title);
 
         TextView sub = new TextView(this);
-        sub.setText("修改版尚未签名，暂不安装前建议签名");
+        sub.setText("修改版尚未签名。未签名的 APK 可能无法安装，建议先签名。");
         sub.setTextSize(13);
         sub.setTextColor(ThemeManager.textSub(this));
         sub.setPadding(0, dp(4), 0, dp(12));
@@ -120,7 +120,7 @@ public class SignPromptActivity extends Activity {
 
         // 文字选项：暂不签名
         TextView btn3 = new TextView(this);
-        btn3.setText("暂不签名");
+        btn3.setText("暂不签名（未签名 APK 可能无法安装）");
         btn3.setTextSize(14);
         btn3.setGravity(Gravity.CENTER);
         btn3.setTextColor(ThemeManager.textSub(this));
@@ -240,8 +240,11 @@ public class SignPromptActivity extends Activity {
                     signInPlace(new Signer() {
                         public void sign(File out) throws Exception {
                             java.io.InputStream ks = getAssets().open("hexfile.p12");
-                            ApkSignerTool.sign(ks, ApkSignerTool.KEY_PASSWORD, apk, out, 21);
-                            ks.close();
+                            try {
+                                ApkSignerTool.sign(ks, ApkSignerTool.KEY_PASSWORD, apk, out, 21);
+                            } finally {
+                                try { ks.close(); } catch (Exception ignored) {}
+                            }
                         }
                     });
                 } catch (Throwable t) {
@@ -264,16 +267,21 @@ public class SignPromptActivity extends Activity {
                 String err = null;
                 try {
                     java.io.InputStream in = getContentResolver().openInputStream(keystoreUri);
-                    java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
-                    byte[] buf = new byte[65536];
-                    int n;
-                    while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
-                    in.close();
-                    final byte[] ksBytes = bo.toByteArray();
+                    byte[] ksBytes;
+                    try {
+                        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                        byte[] buf = new byte[65536];
+                        int n;
+                        while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+                        ksBytes = bo.toByteArray();
+                    } finally {
+                        try { in.close(); } catch (Exception ignored) {}
+                    }
+                    final byte[] fks = ksBytes;
                     final char[] pw = pwd.toCharArray();
                     signInPlace(new Signer() {
                         public void sign(File out) throws Exception {
-                            ApkSignerTool.signAutoAlias(ksBytes, pw, apk, out, 21);
+                            ApkSignerTool.signAutoAlias(fks, pw, apk, out, 21);
                         }
                     });
                 } catch (Throwable t) {

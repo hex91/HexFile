@@ -1662,6 +1662,19 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.67.1 —— 代码评审修复（流泄漏 / 跨平台路径 / 密码加密 / 未签名提示）
+
+按评审逐条处理，9 项中 7 项为真实缺陷并已修复：
+
+- **流泄漏（P0）**：`DexEditorActivity.extractZipEntry`（in/fo 仅在正常流程关闭 → 改 null 安全 finally）、`readText`/`writeText`、`copyFile`、`ApkEditSession.copy`（`FileOutputStream` 构造失败时 InputStream 已打开无人关闭 → 两流先置 null 再进 try）、`SignPromptActivity.signBuiltin/signCustom`、`MainActivity.readUriBytes` 全部改为 finally 内 null 安全关闭。Windows 下句柄锁死文件的隐患同时消除。
+- **跨平台路径**：`ApkEditSession.sessionKeyOf` 原只认 `/`，Windows 路径含 `\` 时 `lastIndexOf('/')=-1` 取到整条路径，`_edit` 后缀规范化失效（幽灵会话）。改为 `max(lastIndexOf('/'), lastIndexOf('\\'))`。
+- **接口契约**：`ApkSignerTool.sign(InputStream, …)` 补 Javadoc 明确「流由调用方关闭」，并建议优先用 byte[] 重载。
+- **大 DEX 保护**：`SmaliTool.repairDex` 增加 64MB 上限，超限直接返回可读错误（整文件读入 + dexlib2 解析的 OOM 风险），并在方法文档标注上限。
+- **签名密码加密**：新增 `KeyCipher`（Android Keystore AES-256/GCM，API 23+；21-22 降级明文），`id.meta` 内 storePass/keyPass 加密落盘，旧明文数据自动兼容；导入界面按系统能力显示加密/明文风险提示。
+- **未签名提示**：签名弹窗副标题改为「未签名的 APK 可能无法安装」，「暂不签名」按钮与写回 Toast 同步加提示。
+- 第 6 项（内置签名 try-finally）与评审结论一致，无改动。
+- **测试**：SessionTest（覆盖 copy/sessionKeyOf）、KeyStoreUtilTest 21/21、SignPromptFlowTest、CustomSignE2ETest、SignSchemeTest 全过。versionCode 127。
+
 ## v1.67.0 —— 签名管理（导入内部化 + JKS/BKS 支持）+ 进度条修复
 
 **① 签名管理器（新 SignKeyManagerActivity）**：

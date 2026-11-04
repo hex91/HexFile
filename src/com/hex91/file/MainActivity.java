@@ -4908,12 +4908,15 @@ public class MainActivity extends BaseActivity {
 
     private byte[] readUriBytes(android.net.Uri uri) throws Exception {
         java.io.InputStream in = getContentResolver().openInputStream(uri);
-        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
-        byte[] buf = new byte[65536];
-        int n;
-        while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
-        in.close();
-        return bo.toByteArray();
+        try {
+            java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[65536];
+            int n;
+            while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+            return bo.toByteArray();
+        } finally {
+            try { in.close(); } catch (Exception ignored) {}
+        }
     }
 
     private long lastBackPress = 0;

@@ -75,8 +75,9 @@ public class SignKeyManagerActivity extends BaseActivity {
         try { fo.write(ksBytes); } finally { fo.close(); }
         Properties p = new Properties();
         p.setProperty("name", e.name);
-        p.setProperty("storePass", e.storePass);
-        if (e.keyPass != null) p.setProperty("keyPass", e.keyPass);
+        // v1.67.1：密码加密落盘（Android Keystore AES/GCM；21-22 降级明文）
+        p.setProperty("storePass", KeyCipher.seal(e.storePass));
+        if (e.keyPass != null) p.setProperty("keyPass", KeyCipher.seal(e.keyPass));
         if (e.alias != null) p.setProperty("alias", e.alias);
         if (e.sha1 != null) p.setProperty("sha1", e.sha1);
         p.setProperty("keyCount", String.valueOf(e.keyCount));
@@ -101,8 +102,9 @@ public class SignKeyManagerActivity extends BaseActivity {
             KeyEntry e = new KeyEntry();
             e.id = id;
             e.name = p.getProperty("name", id);
-            e.storePass = p.getProperty("storePass", "");
+            e.storePass = KeyCipher.open(p.getProperty("storePass", ""));
             e.keyPass = p.getProperty("keyPass");
+            if (e.keyPass != null) e.keyPass = KeyCipher.open(e.keyPass);
             e.alias = p.getProperty("alias");
             e.sha1 = p.getProperty("sha1");
             e.keyCount = Integer.parseInt(p.getProperty("keyCount", "0"));
@@ -298,7 +300,11 @@ public class SignKeyManagerActivity extends BaseActivity {
                 | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
         box.addView(keyPass);
         TextView tip = new TextView(this);
-        tip.setText("导入时会解析并校验，成功后签名信息可在列表中查看。");
+        tip.setText("导入时会解析并校验，成功后签名信息可在列表中查看。\n"
+                + (KeyCipher.encrypted()
+                    ? "密码以系统 Keystore 密钥加密保存（AES-256/GCM），仅本机本应用可解。"
+                    : "⚠ 当前系统（Android 5.x）不支持 Keystore 加密，密码为明文存储，"
+                      + "请勿在共用设备上导入。"));
         tip.setTextSize(12);
         tip.setTextColor(ThemeManager.textSub(this));
         tip.setPadding(0, (int) (8 * den), 0, 0);

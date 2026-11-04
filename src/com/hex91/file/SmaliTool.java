@@ -195,11 +195,17 @@ public final class SmaliTool {
      * @param report 修复动作明细（调用方传入，追加写）
      * @return null=成功（含「无需修复」）；否则错误描述
      */
+    /** 修复上限：超过此大小整文件读入 + dexlib2 解析有 OOM 风险（Android 单 dex 极少接近该值） */
+    private static final long REPAIR_MAX_BYTES = 64L * 1024 * 1024;
+
     public static String repairDex(File dexFile, StringBuilder report) {
         try {
             long len = dexFile.length();
             if (len < 112 || len > Integer.MAX_VALUE - 1024)
                 return "文件大小异常，不是有效的 DEX";
+            if (len > REPAIR_MAX_BYTES)
+                return "DEX 超过 64MB，内存修复风险过高（可能 OOM），已取消——"
+                        + "请换用桌面工具（baksmali/smali）重新编译";
             java.io.FileInputStream fi = new java.io.FileInputStream(dexFile);
             byte[] all = new byte[(int) len];
             boolean full;
