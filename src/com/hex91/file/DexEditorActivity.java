@@ -877,6 +877,8 @@ public class DexEditorActivity extends BaseActivity {
             SignKeyManagerActivity.KeyEntry e = SignKeyManagerActivity.defaultEntry(this);
             if (e == null) throw new IllegalStateException(
                     "自定义签名已失效（可能已删除），请在自动签名设置中重新选择");
+            if (e.broken()) throw new IllegalStateException(
+                    "该签名的密码已损坏（换机/清除数据导致），请到「签名管理」重新导入");
             byte[] ksBytes = SignKeyManagerActivity.loadKeyBytes(this, e.id);
             ApkSignerTool.signAutoAlias(ksBytes,
                     e.storePass.toCharArray(),
@@ -950,8 +952,9 @@ public class DexEditorActivity extends BaseActivity {
         SharedPreferences sp = signPrefs();
         if (sp.getInt("ks_mode", 0) == 1) {
             SignKeyManagerActivity.KeyEntry e = SignKeyManagerActivity.defaultEntry(this);
-            tv.setText(e != null ? "自定义签名：" + e.name + "（点选更换）"
-                    : "自定义签名已失效（点选更换）");
+            tv.setText(e == null ? "自定义签名已失效（点选更换）"
+                    : e.broken() ? "自定义签名密码已损坏（点选更换/重新导入）"
+                    : "自定义签名：" + e.name + "（点选更换）");
         } else {
             tv.setText("内置签名文件（点选更换）");
         }
@@ -980,7 +983,8 @@ public class DexEditorActivity extends BaseActivity {
         String defId2 = sp.getString("key_id", null);
         for (SignKeyManagerActivity.KeyEntry e : keys)
             items.add((e.id.equals(defId2) ? "★ " : "") + e.name
-                    + (e.keyCount > 0 ? "（" + e.keyCount + " 个私钥别名）" : ""));
+                    + (e.broken() ? "  ⚠ 密码已损坏"
+                                  : (e.keyCount > 0 ? "（" + e.keyCount + " 个私钥别名）" : "")));
         items.add("管理签名…（导入 / 查看证书信息 / 删除）");
 
         new AlertDialog.Builder(this)
@@ -994,6 +998,21 @@ public class DexEditorActivity extends BaseActivity {
                                     SignKeyManagerActivity.class));
                         } else {
                             SignKeyManagerActivity.KeyEntry e = keys.get(which - 1);
+                            if (e.broken()) {
+                                new AlertDialog.Builder(DexEditorActivity.this)
+                                        .setTitle(e.name)
+                                        .setMessage("该签名的密码已无法解密（换机/恢复出厂/清除数据后 "
+                                                + "Android Keystore 密钥丢失）。请到「签名管理」删除后重新导入。")
+                                        .setPositiveButton("去签名管理", new DialogInterface.OnClickListener() {
+                                            public void onClick(DialogInterface d, int w) {
+                                                startActivity(new Intent(DexEditorActivity.this,
+                                                        SignKeyManagerActivity.class));
+                                            }
+                                        })
+                                        .setNegativeButton("取消", null)
+                                        .show();
+                                return;
+                            }
                             sp.edit().putInt("ks_mode", 1).putString("key_id", e.id).apply();
                         }
                         updateKeySelText(ksSelRef);

@@ -48,6 +48,11 @@ public class SignKeyManagerActivity extends BaseActivity {
         String alias;     // null = 自动选择
         String sha1;      // 首个私钥条目证书指纹（列表展示用）
         int keyCount;     // 含私钥的别名数
+        /** v1.67.3：密码解不开（换机 / Keystore 被重置 / 数据被拷走）——必须重新导入，不能用空密码覆盖 */
+        boolean storeBroken;
+        boolean keyBroken;
+
+        boolean broken() { return storeBroken || keyBroken; }
     }
 
     private final List<KeyEntry> entries = new ArrayList<KeyEntry>();
@@ -70,6 +75,9 @@ public class SignKeyManagerActivity extends BaseActivity {
     // ---------------- 存储（id.ks + id.meta） ----------------
 
     static void saveEntry(android.content.Context ctx, KeyEntry e, byte[] ksBytes) throws Exception {
+        // v1.67.3：密码损坏时绝不允许落盘——否则空串会把原密码不可逆覆盖掉
+        if (e.broken()) throw new IllegalStateException(
+                "密码已损坏（可能换机或清除过数据），请删除该条目后重新导入签名文件");
         File dir = keyDir(ctx);
         FileOutputStream fo = new FileOutputStream(new File(dir, e.id + ".ks"));
         try { fo.write(ksBytes); } finally { fo.close(); }
@@ -102,9 +110,16 @@ public class SignKeyManagerActivity extends BaseActivity {
             KeyEntry e = new KeyEntry();
             e.id = id;
             e.name = p.getProperty("name", id);
-            e.storePass = KeyCipher.open(p.getProperty("storePass", ""));
-            e.keyPass = p.getProperty("keyPass");
-            if (e.keyPass != null) e.keyPass = KeyCipher.open(e.keyPass);
+            // v1.67.3：解不开（null）与「密码就是空」必须区分开，否则会静默用空密码签名/覆盖
+            String sp = KeyCipher.open(p.getProperty("storePass", ""));
+            e.storeBroken = sp == null;
+            e.storePass = sp != null ? sp : "";
+            String kp = p.getProperty("keyPass");
+            if (kp != null) {
+                String dk = KeyCipher.open(kp);
+                e.keyBroken = dk == null;
+                e.keyPass = dk;                       // null 表示「同 keystore 密码」
+            }
             e.alias = p.getProperty("alias");
             e.sha1 = p.getProperty("sha1");
             e.keyCount = Integer.parseInt(p.getProperty("keyCount", "0"));
@@ -199,26 +214,41 @@ public class SignKeyManagerActivity extends BaseActivity {
         reload();
     }
 
+    /**
+     * v1.67.3：解密要走 Android Keystore（首次生成密钥可能走 TEE/StrongBox，耗时不可控），
+     * 全部放到后台线程，读完再回 UI —— 避免列表页在低端机/锁屏状态下卡住主线程。
+     */
     private void reload() {
-        entries.clear();
-        File[] fs = keyDir(this).listFiles();
-        String defId = signPrefs(this).getString("key_id", null);
-        if (fs != null) {
-            List<String> ids = new ArrayList<String>();
-            for (File f : fs) {
-                String n = f.getName();
-                if (n.endsWith(".meta")) ids.add(n.substring(0, n.length() - 5));
-            }
-            java.util.Collections.sort(ids);
-            // 默认密钥排最前
-            if (defId != null && ids.remove(defId)) ids.add(0, defId);
-            for (String id : ids) {
-                KeyEntry e = loadEntry(this, id);
-                if (e != null) entries.add(e);
-            }
+        new Thread(new Runnable() { public void run() {
+            final List<KeyEntry> loaded = loadAll(SignKeyManagerActivity.this);
+            ui.post(new Runnable() { public void run() {
+                entries.clear();
+                entries.addAll(loaded);
+                emptyView.setVisibility(entries.isEmpty() ? View.VISIBLE : View.GONE);
+                adapter.notifyDataSetChanged();
+            }});
+        }}, "signkey-load").start();
+    }
+
+    /** 枚举并解密全部已导入签名（含 Keystore 运算，须在后台线程调用） */
+    static List<KeyEntry> loadAll(android.content.Context ctx) {
+        List<KeyEntry> out = new ArrayList<KeyEntry>();
+        File[] fs = keyDir(ctx).listFiles();
+        if (fs == null) return out;
+        String defId = signPrefs(ctx).getString("key_id", null);
+        List<String> ids = new ArrayList<String>();
+        for (File f : fs) {
+            String n = f.getName();
+            if (n.endsWith(".meta")) ids.add(n.substring(0, n.length() - 5));
         }
-        emptyView.setVisibility(entries.isEmpty() ? View.VISIBLE : View.GONE);
-        adapter.notifyDataSetChanged();
+        java.util.Collections.sort(ids);
+        // 默认密钥排最前
+        if (defId != null && ids.remove(defId)) ids.add(0, defId);
+        for (String id : ids) {
+            KeyEntry e = loadEntry(ctx, id);
+            if (e != null) out.add(e);
+        }
+        return out;
     }
 
     private class KeyAdapter extends BaseAdapter {
@@ -233,10 +263,12 @@ public class SignKeyManagerActivity extends BaseActivity {
             TextView t1 = (TextView) row.getChildAt(0);
             TextView t2 = (TextView) row.getChildAt(1);
             t1.setText((e.id.equals(defId) ? "★ " : "") + e.name);
-            t2.setText((e.alias != null ? "别名 " + e.alias + " · " : "")
-                    + e.keyCount + " 个私钥别名"
-                    + (e.sha1 != null && e.sha1.length() >= 19
-                        ? " · SHA1 " + e.sha1.substring(0, 19) + "…" : ""));
+            t2.setText(e.broken()
+                    ? "⚠ 密码已损坏（换机/清除数据导致），请删除后重新导入"
+                    : (e.alias != null ? "别名 " + e.alias + " · " : "")
+                        + e.keyCount + " 个私钥别名"
+                        + (e.sha1 != null && e.sha1.length() >= 19
+                            ? " · SHA1 " + e.sha1.substring(0, 19) + "…" : ""));
             return row;
         }
 
@@ -396,6 +428,21 @@ public class SignKeyManagerActivity extends BaseActivity {
     // ---------------- 详情 / 默认 / 删除 ----------------
 
     private void showDetail(final KeyEntry e) {
+        // v1.67.3：密码解不开时不再拿空密码去解析（只会得到一个无意义的报错），直接给可操作提示
+        if (e.broken()) {
+            new AlertDialog.Builder(this)
+                    .setTitle(e.name)
+                    .setMessage("这条签名的密码已无法解密（常见原因：换机、恢复出厂、清除应用数据后"
+                            + "Android Keystore 密钥丢失）。\n\n"
+                            + "密码无法恢复，keystore 文件本身还在，请删除本条目后重新导入，"
+                            + "并重新输入一次密码。")
+                    .setPositiveButton("删除并重新导入", new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface d, int w) { confirmDelete(e); }
+                    })
+                    .setNegativeButton("关闭", null)
+                    .show();
+            return;
+        }
         final ProgressDialog pd = ProgressDialog.show(this, "签名信息", "解析中…", true, false);
         new Thread() { public void run() {
             String text;

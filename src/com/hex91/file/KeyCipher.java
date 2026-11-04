@@ -50,10 +50,15 @@ public final class KeyCipher {
         }
     }
 
-    /** 解密；无前缀视为明文（旧数据），解密失败返回空串 */
+    /**
+     * 解密。
+     * @return 明文字符串；无 aes1: 前缀（旧数据/明文降级）原样返回；
+     *         **null = 有密文但解不开**（换机、Keystore 重置、密钥被清）——
+     *         调用方据此提示「密码已损坏，请重新导入」，绝不能把 null 当空密码存回去
+     */
     public static String open(String stored) {
         if (stored == null || !stored.startsWith(PREFIX)) return stored;
-        if (Build.VERSION.SDK_INT < 23) return "";
+        if (Build.VERSION.SDK_INT < 23) return null;
         try {
             byte[] all = Base64.decode(stored.substring(PREFIX.length()), Base64.NO_WRAP);
             int ivLen = all[0] & 0xFF;
@@ -61,8 +66,21 @@ public final class KeyCipher {
             c.init(Cipher.DECRYPT_MODE, key(), new GCMParameterSpec(128, all, 1, ivLen));
             return new String(c.doFinal(all, 1 + ivLen, all.length - 1 - ivLen), "UTF-8");
         } catch (Throwable t) {
-            return "";
+            return null;
         }
+    }
+
+    private static volatile boolean warmed;
+
+    /**
+     * 预热 Keystore 密钥：首次生成密钥可能走 TEE/StrongBox，在低端机/锁屏状态下可能耗时较久。
+     * 在应用启动时后台线程调一次，后续 UI 线程上的 open/seal 就只是几次密码运算（毫秒级）。
+     */
+    public static void warmUp() {
+        if (warmed || Build.VERSION.SDK_INT < 23) return;
+        new Thread() { public void run() {
+            try { key(); warmed = true; } catch (Throwable ignored) {}
+        } }.start();
     }
 
     /** 取（或首次创建）Keystore 内的 AES 密钥 */

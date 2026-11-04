@@ -1662,6 +1662,26 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.67.3 —— 第二轮评审处理（流关闭 / 密码损坏语义 / Keystore 不占 UI 线程）
+
+评审 6 项中 **1 项为真实缺陷、2 项已在 v1.67.1 修复、2 项属实已改进、1 项为文档约定**：
+
+- **【真实缺陷】`MainActivity.signApkBuiltin` 流泄漏**：`ks.close()` 写在 `try` 末尾，`sign()` 抛异常时 assets 流不关闭。改为 try-finally（与 v1.67.1 的 `SignPromptActivity` 修复保持同一写法）。
+- **【已修复】`DexEditorActivity.extractZipEntry`**：v1.67.1 已改为 `in`/`fo` 先置 null、finally 内分别关闭；评审基于 v1.67.0 旧代码。
+- **【已修复】`DexEditorActivity.readText`**：v1.67.1 已加 finally 关闭。异常仍返回 `""` —— 这是刻意设计（`project.ini` 读空触发重建、`.editbase` 读空用当前时间），已在 Javadoc 写明契约。
+- **【密码损坏语义】`KeyCipher.open` 不再静默返回空串**：有 `aes1:` 密文却解不开（换机 / 恢复出厂 / 清除数据导致 Keystore 密钥丢失）时返回 **null**，与「密码本来就是空」彻底区分：
+  - `KeyEntry` 增加 `storeBroken`/`keyBroken`，列表项显示「⚠ 密码已损坏（换机/清除数据导致），请删除后重新导入」；
+  - `saveEntry` 对损坏条目**直接拒绝落盘**，杜绝空串把原密码不可逆覆盖；
+  - 签名前拦截并给出可操作提示（Dex 编辑器自动签名、自定义签名、密钥选择列表三处）；
+  - 点开损坏条目不拿空密码硬解析，直接给「删除并重新导入」。
+- **【Keystore 不占 UI 线程】`KeyCipher.warmUp()`**：应用启动即后台线程建好密钥（首次生成可能走 TEE/StrongBox），后续 `open/seal` 只是毫秒级密码运算；签名管理页的列表加载（要逐条解密）改为后台线程 + 回 UI 刷新。
+- **附带**：启动时清理 v1.66.x 遗留在 `dexpp_sign` 里的明文 `ks_pass`/`ks_path`（v1.67.0 起已不用，留着只有风险）。
+- 第 6 项（`sign(InputStream)` 所有权约定）保持现状；本轮审计出的违反者即上条第一项，已修。
+
+> KeyCipher 走 Android Keystore，桌面 JVM 无法测试（`android.security.keystore` 是桩），需真机验证；其余回归全部通过。
+
+---
+
 ## v1.67.2 —— Dex 修复改流式 + 原地修补（去掉 64MB 上限，峰值内存 256KB）
 
 `repairDex` 原来是「整文件读入 byte[] → 改内存 → 写临时文件 → safeReplace 替换」。

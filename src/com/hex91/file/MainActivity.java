@@ -121,6 +121,15 @@ public class MainActivity extends BaseActivity {
 
         migrateLegacyDirs();   // v1.46.0 更名：旧 MTClone 目录一次性搬入 HexFile
 
+        // v1.67.3：清理 v1.66.x 遗留的明文密码（dexpp_sign 里的 ks_pass/ks_path，v1.67.0 起已不再使用）
+        android.content.SharedPreferences legacySign = getSharedPreferences("dexpp_sign", MODE_PRIVATE);
+        if (legacySign.contains("ks_pass") || legacySign.contains("ks_path")) {
+            legacySign.edit().remove("ks_pass").remove("ks_path").apply();
+        }
+
+        // v1.67.3：后台预热签名密码的 Keystore 密钥（首次生成可能走 TEE，避免首次签名时卡 UI）
+        KeyCipher.warmUp();
+
         headerPath = (TextView) findViewById(R.id.header_path);
         headerStats = (TextView) findViewById(R.id.header_stats);
         listLeft = (ListView) findViewById(R.id.list_left);
@@ -1965,9 +1974,13 @@ public class MainActivity extends BaseActivity {
                 File out = new File(apk.getParentFile(),
                         stripExt(apk.getName()) + "_signed.apk");
                 try {
+                    // v1.67.3：sign 抛异常时也必须关闭 assets 流（原实现 close 在 try 末尾，异常路径不执行）
                     java.io.InputStream ks = getAssets().open("hexfile.p12");
-                    ApkSignerTool.sign(ks, ApkSignerTool.KEY_PASSWORD, apk, out, 21);
-                    ks.close();
+                    try {
+                        ApkSignerTool.sign(ks, ApkSignerTool.KEY_PASSWORD, apk, out, 21);
+                    } finally {
+                        try { ks.close(); } catch (java.io.IOException ignored) {}
+                    }
                 } catch (Throwable t) {
                     err = t.getClass().getSimpleName() + ": " + t.getMessage();
                 }
@@ -2357,7 +2370,8 @@ public class MainActivity extends BaseActivity {
         List<String> items = new ArrayList<String>();
         for (SignKeyManagerActivity.KeyEntry e : keys)
             items.add((e.id.equals(defId) ? "★ " : "") + e.name
-                    + (e.keyCount > 0 ? "（" + e.keyCount + " 个私钥别名）" : ""));
+                    + (e.broken() ? "  ⚠ 密码已损坏"
+                                  : (e.keyCount > 0 ? "（" + e.keyCount + " 个私钥别名）" : "")));
         items.add("从文件选择（一次性）…");
         items.add("管理签名…（导入 / 查看证书信息 / 删除）");
         new AlertDialog.Builder(this)
@@ -2392,6 +2406,10 @@ public class MainActivity extends BaseActivity {
     /** 用已导入签名直接签（密码已保存）；inPlace = 原地覆盖，否则 <名>_csigned.apk */
     private void doCustomSignWithEntry(final SignKeyManagerActivity.KeyEntry entry,
             final File apk, final boolean inPlace) {
+        if (entry.broken()) {
+            toast("该签名的密码已损坏（换机/清除数据导致），请到「签名管理」重新导入");
+            return;
+        }
         final ProgressDialog pd = ProgressDialog.show(MainActivity.this,
                 "自定义签名", entry.name + " → " + apk.getName(), true, false);
         new Thread(new Runnable() {
