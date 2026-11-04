@@ -490,6 +490,18 @@
             android:textColor="?attr/hfText"
             android:background="?android:attr/selectableItemBackground"/>
 
+        <!-- v1.70.0：工具箱（编码转换 / 加解密 / 进制 / 网络 / 时间戳） -->
+        <TextView
+            android:id="@+id/drawer_toolbox"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:gravity="center_vertical"
+            android:paddingLeft="16dp"
+            android:text="🧰  工具箱"
+            android:textSize="15sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+
         <TextView
             android:id="@+id/drawer_storage"
             android:layout_width="match_parent"

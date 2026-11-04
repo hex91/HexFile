@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.70.0 时间戳：当前时间 + 时间戳↔日期 双向换算 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/hfBg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingLeft="4dp"
+        android:paddingRight="8dp"
+        android:background="?attr/hfSurfaceAlt">
+
+        <TextView
+            android:id="@+id/tm_back"
+            android:layout_width="40dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="‹"
+            android:textSize="24sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="时间戳"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="?attr/hfText"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="秒 / 毫秒 / 微秒自动识别"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textSize="11sp"
+                android:textColor="?attr/hfTextSub"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tm_pause"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:text="暂停"
+            android:textSize="13sp"
+            android:textColor="?attr/hfTextSub"
+            android:background="?android:attr/selectableItemBackground"/>
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <!-- 当前时间 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:background="?attr/hfSurfaceAlt">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="当前时间（点一下复制）"
+                    android:textSize="11sp"
+                    android:textColor="?attr/hfTextSub"/>
+
+                <TextView
+                    android:id="@+id/tm_now"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:typeface="monospace"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="?attr/hfText"
+                    android:text="--"/>
+
+                <TextView
+                    android:id="@+id/tm_now_stamp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:typeface="monospace"
+                    android:textSize="12sp"
+                    android:lineSpacingExtra="2dp"
+                    android:textColor="?attr/hfTextSub"/>
+            </LinearLayout>
+
+            <!-- 时间戳 → 时间 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:layout_marginBottom="4dp"
+                android:text="时间戳 → 时间"
+                android:textSize="11sp"
+                android:textColor="?attr/hfTextSub"/>
+
+            <EditText
+                android:id="@+id/tm_in_stamp"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:paddingLeft="10dp"
+                android:paddingRight="10dp"
+                android:singleLine="true"
+                android:textSize="13sp"
+                android:inputType="numberSigned|numberDecimal"
+                android:hint="例如 1700000000 或 1700000000123"
+                android:textColorHint="?attr/hfTextSub"
+                android:textColor="?attr/hfText"
+                android:background="?attr/hfSurfaceAlt"/>
+
+            <TextView
+                android:id="@+id/tm_out_stamp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:minHeight="72dp"
+                android:padding="10dp"
+                android:typeface="monospace"
+                android:textSize="12sp"
+                android:lineSpacingExtra="3dp"
+                android:textIsSelectable="true"
+                android:textColor="?attr/hfText"
+                android:background="?attr/hfSurfaceAlt"/>
+
+            <!-- 时间 → 时间戳 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:layout_marginBottom="4dp"
+                android:text="时间 → 时间戳"
+                android:textSize="11sp"
+                android:textColor="?attr/hfTextSub"/>
+
+            <EditText
+                android:id="@+id/tm_in_date"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:paddingLeft="10dp"
+                android:paddingRight="10dp"
+                android:singleLine="true"
+                android:textSize="13sp"
+                android:hint="2024-01-01 12:00:00"
+                android:textColorHint="?attr/hfTextSub"
+                android:textColor="?attr/hfText"
+                android:background="?attr/hfSurfaceAlt"/>
+
+            <TextView
+                android:id="@+id/tm_out_date"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:minHeight="56dp"
+                android:padding="10dp"
+                android:typeface="monospace"
+                android:textSize="12sp"
+                android:lineSpacingExtra="3dp"
+                android:textIsSelectable="true"
+                android:textColor="?attr/hfText"
+                android:background="?attr/hfSurfaceAlt"/>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

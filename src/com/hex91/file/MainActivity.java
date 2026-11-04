@@ -260,6 +260,13 @@ public class MainActivity extends BaseActivity {
                 startActivity(new Intent(MainActivity.this, ActivityLogActivity.class));
             }
         });
+        // v1.70.0：工具箱（编码 / 加解密 / 进制 / 网络 / 时间戳）
+        findViewById(R.id.drawer_toolbox).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                closeDrawer();
+                startActivity(new Intent(MainActivity.this, ToolboxActivity.class));
+            }
+        });
         findViewById(R.id.drawer_theme).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 closeDrawer();

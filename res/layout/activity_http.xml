@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.70.0 网络请求：类 Postman 的精简版（方法 / URL / 请求头 / 请求体 / 响应） -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/hfBg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingLeft="4dp"
+        android:paddingRight="8dp"
+        android:background="?attr/hfSurfaceAlt">
+
+        <TextView
+            android:id="@+id/ht_back"
+            android:layout_width="40dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="‹"
+            android:textSize="24sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="网络请求"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="?attr/hfText"/>
+
+            <TextView
+                android:id="@+id/ht_sub"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="GET / POST / 自定义请求头"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textSize="11sp"
+                android:textColor="?attr/hfTextSub"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/ht_history"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:text="历史"
+            android:textSize="13sp"
+            android:textColor="?attr/hfTextSub"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/ht_copy"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:paddingLeft="8dp"
+            android:paddingRight="10dp"
+            android:text="复制"
+            android:textSize="13sp"
+            android:textColor="?attr/hfTextSub"
+            android:background="?android:attr/selectableItemBackground"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="10dp"
+        android:background="?attr/hfSurface">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <Spinner
+                android:id="@+id/ht_method"
+                android:layout_width="100dp"
+                android:layout_height="42dp"
+                android:paddingLeft="8dp"
+                android:paddingRight="8dp"
+                android:spinnerMode="dialog"
+                android:background="?attr/hfSurfaceAlt"/>
+
+            <EditText
+                android:id="@+id/ht_url"
+                android:layout_width="0dp"
+                android:layout_height="42dp"
+                android:layout_weight="1"
+                android:layout_marginLeft="6dp"
+                android:paddingLeft="10dp"
+                android:paddingRight="10dp"
+                android:singleLine="true"
+                android:textSize="13sp"
+                android:inputType="textUri"
+                android:hint="https://example.com/api"
+                android:textColorHint="?attr/hfTextSub"
+                android:textColor="?attr/hfText"
+                android:background="?attr/hfSurfaceAlt"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/ht_tab_headers"
+                style="@style/HexChip"
+                android:text="请求头"/>
+
+            <TextView
+                android:id="@+id/ht_tab_body"
+                style="@style/HexChip"
+                android:text="请求体"/>
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"/>
+
+            <TextView
+                android:id="@+id/ht_send"
+                android:layout_width="96dp"
+                android:layout_height="38dp"
+                android:gravity="center"
+                android:text="发送"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="?attr/hfOnAccent"/>
+        </LinearLayout>
+
+        <EditText
+            android:id="@+id/ht_headers"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="78dp"
+            android:layout_marginTop="8dp"
+            android:padding="8dp"
+            android:typeface="monospace"
+            android:textSize="12sp"
+            android:lineSpacingExtra="2dp"
+            android:gravity="top|start"
+            android:inputType="textMultiLine|textNoSuggestions"
+            android:hint="每行一个，格式 Key: Value&#10;User-Agent: HexFile/1.70&#10;Accept: */*"
+            android:textColorHint="?attr/hfTextSub"
+            android:textColor="?attr/hfText"
+            android:background="?attr/hfSurfaceAlt"
+            android:visibility="gone"/>
+
+        <EditText
+            android:id="@+id/ht_body"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="88dp"
+            android:layout_marginTop="6dp"
+            android:padding="8dp"
+            android:typeface="monospace"
+            android:textSize="12sp"
+            android:lineSpacingExtra="2dp"
+            android:gravity="top|start"
+            android:inputType="textMultiLine|textNoSuggestions"
+            android:hint="请求体（GET / HEAD 会被忽略）&#10;{&quot;name&quot;:&quot;hex&quot;}"
+            android:textColorHint="?attr/hfTextSub"
+            android:textColor="?attr/hfText"
+            android:background="?attr/hfSurfaceAlt"
+            android:visibility="gone"/>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/ht_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingLeft="12dp"
+        android:paddingRight="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="4dp"
+        android:textSize="11sp"
+        android:lineSpacingExtra="2dp"
+        android:textColor="?attr/hfTextSub"
+        android:text="填好 URL 点「发送」"/>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="?attr/hfSurfaceAlt"
+        android:scrollbars="none">
+
+        <TextView
+            android:id="@+id/ht_out"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="10dp"
+            android:typeface="monospace"
+            android:textSize="12sp"
+            android:lineSpacingExtra="2dp"
+            android:textIsSelectable="true"
+            android:textColor="?attr/hfText"/>
+    </ScrollView>
+</LinearLayout>
