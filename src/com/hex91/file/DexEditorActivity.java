@@ -767,7 +767,7 @@ public class DexEditorActivity extends BaseActivity {
         autoSign.setChecked(true);
         autoSign.setOnLongClickListener(new View.OnLongClickListener() {
             public boolean onLongClick(View v) {
-                showSignSettings();
+                ApkSignHelper.showSettings(DexEditorActivity.this);
                 return true;
             }
         });
@@ -819,7 +819,7 @@ public class DexEditorActivity extends BaseActivity {
             }
             if (err == null && autoSign) {
                 try {
-                    signApkByPrefs();
+                    ApkSignHelper.signInPlace(DexEditorActivity.this, apk);
                 } catch (Throwable t) {
                     // 签名失败不算写回失败——包已更新，仅提示
                     err = "已写回，但签名失败: " + t.getMessage();
@@ -850,179 +850,7 @@ public class DexEditorActivity extends BaseActivity {
         }}.start();
     }
 
-    // ---------- v1.66.9 签名设置（长按「自动签名」复选框） ----------
-
-    private static final String[] SCHEMES = {"v1+v2+v3（推荐）", "v1", "v2", "v3", "v1+v2", "v2+v3"};
-
-    private SharedPreferences signPrefs() {
-        return getSharedPreferences("dexpp_sign", MODE_PRIVATE);
-    }
-
-    /** 按签名设置原地签名 apk（临时文件 → 原子覆盖） */
-    private void signApkByPrefs() throws Exception {
-        SharedPreferences sp = signPrefs();
-        boolean v1, v2, v3;
-        switch (sp.getInt("scheme", 0)) {
-            case 1: v1 = true; v2 = false; v3 = false; break;
-            case 2: v1 = false; v2 = true; v3 = false; break;
-            case 3: v1 = false; v2 = false; v3 = true; break;
-            case 4: v1 = true; v2 = true; v3 = false; break;
-            case 5: v1 = false; v2 = true; v3 = true; break;
-            default: v1 = true; v2 = true; v3 = true; break;
-        }
-        File tmp = new File(apk.getParentFile(), apk.getName() + ".signtmp");
-        if (tmp.exists()) tmp.delete();
-        if (sp.getInt("ks_mode", 0) == 1) {
-            // v1.67.0：从签名管理读取已导入密钥（密码一并保存，无需再从文件加载）
-            SignKeyManagerActivity.KeyEntry e = SignKeyManagerActivity.defaultEntry(this);
-            if (e == null) throw new IllegalStateException(
-                    "自定义签名已失效（可能已删除），请在自动签名设置中重新选择");
-            if (e.broken()) throw new IllegalStateException(
-                    "该签名的密码已损坏（换机/清除数据导致），请到「签名管理」重新导入");
-            byte[] ksBytes = SignKeyManagerActivity.loadKeyBytes(this, e.id);
-            ApkSignerTool.signAutoAlias(ksBytes,
-                    e.storePass.toCharArray(),
-                    e.keyPass != null ? e.keyPass.toCharArray() : null,
-                    e.alias, apk, tmp, 21, v1, v2, v3);
-        } else {
-            java.io.InputStream ks = getAssets().open("hexfile.p12");
-            try {
-                ApkSignerTool.sign(ks, ApkSignerTool.KEY_PASSWORD, apk, tmp, 21, v1, v2, v3);
-            } finally {
-                ks.close();
-            }
-        }
-        ApkEditSession.safeReplace(tmp, apk);
-        ApkEditSession.markSigned(apk);
-    }
-
-    /** 签名设置弹窗：密钥（内置 / 已导入签名，点选进入选择列表）/ 签名方案下拉；确定后持久化 */
-    private void showSignSettings() {
-        final SharedPreferences sp = signPrefs();
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        int pad = (int) (20 * getResources().getDisplayMetrics().density);
-        box.setPadding(pad, pad / 2, pad, 0);
-        float den = getResources().getDisplayMetrics().density;
-
-        TextView l1 = new TextView(this);
-        l1.setText("签名密钥（点选更换）");
-        l1.setTextSize(13);
-        l1.setTextColor(ThemeManager.textSub(this));
-        box.addView(l1);
-        final TextView ksSel = new TextView(this);
-        ksSel.setTextSize(15);
-        ksSel.setTextColor(ThemeManager.accent(this));
-        ksSel.setPadding(0, (int) (6 * den), 0, (int) (10 * den));
-        ksSel.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { showKeyPicker(); }
-        });
-        box.addView(ksSel);
-        ksSelRef = ksSel;
-        updateKeySelText(ksSel);
-
-        TextView l2 = new TextView(this);
-        l2.setText("签名方案");
-        l2.setTextSize(13);
-        l2.setTextColor(ThemeManager.textSub(this));
-        l2.setPadding(0, (int) (10 * den), 0, 0);
-        box.addView(l2);
-        final Spinner scheme = new Spinner(this);
-        scheme.setAdapter(new ArrayAdapter<String>(this,
-                android.R.layout.simple_spinner_dropdown_item, SCHEMES));
-        scheme.setSelection(sp.getInt("scheme", 0));
-        box.addView(scheme);
-
-        new AlertDialog.Builder(this)
-                .setTitle("自动签名设置")
-                .setView(box)
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface d, int w) {
-                        sp.edit()
-                          .putInt("scheme", scheme.getSelectedItemPosition())
-                          .apply();
-                    }
-                })
-                .setNegativeButton("取消", null)
-                .show();
-    }
-
-    /** 「签名密钥」行当前选择文案 */
-    private void updateKeySelText(TextView tv) {
-        SharedPreferences sp = signPrefs();
-        if (sp.getInt("ks_mode", 0) == 1) {
-            SignKeyManagerActivity.KeyEntry e = SignKeyManagerActivity.defaultEntry(this);
-            tv.setText(e == null ? "自定义签名已失效（点选更换）"
-                    : e.broken() ? "自定义签名密码已损坏（点选更换/重新导入）"
-                    : "自定义签名：" + e.name + "（点选更换）");
-        } else {
-            tv.setText("内置签名文件（点选更换）");
-        }
-    }
-
-    /** 密钥选择列表：内置 / 已导入签名（★默认）/ 管理签名… */
-    private void showKeyPicker() {
-        final SharedPreferences sp = signPrefs();
-        final List<SignKeyManagerActivity.KeyEntry> keys = new ArrayList<SignKeyManagerActivity.KeyEntry>();
-        // 枚举已导入签名（复用管理页的存储）
-        File dir = new File(getFilesDir(), "signkeys");
-        File[] fs = dir.listFiles();
-        List<String> ids = new ArrayList<String>();
-        if (fs != null) for (File f : fs)
-            if (f.getName().endsWith(".meta")) ids.add(f.getName().substring(0, f.getName().length() - 5));
-        java.util.Collections.sort(ids);
-        String defId = sp.getString("key_id", null);
-        if (defId != null && ids.remove(defId)) ids.add(0, defId);
-        for (String id : ids) {
-            SignKeyManagerActivity.KeyEntry e = SignKeyManagerActivity.loadEntry(this, id);
-            if (e != null) keys.add(e);
-        }
-
-        List<String> items = new ArrayList<String>();
-        items.add("内置签名文件");
-        String defId2 = sp.getString("key_id", null);
-        for (SignKeyManagerActivity.KeyEntry e : keys)
-            items.add((e.id.equals(defId2) ? "★ " : "") + e.name
-                    + (e.broken() ? "  ⚠ 密码已损坏"
-                                  : (e.keyCount > 0 ? "（" + e.keyCount + " 个私钥别名）" : "")));
-        items.add("管理签名…（导入 / 查看证书信息 / 删除）");
-
-        new AlertDialog.Builder(this)
-                .setTitle("选择签名密钥")
-                .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface d, int which) {
-                        if (which == 0) {
-                            sp.edit().putInt("ks_mode", 0).remove("key_id").apply();
-                        } else if (which == items.size() - 1) {
-                            startActivity(new Intent(DexEditorActivity.this,
-                                    SignKeyManagerActivity.class));
-                        } else {
-                            SignKeyManagerActivity.KeyEntry e = keys.get(which - 1);
-                            if (e.broken()) {
-                                new AlertDialog.Builder(DexEditorActivity.this)
-                                        .setTitle(e.name)
-                                        .setMessage("该签名的密码已无法解密（换机/恢复出厂/清除数据后 "
-                                                + "Android Keystore 密钥丢失）。请到「签名管理」删除后重新导入。")
-                                        .setPositiveButton("去签名管理", new DialogInterface.OnClickListener() {
-                                            public void onClick(DialogInterface d, int w) {
-                                                startActivity(new Intent(DexEditorActivity.this,
-                                                        SignKeyManagerActivity.class));
-                                            }
-                                        })
-                                        .setNegativeButton("取消", null)
-                                        .show();
-                                return;
-                            }
-                            sp.edit().putInt("ks_mode", 1).putString("key_id", e.id).apply();
-                        }
-                        updateKeySelText(ksSelRef);
-                    }
-                })
-                .show();
-    }
-
-    /** showKeyPicker 选择后刷新「签名密钥」行文案（弱引用当前行） */
-    private TextView ksSelRef;
+    // ---------- 自动签名（v1.67.4 起与 Manifest/ARSC 编辑器共用 ApkSignHelper） ----------
 
     private static byte[] readAllBytes(File f) throws java.io.IOException {
         FileInputStream fi = new FileInputStream(f);

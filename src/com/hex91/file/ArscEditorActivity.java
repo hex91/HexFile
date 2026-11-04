@@ -13,6 +13,7 @@ import android.text.TextWatcher;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -76,6 +77,7 @@ public class ArscEditorActivity extends BaseActivity {
     private TextView titleSub;
     private EditText searchBox;
     private ListView listView;
+    private RowAdapter adapter;
 
     private final Handler ui = new Handler();
 
@@ -92,6 +94,8 @@ public class ArscEditorActivity extends BaseActivity {
         if (it.getStringExtra(EXTRA_ENTRY) != null) entryName = it.getStringExtra(EXTRA_ENTRY);
 
         titleSub = (TextView) findViewById(R.id.arscpp_sub);
+        // v1.67.4：顶栏标题不再沿用旧名「ARSC++」，与实际入口一致
+        ((TextView) findViewById(R.id.arscpp_title)).setText("ARSC 编辑器");
         searchBox = (EditText) findViewById(R.id.arscpp_search);
         listView = (ListView) findViewById(R.id.arscpp_list);
 
@@ -102,7 +106,7 @@ public class ArscEditorActivity extends BaseActivity {
         searchBox.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
             public void onTextChanged(CharSequence s, int a, int b, int c) {}
-            public void afterTextChanged(Editable s) { refresh(); }
+            public void afterTextChanged(Editable s) { refresh(false); }
         });
 
         listView.setOnItemClickListener(new android.widget.AdapterView.OnItemClickListener() {
@@ -229,7 +233,16 @@ public class ArscEditorActivity extends BaseActivity {
 
     // ---------- 列表刷新（浏览 / 搜索） ----------
 
-    private void refresh() {
+    private void refresh() { refresh(false); }
+
+    /**
+     * @param keepScroll 展开/折叠后保持当前滚动位置（v1.67.4：原来每次 setAdapter 都会跳回顶部）
+     */
+    private void refresh(boolean keepScroll) {
+        int first = listView.getFirstVisiblePosition();
+        int top = 0;
+        View fv = listView.getChildAt(0);
+        if (fv != null) top = fv.getTop();
         viewRows.clear();
         String q = searchBox.getText().toString().trim().toLowerCase();
         if (q.isEmpty()) {
@@ -291,8 +304,14 @@ public class ArscEditorActivity extends BaseActivity {
         int total = 0;
         for (Row r : allRows) if (!r.isHeader && !r.isName) total++;
         titleSub.setText(pkgLine() + " · " + total + " 个值"
-                + (dirty ? " · ●未保存" : ""));
-        listView.setAdapter(new RowAdapter());
+                + (dirty ? " · ✎未保存" : ""));
+        if (adapter == null) {
+            adapter = new RowAdapter();
+            listView.setAdapter(adapter);
+        } else {
+            adapter.notifyDataSetChanged();
+        }
+        if (keepScroll) listView.setSelectionFromTop(first, top);
     }
 
     private String pkgLine() {
@@ -345,7 +364,7 @@ public class ArscEditorActivity extends BaseActivity {
     private void onRowClick(Row r) {
         if (r.level == 0 || r.level == 1) {         // 折叠/展开
             r.expanded = !r.expanded;
-            refresh();
+            refresh(true);
         } else if (r.entry.getNamedValues() != null) {
             showBagDialog(r);
         } else {
@@ -506,38 +525,70 @@ public class ArscEditorActivity extends BaseActivity {
 
     // ---------- 保存：写 arsc → 重打包 → 重签名 ----------
 
-    private void askSave() {
+    private void askSave() { askSave(false); }
+
+    /** v1.67.4：保存（含可选自动签名）；exitWhenDone 用于退出拦截 */
+    private void askSave(final boolean exitWhenDone) {
         if (arsc == null) { toast("尚未加载完成"); return; }
-        if (!dirty) { toast("没有修改"); return; }
+        if (!dirty) {
+            if (exitWhenDone) finish(); else toast("没有修改");
+            return;
+        }
+        float den = getResources().getDisplayMetrics().density;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (20 * den);
+        box.setPadding(pad, pad / 2, pad, 0);
+        TextView tv = new TextView(this);
+        tv.setText("将 " + edits.size() + " 处修改写入 " + entryName
+                + " 并直接保存到该 APK：\n\n" + apk.getName()
+                + "\n\n（首次修改时自动备份为 同名_bak.apk）");
+        tv.setTextSize(15);
+        tv.setTextColor(ThemeManager.text(this));
+        box.addView(tv);
+        final CheckBox autoSign = ApkSignHelper.addAutoSignCheckBox(this, box,
+                "保存后自动签名（长按设置密钥 / 签名方案）", true);
         new AlertDialog.Builder(this)
                 .setTitle("保存修改")
-                .setMessage("将修改写入 " + entryName + " 并直接保存到该 APK：\n\n"
-                        + apk.getName()
-                        + "\n\n（首次修改时自动备份为 同名_bak.apk；"
-                        + "退出 APK 后统一提示签名）")
+                .setView(box)
                 .setPositiveButton("保存", new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface d, int w) { doSave(); }
+                    public void onClick(DialogInterface d, int w) {
+                        doSave(autoSign.isChecked(), exitWhenDone);
+                    }
                 })
                 .setNegativeButton("取消", null)
                 .show();
     }
 
-    private void doSave() {
+    private void doSave(final boolean autoSign, final boolean exitWhenDone) {
         final ProgressDialog pd = new ProgressDialog(this);
         pd.setMessage("写入 arsc …");
+        pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+        pd.setMax(100);
         pd.setCancelable(false);
         pd.show();
+        final android.os.Handler ph = new android.os.Handler();
+        final long t0 = System.currentTimeMillis();
+        final Runnable tick = new Runnable() { public void run() {
+            double sec = (System.currentTimeMillis() - t0) / 1000.0;
+            pd.setProgress((int) Math.min(90, 90 * (1 - Math.exp(-sec / 6.0))));
+            ph.postDelayed(this, 200);
+        }};
+        ph.post(tick);
         new Thread() { public void run() {
             String err = null;
             try {
                 byte[] newArsc = ArscWriter.write(arsc, edits);
                 // v1.66.8：登记 + 会话重打包写回原包（首次修改自动备份 _bak.apk）
                 ApkEditSession.putEdit(ArscEditorActivity.this, apk, entryName, newArsc);
+                if (autoSign) ApkSignHelper.signInPlace(ArscEditorActivity.this, apk);
             } catch (Throwable t) {
                 err = t.getClass().getSimpleName() + ": " + t.getMessage();
             }
             final String e = err;
             ui.post(new Runnable() { public void run() {
+                ph.removeCallbacksAndMessages(null);
+                pd.setProgress(100);
                 pd.dismiss();
                 if (e != null) {
                     new AlertDialog.Builder(ArscEditorActivity.this)
@@ -546,27 +597,46 @@ public class ArscEditorActivity extends BaseActivity {
                 } else {
                     dirty = false;
                     refresh();
-                    toast("已保存，已写回原包\n（首次修改自动备份 同名_bak.apk；退出 APK 后可统一签名）");
+                    toast(autoSign ? "已保存并签名 → " + apk.getName()
+                                   : "已保存 → " + apk.getName() + "（未签名，可能无法安装）");
+                    if (exitWhenDone) finish();
                 }
             }});
         }}.start();
     }
 
-    /** 签名产物覆盖写回原 APK（后台 + 进度框） */
     // ---------- 退出确认 ----------
 
     public void onBackPressed() {
         if (!dirty) { super.onBackPressed(); return; }
+        float den = getResources().getDisplayMetrics().density;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (20 * den);
+        box.setPadding(pad, pad / 2, pad, 0);
+        TextView tv = new TextView(this);
+        tv.setText(entryName + " 有 " + edits.size() + " 处修改尚未保存。\n\n" + apk.getName());
+        tv.setTextSize(15);
+        tv.setTextColor(ThemeManager.text(this));
+        box.addView(tv);
+        final CheckBox autoSign = ApkSignHelper.addAutoSignCheckBox(this, box,
+                "保存后自动签名（长按设置密钥 / 签名方案）", true);
         new AlertDialog.Builder(this)
-                .setTitle("放弃未保存的修改？")
-                .setMessage("修改尚未写入 apk")
-                .setPositiveButton("保存并退出", new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface d, int w) { askSave(); }
+                .setTitle("数据已修改")
+                .setView(box)
+                .setPositiveButton("保存", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        doSave(autoSign.isChecked(), true);
+                    }
                 })
-                .setNegativeButton("直接退出", new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface d, int w) { finish(); }
+                .setNeutralButton("放弃修改", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        edits.clear();
+                        dirty = false;
+                        finish();
+                    }
                 })
-                .setNeutralButton("取消", null)
+                .setNegativeButton("取消", null)
                 .show();
     }
 

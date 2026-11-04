@@ -60,6 +60,18 @@ public class AxmlTest {
         check("prettyXml 含 package/versionCode",
                 pretty.contains("package=") && pretty.contains("versionCode="), "");
 
+        // v1.67.4：预览要能带上未保存的编辑（此前「👀 预览」只显示磁盘上的旧值）
+        {
+            java.util.Map<AxmlFile.XAttr, String> ov =
+                    new java.util.LinkedHashMap<AxmlFile.XAttr, String>();
+            ov.put(verCode, "999");
+            String pv = f.prettyXml(ov);
+            check("prettyXml(overrides) 渲染未保存修改",
+                    pv.contains("versionCode=\"999\""), "");
+            check("prettyXml(overrides) 未覆盖项仍为原值",
+                    f.prettyXml(ov).contains("package=\"" + f.valueDisplay(pkg) + "\""), "");
+        }
+
         // ---- 2. round-trip 字节一致 ----
         byte[] rt = AxmlWriter.write(f, new ArrayList<AxmlWriter.Edit>());
         check("round-trip 字节一致", java.util.Arrays.equals(data, rt), "len " + data.length + " vs " + rt.length);

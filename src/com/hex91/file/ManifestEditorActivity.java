@@ -11,6 +11,7 @@ import android.text.TextWatcher;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -60,6 +61,7 @@ public class ManifestEditorActivity extends BaseActivity {
     private TextView titleSub;
     private EditText searchBox;
     private ListView listView;
+    private RowAdapter adapter;
 
     private final Handler ui = new Handler();
 
@@ -175,7 +177,10 @@ public class ManifestEditorActivity extends BaseActivity {
                 if (q.isEmpty() || r.path.toLowerCase().contains(q)) viewRows.add(r);
             } else {
                 String name = axml.attrDisplayName(r.attr).toLowerCase();
-                if (q.isEmpty() || name.contains(q) || r.value.toLowerCase().contains(q)) {
+                // 搜索按“当前值”（含未保存修改）匹配，改完也能搜到新值
+                String cur = currentValue(r.attr);
+                if (cur == null) cur = "";
+                if (q.isEmpty() || name.contains(q) || cur.toLowerCase().contains(q)) {
                     viewRows.add(r);
                 }
             }
@@ -183,8 +188,14 @@ public class ManifestEditorActivity extends BaseActivity {
         int attrCount = 0;
         for (Row r : allRows) if (!r.isHeader) attrCount++;
         titleSub.setText(apk.getName() + " · " + axml.elements.size() + " 个元素 · "
-                + attrCount + " 个属性" + (dirty ? " · ●未保存" : ""));
-        listView.setAdapter(new RowAdapter());
+                + attrCount + " 个属性" + (dirty ? " · ✎未保存" : ""));
+        // v1.67.4：复用同一个 adapter，避免每次刷新把列表滚回顶部
+        if (adapter == null) {
+            adapter = new RowAdapter();
+            listView.setAdapter(adapter);
+        } else {
+            adapter.notifyDataSetChanged();
+        }
     }
 
     private class RowAdapter extends BaseAdapter {
@@ -213,13 +224,15 @@ public class ManifestEditorActivity extends BaseActivity {
             } else {
                 boolean changed = edits.containsKey(r.attr);
                 TextView name = new TextView(ctx);
+                // v1.67.4：改动标记改为「✎ 已修改」文字（原来的裸「●」像是多出来的点）
                 name.setText(axml.attrDisplayName(r.attr)
-                        + "   [" + r.type + "]" + (changed ? " ●" : ""));
+                        + "   [" + r.type + "]" + (changed ? "   ✎ 已修改" : ""));
                 name.setTextSize(14);
                 name.setTextColor(ThemeManager.text(ManifestEditorActivity.this));
                 box.addView(name);
                 TextView val = new TextView(ctx);
-                String v = r.value == null ? "" : r.value;
+                // v1.67.4：值必须现算——原来只在 buildRows 时取一次，改完仍显示旧值
+                String v = currentValue(r.attr);
                 val.setText(changed ? v : "= " + v);
                 val.setTextSize(12);
                 val.setTextColor(changed
@@ -227,6 +240,14 @@ public class ManifestEditorActivity extends BaseActivity {
                         : ThemeManager.textSub(ManifestEditorActivity.this));
                 val.setMaxLines(3);
                 box.addView(val);
+                if (changed) {
+                    TextView old = new TextView(ctx);
+                    old.setText("原值: " + axml.valueDisplay(r.attr));
+                    old.setTextSize(11);
+                    old.setTextColor(ThemeManager.textSub(ManifestEditorActivity.this));
+                    old.setMaxLines(2);
+                    box.addView(old);
+                }
             }
             return box;
         }
@@ -317,7 +338,8 @@ public class ManifestEditorActivity extends BaseActivity {
         tv.setTypeface(android.graphics.Typeface.MONOSPACE);
         tv.setTextSize(12);
         tv.setTextColor(0xFF37474F);
-        tv.setText(axml.prettyXml());
+        // v1.67.4：预览要包含尚未保存的修改
+        tv.setText(axml.prettyXml(edits));
         tv.setPadding((int) (12 * den), (int) (12 * den), (int) (12 * den), (int) (12 * den));
         ScrollView sc = new ScrollView(this);
         sc.addView(tv);
@@ -333,24 +355,81 @@ public class ManifestEditorActivity extends BaseActivity {
     private void askSave() {
         if (axml == null) { toast("尚未加载完成"); return; }
         if (!dirty) { toast("没有修改"); return; }
+        LinearLayout box = makeSavePrompt(false);
+        final CheckBox autoSign = ApkSignHelper.addAutoSignCheckBox(this, box,
+                "保存后自动签名（长按设置密钥 / 签名方案）", true);
         new AlertDialog.Builder(this)
                 .setTitle("保存修改")
-                .setMessage("将 " + edits.size() + " 处修改写回 AndroidManifest.xml 并直接保存到该 APK：\n\n"
-                        + apk.getName()
-                        + "\n\n（首次修改时自动备份为 同名_bak.apk；"
-                        + "退出 APK 后统一提示签名）")
+                .setView(box)
                 .setPositiveButton("保存", new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface d, int w) { doSave(); }
+                    public void onClick(DialogInterface d, int w) {
+                        doSave(autoSign.isChecked(), false);
+                    }
                 })
                 .setNegativeButton("取消", null)
                 .show();
     }
 
-    private void doSave() {
+    /** 退出拦截（v1.67.4）：有未保存修改 → 保存 / 放弃 / 取消，并可选自动签名 */
+    @Override
+    public void onBackPressed() {
+        if (!dirty) { super.onBackPressed(); return; }
+        LinearLayout box = makeSavePrompt(true);
+        final CheckBox autoSign = ApkSignHelper.addAutoSignCheckBox(this, box,
+                "保存后自动签名（长按设置密钥 / 签名方案）", true);
+        new AlertDialog.Builder(this)
+                .setTitle("数据已修改")
+                .setView(box)
+                .setPositiveButton("保存", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        doSave(autoSign.isChecked(), true);
+                    }
+                })
+                .setNeutralButton("放弃修改", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        edits.clear();
+                        dirty = false;
+                        finish();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    /** 保存/退出提示的公共内容（文案随入口变化） */
+    private LinearLayout makeSavePrompt(boolean exiting) {
+        float den = getResources().getDisplayMetrics().density;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (20 * den);
+        box.setPadding(pad, pad / 2, pad, 0);
+        TextView tv = new TextView(this);
+        tv.setText((exiting ? "AndroidManifest.xml 有 " : "将 ")
+                + edits.size() + (exiting ? " 处修改尚未保存。\n\n" : " 处修改写回：\n\n")
+                + apk.getName()
+                + "\n\n（首次修改时自动备份为 同名_bak.apk）");
+        tv.setTextSize(15);
+        tv.setTextColor(ThemeManager.text(this));
+        box.addView(tv);
+        return box;
+    }
+
+    private void doSave(final boolean autoSign, final boolean exitWhenDone) {
         final ProgressDialog pd = new ProgressDialog(this);
         pd.setMessage("写入 AndroidManifest.xml …");
+        pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+        pd.setMax(100);
         pd.setCancelable(false);
         pd.show();
+        final android.os.Handler ph = new android.os.Handler();
+        final long t0 = System.currentTimeMillis();
+        final Runnable tick = new Runnable() { public void run() {
+            double sec = (System.currentTimeMillis() - t0) / 1000.0;
+            // 渐近推进：写包/签名耗时不定，避免卡在 0%
+            pd.setProgress((int) Math.min(90, 90 * (1 - Math.exp(-sec / 6.0))));
+            ph.postDelayed(this, 200);
+        }};
+        ph.post(tick);
         new Thread() { public void run() {
             String err = null;
             try {
@@ -375,6 +454,7 @@ public class ManifestEditorActivity extends BaseActivity {
                 // v1.66.8：登记 + 会话重打包写回原包（首次修改自动备份 _bak.apk）
                 ApkEditSession.putEdit(ManifestEditorActivity.this,
                         apk, "AndroidManifest.xml", newAxml);
+                if (autoSign) ApkSignHelper.signInPlace(ManifestEditorActivity.this, apk);
             } catch (Throwable t) {
                 err = t.getClass().getSimpleName() + ": " + t.getMessage();
                 Throwable c = t.getCause();
@@ -385,6 +465,8 @@ public class ManifestEditorActivity extends BaseActivity {
             }
             final String e = err;
             ui.post(new Runnable() { public void run() {
+                ph.removeCallbacksAndMessages(null);
+                pd.setProgress(100);
                 pd.dismiss();
                 if (e != null) {
                     new AlertDialog.Builder(ManifestEditorActivity.this)
@@ -393,7 +475,12 @@ public class ManifestEditorActivity extends BaseActivity {
                 } else {
                     dirty = false;
                     refresh();
-                    toast("已保存，已写回原包\n（首次修改自动备份 同名_bak.apk；退出 APK 后可统一签名）");
+                    Toast.makeText(ManifestEditorActivity.this,
+                            autoSign ? "已保存并签名 → " + apk.getName()
+                                     : "已保存 → " + apk.getName()
+                                       + "（未签名，可能无法安装）",
+                            Toast.LENGTH_LONG).show();
+                    if (exitWhenDone) finish();
                 }
             }});
         }}.start();

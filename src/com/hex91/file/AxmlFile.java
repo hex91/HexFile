@@ -260,19 +260,28 @@ public final class AxmlFile {
 
 	/** 生成缩进的 XML 文本（不含 xml 声明；属性逐行缩进，便于预览与测试校验） */
 	public String prettyXml() {
+		return prettyXml(null);
+	}
+
+	/**
+	 * v1.67.4：带编辑覆盖的预览——overrides 中命中（同一 XAttr 实例）的属性用新值渲染，
+	 * 让「👀 预览」看到的是修改后的结果而不是磁盘上的原始值。
+	 */
+	public String prettyXml(java.util.Map<XAttr, String> overrides) {
 		StringBuilder sb = new StringBuilder();
-		for (XElem e : elements) renderElement(sb, e);
+		for (XElem e : elements) renderElement(sb, e, overrides);
 		return sb.toString();
 	}
 
-	private void renderElement(StringBuilder sb, XElem e) {
+	private void renderElement(StringBuilder sb, XElem e, java.util.Map<XAttr, String> overrides) {
 		for (int i = 0; i < e.depth; i++) sb.append("    ");
 		sb.append('<').append(escLine(e.name == null ? "?" : e.name));
 		for (XAttr a : e.attrs) {
+			String v = overrides != null ? overrides.get(a) : null;
 			sb.append('\n');
 			for (int i = 0; i < e.depth + 1; i++) sb.append("    ");
 			sb.append(escLine(attrDisplayName(a))).append("=\"")
-					.append(escLine(valueDisplay(a))).append('"');
+					.append(escLine(v != null ? v : valueDisplay(a))).append('"');
 		}
 		sb.append(" />\n");
 	}
