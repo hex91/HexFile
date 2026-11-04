@@ -1662,6 +1662,24 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.70.1 —— 换新启动图标（HF 文件夹 · 中国风）
+
+用户提供的 logo：黑色描边文件夹 + 白纸面 + 灰标签页 + 红边 HF 字，替换原来的矢量占位图标。
+
+- 由 1536×1536 JPG 自动切图（`build/icongen/IconGen.java`，JDK ImageIO，不依赖 PIL/ImageMagick）：
+  - 先按非白像素自动裁边（1223×1053），把外圈白底沿「从四边 flood fill」变透明，
+    文件夹内部闭合白面因此被保留 —— 图标在深色桌面/抽屉里不会带一块白方块；
+  - 逐步折半 + 双三次缩放，避免 1536→48 一步缩小产生的糊边锯齿；
+  - 输出 5 个密度：48/72/96/144/192 的方图与圆图，另加 512px 高清图（`drawable-nodpi`）。
+- Android 8+ 走**自适应图标**：`mipmap-anydpi-v26/ic_launcher(_round).xml`，
+  背景 `@color/ic_launcher_bg`（纯白），前景是透明底 logo（占 108dp 画布 62%，落在 72dp 安全区内），
+  各家启动器裁成圆形/方形/水滴都不会切到图形。
+- Manifest 改 `@mipmap/ic_launcher` + `android:roundIcon`，旧 `drawable/ic_launcher.xml` 删除，
+  备份列表兜底图标改用 `R.mipmap.ic_launcher`。
+- 抽屉头改成「白底圆角 logo + 应用名/版本/Root 状态」横排，版本号同步 v1.70.1。
+
+---
+
 ## v1.70.0 —— 工具箱（编码转换 / 加解密 / 进制 / 网络请求 / 时间戳）
 
 抽屉新增「🧰 工具箱」，5 类 13 个入口。核心逻辑全部是纯 Java（`CodecCore` / `CryptoCore` /

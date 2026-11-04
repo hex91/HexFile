@@ -273,39 +273,57 @@
         android:visibility="gone"
         android:elevation="8dp">
 
-        <!-- 抽屉头：应用名 + 版本 -->
+        <!-- 抽屉头：应用名 + 版本（v1.70.1 起左侧加 HF 图标） -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:background="?attr/hfTopBar"
             android:padding="16dp">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="HexFile"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="?attr/hfTopBarText"/>
+            <ImageView
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:padding="5dp"
+                android:background="@drawable/bg_drawer_logo"
+                android:src="@mipmap/ic_launcher_foreground"
+                android:scaleType="fitCenter"
+                android:contentDescription="HexFile 图标"/>
 
-            <TextView
-                android:id="@+id/drawer_version"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="v1.42.0"
-                android:textSize="11sp"
-                android:textColor="?attr/hfTopBarTextSub"/>
+                android:layout_weight="1"
+                android:layout_marginLeft="12dp"
+                android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/drawer_rootstat"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Root: 检测中…"
-                android:textSize="11sp"
-                android:textColor="?attr/hfAccent"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="HexFile"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="?attr/hfTopBarText"/>
+
+                <TextView
+                    android:id="@+id/drawer_version"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="v1.70.1"
+                    android:textSize="11sp"
+                    android:textColor="?attr/hfTopBarTextSub"/>
+
+                <TextView
+                    android:id="@+id/drawer_rootstat"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Root: 检测中…"
+                    android:textSize="11sp"
+                    android:textColor="?attr/hfAccent"/>
+            </LinearLayout>
         </LinearLayout>
 
         <!-- v1.42.0：本地存储区（对标 MT 抽屉「本地」） -->

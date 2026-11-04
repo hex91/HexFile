@@ -220,7 +220,7 @@ public class BackupManagerActivity extends BaseActivity {
                     dr = null;
                 }
             }
-            if (dr == null) dr = getResources().getDrawable(R.drawable.ic_launcher);
+            if (dr == null) dr = getResources().getDrawable(R.mipmap.ic_launcher);
             icon.setImageDrawable(dr);
 
             title.setText(e.label);

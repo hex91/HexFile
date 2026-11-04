@@ -4,4 +4,7 @@
     <color name="top_bar">#212121</color>
     <color name="accent_blue">#1E88E5</color>
     <color name="sel_highlight">#BBDEFB</color>
+
+    <!-- v1.70.1：启动图标（HF 文件夹）自适应背景色，与 logo 纸面同色 -->
+    <color name="ic_launcher_bg">#FFFFFF</color>
 </resources>
