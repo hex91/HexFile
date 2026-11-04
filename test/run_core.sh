@@ -9,7 +9,7 @@ OUT="test/bin_core"
 rm -rf "$OUT" && mkdir -p "$OUT"
 SRCS=$(ls test/*.java | grep -vE "RarProbe|ArscDbgB")
 "$JH/javac.exe" -J-Dfile.encoding=UTF-8 -encoding UTF-8 -nowarn -cp "$CP" -d "$OUT" $SRCS || { echo "COMPILE FAIL"; exit 2; }
-for t in DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest SessionTest SignPromptFlowTest CustomSignE2ETest ArscPreviewTest; do
+for t in DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest SessionTest SignPromptFlowTest CustomSignE2ETest ArscPreviewTest HexLayoutTest FileInspectTest KeystoreCreateTest; do
   case $t in
     KeyStoreUtilTest) ARG="";;
     SessionTest) ARG="test/huangguo.apk assets/hexfile.p12";;

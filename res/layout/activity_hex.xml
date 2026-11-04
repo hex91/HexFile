@@ -1,101 +1,161 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- v1.68.0：Hex 编辑器重做 —— 工具条 + 列头 + 行内分区着色 + 底部 16 进制输入面板 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?attr/hfBg">
 
+    <!-- 顶栏：返回 / 文件名+大小 / 文件解析 / 键盘 / 保存（未修改时禁用） -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingLeft="4dp"
+        android:paddingRight="8dp"
+        android:background="?attr/hfSurfaceAlt">
+
+        <TextView
+            android:id="@+id/hex_back"
+            android:layout_width="40dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="‹"
+            android:textSize="24sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/hex_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="middle"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="?attr/hfText"/>
+
+            <TextView
+                android:id="@+id/hex_sub"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textSize="11sp"
+                android:textColor="?attr/hfTextSub"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/hex_info"
+            android:layout_width="42dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="ⓘ"
+            android:textSize="18sp"
+            android:textColor="?attr/hfTextSub"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/hex_keyboard"
+            android:layout_width="42dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="⌨"
+            android:textSize="20sp"
+            android:textColor="?attr/hfAccent"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:id="@+id/hex_save"
+            android:layout_width="42dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="💾"
+            android:textSize="18sp"
+            android:textColor="?attr/hfText"
+            android:alpha="0.3"
+            android:background="?android:attr/selectableItemBackground"/>
+    </LinearLayout>
+
+    <!-- 工具条（可横向滚动，小屏也能塞下） -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:scrollbars="none"
+        android:background="?attr/hfSurface">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingLeft="6dp"
+            android:paddingRight="6dp">
+
+            <TextView
+                android:id="@+id/hex_jump"
+                style="@style/HexChip"
+                android:text="跳转"/>
+
+            <TextView
+                android:id="@+id/hex_block"
+                style="@style/HexChip"
+                android:text="块"/>
+
+            <TextView
+                android:id="@+id/hex_search"
+                style="@style/HexChip"
+                android:text="搜索"/>
+
+            <TextView
+                android:id="@+id/hex_copy"
+                style="@style/HexChip"
+                android:text="复制"/>
+
+            <TextView
+                android:id="@+id/hex_undo"
+                style="@style/HexChip"
+                android:text="↶ 撤销"/>
+
+            <TextView
+                android:id="@+id/hex_redo"
+                style="@style/HexChip"
+                android:text="↷ 重做"/>
+
+            <TextView
+                android:id="@+id/hex_base"
+                style="@style/HexChip"
+                android:text="HEX"/>
+
+            <TextView
+                android:id="@+id/hex_charset"
+                style="@style/HexChip"
+                android:text="ASCII"/>
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- 列头：与行文本同字体同尺寸，保证偏移/字节/文本三列对齐 -->
     <TextView
-        android:id="@+id/hex_title"
+        android:id="@+id/hex_header"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="10dp"
-        android:textSize="13sp"
-        android:textStyle="bold"
-        android:textColor="?attr/hfText"
-        android:background="?attr/hfSurfaceAlt"
-        android:minHeight="44dp"
-        android:maxLines="2"
-        android:ellipsize="middle"/>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="4dp">
-
-        <Button
-            android:id="@+id/hex_jump"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="40dp"
-            android:text="跳转偏移"
-            android:textSize="12sp"/>
-
-        <Button
-            android:id="@+id/hex_search"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="40dp"
-            android:text="搜索"
-            android:textSize="12sp"/>
-
-        <Button
-            android:id="@+id/hex_edit"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="40dp"
-            android:text="编辑"
-            android:textSize="12sp"/>
-
-        <Button
-            android:id="@+id/hex_close"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="40dp"
-            android:text="关闭"
-            android:textSize="12sp"/>
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="4dp"
-        android:paddingTop="0dp">
-
-        <Button
-            android:id="@+id/hex_base"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="40dp"
-            android:text="进制 HEX"
-            android:textSize="12sp"/>
-
-        <Button
-            android:id="@+id/hex_undo"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="40dp"
-            android:text="撤销"
-            android:textSize="12sp"/>
-
-        <Button
-            android:id="@+id/hex_redo"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="40dp"
-            android:text="重做"
-            android:textSize="12sp"/>
-
-        <Button
-            android:id="@+id/hex_mode"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="40dp"
-            android:text="覆盖"
-            android:textSize="12sp"/>
-    </LinearLayout>
+        android:paddingLeft="8dp"
+        android:paddingRight="8dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:typeface="monospace"
+        android:textSize="11sp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="?attr/hfTextSub"
+        android:background="?attr/hfSurfaceAlt"/>
 
     <ListView
         android:id="@+id/hex_list"
@@ -103,6 +163,97 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:divider="@null"
-        android:scrollbars="horizontal"/>
+        android:fastScrollEnabled="false"/>
+
+    <!-- 底部 16 进制输入面板（点键盘图标弹出；不改动时保存按钮保持灰） -->
+    <LinearLayout
+        android:id="@+id/hex_panel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone"
+        android:padding="8dp"
+        android:background="?attr/hfSurfaceAlt">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/hex_panel_off"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="64dp"
+                android:typeface="monospace"
+                android:textSize="12sp"
+                android:textColor="?attr/hfAccent"
+                android:text="00000000"/>
+
+            <TextView
+                android:id="@+id/hex_panel_prev"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:gravity="center"
+                android:text="◀"
+                android:textSize="15sp"
+                android:textColor="?attr/hfText"
+                android:background="?android:attr/selectableItemBackground"/>
+
+            <EditText
+                android:id="@+id/hex_panel_input"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:typeface="monospace"
+                android:textSize="13sp"
+                android:singleLine="true"
+                android:hint="00 11 22 33 …"
+                android:textColor="?attr/hfText"
+                android:textColorHint="?attr/hfTextSub"
+                android:inputType="textNoSuggestions|textVisiblePassword"/>
+
+            <TextView
+                android:id="@+id/hex_panel_next"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:gravity="center"
+                android:text="▶"
+                android:textSize="15sp"
+                android:textColor="?attr/hfText"
+                android:background="?android:attr/selectableItemBackground"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/hex_panel_hint"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="11sp"
+                android:textColor="?attr/hfTextSub"
+                android:text="空格可省略；确定后写内存，点 💾 才落盘"/>
+
+            <Button
+                android:id="@+id/hex_panel_cancel"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:text="取消"
+                android:textSize="12sp"/>
+
+            <Button
+                android:id="@+id/hex_panel_ok"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:text="确定"
+                android:textSize="12sp"/>
+        </LinearLayout>
+    </LinearLayout>
 
 </LinearLayout>

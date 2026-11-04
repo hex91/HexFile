@@ -10,16 +10,18 @@ import android.os.Bundle;
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.style.BackgroundColorSpan;
+import android.text.style.ForegroundColorSpan;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
-import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -28,26 +30,37 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.RandomAccessFile;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Locale;
 
-import com.hex91.file.HexCore;
 import com.hex91.file.HexCore.Type;
 
 /**
- * HEX 编辑器（v1.31~1.32，借鉴 bined 思想增量增强）：
- *  - 类型搜索：HEX / 文本 / Int8~UInt64 / Float32~64，可选大小端；KMP 搜索 + 匹配高亮 + 上/下项。
- *  - 编辑写回：按「偏移 + 类型 + 值」写入（覆盖 / 插入两种模式），RandomAccessFile 写盘 + 内存同步。
- *  - 进制视图：HEX / BIN / OCT / DEC 切换；长按需切换文本预览字符集（ASCII/UTF-8/UTF-16LE/ISO-8859-1/Shift_JIS）。
- *  - 撤销/重做：每次编辑入栈，可回退。
- *  - 选区：长按设起点、点选扩展，编辑按钮弹出「复制为 HEX / 文本 / 在此写入」。
- * 限制：仅加载并支持编辑前 4MB（插入可超出，受内存限制）；写入需文件可写。
+ * HEX 编辑器（v1.68.0 重做）：
+ *
+ * <p>布局：顶栏（文件名 / 文件解析 / ⌨ 键盘 / 💾 保存）+ 可横滑工具条 + 与行文本严格对齐的列头
+ * + 列表（偏移灰、字节正文色、文本列可打印字符高亮）+ 底部 16 进制输入面板。
+ *
+ * <p>编辑模型（与旧版最大的区别）：**先改内存、再点保存落盘**
+ * <ul>
+ *   <li>⌨ 打开底部面板，编辑当前 16 字节（◀/▶ 按 8 字节移动），确定只改内存；</li>
+ *   <li>保存图标默认灰掉，内存与磁盘不一致时才点亮，点击后按「差异区间」批量写入；</li>
+ *   <li>撤销/重做基于内存快照；退出有未保存修改会提示保存 / 放弃 / 取消。</li>
+ * </ul>
+ *
+ * <p>另有「块跳转」（按 16B~4KB 分块定位）与「文件解析」（{@link FileInspect}：魔数、ELF 头/节表、
+ * ZIP 签名块与证书）。
+ *
+ * <p>限制：只加载并允许编辑前 4MB；更大的文件超出部分只读（不会误改）。
  */
 public class HexViewerActivity extends BaseActivity {
 
     public static final String EXTRA_FILE = "file";
     private static final long LIMIT = 4L * 1024 * 1024; // 4MB
+    private static final int ROW = 16;
+    private static final int MAX_UNDO = 200;
 
-    private static final char[] HEX = "0123456789ABCDEF".toCharArray();
+    private static final char[] HEXC = "0123456789ABCDEF".toCharArray();
 
     private static final String[] TYPE_LABELS = {
             "十六进制 HEX", "文本 TEXT",
@@ -60,91 +73,111 @@ public class HexViewerActivity extends BaseActivity {
             Type.INT64, Type.UINT64, Type.FLOAT32, Type.FLOAT64
     };
     private static final String[] CHARSETS = {"ASCII", "UTF-8", "UTF-16LE", "ISO-8859-1", "Shift_JIS"};
-    private static final int[] BASE_ORDER = {HexCore.BASE_HEX, HexCore.BASE_BIN, HexCore.BASE_OCT, HexCore.BASE_DEC};
+    private static final int[] BASE_ORDER = {HexCore.BASE_HEX, HexCore.BASE_BIN,
+            HexCore.BASE_OCT, HexCore.BASE_DEC};
     private static final String[] BASE_NAME = {"HEX", "BIN", "OCT", "DEC"};
 
-    private byte[] data;
-    private boolean truncated = false;
-    private long fileSize = 0;
     private File file;
-    private ListView list;
+    private long fileSize;
+    private boolean truncated;
+    /** 工作缓冲（编辑改这里，保存时才落盘） */
+    private byte[] data;
+    /** 载入时的快照：用于 diff 保存与 dirty 判定 */
+    private byte[] orig;
+    private boolean dirty;
 
-    // 搜索/选中/编辑状态
-    private int[] matches = null;
-    private int patLen = 0;
-    private int curMatch = 0;
-    private int selectedRow = -1;
-    private long selectedOffset = 0;
+    private ListView list;
+    private TextView title, sub, header, saveBtn, baseBtn, charsetBtn;
+    private View panel;
+    private TextView panelOffTv, panelHint;
+    private EditText panelInput;
 
     private int codeBase = HexCore.BASE_HEX;
     private String charsetName = "ASCII";
-    private boolean insertMode = false;
-    private int selAnchor = -1; // 选区起点行（-1 表示无选区）
 
-    private final ArrayDeque<HexCore.EditAction> undoStack = new ArrayDeque<>();
-    private final ArrayDeque<HexCore.EditAction> redoStack = new ArrayDeque<>();
+    /** 行/列头字号（px）：按屏幕宽度自适应，保证 76 字符一行正好铺满不换行 */
+    private float rowPx, headPx;
 
-    private TextView searchStatus;
-    private Button baseBtn, modeBtn;
+    private int selectedRow = 0;
+    private int cursorCol = 0;
+    private int panelOff = 0;
+    private boolean panelOpen = false;
+
+    // 搜索
+    private int[] matches = null;
+    private int patLen = 0;
+    private int curMatch = 0;
+
+    // 撤销/重做（内存快照）
+    private static final class HexEdit {
+        final int off;
+        final byte[] oldB;
+        final byte[] newB;
+
+        HexEdit(int off, byte[] oldB, byte[] newB) {
+            this.off = off;
+            this.oldB = oldB;
+            this.newB = newB;
+        }
+    }
+
+    private final ArrayDeque<HexEdit> undoStack = new ArrayDeque<HexEdit>();
+    private final ArrayDeque<HexEdit> redoStack = new ArrayDeque<HexEdit>();
+
+    // ============================================================ 生命周期
 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         setContentView(R.layout.activity_hex);
 
-        file = new File(getIntent().getStringExtra(EXTRA_FILE));
+        String path = getIntent().getStringExtra(EXTRA_FILE);
+        if (path == null) { finish(); return; }
+        file = new File(path);
         fileSize = file.length();
         truncated = fileSize > LIMIT;
 
-        TextView title = (TextView) findViewById(R.id.hex_title);
-        title.setText(file.getName() + "  (" + FileOps.formatSize(fileSize)
-                + (truncated ? "，仅显示前 4MB)" : ")"));
-
+        title = (TextView) findViewById(R.id.hex_title);
+        sub = (TextView) findViewById(R.id.hex_sub);
+        header = (TextView) findViewById(R.id.hex_header);
         list = (ListView) findViewById(R.id.hex_list);
-        list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            public void onItemClick(AdapterView<?> av, View v, int i, long id) {
-                selectedRow = i;
-                selectedOffset = (long) i * 16;
-                if (selAnchor < 0) {
-                    copy(rowText(i));
-                    toast("已选中偏移 " + selectedOffset + "，可点「编辑」");
-                }
-                adapter.notifyDataSetChanged();
-            }
-        });
-        list.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
-            public boolean onItemLongClick(AdapterView<?> av, View v, int i, long id) {
-                if (selAnchor < 0) {
-                    selAnchor = i;
-                    selectedRow = i;
-                    toast("选区起点 行" + i + "，再点其他行扩展；「编辑」可复制/写入");
-                } else {
-                    selAnchor = -1;
-                    toast("已取消选区");
-                }
-                adapter.notifyDataSetChanged();
-                return true;
-            }
-        });
+        saveBtn = (TextView) findViewById(R.id.hex_save);
+        baseBtn = (TextView) findViewById(R.id.hex_base);
+        charsetBtn = (TextView) findViewById(R.id.hex_charset);
+        panel = findViewById(R.id.hex_panel);
+        panelOffTv = (TextView) findViewById(R.id.hex_panel_off);
+        panelHint = (TextView) findViewById(R.id.hex_panel_hint);
+        panelInput = (EditText) findViewById(R.id.hex_panel_input);
 
+        title.setText(file.getName());
+        header.setTypeface(Typeface.MONOSPACE);
+        measureTextSize();
+        header.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, headPx);
+        header.setText(headerLine());
+
+        findViewById(R.id.hex_back).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { onBackPressed(); }
+        });
+        findViewById(R.id.hex_info).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { showFileInfo(); }
+        });
+        findViewById(R.id.hex_keyboard).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { togglePanel(); }
+        });
+        saveBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { save(); }
+        });
         findViewById(R.id.hex_jump).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { askJump(); }
+        });
+        findViewById(R.id.hex_block).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { askBlock(); }
         });
         findViewById(R.id.hex_search).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { askSearch(); }
         });
-        findViewById(R.id.hex_edit).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { onEditButton(); }
-        });
-        findViewById(R.id.hex_close).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { finish(); }
-        });
-        baseBtn = (Button) findViewById(R.id.hex_base);
-        baseBtn.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { cycleBase(); }
-        });
-        baseBtn.setOnLongClickListener(new View.OnLongClickListener() {
-            public boolean onLongClick(View v) { askCharset(); return true; }
+        findViewById(R.id.hex_copy).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { askCopy(); }
         });
         findViewById(R.id.hex_undo).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { performUndo(); }
@@ -152,16 +185,823 @@ public class HexViewerActivity extends BaseActivity {
         findViewById(R.id.hex_redo).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { performRedo(); }
         });
-        modeBtn = (Button) findViewById(R.id.hex_mode);
-        modeBtn.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                insertMode = !insertMode;
-                modeBtn.setText(insertMode ? "插入" : "覆盖");
-                toast(insertMode ? "已切换为插入模式" : "已切换为覆盖模式");
+        baseBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { cycleBase(); }
+        });
+        charsetBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { askCharset(); }
+        });
+
+        panelInput.setTypeface(Typeface.MONOSPACE);
+        findViewById(R.id.hex_panel_prev).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { movePanel(-8); }
+        });
+        findViewById(R.id.hex_panel_next).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { movePanel(8); }
+        });
+        findViewById(R.id.hex_panel_cancel).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { closePanel(); }
+        });
+        findViewById(R.id.hex_panel_ok).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { applyPanel(); }
+        });
+
+        list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            public void onItemClick(AdapterView<?> av, View v, int i, long id) {
+                selectedRow = i;
+                cursorCol = 0;
+                if (panelOpen) {
+                    panelOff = align8(i * ROW);
+                    fillPanel();
+                }
+                adapter.notifyDataSetChanged();
+                updateStatus();
+            }
+        });
+        // 长按 = 直接打开该行的 16 进制输入面板（比先点行再点键盘快一步）
+        list.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+            public boolean onItemLongClick(AdapterView<?> av, View v, int i, long id) {
+                selectedRow = i;
+                cursorCol = 0;
+                openPanelAt(i * ROW);
+                return true;
             }
         });
 
-        loadAsync(file);
+        setDirty(false);
+        loadAsync();
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (!dirty) { super.onBackPressed(); return; }
+        new AlertDialog.Builder(this)
+                .setTitle("有未保存的修改")
+                .setMessage("内存里有改动尚未写回文件。\n\n" + file.getName())
+                .setPositiveButton("保存", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) { saveThenFinish(); }
+                })
+                .setNeutralButton("放弃修改", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) { finish(); }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    // ============================================================ 载入
+
+    private void loadAsync() {
+        new Thread(new Runnable() {
+            public void run() {
+                byte[] d = readPrefix();
+                final byte[] fd = d;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        if (fd == null) {
+                            toast("无法读取文件");
+                            finish();
+                            return;
+                        }
+                        data = fd;
+                        orig = fd.clone();
+                        list.setAdapter(adapter);
+                        list.setSelection(0);
+                        updateStatus();
+                    }
+                });
+            }
+        }, "hex-load").start();
+    }
+
+    private byte[] readPrefix() {
+        int n = (int) Math.min(LIMIT, Math.max(0, fileSize));
+        try {
+            FileInputStream in = new FileInputStream(file);
+            try {
+                byte[] d = new byte[n];
+                int off = 0, r;
+                while (off < n && (r = in.read(d, off, n - off)) > 0) off += r;
+                if (off == n) return d;
+                byte[] cut = new byte[off];
+                System.arraycopy(d, 0, cut, 0, off);
+                return cut;
+            } finally {
+                in.close();
+            }
+        } catch (Throwable t) {
+            // root 区回退（su cat）
+            byte[] rb = RootIO.readBytes(file);
+            if (rb == null) return null;
+            if (rb.length > LIMIT) {
+                byte[] cut = new byte[(int) LIMIT];
+                System.arraycopy(rb, 0, cut, 0, cut.length);
+                return cut;
+            }
+            return rb;
+        }
+    }
+
+    /**
+     * 按屏幕可用宽度算字号：HEX 一行 76 字符（8 偏移 + 2 空格 + 16×3 + 2 + 16），
+     * 正好铺满一行 → 列头与行永远对齐、文本列不会被挤出屏幕。
+     */
+    private void measureTextSize() {
+        int avail = getResources().getDisplayMetrics().widthPixels - dp(16);
+        int totalChars = HexCore.textColumn(codeBase, ROW) + ROW;
+        android.text.TextPaint p = new android.text.TextPaint();
+        p.setTypeface(Typeface.MONOSPACE);
+        p.setTextSize(200f);
+        float charW = p.measureText("0");
+        if (charW <= 0 || avail <= 0) { rowPx = dp(11); headPx = dp(11); return; }
+        float px = 200f * avail / (charW * totalChars);
+        // 下限 9sp 保可读性；BIN 进制一行 172 字符放不下时宁可裁切也不缩成蚂蚁字
+        px = Math.max(dp(9), Math.min(px, dp(13)));
+        rowPx = px;
+        headPx = px;
+    }
+
+    private void updateStatus() {
+        if (data == null) return;
+        StringBuilder sb = new StringBuilder();
+        sb.append(FileOps.formatSize(fileSize));
+        sb.append(" · 偏移 0x").append(String.format(Locale.US, "%08X", selectedRow * ROW));
+        sb.append(" · ").append(BASE_NAME[idxOfBase(codeBase)]);
+        if (truncated) sb.append(" · 仅前 4MB");
+        if (dirty) sb.append(" · ✎ 未保存");
+        sub.setText(sb.toString());
+    }
+
+    /** 保存按钮的启用状态：只有真的改过才亮 */
+    private void setDirty(boolean d) {
+        dirty = d;
+        if (saveBtn != null) {
+            saveBtn.setEnabled(d);
+            saveBtn.setAlpha(d ? 1f : 0.3f);
+        }
+        updateStatus();
+    }
+
+    // ============================================================ 行文本 / 着色
+
+    /** 列头：偏移区 + 每字节列号 + 文本列（排版在 HexCore.headerLine，桌面可单测） */
+    private String headerLine() {
+        String h = HexCore.headerLine(codeBase, ROW);
+        int w = HexCore.codeWidth(codeBase);
+        if (w != 2) h += "（每字节 " + w + " 位 " + BASE_NAME[idxOfBase(codeBase)] + "）";
+        return h;
+    }
+
+    /** 一行明文（排版在 HexCore.rowLine，保证与列头同宽） */
+    private String rowText(int row) {
+        int base = row * ROW;
+        String text = null;
+        if (data != null) {
+            int len = Math.min(ROW, data.length - base);
+            if (len > 0) text = decodeRow(base, len);
+        }
+        return HexCore.rowLine(data, row, codeBase, ROW, text);
+    }
+
+    private CharSequence rowSpan(int row) {
+        String s = rowText(row);
+        SpannableString sp = new SpannableString(s);
+        final int txt = ThemeManager.text(this);
+        final int subc = ThemeManager.textSub(this);
+        final int accent = ThemeManager.accent(this);
+
+        int offEnd = Math.min(8, s.length());
+        sp.setSpan(new ForegroundColorSpan(subc), 0, offEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+
+        int w = HexCore.codeWidth(codeBase);
+        int textStart = HexCore.textColumn(codeBase, ROW);
+        int base = row * ROW;
+        if (data != null) {
+            for (int c = 0; c < ROW; c++) {
+                int idx = base + c;
+                if (idx >= data.length) break;
+                if ((data[idx] & 0xFF) == 0) {
+                    int st = HexCore.byteStart(c, codeBase);
+                    if (st + w <= s.length())
+                        sp.setSpan(new ForegroundColorSpan(ThemeManager.textSub(this)),
+                                st, st + w, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+            }
+            // 文本列：可打印字符用正文色，其余灰度
+            int len = Math.min(ROW, data.length - base);
+            for (int c = 0; c < len; c++) {
+                int v = data[base + c] & 0xFF;
+                int pos = textStart + c;
+                if (pos >= s.length()) break;
+                if (v < 0x20 || v >= 0x7F) {
+                    sp.setSpan(new ForegroundColorSpan(ThemeManager.textSub(this)),
+                            pos, pos + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+            }
+        }
+
+        // 搜索命中（普通黄 / 当前项更亮）
+        if (matches != null && patLen > 0) {
+            for (int k = 0; k < matches.length; k++) {
+                int mo = matches[k];
+                boolean cur = (k == curMatch);
+                for (int bdx = 0; bdx < patLen; bdx++) {
+                    int bo = mo + bdx;
+                    if (bo / ROW != row) continue;
+                    int col = bo % ROW;
+                    int st = HexCore.byteStart(col, codeBase);
+                    if (st + w > s.length()) continue;
+                    sp.setSpan(new BackgroundColorSpan(cur ? 0xFFFFEB3B : 0xC8E6C9),
+                            st, st + w, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+            }
+        }
+
+        // 光标格：当前行 + 当前列（点键盘前看得见要改哪一字节）
+        if (row == selectedRow) {
+            int st = HexCore.byteStart(Math.min(cursorCol, ROW - 1), codeBase);
+            if (st + w <= s.length()) {
+                sp.setSpan(new BackgroundColorSpan(accent), st, st + w,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                sp.setSpan(new ForegroundColorSpan(ThemeManager.onAccent(this)), st, st + w,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+        }
+        return sp;
+    }
+
+    private String decodeRow(int base, int len) {
+        byte[] slice = new byte[len];
+        System.arraycopy(data, base, slice, 0, len);
+        if ("ASCII".equals(charsetName)) {
+            StringBuilder sb = new StringBuilder(len);
+            for (byte b : slice) sb.append((b >= 0x20 && b < 0x7F) ? (char) b : '.');
+            return sb.toString();
+        }
+        try {
+            String s = new String(slice, charsetName);
+            StringBuilder sb = new StringBuilder(s.length());
+            for (int i = 0; i < s.length(); i++) {
+                char c = s.charAt(i);
+                sb.append(Character.isISOControl(c) ? '.' : c);
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return new String(slice, java.nio.charset.StandardCharsets.ISO_8859_1)
+                    .replaceAll("[^\\x20-\\x7E]", ".");
+        }
+    }
+
+    private final BaseAdapter adapter = new BaseAdapter() {
+        public int getCount() { return data == null ? 0 : (data.length + ROW - 1) / ROW; }
+
+        public Object getItem(int i) { return null; }
+
+        public long getItemId(int i) { return i; }
+
+        public View getView(int i, View convert, ViewGroup parent) {
+            TextView tv = (convert instanceof TextView) ? (TextView) convert
+                    : new TextView(HexViewerActivity.this);
+            tv.setTypeface(Typeface.MONOSPACE);
+            tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, rowPx);
+            tv.setPadding(dp(8), dp(3), dp(8), dp(3));
+            tv.setSingleLine(true);
+            tv.setText(rowSpan(i));
+            tv.setBackgroundColor(i == selectedRow
+                    ? ThemeManager.selected(HexViewerActivity.this) : 0x00000000);
+            return tv;
+        }
+    };
+
+    // ============================================================ 底部 16 进制面板
+
+    private void togglePanel() {
+        if (panelOpen) closePanel();
+        else openPanelAt(selectedRow * ROW);
+    }
+
+    private void openPanelAt(int off) {
+        if (data == null) { toast("尚未加载完成"); return; }
+        panelOpen = true;
+        panelOff = align8(Math.max(0, Math.min(off, Math.max(0, data.length - 1))));
+        panel.setVisibility(View.VISIBLE);
+        fillPanel();
+        panelInput.requestFocus();
+        panelInput.post(new Runnable() {
+            public void run() {
+                android.view.inputmethod.InputMethodManager imm =
+                        (android.view.inputmethod.InputMethodManager)
+                                getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm != null) imm.showSoftInput(panelInput, 0);
+            }
+        });
+    }
+
+    private void closePanel() {
+        panelOpen = false;
+        panel.setVisibility(View.GONE);
+        android.view.inputmethod.InputMethodManager imm =
+                (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) imm.hideSoftInputFromWindow(panelInput.getWindowToken(), 0);
+    }
+
+    private static int align8(int off) {
+        return Math.max(0, off - (off % 8));
+    }
+
+    private void movePanel(int delta) {
+        int next = panelOff + delta;
+        if (next < 0) next = 0;
+        if (data != null && next >= data.length) next = Math.max(0, data.length - 1);
+        panelOff = align8(next);
+        selectedRow = panelOff / ROW;
+        cursorCol = panelOff % ROW;
+        fillPanel();
+        list.setSelectionFromTop(selectedRow, dp(60));
+        adapter.notifyDataSetChanged();
+        updateStatus();
+    }
+
+    /** 把面板偏移处的 16 字节填进输入框 */
+    private void fillPanel() {
+        if (data == null) return;
+        int len = Math.min(ROW, data.length - panelOff);
+        if (len <= 0) { panelInput.setText(""); return; }
+        panelOffTv.setText(String.format(Locale.US, "%08X", panelOff));
+        byte[] b = new byte[len];
+        System.arraycopy(data, panelOff, b, 0, len);
+        panelInput.setText(HexCore.bytesToHex(b, 0, b.length));
+        panelInput.setSelection(panelInput.getText().length());
+        panelHint.setText("可写 " + len + " 字节 · 空格可省略");
+    }
+
+    private void applyPanel() {
+        if (data == null) return;
+        String raw = panelInput.getText().toString().replaceAll("[^0-9a-fA-F]", "");
+        if (raw.length() == 0) {
+            panelHint.setText("请输入十六进制内容");
+            return;
+        }
+        if ((raw.length() & 1) != 0) {
+            panelHint.setText("十六进制位数必须是偶数（每字节 2 位）");
+            return;
+        }
+        byte[] bytes = HexCore.hexToBytes(raw);
+        int max = data.length - panelOff;
+        if (bytes.length > max) {
+            panelHint.setText("超出已加载范围（此处最多 " + max + " 字节）");
+            return;
+        }
+        if (applyBytes(panelOff, bytes)) {
+            fillPanel();
+            panelHint.setText("已写入内存（" + bytes.length + " 字节），点 💾 保存");
+        }
+    }
+
+    // ============================================================ 编辑 / 撤销 / 保存
+
+    /** 改内存；返回是否真的发生变化 */
+    private boolean applyBytes(int off, byte[] bytes) {
+        if (data == null || off < 0 || off + bytes.length > data.length) {
+            toast("超出已加载范围");
+            return false;
+        }
+        byte[] old = new byte[bytes.length];
+        System.arraycopy(data, off, old, 0, bytes.length);
+        if (Arrays.equals(old, bytes)) {
+            toast("内容未变化");
+            return false;
+        }
+        System.arraycopy(bytes, 0, data, off, bytes.length);
+        undoStack.push(new HexEdit(off, old, bytes.clone()));
+        while (undoStack.size() > MAX_UNDO) undoStack.removeLast();
+        redoStack.clear();
+        selectedRow = off / ROW;
+        cursorCol = off % ROW;
+        setDirty(true);
+        adapter.notifyDataSetChanged();
+        updateStatus();
+        return true;
+    }
+
+    private void performUndo() {
+        HexEdit e = undoStack.pollLast();
+        if (e == null) { toast("无可撤销"); return; }
+        System.arraycopy(e.oldB, 0, data, e.off, e.oldB.length);
+        redoStack.push(e);
+        selectedRow = e.off / ROW;
+        cursorCol = e.off % ROW;
+        setDirty(!Arrays.equals(orig, data));
+        if (panelOpen) { panelOff = align8(e.off); fillPanel(); }
+        adapter.notifyDataSetChanged();
+        updateStatus();
+        toast("已撤销");
+    }
+
+    private void performRedo() {
+        HexEdit e = redoStack.pollLast();
+        if (e == null) { toast("无可重做"); return; }
+        System.arraycopy(e.newB, 0, data, e.off, e.newB.length);
+        undoStack.push(e);
+        selectedRow = e.off / ROW;
+        cursorCol = e.off % ROW;
+        setDirty(!Arrays.equals(orig, data));
+        if (panelOpen) { panelOff = align8(e.off); fillPanel(); }
+        adapter.notifyDataSetChanged();
+        updateStatus();
+        toast("已重做");
+    }
+
+    private void save() {
+        if (data == null || !dirty) return;
+        final android.app.ProgressDialog pd =
+                android.app.ProgressDialog.show(this, "保存", "写入文件…", true, false);
+        new Thread(new Runnable() {
+            public void run() {
+                String err = null;
+                int patches = 0;
+                try {
+                    patches = writeDiff();
+                } catch (Throwable t) {
+                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                }
+                final String fe = err;
+                final int fp = patches;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        pd.dismiss();
+                        if (fe != null) {
+                            toast("保存失败: " + fe);
+                            return;
+                        }
+                        orig = data.clone();
+                        setDirty(false);
+                        resetSearch();
+                        adapter.notifyDataSetChanged();
+                        toast("已保存 " + fp + " 段改动");
+                    }
+                });
+            }
+        }, "hex-save").start();
+    }
+
+    private void saveThenFinish() {
+        final android.app.ProgressDialog pd =
+                android.app.ProgressDialog.show(this, "保存", "写入文件…", true, false);
+        new Thread(new Runnable() {
+            public void run() {
+                String err = null;
+                try { writeDiff(); } catch (Throwable t) { err = t.getMessage(); }
+                final String fe = err;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        pd.dismiss();
+                        if (fe != null) toast("保存失败: " + fe);
+                        else finish();
+                    }
+                });
+            }
+        }, "hex-save-exit").start();
+    }
+
+    /** 只把「与原文件不同」的连续区间写回，避免整份重写 */
+    private int writeDiff() throws Exception {
+        RandomAccessFile raf = new RandomAccessFile(file, "rw");
+        try {
+            int i = 0, patches = 0;
+            while (i < data.length) {
+                if (data[i] == orig[i]) { i++; continue; }
+                int s = i;
+                while (i < data.length && data[i] != orig[i]) i++;
+                raf.seek(s);
+                raf.write(data, s, i - s);
+                patches++;
+            }
+            return patches;
+        } finally {
+            raf.close();
+        }
+    }
+
+    // ============================================================ 跳转 / 块
+
+    private void askJump() {
+        if (data == null) return;
+        final EditText et = new EditText(this);
+        et.setHint("偏移：1024 或 0x400");
+        et.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        new AlertDialog.Builder(this)
+                .setTitle("跳转到偏移")
+                .setView(et)
+                .setPositiveButton("跳转", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        long off = parseOffset(et.getText().toString().trim(), data.length);
+                        if (off < 0) {
+                            toast("偏移无效（0 ~ " + (data.length - 1) + "）");
+                            return;
+                        }
+                        gotoOffset((int) off);
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private long parseOffset(String s, long max) {
+        if (s == null || s.isEmpty()) return -1;
+        try {
+            long off = s.startsWith("0x") || s.startsWith("0X")
+                    ? Long.parseLong(s.substring(2), 16) : Long.parseLong(s);
+            return (off >= 0 && off < max) ? off : -1;
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    private void gotoOffset(int off) {
+        selectedRow = off / ROW;
+        cursorCol = off % ROW;
+        list.setSelectionFromTop(selectedRow, 0);
+        if (panelOpen) {
+            panelOff = align8(off);
+            fillPanel();
+        }
+        adapter.notifyDataSetChanged();
+        updateStatus();
+    }
+
+    /** 块跳转：选块大小 + 块号（或上一块/下一块），按块对齐定位 */
+    private void askBlock() {
+        if (data == null) return;
+        final float den = getResources().getDisplayMetrics().density;
+        final int[] sizes = {16, 64, 256, 512, 1024, 4096};
+        final String[] sizeNames = {"16 B", "64 B", "256 B", "512 B", "1 KB", "4 KB"};
+        final int[] size = {256};
+        final int[] block = {selectedRow * ROW / 256};
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (20 * den);
+        box.setPadding(pad, pad / 2, pad, 0);
+
+        final TextView info = new TextView(this);
+        info.setTextColor(ThemeManager.textSub(this));
+        info.setTextSize(12);
+        box.addView(info);
+
+        TextView sizeTv = new TextView(this);
+        sizeTv.setTextColor(ThemeManager.accent(this));
+        sizeTv.setTextSize(15);
+        sizeTv.setPadding(0, (int) (10 * den), 0, 0);
+        box.addView(sizeTv);
+
+        final Spinner sp = new Spinner(this);
+        sp.setAdapter(new ArrayAdapter<String>(this,
+                android.R.layout.simple_spinner_dropdown_item, sizeNames));
+        sp.setSelection(2);
+        box.addView(sp);
+
+        final EditText numEt = new EditText(this);
+        numEt.setHint("块号（从 0 开始）");
+        numEt.setText(String.valueOf(Math.max(0, block[0])));
+        numEt.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        box.addView(numEt);
+
+        final Runnable refreshInfo = new Runnable() {
+            public void run() {
+                int sz = size[0];
+                int total = Math.max(1, (data.length + sz - 1) / sz);
+                int cur = Math.max(0, Math.min(selectedRow * ROW / sz, total - 1));
+                info.setText("文件 " + FileOps.formatSize(data.length)
+                        + " · 当前第 " + cur + " 块 / 共 " + total + " 块");
+                sizeTv.setText("块大小: " + sz + " 字节");
+            }
+        };
+        refreshInfo.run();
+        sp.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            public void onItemSelected(AdapterView<?> a, View v, int pos, long id) {
+                size[0] = sizes[pos];
+                numEt.setText(String.valueOf(selectedRow * ROW / sizes[pos]));
+                refreshInfo.run();
+            }
+
+            public void onNothingSelected(AdapterView<?> a) {}
+        });
+
+        LinearLayout btns = new LinearLayout(this);
+        btns.setOrientation(LinearLayout.HORIZONTAL);
+        TextView prev = new TextView(this);
+        prev.setText("◀ 上一块");
+        prev.setTextSize(14);
+        prev.setTextColor(ThemeManager.accent(this));
+        prev.setPadding(0, (int) (14 * den), 0, (int) (6 * den));
+        prev.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                int cur = selectedRow * ROW / size[0];
+                numEt.setText(String.valueOf(Math.max(0, cur - 1)));
+            }
+        });
+        TextView next = new TextView(this);
+        next.setText("下一块 ▶");
+        next.setTextSize(14);
+        next.setTextColor(ThemeManager.accent(this));
+        next.setPadding((int) (24 * den), (int) (14 * den), 0, (int) (6 * den));
+        next.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                int cur = selectedRow * ROW / size[0];
+                numEt.setText(String.valueOf(cur + 1));
+            }
+        });
+        btns.addView(prev);
+        btns.addView(next);
+        box.addView(btns);
+
+        new AlertDialog.Builder(this)
+                .setTitle("跳转到块")
+                .setView(box)
+                .setPositiveButton("跳转", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        int sz = size[0];
+                        int n;
+                        try {
+                            n = Integer.parseInt(numEt.getText().toString().trim());
+                        } catch (Exception e) {
+                            toast("块号无效");
+                            return;
+                        }
+                        long off = (long) n * sz;
+                        if (off < 0 || off >= data.length) {
+                            toast("块号超出范围（共 " + ((data.length + sz - 1) / sz) + " 块）");
+                            return;
+                        }
+                        gotoOffset((int) off);
+                        toast("第 " + n + " 块 @ 0x" + Long.toHexString(off).toUpperCase(Locale.US));
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    // ============================================================ 文件解析
+
+    private void showFileInfo() {
+        if (data == null) { toast("尚未加载完成"); return; }
+        final android.app.ProgressDialog pd =
+                android.app.ProgressDialog.show(this, "文件解析", "读取文件头…", true, false);
+        new Thread(new Runnable() {
+            public void run() {
+                String text;
+                String magic = FileInspect.magicName(data);
+                StringBuilder sb = new StringBuilder(FileInspect.describe(
+                        data, file.getName(), fileSize));
+                if ("ZIP".equals(magic)) {
+                    sb.append('\n').append(FileInspect.signatureInfo(file));
+                } else if ("JKS".equals(magic) || "BKS".equals(magic) || "DER".equals(magic)) {
+                    sb.append("\n提示：签名文件可用「长按 → 签名信息」输入密码后解析别名与证书。\n");
+                }
+                text = sb.toString();
+                final String ft = text;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        pd.dismiss();
+                        ScrollView sv = new ScrollView(HexViewerActivity.this);
+                        TextView tv = new TextView(HexViewerActivity.this);
+                        int pad = (int) (16 * getResources().getDisplayMetrics().density);
+                        sv.setPadding(pad, pad / 2, pad, 0);
+                        tv.setTypeface(Typeface.MONOSPACE);
+                        tv.setTextSize(12);
+                        tv.setTextIsSelectable(true);
+                        tv.setTextColor(ThemeManager.text(HexViewerActivity.this));
+                        tv.setText(ft);
+                        sv.addView(tv);
+                        FileInspect.Elf elf = FileInspect.parseElf(data);
+                        AlertDialog.Builder b = new AlertDialog.Builder(HexViewerActivity.this)
+                                .setTitle("文件解析")
+                                .setView(sv)
+                                .setPositiveButton("复制", new DialogInterface.OnClickListener() {
+                                    public void onClick(DialogInterface d, int w) { copy(ft); }
+                                })
+                                .setNegativeButton("关闭", null);
+                        if (elf != null && !elf.sections.isEmpty()) {
+                            b.setNeutralButton("跳到节…", new DialogInterface.OnClickListener() {
+                                public void onClick(DialogInterface d, int w) { askSection(elf); }
+                            });
+                        }
+                        b.show();
+                    }
+                });
+            }
+        }, "hex-info").start();
+    }
+
+    /** ELF 节表 → 点哪节跳到哪（偏移超出已读范围时给出提示） */
+    private void askSection(final FileInspect.Elf elf) {
+        final java.util.List<FileInspect.Section> secs = new java.util.ArrayList<FileInspect.Section>();
+        final java.util.List<String> labels = new java.util.ArrayList<String>();
+        for (FileInspect.Section s : elf.sections) {
+            if (s.type == 0 && (s.name == null || s.name.length() == 0)) continue;
+            if (s.size <= 0) continue;
+            secs.add(s);
+            labels.add((s.name == null || s.name.length() == 0 ? "(匿名节)" : s.name)
+                    + "   " + s.typeName() + "   off=0x" + Long.toHexString(s.offset)
+                    + "   " + FileOps.formatSize(s.size));
+        }
+        if (labels.isEmpty()) { toast("没有可跳转的节"); return; }
+        new AlertDialog.Builder(this)
+                .setTitle("跳到节")
+                .setItems(labels.toArray(new String[0]), new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int which) {
+                        FileInspect.Section s = secs.get(which);
+                        if (s.offset >= data.length) {
+                            toast("该节偏移超出已加载范围");
+                            return;
+                        }
+                        gotoOffset((int) s.offset);
+                    }
+                })
+                .setNegativeButton("关闭", null)
+                .show();
+    }
+
+    // ============================================================ 搜索 / 进制 / 字符集 / 复制
+
+    private void askSearch() {
+        if (data == null) return;
+        final View v = getLayoutInflater().inflate(R.layout.dialog_hex_search, null);
+        final Spinner sp = (Spinner) v.findViewById(R.id.dlg_type);
+        final RadioGroup rg = (RadioGroup) v.findViewById(R.id.dlg_endian);
+        final EditText input = (EditText) v.findViewById(R.id.dlg_input);
+        final TextView status = (TextView) v.findViewById(R.id.dlg_status);
+
+        sp.setAdapter(new ArrayAdapter<String>(this,
+                android.R.layout.simple_spinner_dropdown_item, TYPE_LABELS));
+        sp.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            public void onItemSelected(AdapterView<?> a, View view, int pos, long id) {
+                rg.setVisibility(HexCore.isNumeric(TYPE_VALS[pos]) ? View.VISIBLE : View.GONE);
+                input.setHint(hintFor(TYPE_VALS[pos]));
+            }
+
+            public void onNothingSelected(AdapterView<?> a) {}
+        });
+
+        final AlertDialog dlg = new AlertDialog.Builder(this)
+                .setTitle("类型搜索")
+                .setView(v)
+                .setPositiveButton("搜索", null)
+                .setNeutralButton("下一项", null)
+                .setNegativeButton("上一项", null)
+                .show();
+
+        dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View x) {
+                int pos = sp.getSelectedItemPosition();
+                boolean be = ((RadioButton) v.findViewById(R.id.rb_be)).isChecked();
+                byte[] pat;
+                try {
+                    pat = HexCore.patternFor(TYPE_VALS[pos], input.getText().toString(), be);
+                } catch (IllegalArgumentException e) {
+                    status.setText(e.getMessage());
+                    return;
+                }
+                matches = HexCore.findAll(data, pat);
+                patLen = pat.length;
+                curMatch = 0;
+                if (matches.length == 0) {
+                    status.setText("未找到匹配");
+                    adapter.notifyDataSetChanged();
+                    return;
+                }
+                status.setText("");
+                gotoMatch(0);
+            }
+        });
+        dlg.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View x) { gotoMatch(curMatch + 1); }
+        });
+        dlg.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View x) { gotoMatch(curMatch - 1); }
+        });
+    }
+
+    private void gotoMatch(int idx) {
+        if (matches == null || matches.length == 0) return;
+        curMatch = (idx % matches.length + matches.length) % matches.length;
+        gotoOffset(matches[curMatch]);
+    }
+
+    private void resetSearch() {
+        matches = null;
+        patLen = 0;
+        curMatch = 0;
+    }
+
+    private String hintFor(Type t) {
+        switch (t) {
+            case HEX: return "十六进制，如 DE AD BE EF";
+            case TEXT: return "文本（UTF-8），如 hello";
+            case FLOAT32:
+            case FLOAT64: return "浮点数，如 3.14";
+            default: return "整数，如 12345";
+        }
     }
 
     private void cycleBase() {
@@ -172,6 +1012,9 @@ public class HexViewerActivity extends BaseActivity {
             }
         }
         baseBtn.setText("进制 " + BASE_NAME[idxOfBase(codeBase)]);
+        measureTextSize();
+        header.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, headPx);
+        header.setText(headerLine());
         adapter.notifyDataSetChanged();
     }
 
@@ -184,8 +1027,9 @@ public class HexViewerActivity extends BaseActivity {
         new AlertDialog.Builder(this)
                 .setTitle("文本预览字符集")
                 .setSingleChoiceItems(CHARSETS, indexOfCharset(), new DialogInterface.OnClickListener() {
-                    public void onClick(android.content.DialogInterface d, int w) {
+                    public void onClick(DialogInterface d, int w) {
                         charsetName = CHARSETS[w];
+                        charsetBtn.setText(charsetName);
                         d.dismiss();
                         adapter.notifyDataSetChanged();
                         toast("字符集：" + charsetName);
@@ -200,405 +1044,35 @@ public class HexViewerActivity extends BaseActivity {
         return 0;
     }
 
-    private void loadAsync(final File f) {
-        new Thread(new Runnable() {
-            public void run() {
-                FileInputStream in = null;
-                try {
-                    in = new FileInputStream(f);
-                    int n = (int) Math.min(LIMIT, fileSize);
-                    data = new byte[n];
-                    int off = 0, r;
-                    while (off < n && (r = in.read(data, off, n - off)) > 0) off += r;
-                } catch (Exception e) {
-                    // v1.44.0：root 区回退（su cat）
-                    byte[] rb = RootIO.readBytes(f);
-                    if (rb != null && rb.length > LIMIT) {
-                        byte[] cut = new byte[(int) LIMIT];
-                        System.arraycopy(rb, 0, cut, 0, cut.length);
-                        rb = cut;
-                    }
-                    data = rb;
-                } finally {
-                    if (in != null) try { in.close(); } catch (Exception ignored) {}
-                }
-                runOnUiThread(new Runnable() {
-                    public void run() {
-                        if (data == null) {
-                            toast("无法读取文件");
-                            finish();
-                            return;
-                        }
-                        list.setAdapter(adapter);
-                    }
-                });
-            }
-        }, "hex-load").start();
-    }
-
-    private final BaseAdapter adapter = new BaseAdapter() {
-        public int getCount() { return data == null ? 0 : (data.length + 15) / 16; }
-        public Object getItem(int i) { return null; }
-        public long getItemId(int i) { return i; }
-        public View getView(int i, View convert, ViewGroup parent) {
-            TextView tv = (convert instanceof TextView) ? (TextView) convert
-                    : new TextView(HexViewerActivity.this);
-            tv.setTypeface(Typeface.MONOSPACE);
-            tv.setTextSize(11);
-            tv.setTextColor(ThemeManager.text(HexViewerActivity.this));
-            tv.setPadding(dp(8), dp(2), dp(8), dp(2));
-
-            int lo = Math.min(selAnchor, selectedRow);
-            int hi = Math.max(selAnchor, selectedRow);
-            boolean inSel = selAnchor >= 0 && i >= lo && i <= hi;
-            tv.setBackgroundColor(inSel ? ThemeManager.selected(HexViewerActivity.this) : 0x00000000);
-
-            String s = rowText(i);
-            SpannableString sp = new SpannableString(s);
-            if (matches != null && patLen > 0) {
-                for (int k = 0; k < matches.length; k++) {
-                    int mo = matches[k];
-                    boolean cur = (k == curMatch);
-                    for (int bdx = 0; bdx < patLen; bdx++) {
-                        int bo = mo + bdx;
-                        if (bo / 16 == i) {
-                            int col = bo % 16;
-                            int start = HexCore.byteStart(col, codeBase);
-                            sp.setSpan(new BackgroundColorSpan(cur ? 0xFFFFEB3B : 0xFFC8E6C9),
-                                    start, start + HexCore.codeWidth(codeBase), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                        }
-                    }
-                }
-            }
-            tv.setText(sp);
-            return tv;
-        }
-    };
-
-    /** 生成一行: "0000F0A0  <codes...>  <text>" */
-    private String rowText(int row) {
-        int base = row * 16;
-        StringBuilder sb = new StringBuilder(120);
-        for (int s = 28; s >= 0; s -= 4) sb.append(HEX[(base >>> s) & 0xF]);
-        sb.append("  ");
-        int w = HexCore.codeWidth(codeBase);
-        for (int c = 0; c < 16; c++) {
-            if (c == 8) sb.append(' ');
-            int idx = base + c;
-            if (idx < data.length) {
-                sb.append(HexCore.formatCode(data[idx] & 0xFF, codeBase));
-            } else {
-                for (int z = 0; z < w; z++) sb.append(' ');
-            }
-            sb.append(' ');
-        }
-        sb.append(' ');
-        int len = Math.min(16, data.length - base);
-        if (len > 0) sb.append(decodeRow(data, base, len));
-        return sb.toString();
-    }
-
-    private String decodeRow(byte[] d, int base, int len) {
-        byte[] slice = new byte[len];
-        System.arraycopy(d, base, slice, 0, len);
-        if (charsetName.equals("ASCII")) {
-            StringBuilder sb = new StringBuilder(len);
-            for (byte b : slice) sb.append((b >= 0x20 && b < 0x7F) ? (char) b : '.');
-            return sb.toString();
-        }
-        try {
-            String s = new String(slice, charsetName);
-            StringBuilder sb = new StringBuilder(s.length());
-            for (int i = 0; i < s.length(); i++) {
-                char c = s.charAt(i);
-                sb.append(Character.isISOControl(c) || c == '�' ? '.' : c);
-            }
-            return sb.toString();
-        } catch (Exception e) {
-            return new String(slice, java.nio.charset.StandardCharsets.ISO_8859_1).replaceAll("[^\\x20-\\x7E]", ".");
-        }
-    }
-
-    // ============ 跳转 ============
-    private void askJump() {
+    private void askCopy() {
         if (data == null) return;
-        final EditText et = new EditText(this);
-        et.setHint("偏移，如 1024 或 0x400");
-        et.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
         new AlertDialog.Builder(this)
-                .setTitle("跳转到偏移")
-                .setView(et)
-                .setPositiveButton("跳转", new AlertDialog.OnClickListener() {
-                    public void onClick(android.content.DialogInterface d, int w) {
-                        long off = parseOffset(et.getText().toString().trim(), data.length);
-                        if (off < 0) { toast("偏移无效（范围 0 ~ " + (data.length - 1) + "）"); return; }
-                        list.setSelectionFromTop((int) (off / 16), 0);
-                    }
-                })
-                .setNegativeButton("取消", null)
-                .show();
-    }
-
-    private long parseOffset(String s, long max) {
-        if (s == null || s.isEmpty()) return -1;
-        try {
-            long off = s.startsWith("0x") ? Long.parseLong(s.substring(2), 16) : Long.parseLong(s);
-            return (off >= 0 && off < max) ? off : -1;
-        } catch (Exception e) { return -1; }
-    }
-
-    // ============ 搜索 ============
-    private void askSearch() {
-        if (data == null) return;
-        final View v = getLayoutInflater().inflate(R.layout.dialog_hex_search, null);
-        final Spinner sp = (Spinner) v.findViewById(R.id.dlg_type);
-        final RadioGroup rg = (RadioGroup) v.findViewById(R.id.dlg_endian);
-        final EditText input = (EditText) v.findViewById(R.id.dlg_input);
-        searchStatus = (TextView) v.findViewById(R.id.dlg_status);
-
-        sp.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, TYPE_LABELS));
-        sp.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            public void onItemSelected(AdapterView<?> a, View view, int pos, long id) {
-                rg.setVisibility(HexCore.isNumeric(TYPE_VALS[pos]) ? View.VISIBLE : View.GONE);
-                input.setHint(hintFor(TYPE_VALS[pos]));
-            }
-            public void onNothingSelected(AdapterView<?> a) {}
-        });
-
-        final AlertDialog dlg = new AlertDialog.Builder(this)
-                .setTitle("类型搜索")
-                .setView(v)
-                .setPositiveButton("搜索", null)
-                .setNeutralButton("下一项", null)
-                .setNegativeButton("上一项", null)
-                .setOnCancelListener(new AlertDialog.OnCancelListener() {
-                    public void onCancel(android.content.DialogInterface d) { searchStatus = null; }
-                })
-                .show();
-
-        dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View x) {
-                int pos = sp.getSelectedItemPosition();
-                boolean be = ((RadioButton) v.findViewById(R.id.rb_be)).isChecked();
-                byte[] pat;
-                try {
-                    pat = HexCore.patternFor(TYPE_VALS[pos], input.getText().toString(), be);
-                } catch (IllegalArgumentException e) {
-                    if (searchStatus != null) searchStatus.setText(e.getMessage());
-                    return;
-                }
-                matches = HexCore.findAll(data, pat);
-                patLen = pat.length;
-                if (matches.length == 0) {
-                    curMatch = 0;
-                    if (searchStatus != null) searchStatus.setText("未找到匹配");
-                    adapter.notifyDataSetChanged();
-                    return;
-                }
-                curMatch = 0;
-                gotoMatch(0);
-                if (searchStatus != null) searchStatus.setText("");
-            }
-        });
-        dlg.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View x) { gotoMatch(curMatch + 1); }
-        });
-        dlg.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View x) { gotoMatch(curMatch - 1); }
-        });
-    }
-
-    private void gotoMatch(int idx) {
-        if (matches == null || matches.length == 0) return;
-        curMatch = (idx % matches.length + matches.length) % matches.length;
-        int row = matches[curMatch] / 16;
-        list.setSelectionFromTop(row, 0);
-        adapter.notifyDataSetChanged();
-        if (searchStatus != null) searchStatus.setText("匹配 " + (curMatch + 1) + " / " + matches.length);
-    }
-
-    private String hintFor(Type t) {
-        switch (t) {
-            case HEX: return "十六进制，如 DE AD BE EF";
-            case TEXT: return "文本（UTF-8），如 hello";
-            case FLOAT32: case FLOAT64: return "浮点数，如 3.14";
-            default: return "整数，如 12345";
-        }
-    }
-
-    // ============ 编辑按钮（含选区菜单） ============
-    private void onEditButton() {
-        if (data == null) return;
-        if (selAnchor >= 0 && selAnchor != selectedRow) {
-            final int from = Math.min(selAnchor, selectedRow) * 16;
-            final int to = (Math.max(selAnchor, selectedRow) + 1) * 16;
-            new AlertDialog.Builder(this)
-                    .setTitle("选区操作（行 " + Math.min(selAnchor, selectedRow) + "~" + Math.max(selAnchor, selectedRow) + "）")
-                    .setItems(new String[]{"复制为 HEX", "复制为文本", "在此偏移写入"}, new DialogInterface.OnClickListener() {
-                        public void onClick(android.content.DialogInterface d, int w) {
-                            byte[] range = HexCore.copyRange(data, from, to);
-                            if (w == 0) {
-                                copy(HexCore.bytesToHex(range, 0, range.length));
-                                toast("已复制 HEX");
-                            } else if (w == 1) {
-                                copy(decodeRow(range, 0, range.length));
-                                toast("已复制文本");
-                            } else {
-                                askEdit(from, null);
+                .setTitle("复制")
+                .setItems(new String[]{"当前行 HEX", "当前行文本", "选中字节（光标处 1 字节）"},
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface d, int w) {
+                                int base = selectedRow * ROW;
+                                if (w == 2) {
+                                    int idx = base + cursorCol;
+                                    if (idx < data.length) {
+                                        copy(String.format(Locale.US, "%02X", data[idx] & 0xFF));
+                                        toast("已复制 " + (data[idx] & 0xFF));
+                                    }
+                                    return;
+                                }
+                                int end = Math.min(base + ROW, data.length);
+                                if (end <= base) { toast("此行没有数据"); return; }
+                                if (w == 0) {
+                                    copy(HexCore.bytesToHex(data, base, end - base));
+                                    toast("已复制 HEX");
+                                } else {
+                                    copy(decodeRow(base, end - base));
+                                    toast("已复制文本");
+                                }
                             }
-                            selAnchor = -1;
-                            adapter.notifyDataSetChanged();
-                        }
-                    })
-                    .setNegativeButton("取消", new DialogInterface.OnClickListener() {
-                        public void onClick(android.content.DialogInterface d, int w) { selAnchor = -1; adapter.notifyDataSetChanged(); }
-                    })
-                    .show();
-        } else {
-            selAnchor = -1;
-            askEdit(selectedOffset, selectedRow >= 0 ? selectedRow : null);
-        }
-    }
-
-    private void askEdit(long defaultOffset, Integer prefillRow) {
-        if (data == null) return;
-        final View v = getLayoutInflater().inflate(R.layout.dialog_hex_edit, null);
-        final EditText offEt = (EditText) v.findViewById(R.id.dlg_offset);
-        final Spinner sp = (Spinner) v.findViewById(R.id.dlg_type);
-        final RadioGroup rg = (RadioGroup) v.findViewById(R.id.dlg_endian);
-        final EditText valEt = (EditText) v.findViewById(R.id.dlg_value);
-        final TextView status = (TextView) v.findViewById(R.id.dlg_status);
-
-        offEt.setText(prefillRow != null ? ("0x" + Integer.toHexString(prefillRow * 16).toUpperCase(Locale.US)) : String.valueOf(defaultOffset));
-        sp.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, TYPE_LABELS));
-        sp.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            public void onItemSelected(AdapterView<?> a, View view, int pos, long id) {
-                rg.setVisibility(HexCore.isNumeric(TYPE_VALS[pos]) ? View.VISIBLE : View.GONE);
-                valEt.setHint(hintFor(TYPE_VALS[pos]));
-            }
-            public void onNothingSelected(AdapterView<?> a) {}
-        });
-        if (prefillRow != null) {
-            sp.setSelection(0);
-            valEt.setText(HexCore.bytesToHex(data, prefillRow * 16, Math.min(16, data.length - prefillRow * 16)));
-        }
-
-        new AlertDialog.Builder(this)
-                .setTitle("编辑写回（" + (insertMode ? "插入" : "覆盖") + "）")
-                .setView(v)
-                .setPositiveButton("写入", new AlertDialog.OnClickListener() {
-                    public void onClick(android.content.DialogInterface d, int w) {
-                        long off = parseOffset(offEt.getText().toString().trim(), data.length + 1);
-                        if (off < 0) { status.setText("偏移无效"); return; }
-                        int pos = sp.getSelectedItemPosition();
-                        boolean be = ((RadioButton) v.findViewById(R.id.rb_be)).isChecked();
-                        byte[] nb;
-                        try {
-                            nb = HexCore.patternFor(TYPE_VALS[pos], valEt.getText().toString(), be);
-                        } catch (IllegalArgumentException e) {
-                            status.setText(e.getMessage());
-                            return;
-                        }
-                        if (insertMode) {
-                            if (off > data.length) { status.setText("插入偏移越界"); return; }
-                            applyEdit(new HexCore.EditAction(true, (int) off, null, nb));
-                        } else {
-                            if (off + nb.length > data.length) { status.setText("写入越界（仅支持前 4MB）"); return; }
-                            byte[] old = HexCore.copyRange(data, (int) off, (int) off + nb.length);
-                            applyEdit(new HexCore.EditAction(false, (int) off, old, nb));
-                        }
-                        d.dismiss();
-                    }
-                })
+                        })
                 .setNegativeButton("取消", null)
                 .show();
-    }
-
-    /** 写入并维护撤销栈。 */
-    private void applyEdit(HexCore.EditAction a) {
-        try {
-            if (a.insert) {
-                fileInsert(a.offset, a.newData);
-                data = HexCore.spliceInsert(data, a.offset, a.newData);
-            } else {
-                fileOverwrite(a.offset, a.newData);
-                HexCore.patch(data, a.offset, a.newData);
-            }
-            undoStack.push(a);
-            redoStack.clear();
-            selAnchor = -1;
-            matches = null; patLen = 0; curMatch = 0;
-            adapter.notifyDataSetChanged();
-            toast("已写入 " + a.newData.length + " 字节 @ " + a.offset + (a.insert ? "（插入）" : ""));
-        } catch (Exception e) {
-            toast("写入失败：" + e.getMessage());
-        }
-    }
-
-    private void fileOverwrite(int off, byte[] bytes) throws Exception {
-        try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
-            raf.seek(off);
-            raf.write(bytes);
-        }
-    }
-
-    private void fileInsert(int off, byte[] bytes) throws Exception {
-        try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
-            int tailLen = (int) (raf.length() - off);
-            byte[] tail = new byte[Math.max(0, tailLen)];
-            if (tailLen > 0) { raf.seek(off); raf.readFully(tail); }
-            raf.seek(off);
-            raf.write(bytes);
-            raf.write(tail);
-        }
-    }
-
-    private void performUndo() {
-        HexCore.EditAction a = undoStack.pollLast();
-        if (a == null) { toast("无可撤销"); return; }
-        try {
-            if (a.insert) {
-                fileDelete(a.offset, a.newData.length);
-                data = HexCore.removeRange(data, a.offset, a.newData.length);
-            } else {
-                fileOverwrite(a.offset, a.oldData);
-                HexCore.patch(data, a.offset, a.oldData);
-            }
-            redoStack.push(a);
-            selAnchor = -1; matches = null; patLen = 0; curMatch = 0;
-            adapter.notifyDataSetChanged();
-            toast("已撤销");
-        } catch (Exception e) { toast("撤销失败：" + e.getMessage()); }
-    }
-
-    private void performRedo() {
-        HexCore.EditAction a = redoStack.pollLast();
-        if (a == null) { toast("无可重做"); return; }
-        try {
-            if (a.insert) {
-                fileInsert(a.offset, a.newData);
-                data = HexCore.spliceInsert(data, a.offset, a.newData);
-            } else {
-                fileOverwrite(a.offset, a.newData);
-                HexCore.patch(data, a.offset, a.newData);
-            }
-            undoStack.push(a);
-            selAnchor = -1; matches = null; patLen = 0; curMatch = 0;
-            adapter.notifyDataSetChanged();
-            toast("已重做");
-        } catch (Exception e) { toast("重做失败：" + e.getMessage()); }
-    }
-
-    private void fileDelete(int off, int len) throws Exception {
-        try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
-            long tailStart = off + len;
-            int tailLen = (int) (raf.length() - tailStart);
-            byte[] tail = new byte[Math.max(0, tailLen)];
-            if (tailLen > 0) { raf.seek(tailStart); raf.readFully(tail); }
-            raf.seek(off);
-            raf.write(tail);
-            raf.setLength(off + tail.length);
-        }
     }
 
     private void copy(String text) {

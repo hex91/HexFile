@@ -224,6 +224,65 @@ public final class HexCore {
         return 10 + col * (w + 1) + (col >= 8 ? 1 : 0);
     }
 
+    // ============ v1.68.0 行/列头排版（Hex 编辑器，纯函数好单测） ============
+
+    /** 文本列在一行里的起始下标：8 位偏移 + 2 空格 + 各字节格 + 1 空格 */
+    public static int textColumn(int base, int rowBytes) {
+        return 10 + rowBytes * (codeWidth(base) + 1) + 2;
+    }
+
+    /** 列头：偏移占位 + 每字节列号 + 文本列号（与 {@link #rowLine} 同款间距，保证对齐） */
+    public static String headerLine(int base, int rowBytes) {
+        int w = codeWidth(base);
+        if (w != 2) {
+            // BIN/OCT/DEC 每格更宽，列号头会失真，只保留偏移列
+            return "OFFSET    ";
+        }
+        StringBuilder sb = new StringBuilder(96);
+        sb.append("OFFSET    ");
+        for (int c = 0; c < rowBytes; c++) {
+            if (c % 8 == 0 && c != 0) sb.append(' ');
+            sb.append(String.format(Locale.US, "%02X", c)).append(' ');
+        }
+        sb.append(' ');
+        for (int c = 0; c < rowBytes; c++) {
+            sb.append("0123456789ABCDEF".charAt(c % 16));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 一行的明文（偏移 + 各字节 + 文本列）。
+     *
+     * @param text 该行已解码的文本（可为 null/空）
+     */
+    public static String rowLine(byte[] data, int row, int base, int rowBytes, String text) {
+        int start = row * rowBytes;
+        int w = codeWidth(base);
+        StringBuilder sb = new StringBuilder(96);
+        sb.append(String.format(Locale.US, "%08X", start));
+        sb.append("  ");
+        for (int c = 0; c < rowBytes; c++) {
+            if (c == 8) sb.append(' ');
+            int idx = start + c;
+            if (data != null && idx < data.length) {
+                sb.append(formatCode(data[idx] & 0xFF, base));
+            } else {
+                for (int z = 0; z < w; z++) sb.append(' ');
+            }
+            sb.append(' ');
+        }
+        sb.append(' ');
+        if (text != null) {
+            sb.append(text);
+            // 文本不足一行（末行 / 多字节字符集）时补空格：保证每行等宽，滚动时右侧不跳动
+            for (int i = text.length(); i < rowBytes; i++) sb.append(' ');
+        } else {
+            for (int i = 0; i < rowBytes; i++) sb.append(' ');
+        }
+        return sb.toString();
+    }
+
     /** 在 off 处插入 ins（后续字节后移），返回新数组。 */
     public static byte[] spliceInsert(byte[] data, int off, byte[] ins) {
         if (data == null || ins == null) throw new IllegalArgumentException("数据为空");

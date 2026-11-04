@@ -246,6 +246,13 @@ public class MainActivity extends BaseActivity {
                 startActivity(new Intent(MainActivity.this, BackupManagerActivity.class));
             }
         });
+        // v1.68.0：签名管理（导入 / 创建 / 查看 / 重命名 / 删除 / 设为默认）
+        findViewById(R.id.drawer_signkeys).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                closeDrawer();
+                startActivity(new Intent(MainActivity.this, SignKeyManagerActivity.class));
+            }
+        });
         findViewById(R.id.drawer_theme).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 closeDrawer();
@@ -763,6 +770,8 @@ public class MainActivity extends BaseActivity {
         } else if (lower.endsWith(".ttf") || lower.endsWith(".otf")) {
             startActivity(new Intent(this, FontPreviewActivity.class)
                     .putExtra(FontPreviewActivity.EXTRA_FILE, f.getAbsolutePath()));
+        } else if (isKeystoreFile(f, lower)) {
+            showKeystoreAction(f);          // v1.68.0：签名文件 → 导入 / 查看 / HEX
         } else if (isTextFile(f, lower)) {
             openEditor(f);
         } else {
@@ -774,6 +783,159 @@ public class MainActivity extends BaseActivity {
     public static boolean isImageExt(String lower) {
         return lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png")
                 || lower.endsWith(".gif") || lower.endsWith(".webp") || lower.endsWith(".bmp");
+    }
+
+    // ============================================================ 签名文件（v1.68.0）
+
+    /** keystore 类文件（扩展名或魔数）——点击时给「导入签名管理 / 查看 / HEX」 */
+    public static boolean isKeystoreFile(File f, String lower) {
+        if (lower.endsWith(".jks") || lower.endsWith(".bks") || lower.endsWith(".keystore")
+                || lower.endsWith(".p12") || lower.endsWith(".pfx")) return true;
+        if (f == null || !f.isFile() || f.length() < 12) return false;
+        byte[] head = FileInspect.readHead(f, 16);
+        String m = FileInspect.magicName(head);
+        return "JKS".equals(m) || "BKS".equals(m);
+    }
+
+    /** 点击签名文件：导入签名管理 / 查看签名信息 / HEX 查看 / 属性 */
+    private void showKeystoreAction(final File f) {
+        final String[] ops = {"导入到签名管理", "查看签名信息", "HEX 查看", "属性"};
+        new AlertDialog.Builder(this)
+                .setTitle(f.getName())
+                .setItems(ops, new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int which) {
+                        if (which == 0) importKeystore(f);
+                        else if (which == 1) showKeystoreInfo(f);
+                        else if (which == 2) openHex(f);
+                        else showProps(f);
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    /** 读取文件字节并弹出「导入签名」对话框（复用签名管理里的同一套流程） */
+    private void importKeystore(final File f) {
+        final ProgressDialog pd = new ProgressDialog(this);
+        pd.setMessage("读取签名文件…");
+        pd.setCancelable(false);
+        pd.show();
+        new Thread(new Runnable() {
+            public void run() {
+                byte[] bytes = null;
+                String err = null;
+                try { bytes = readFileBytes(f); }
+                catch (Throwable t) { err = t.getMessage(); }
+                final byte[] fb = bytes;
+                final String fe = err;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        pd.dismiss();
+                        if (fb == null) { toast("读取失败: " + fe); return; }
+                        SignKeyManagerActivity.promptImport(MainActivity.this, fb, f.getName(),
+                                new Runnable() {
+                                    public void run() {
+                                        toast("已导入签名管理（抽屉 → 签名管理 可查看）");
+                                    }
+                                });
+                    }
+                });
+            }
+        }, "ks-import").start();
+    }
+
+    /** 查看签名文件信息（keystore 一定需要密码，先问再解析） */
+    private void showKeystoreInfo(final File f) {
+        final EditText et = new EditText(this);
+        et.setHint("keystore 密码");
+        et.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        new AlertDialog.Builder(this)
+                .setTitle("查看签名信息")
+                .setMessage(f.getName() + "\n\n请输入 keystore 密码（私钥密码不同时留空即可）")
+                .setView(et)
+                .setPositiveButton("解析", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        parseKeystore(f, et.getText().toString());
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void parseKeystore(final File f, final String pass) {
+        final ProgressDialog pd = new ProgressDialog(this);
+        pd.setMessage("解析 keystore…");
+        pd.setCancelable(false);
+        pd.show();
+        new Thread(new Runnable() {
+            public void run() {
+                final StringBuilder sb = new StringBuilder();
+                try {
+                    byte[] bytes = readFileBytes(f);
+                    sb.append("文件: ").append(f.getName()).append("（")
+                            .append(FileOps.formatSize(f.length())).append("）\n");
+                    sb.append("格式: ").append(FileInspect.typeLabel(
+                            FileInspect.readHead(f, 16), f.getName())).append('\n');
+                    sb.append("文件头: ").append(FileInspect.hexHead(
+                            FileInspect.readHead(f, 16), 8)).append("\n\n");
+                    List<KeyStoreUtil.AliasInfo> list =
+                            KeyStoreUtil.inspect(bytes, pass.toCharArray(), null);
+                    if (list.isEmpty()) sb.append("（没有任何条目）");
+                    for (int i = 0; i < list.size(); i++) {
+                        if (i > 0) sb.append('\n');
+                        sb.append(list.get(i).detail());
+                    }
+                } catch (Throwable t) {
+                    sb.setLength(0);
+                    sb.append("解析失败: ").append(SignKeyManagerActivity.friendlyKsError(t));
+                }
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        pd.dismiss();
+                        android.widget.ScrollView sv = new android.widget.ScrollView(MainActivity.this);
+                        TextView tv = new TextView(MainActivity.this);
+                        int pad = (int) (20 * getResources().getDisplayMetrics().density);
+                        sv.setPadding(pad, pad / 2, pad, 0);
+                        tv.setText(sb.toString());
+                        tv.setTextIsSelectable(true);
+                        tv.setTextSize(13);
+                        tv.setTextColor(ThemeManager.text(MainActivity.this));
+                        sv.addView(tv);
+                        new AlertDialog.Builder(MainActivity.this)
+                                .setTitle("签名信息")
+                                .setView(sv)
+                                .setPositiveButton("导入到签名管理",
+                                        new android.content.DialogInterface.OnClickListener() {
+                                            public void onClick(android.content.DialogInterface d, int w) {
+                                                importKeystore(f);
+                                            }
+                                        })
+                                .setNegativeButton("关闭", null)
+                                .show();
+                    }
+                });
+            }
+        }, "ks-parse").start();
+    }
+
+    /** 读整个文件（root 区回退 su cat） */
+    private byte[] readFileBytes(File f) throws Exception {
+        try {
+            java.io.FileInputStream in = new java.io.FileInputStream(f);
+            try {
+                java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[65536];
+                int n;
+                while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+                return bo.toByteArray();
+            } finally {
+                try { in.close(); } catch (Exception ignored) {}
+            }
+        } catch (Exception e) {
+            byte[] rb = RootIO.readBytes(f);
+            if (rb != null) return rb;
+            throw e;
+        }
     }
 
     private void openViewer(File f) {
@@ -3286,6 +3448,7 @@ public class MainActivity extends BaseActivity {
         final Panel dst = other();
         final boolean isFile = f.isFile();
         final boolean isDex = isFile && f.getName().toLowerCase().endsWith(".dex");
+        final boolean isKs = isFile && isKeystoreFile(f, f.getName().toLowerCase());
         final boolean isSmaliDir = !isFile && hasSmali(f);
         // 动作码
         final int A_SMALI = 0, A_EDIT = 1, A_HEX = 2, A_COPY = 3, A_MOVE = 4,
@@ -3296,6 +3459,9 @@ public class MainActivity extends BaseActivity {
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
         if (isSmaliDir) { ops.add("编译为 dex"); acts.add(A_ASSEMBLE); }
+        // v1.68.0：签名文件专属操作（导入签名管理 / 查看别名与证书）
+        if (isKs) { ops.add("签名信息"); acts.add(43); }
+        if (isKs) { ops.add("导入签名管理"); acts.add(44); }
         if (!isFile && new java.io.File(f, "AndroidManifest.xml").isFile()) {
             ops.add("打包为 APK"); acts.add(36);   // v1.57：解包目录回打包
         }
@@ -3524,6 +3690,12 @@ public class MainActivity extends BaseActivity {
                 break;
             case 42:                              // Dex 修复（v1.66.5）
                 askDexFix(f);
+                break;
+            case 43:                              // 签名文件 → 签名信息（v1.68.0）
+                showKeystoreInfo(f);
+                break;
+            case 44:                              // 签名文件 → 导入签名管理（v1.68.0）
+                importKeystore(f);
                 break;
         }
     }

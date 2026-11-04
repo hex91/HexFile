@@ -182,15 +182,29 @@ public class SignKeyManagerActivity extends BaseActivity {
         imp.setText("＋ 导入签名文件（.p12 / .pfx / .jks / .keystore / .bks）");
         imp.setTextSize(15);
         imp.setTextColor(ThemeManager.accent(this));
-        imp.setPadding(pad, pad / 2, pad, pad / 2);
+        imp.setPadding(pad, pad / 2, pad, pad / 4);
         imp.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { startPick(); }
         });
         root.addView(imp);
 
+        // v1.68.0：内置创建签名（自签 RSA，无需外部 keytool）
+        TextView create = new TextView(this);
+        create.setText("✨ 创建签名（自签 RSA，自动生成证书）");
+        create.setTextSize(15);
+        create.setTextColor(ThemeManager.accent(this));
+        create.setPadding(pad, pad / 4, pad, pad / 2);
+        create.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { askCreate(); }
+        });
+        root.addView(create);
+
         listView = new ListView(this);
         emptyView = new TextView(this);
-        emptyView.setText("还没有导入签名。\n\n导入后签名时会直接从列表选择，\n不再需要每次从文件加载。");
+        emptyView.setText("还没有导入签名。\n\n"
+                + "· 点上面「导入」把已有 keystore 收进应用\n"
+                + "· 或点「创建签名」直接生成一个新的\n\n"
+                + "导入后签名时会直接从列表选择，\n不再需要每次从文件加载。");
         emptyView.setTextSize(14);
         emptyView.setTextColor(ThemeManager.textSub(this));
         emptyView.setGravity(Gravity.CENTER);
@@ -204,6 +218,13 @@ public class SignKeyManagerActivity extends BaseActivity {
         listView.setOnItemClickListener(new android.widget.AdapterView.OnItemClickListener() {
             public void onItemClick(android.widget.AdapterView<?> p, View v, int pos, long id) {
                 showDetail(entries.get(pos));
+            }
+        });
+        // v1.68.0：长按 = 增删改查的「改/删/设为默认」入口
+        listView.setOnItemLongClickListener(new android.widget.AdapterView.OnItemLongClickListener() {
+            public boolean onItemLongClick(android.widget.AdapterView<?> p, View v, int pos, long id) {
+                showItemActions(entries.get(pos));
+                return true;
             }
         });
     }
@@ -306,111 +327,136 @@ public class SignKeyManagerActivity extends BaseActivity {
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
         if (req == REQ_PICK_KS && res == RESULT_OK && data != null && data.getData() != null)
-            askImportInfo(data.getData());
+            importFromUri(data.getData());
     }
 
-    /** 导入第 2 步：命名 + 密码 → 后台解析校验 */
-    private void askImportInfo(final Uri uri) {
-        LinearLayout box = new LinearLayout(this);
+    /** 读 Uri 字节（后台）→ 弹导入对话框 */
+    private void importFromUri(final Uri uri) {
+        final ProgressDialog pd = ProgressDialog.show(this, "导入签名", "读取文件…", true, false);
+        new Thread() { public void run() {
+            byte[] bytes = null;
+            String err = null;
+            try { bytes = readUri(uri); } catch (Throwable t) { err = t.getMessage(); }
+            final byte[] fb = bytes;
+            final String fe = err;
+            ui.post(new Runnable() { public void run() {
+                pd.dismiss();
+                if (fb == null) {
+                    Toast.makeText(SignKeyManagerActivity.this,
+                            "读取失败: " + fe, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                promptImport(SignKeyManagerActivity.this, fb, uriName(uri),
+                        new Runnable() { public void run() { reload(); } });
+            }});
+        }}.start();
+    }
+
+    /**
+     * v1.68.0：供文件管理器直接调用——弹出「导入签名」对话框（命名 + 密码 → 校验 → 存入内部）。
+     * 导入完成后 onDone 在主线程回调（不需要可传 null）。
+     */
+    public static void promptImport(final android.app.Activity act, final byte[] ksBytes,
+            final String defaultName, final Runnable onDone) {
+        if (act == null || act.isFinishing() || ksBytes == null) return;
+        LinearLayout box = new LinearLayout(act);
         box.setOrientation(LinearLayout.VERTICAL);
-        float den = getResources().getDisplayMetrics().density;
+        float den = act.getResources().getDisplayMetrics().density;
         int pad = (int) (20 * den);
         box.setPadding(pad, pad / 2, pad, 0);
 
-        final EditText name = new EditText(this);
+        final EditText name = new EditText(act);
         name.setHint("名称（用于列表展示）");
-        name.setText(uriName(uri));
+        name.setText(defaultName == null ? "" : defaultName);
         box.addView(name);
-        final EditText storePass = new EditText(this);
+        final EditText storePass = new EditText(act);
         storePass.setHint("keystore 密码");
         storePass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
                 | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
         box.addView(storePass);
-        final EditText keyPass = new EditText(this);
+        final EditText keyPass = new EditText(act);
         keyPass.setHint("私钥密码（可空 = 与 keystore 密码相同）");
         keyPass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
                 | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
         box.addView(keyPass);
-        TextView tip = new TextView(this);
-        tip.setText("导入时会解析并校验，成功后签名信息可在列表中查看。\n"
-                + (KeyCipher.encrypted()
-                    ? "密码以系统 Keystore 密钥加密保存（AES-256/GCM），仅本机本应用可解。"
-                    : "⚠ 当前系统（Android 5.x）不支持 Keystore 加密，密码为明文存储，"
-                      + "请勿在共用设备上导入。"));
+        TextView tip = new TextView(act);
+        tip.setText("密码只保存在应用内部（"
+                + (KeyCipher.encrypted() ? "系统 Keystore 加密" : "⚠ 明文，Android 5.x 不支持加密")
+                + "），签名时无需再从文件加载。");
         tip.setTextSize(12);
-        tip.setTextColor(ThemeManager.textSub(this));
+        tip.setTextColor(ThemeManager.textSub(act));
         tip.setPadding(0, (int) (8 * den), 0, 0);
         box.addView(tip);
 
-        new AlertDialog.Builder(this)
+        new AlertDialog.Builder(act)
                 .setTitle("导入签名")
                 .setView(box)
                 .setPositiveButton("导入", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
-                        doImport(uri, name.getText().toString().trim(),
+                        doImport(act, ksBytes, name.getText().toString().trim(),
                                 storePass.getText().toString().toCharArray(),
-                                keyPass.getText().toString());
+                                keyPass.getText().toString(), onDone);
                     }
                 })
                 .setNegativeButton("取消", null)
                 .show();
     }
 
-    private void doImport(final Uri uri, final String name,
-            final char[] storePass, final String keyPassStr) {
-        final ProgressDialog pd = ProgressDialog.show(this, "导入签名", "解析 keystore…", true, false);
+    /** 导入实现（校验 → 落盘 → 首个自动设默认），结束后主线程回调 onDone */
+    static void doImport(final android.app.Activity act, final byte[] ksBytes, final String name,
+            final char[] storePass, final String keyPassStr, final Runnable onDone) {
+        final ProgressDialog pd = ProgressDialog.show(act, "导入签名", "解析 keystore…", true, false);
+        final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
         new Thread() { public void run() {
             String err = null;
             KeyStoreUtil.AliasInfo first = null;
             int keyCount = 0;
-            byte[] ksBytes = null;
             try {
-                ksBytes = readUri(uri);
                 List<KeyStoreUtil.AliasInfo> list =
                         KeyStoreUtil.inspect(ksBytes, storePass,
                                 keyPassStr.length() > 0 ? keyPassStr.toCharArray() : null);
                 for (KeyStoreUtil.AliasInfo i : list) if (i.keyEntry) keyCount++;
-                first = KeyStoreUtil.firstSignableAlias(list) != null ? list.get(0) : null;
+                if (keyCount > 0) {
+                    String signable = KeyStoreUtil.firstSignableAlias(list);
+                    for (KeyStoreUtil.AliasInfo i : list)
+                        if (i.alias != null && i.alias.equals(signable)) first = i;
+                }
                 if (keyCount == 0) err = "keystore 中没有私钥条目（只有证书不能用于签名）";
             } catch (Throwable t) {
                 err = friendlyKsError(t);
             }
             final String ferr = err;
-            final byte[] fbytes = ksBytes;
             final int fcount = keyCount;
             final KeyEntry fe = new KeyEntry();
             fe.id = UUID.randomUUID().toString();
-            fe.name = name.length() > 0 ? name : "签名 " + (count(SignKeyManagerActivity.this) + 1);
+            fe.name = name != null && name.length() > 0 ? name : "签名 " + (count(act) + 1);
             fe.storePass = new String(storePass);
             fe.keyPass = keyPassStr.length() > 0 ? keyPassStr : null;
             fe.keyCount = keyCount;
             fe.sha1 = first != null ? first.sha1 : null;
-            ui.post(new Runnable() { public void run() {
+            h.post(new Runnable() { public void run() {
                 pd.dismiss();
                 if (ferr != null) {
-                    new AlertDialog.Builder(SignKeyManagerActivity.this)
+                    new AlertDialog.Builder(act)
                             .setTitle("导入失败").setMessage(ferr)
                             .setPositiveButton("知道了", null).show();
                     return;
                 }
                 try {
-                    saveEntry(SignKeyManagerActivity.this, fe, fbytes);
+                    saveEntry(act, fe, ksBytes);
                 } catch (Throwable t) {
-                    Toast.makeText(SignKeyManagerActivity.this,
-                            "保存失败: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(act, "保存失败: " + t.getMessage(), Toast.LENGTH_SHORT).show();
                     return;
                 }
                 // 第一条导入的签名自动设为默认
-                if (signPrefs(SignKeyManagerActivity.this).getString("key_id", null) == null) {
-                    signPrefs(SignKeyManagerActivity.this).edit()
-                            .putString("key_id", fe.id).putInt("ks_mode", 1).apply();
-                    Toast.makeText(SignKeyManagerActivity.this,
-                            "已导入并设为默认签名密钥", Toast.LENGTH_LONG).show();
+                if (signPrefs(act).getString("key_id", null) == null) {
+                    signPrefs(act).edit().putString("key_id", fe.id).putInt("ks_mode", 1).apply();
+                    Toast.makeText(act, "已导入并设为默认签名密钥", Toast.LENGTH_LONG).show();
                 } else {
-                    Toast.makeText(SignKeyManagerActivity.this,
-                            "已导入（" + fcount + " 个私钥别名）", Toast.LENGTH_LONG).show();
+                    Toast.makeText(act, "已导入（" + fcount + " 个私钥别名）",
+                            Toast.LENGTH_LONG).show();
                 }
-                reload();
+                if (onDone != null) onDone.run();
             }});
         }}.start();
     }
@@ -423,6 +469,249 @@ public class SignKeyManagerActivity extends BaseActivity {
                 || s.contains("given final block") || s.contains("Integrity check"))
             return "密码错误或格式不支持（支持 .p12/.pfx/.jks/.keystore/.bks）";
         return s;
+    }
+
+    // ---------------- 创建 / 重命名（v1.68.0） ----------------
+
+    /** 创建签名：CN/组织/别名/密码/密钥长度/有效期 → 自签 RSA → 存入签名管理 */
+    private void askCreate() {
+        float den = getResources().getDisplayMetrics().density;
+        int pad = (int) (20 * den);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(pad, pad / 2, pad, 0);
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(box);
+
+        final EditText name = new EditText(this);
+        name.setHint("名称（签名管理列表里显示）");
+        name.setText("我的签名 " + (count(this) + 1));
+        box.addView(label("名称"));
+        box.addView(name);
+
+        final EditText cn = new EditText(this);
+        cn.setHint("证书 CN，如 My App Signing");
+        cn.setText("HexFile Signing " + (count(this) + 1));
+        box.addView(label("证书 CN"));
+        box.addView(cn);
+
+        final EditText org = new EditText(this);
+        org.setHint("组织 O（可空）");
+        org.setText("HexFile");
+        box.addView(label("组织"));
+        box.addView(org);
+
+        final EditText alias = new EditText(this);
+        alias.setHint("别名 alias");
+        alias.setText("hexfile");
+        box.addView(label("别名"));
+        box.addView(alias);
+
+        final EditText pass = new EditText(this);
+        pass.setHint("密码（至少 6 位，keystore 与私钥共用）");
+        pass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        box.addView(label("密码"));
+        box.addView(pass);
+
+        final int[] bits = {2048};
+        final int[] years = {30};
+        TextView bitTv = new TextView(this);
+        bitTv.setText("密钥长度: 2048 位（推荐，兼容性最好）");
+        bitTv.setTextSize(14);
+        bitTv.setTextColor(ThemeManager.text(this));
+        bitTv.setPadding(0, (int) (12 * den), 0, 0);
+        bitTv.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                new AlertDialog.Builder(SignKeyManagerActivity.this)
+                        .setTitle("密钥长度")
+                        .setItems(new String[]{"2048 位（推荐）", "3072 位", "4096 位（生成较慢）"},
+                                new DialogInterface.OnClickListener() {
+                                    public void onClick(DialogInterface d, int w) {
+                                        bits[0] = w == 0 ? 2048 : (w == 1 ? 3072 : 4096);
+                                        ((TextView) v).setText("密钥长度: " + bits[0] + " 位");
+                                    }
+                                }).show();
+            }
+        });
+        box.addView(bitTv);
+
+        TextView yearTv = new TextView(this);
+        yearTv.setText("有效期: 30 年");
+        yearTv.setTextSize(14);
+        yearTv.setTextColor(ThemeManager.text(this));
+        yearTv.setPadding(0, (int) (8 * den), 0, (int) (8 * den));
+        yearTv.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                new AlertDialog.Builder(SignKeyManagerActivity.this)
+                        .setTitle("有效期")
+                        .setItems(new String[]{"1 年", "10 年", "30 年", "50 年"},
+                                new DialogInterface.OnClickListener() {
+                                    public void onClick(DialogInterface d, int w) {
+                                        years[0] = w == 0 ? 1 : (w == 1 ? 10 : (w == 2 ? 30 : 50));
+                                        ((TextView) v).setText("有效期: " + years[0] + " 年");
+                                    }
+                                }).show();
+            }
+        });
+        box.addView(yearTv);
+
+        TextView tip = new TextView(this);
+        tip.setText("生成的是自签名证书（与 Android 调试签名同类），"
+                + "可用于本机安装测试；上架应用商店请使用你自己的正式签名。");
+        tip.setTextSize(12);
+        tip.setTextColor(ThemeManager.textSub(this));
+        box.addView(tip);
+
+        new AlertDialog.Builder(this)
+                .setTitle("创建签名")
+                .setView(sv)
+                .setPositiveButton("创建", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        String n = name.getText().toString().trim();
+                        String c = cn.getText().toString().trim();
+                        String o = org.getText().toString().trim();
+                        String a = alias.getText().toString().trim();
+                        String p = pass.getText().toString();
+                        if (n.length() == 0) n = "签名 " + (count(SignKeyManagerActivity.this) + 1);
+                        if (c.length() == 0) c = n;
+                        if (p.length() < 6) {
+                            Toast.makeText(SignKeyManagerActivity.this,
+                                    "密码至少 6 位", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        doCreate(n, c, o, a, p, bits[0], years[0] * 365);
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void doCreate(final String name, final String cn, final String org,
+            final String alias, final String pass, final int bits, final int days) {
+        final ProgressDialog pd = ProgressDialog.show(this, "创建签名",
+                "生成 " + bits + " 位 RSA 密钥与证书…", true, false);
+        new Thread() { public void run() {
+            String err = null;
+            KeystoreCreate.Result r = null;
+            try {
+                r = KeystoreCreate.create(cn, org, "CN", alias, pass, bits, days);
+            } catch (Throwable t) {
+                err = friendlyKsError(t);
+            }
+            final String ferr = err;
+            final KeystoreCreate.Result fr = r;
+            ui.post(new Runnable() { public void run() {
+                pd.dismiss();
+                if (ferr != null || fr == null) {
+                    new AlertDialog.Builder(SignKeyManagerActivity.this)
+                            .setTitle("创建失败").setMessage(String.valueOf(ferr))
+                            .setPositiveButton("知道了", null).show();
+                    return;
+                }
+                KeyEntry e = new KeyEntry();
+                e.id = UUID.randomUUID().toString();
+                e.name = name;
+                e.storePass = fr.storePass;
+                e.keyPass = null;                 // 同一密码
+                e.alias = fr.alias;
+                e.sha1 = fr.sha1;
+                e.keyCount = 1;
+                try {
+                    saveEntry(SignKeyManagerActivity.this, e, fr.store);
+                } catch (Throwable t) {
+                    Toast.makeText(SignKeyManagerActivity.this,
+                            "保存失败: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                if (signPrefs(SignKeyManagerActivity.this).getString("key_id", null) == null) {
+                    signPrefs(SignKeyManagerActivity.this).edit()
+                            .putString("key_id", e.id).putInt("ks_mode", 1).apply();
+                }
+                reload();
+                new AlertDialog.Builder(SignKeyManagerActivity.this)
+                        .setTitle("已创建签名")
+                        .setMessage(fr.summary() + "\n\n密码: " + fr.storePass
+                                + "\n（已存入签名管理，密码用应用内加密保存）")
+                        .setPositiveButton("知道了", null)
+                        .show();
+            }});
+        }}.start();
+    }
+
+    /** 长按条目：查看 / 重命名 / 设为默认 / 删除（增删改查集中入口） */
+    private void showItemActions(final KeyEntry e) {
+        if (e.broken()) {
+            showDetail(e);      // 密码损坏时只能删除重导
+            return;
+        }
+        final String defId = signPrefs(this).getString("key_id", null);
+        String[] ops = {"查看签名信息", "重命名", "设为默认签名", "删除"};
+        new AlertDialog.Builder(this)
+                .setTitle(e.name)
+                .setItems(ops, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        if (w == 0) showDetail(e);
+                        else if (w == 1) askRename(e);
+                        else if (w == 2) {
+                            signPrefs(SignKeyManagerActivity.this).edit()
+                                    .putString("key_id", e.id).putInt("ks_mode", 1).apply();
+                            Toast.makeText(SignKeyManagerActivity.this,
+                                    "已设为默认签名密钥", Toast.LENGTH_SHORT).show();
+                            reload();
+                        } else confirmDelete(e);
+                    }
+                })
+                .show();
+    }
+
+    private void askRename(final KeyEntry e) {
+        final EditText et = new EditText(this);
+        et.setText(e.name);
+        et.setSelection(et.getText().length());
+        new AlertDialog.Builder(this)
+                .setTitle("重命名签名")
+                .setView(et)
+                .setPositiveButton("保存", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        final String n = et.getText().toString().trim();
+                        if (n.length() == 0) {
+                            Toast.makeText(SignKeyManagerActivity.this,
+                                    "名称不能为空", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        new Thread() { public void run() {
+                            String err = null;
+                            try {
+                                byte[] bytes = loadKeyBytes(SignKeyManagerActivity.this, e.id);
+                                e.name = n;
+                                saveEntry(SignKeyManagerActivity.this, e, bytes);
+                            } catch (Throwable t) {
+                                err = t.getMessage();
+                            }
+                            final String ferr = err;
+                            ui.post(new Runnable() { public void run() {
+                                if (ferr != null) {
+                                    Toast.makeText(SignKeyManagerActivity.this,
+                                            "重命名失败: " + ferr, Toast.LENGTH_SHORT).show();
+                                } else {
+                                    reload();
+                                }
+                            }});
+                        }}.start();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private TextView label(String s) {
+        TextView tv = new TextView(this);
+        tv.setText(s);
+        tv.setTextSize(12);
+        tv.setTextColor(ThemeManager.accent(this));
+        tv.setPadding(0, (int) (8 * getResources().getDisplayMetrics().density), 0, 0);
+        return tv;
     }
 
     // ---------------- 详情 / 默认 / 删除 ----------------
