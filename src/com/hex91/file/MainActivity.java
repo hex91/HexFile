@@ -334,7 +334,8 @@ public class MainActivity extends BaseActivity {
         new Thread(new Runnable() {
             public void run() {
                 final String rootStat = statFs("/");
-                final String sdStat = statFs(Environment.getExternalStorageDirectory().getPath());
+                // 内部存储与根目录同属 /data 分区，数值必然一样；这行只报可用量，避免两行完全重复
+                final String sdStat = statFree(Environment.getExternalStorageDirectory().getPath());
                 runOnUiThread(new Runnable() {
                     public void run() {
                         ((TextView) findViewById(R.id.drawer_root_usage)).setText(rootStat);
@@ -345,17 +346,53 @@ public class MainActivity extends BaseActivity {
         }, "drawer-storage").start();
     }
 
-    private String statFs(String path) {
-        try {
-            android.os.StatFs sf = new android.os.StatFs(path);
-            long total = sf.getTotalBytes(), avail = sf.getAvailableBytes();
-            long used = total - avail;
-            int pct = total > 0 ? (int) (used * 100 / total) : 0;
-            return FileOps.formatSize(used) + " 已用 / " + FileOps.formatSize(total)
-                    + "（" + pct + "%）";
-        } catch (Exception e) {
-            return "容量不可用";
+    /**
+     * v1.72.0：把任意路径映射到「真正存放数据的可写分区」。
+     *
+     * 以前直接 StatFs("/")，拿到的是 system 分区（只读、约 1G、getAvailableBytes 恒为 0），
+     * 于是抽屉里根目录显示「987M 已用 / 987M（100%）」，和 MT 等管理器显示的可用空间对不上。
+     * 根目录下真正可写的是 /data，所以 / 与各系统只读挂载点统一按 /data 统计。
+     */
+    private static String statPathFor(String path) {
+        String data = Environment.getDataDirectory().getAbsolutePath();
+        if (path == null || path.isEmpty() || path.equals("/")) return data;
+        String[] ro = {"/system", "/vendor", "/product", "/odm", "/apex", "/sbin", "/etc", "/init"};
+        for (String p : ro) {
+            if (path.equals(p) || path.startsWith(p + "/")) return data;
         }
+        return path;
+    }
+
+    /** 返回 {总量, 可用}；路径自身拿不到就逐级回退（→ /data → 外部存储），全失败返回 null */
+    private static long[] usageOf(String path) {
+        String data = Environment.getDataDirectory().getAbsolutePath();
+        String ext = Environment.getExternalStorageDirectory().getAbsolutePath();
+        String[] tries = {statPathFor(path), data, ext};
+        for (String t : tries) {
+            try {
+                android.os.StatFs sf = new android.os.StatFs(t);
+                long total = sf.getTotalBytes();
+                if (total > 0) return new long[]{total, sf.getAvailableBytes()};
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private String statFs(String path) {
+        long[] u = usageOf(path);
+        if (u == null) return "容量不可用";
+        long total = u[0], avail = u[1];
+        long used = total > avail ? total - avail : 0;
+        int pct = total > 0 ? (int) (used * 100 / total) : 0;
+        return FileOps.formatSize(used) + " 已用 / " + FileOps.formatSize(total)
+                + "（" + pct + "%）  可用 " + FileOps.formatSize(avail);
+    }
+
+    private String statFree(String path) {
+        long[] u = usageOf(path);
+        if (u == null) return "容量不可用";
+        return "可用 " + FileOps.formatSize(u[1]) + " / 共 " + FileOps.formatSize(u[0]);
     }
 
     /** v1.42.0：root 检测（su -c id），结果落 RootUtil 缓存并更新抽屉状态行 */
@@ -753,17 +790,13 @@ public class MainActivity extends BaseActivity {
             if (it.isDir()) dirs++; else files++;
         }
         String store = "";
-        try {
-            android.os.StatFs stat = new android.os.StatFs(p.dir.getAbsolutePath());
-            long total = stat.getTotalBytes(), free = stat.getFreeBytes();
-            store = "  储存: " + humanG(total - free) + "/" + humanG(total);
-        } catch (Throwable ignored) {
+        // v1.72.0：根目录/系统分区统一按 /data 统计，避免顶层显示「987M/987M」
+        long[] u = usageOf(p.dir.getAbsolutePath());
+        if (u != null) {
+            long used = u[0] > u[1] ? u[0] - u[1] : 0;
+            store = "  储存: " + FileOps.formatSize(used) + "/" + FileOps.formatSize(u[0]);
         }
         headerStats.setText("文件夹: " + dirs + "  文件: " + files + store);
-    }
-
-    private static String humanG(long bytes) {
-        return String.format(java.util.Locale.CHINA, "%.2fG", bytes / 1073741824.0);
     }
 
     private void onFileClick(File f) {
@@ -3469,7 +3502,7 @@ public class MainActivity extends BaseActivity {
                 A_REN = 5, A_ZIP = 6, A_DEL = 7, A_PROP = 8, A_ASSEMBLE = 9, A_DEXPP = 14,
                 A_TOZIP_C = 18, A_TOZIP_M = 19, A_COMPARE = 21,
                 A_ENCRYPT = 24, A_DECRYPT = 25, A_SPLIT = 27, A_MERGE = 28,
-                A_ZSTDC = 29, A_ZSTDD = 30, A_STRINGS = 31;
+                A_ZSTDC = 29, A_ZSTDD = 30, A_STRINGS = 31, A_SHARE = 45;
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
         if (isSmaliDir) { ops.add("编译为 dex"); acts.add(A_ASSEMBLE); }
@@ -3491,6 +3524,7 @@ public class MainActivity extends BaseActivity {
         }
         if (!isFile) { ops.add("查找重复文件"); acts.add(39); }   // v1.59：内容级查重
         if (isFile) { ops.add("HEX 查看"); acts.add(A_HEX); }
+        if (isFile) { ops.add("分享"); acts.add(A_SHARE); }
         ops.add("复制到对面"); acts.add(A_COPY);
         ops.add("移动到对面"); acts.add(A_MOVE);
         // 对面窗格打开了压缩包 → 增加写入压缩包动作（文件/目录均可；只读格式点击时给说明）
@@ -3520,11 +3554,11 @@ public class MainActivity extends BaseActivity {
     private void showApkOpsMenu(final File f) {
         final Panel dst = other();
         // 动作码（APK 专属，与 runFileAction 对应）
-        final int A_DEX2SMALI = 10, A_EXTRACT_DEX = 11, A_EXTRACT_ICON = 12,
+        final int A_DEX2SMALI = 10, A_EXTRACT_DEX = 11,
                 A_SIGN = 13, A_COPY = 3, A_REN = 5, A_PROP = 8, A_DEXPP = 15, A_ARSCPP = 16, A_MFPP = 17,
                 A_TOZIP_C = 18, A_TOZIP_M = 19, A_SIGN_APK = 20, A_APK_COMPARE = 22, A_APK_CLONE = 23,
                 A_SIGKILL = 26, A_INFO = 32, A_UNPACK = 33, A_SIGN_CUSTOM = 34, A_RM_SIGN = 35,
-                A_DEL = 7, A_IMGBATCH = 37, A_ARSCPP2 = 40;
+                A_DEL = 7, A_IMGBATCH = 37, A_ARSCPP2 = 40, A_SHARE = 45;
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
         ops.add("Dex 编辑器++"); acts.add(A_DEXPP);
@@ -3533,7 +3567,7 @@ public class MainActivity extends BaseActivity {
         ops.add("Manifest 编辑器++"); acts.add(A_MFPP);
         ops.add("反编译 dex→smali"); acts.add(A_DEX2SMALI);
         ops.add("提取 dex"); acts.add(A_EXTRACT_DEX);
-        ops.add("提取图标"); acts.add(A_EXTRACT_ICON);
+        ops.add("分享"); acts.add(A_SHARE);
         ops.add("签名信息"); acts.add(A_SIGN);
         ops.add("APK 签名"); acts.add(A_SIGN_APK);
         ops.add("APK 对比"); acts.add(A_APK_COMPARE);
@@ -3616,7 +3650,6 @@ public class MainActivity extends BaseActivity {
             case 9: assembleDexDir(f); break;     // smali 目录编译为 dex
             case 10: extractApkDexes(f, true); break;   // APK 内全部 dex 反编译
             case 11: extractApkDexes(f, false); break;  // 仅提取 dex
-            case 12: extractApkIcon(f); break;    // 提取图标
             case 13: showSignDialog(f); break;    // 签名详情
             case 20: startSign(f, false); break;  // APK 签名（内置密钥；_edit.apk 原地签）
             case 14:                              // 独立 dex → Dex 编辑器++
@@ -3710,6 +3743,9 @@ public class MainActivity extends BaseActivity {
                 break;
             case 44:                              // 签名文件 → 导入签名管理（v1.68.0）
                 importKeystore(f);
+                break;
+            case 45:                              // 分享（v1.72.0，APK 与普通文件共用）
+                shareFile(f);
                 break;
         }
     }
@@ -4439,22 +4475,32 @@ public class MainActivity extends BaseActivity {
         }, "apk-dex").start();
     }
 
-    /** 提取 APK 图标（当前最大分辨率位图）到对面面板 <apk名>_icon.png */
-    private void extractApkIcon(final File apk) {
+    /**
+     * v1.72.0：分享文件 → 系统分享面板（微信 / QQ / 邮件 / 蓝牙…凡是能接收文件的都列出来）。
+     *
+     * 走项目自带的 ApkFileProvider（content://com.hex91.file.files + 绝对路径），
+     * targetSdk 30 下用 file:// 会直接抛 FileUriExposedException。
+     * ClipData + FLAG_GRANT_READ_URI_PERMISSION 缺一不可：只给 intent 加 flag、
+     * 不设 ClipData 时，部分 ROM/接收方拿不到读权限打开就报「文件不存在」。
+     */
+    private void shareFile(final File f) {
+        if (f == null || !f.isFile()) {
+            toast("只能分享文件（文件夹请先打包）");
+            return;
+        }
         try {
-            Drawable d = ApkUtil.icon(apk, getPackageManager());
-            if (!(d instanceof android.graphics.drawable.BitmapDrawable)) {
-                toast("无法提取图标"); return;
-            }
-            Bitmap bmp = ((android.graphics.drawable.BitmapDrawable) d).getBitmap();
-            final File out = new File(other().dir, stripExt(apk.getName()) + "_icon.png");
-            FileOutputStream fos = new FileOutputStream(out);
-            bmp.compress(Bitmap.CompressFormat.PNG, 100, fos);
-            fos.close();
-            toast("已提取图标 → " + out.getName());
-            refreshAll();
+            Uri uri = Uri.parse("content://com.hex91.file.files" + f.getAbsolutePath());
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType(MimeUtil.of(f.getName()));
+            send.putExtra(Intent.EXTRA_STREAM, uri);
+            send.putExtra(Intent.EXTRA_SUBJECT, f.getName());
+            send.setClipData(ClipData.newRawUri(f.getName(), uri));
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Intent chooser = Intent.createChooser(send, "分享 " + f.getName());
+            chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(chooser);
         } catch (Throwable t) {
-            toast("提取失败: " + t.getMessage());
+            toast("分享失败: " + t.getMessage());
         }
     }
 

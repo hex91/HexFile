@@ -147,7 +147,7 @@ adb install -r out/HexFile-*.apk
 - **长按 APK / APK 弹窗「功能」→ APK 专属菜单**（双列宫格）：
   - 反编译 dex→smali：APK 内全部 `classes*.dex` 自动提取并逐个 baksmali → `/sdcard/HexFileSmali/<apk名>/<dex名>/`，完成后跳转浏览
   - 提取 dex：全部 dex 提取到对面面板 `<apk名>_dex/`
-  - 提取图标：当前分辨率位图存为 `<apk名>_icon.png` 到对面面板
+  - 提取图标：当前分辨率位图存为 `<apk名>_icon.png` 到对面面板（v1.72.0 已从菜单移除，位置换成「分享」）
   - 签名信息：直进签名详情页（V1/V2/V3、证书、MD5/序列号等）
   - 复制到对面 / 重命名 / 属性
 - **smali → dex 回编译**（与 baksmali 组成完整闭环）：长按含 `.smali` 的目录 → 「编译为 dex」→ 同级生成 `<目录名>.dex`；失败时弹窗提示排查语法错误
@@ -1664,6 +1664,41 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v1.72.0 —— 根目录容量修正 + 长按「分享」
+
+### 根目录容量显示成 987MB / 100%
+
+- 现象：抽屉里「根目录」显示 `987M 已用 / 987M（100%）`，而系统设置、MT 等管理器显示可用 1.93G。
+- 根因：`StatFs("/")` 读的是**只读的 system 分区**，`getAvailableBytes()` 恒为 0，
+  于是算出来「已用 = 总量」，百分比永远是 100%。用户真正能写的是 `/data`。
+- 修复：新增 `statPathFor()` 做路径映射——`/` 与 `/system`、`/vendor`、`/product`、`/odm`、
+  `/apex`、`/sbin` 等只读挂载点统一按 `/data` 统计；`usageOf()` 返回 `{总量, 可用}`，
+  路径本身取不到时逐级回退（路径 → `/data` → 外部存储），全失败才显示「容量不可用」。
+  顶栏「储存:」与抽屉共用同一套计算，顶层目录不再出现 100%。
+- 抽屉两行不再完全重复：根目录 `39.5M 已用 / 1.97G（2%）  可用 1.93G`，
+  内部存储 `可用 1.93G / 共 1.97G`（两者同属 /data，本就是同一块空间）。
+
+### 长按「分享」
+
+- 任意文件（含 APK）长按 →「分享」→ 拉起系统分享面板，微信 / QQ / 邮件 / 蓝牙等能收文件的都会列出。
+- 走项目自带的 `ApkFileProvider`（`content://com.hex91.file.files` + 绝对路径）：
+  targetSdk 30 下 `file://` 会抛 `FileUriExposedException`；
+  必须同时给 `ClipData` 和 `FLAG_GRANT_READ_URI_PERMISSION`，只加 flag 在部分 ROM 上接收方会打不开。
+- 新增 `MimeUtil.of(name)`：按扩展名给 MIME（apk/图片/视频/音频/文本/json/pdf/压缩包/字体/dex/so），
+  `ApkFileProvider.getType()` 同步改用它——否则接收方查到的永远是 octet-stream，
+  微信、QQ 这类只看类型的应用不会出现在候选列表里。
+- 移除「提取图标」：原先把图标静默写到**对面面板**的 `<apk名>_icon.png`，用户找不到；
+  该位置由「分享」替代，`extractApkIcon` 及相关动作码一并删除。
+
+### 验证
+
+- `test/MimeUtilTest` 23 项：大写扩展名、多级扩展名（`a.tar.gz` → gzip 而非 tar）、
+  点开头的隐藏文件（`.gitignore` 不算扩展名）、无扩展名、null、未知扩展名兜底。
+- `QUICK=1 ./test/run_core.sh` 13 项全 PASS；APK 内已无 `提取图标` / `extractApkIcon` 字符串。
+- versionCode 139，APK 约 13MB。
 
 ---
 

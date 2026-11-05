@@ -29,9 +29,9 @@ public class ApkFileProvider extends ContentProvider {
 
     @Override
     public String getType(Uri uri) {
-        String p = uri.getPath().toLowerCase();
-        if (p.endsWith(".apk")) return "application/vnd.android.package-archive";
-        return "application/octet-stream";
+        // v1.72.0：分享面板/接收方会用这里查类型，按扩展名给具体 MIME，
+        // 否则微信、QQ 这类只看类型的应用不会把自己列进候选
+        return MimeUtil.of(uri.getPath());
     }
 
     @Override
