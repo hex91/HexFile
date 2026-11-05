@@ -26,8 +26,10 @@ public class ToolboxActivity extends BaseActivity {
         final String emoji, title, desc;
         final Class<?> cls;
         final int from, to, alg;
+        /** 测试数据页的落点（0 身份证 / 1 银行卡 / -1 不关心） */
+        final int focus;
 
-        Tool(String emoji, String title, String desc, Class<?> cls, int from, int to, int alg) {
+        Tool(String emoji, String title, String desc, Class<?> cls, int from, int to, int alg, int focus) {
             this.emoji = emoji;
             this.title = title;
             this.desc = desc;
@@ -35,19 +37,24 @@ public class ToolboxActivity extends BaseActivity {
             this.from = from;
             this.to = to;
             this.alg = alg;
+            this.focus = focus;
         }
     }
 
     private static Tool codec(String e, String t, String d, int from, int to) {
-        return new Tool(e, t, d, CodecActivity.class, from, to, -1);
+        return new Tool(e, t, d, CodecActivity.class, from, to, -1, -1);
     }
 
     private static Tool cipher(String e, String t, String d, int alg) {
-        return new Tool(e, t, d, CipherActivity.class, -1, -1, alg);
+        return new Tool(e, t, d, CipherActivity.class, -1, -1, alg, -1);
     }
 
     private static Tool plain(String e, String t, String d, Class<?> c) {
-        return new Tool(e, t, d, c, -1, -1, -1);
+        return new Tool(e, t, d, c, -1, -1, -1, -1);
+    }
+
+    private static Tool testData(String e, String t, String d, int focus) {
+        return new Tool(e, t, d, TestDataActivity.class, -1, -1, -1, focus);
     }
 
     @Override
@@ -84,6 +91,11 @@ public class ToolboxActivity extends BaseActivity {
                 plain("🔢", "进制转换", "2 / 8 / 10 / 16 / 36", RadixActivity.class),
                 plain("🕐", "时间戳", "秒 ↔ 日期时间", TimeToolActivity.class),
                 plain("🌐", "网络请求", "类 Postman 调试", HttpToolActivity.class));
+
+        section(box, "测试数据", "分析样本时替代你的真实信息");
+        grid(box,
+                testData("🪪", "身份证号", "出生地 / 生日 / 性别", 0),
+                testData("💳", "银行卡号", "6 家银行 · Luhn 校验", 1));
     }
 
     // ============================================================ 视图构建
@@ -176,6 +188,7 @@ public class ToolboxActivity extends BaseActivity {
                     it.putExtra(EXTRA_TO, t.to);
                 }
                 if (t.alg >= 0) it.putExtra(EXTRA_ALG, t.alg);
+                if (t.focus >= 0) it.putExtra(TestDataActivity.EXTRA_FOCUS, t.focus);
                 startActivity(it);
             }
         });

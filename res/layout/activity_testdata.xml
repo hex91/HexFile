@@ -1,0 +1,371 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.71.0 测试数据：身份证号 / 银行卡号生成器（按参数生成，校验位合法） -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/hfBg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingLeft="4dp"
+        android:paddingRight="8dp"
+        android:background="?attr/hfSurfaceAlt">
+
+        <TextView
+            android:id="@+id/td_back"
+            android:layout_width="40dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="‹"
+            android:textSize="24sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="测试数据"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="?attr/hfText"/>
+
+            <TextView
+                android:id="@+id/td_sub"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="身份证 / 银行卡 · 校验位合法"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textSize="11sp"
+                android:textColor="?attr/hfTextSub"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/td_all"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:paddingLeft="12dp"
+            android:paddingRight="10dp"
+            android:text="一键填"
+            android:textSize="13sp"
+            android:textColor="?attr/hfAccent"
+            android:background="?android:attr/selectableItemBackground"/>
+    </LinearLayout>
+
+    <ScrollView
+        android:id="@+id/td_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:paddingBottom="28dp">
+
+            <TextView
+                android:id="@+id/td_notice"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="10dp"
+                android:textSize="11.5sp"
+                android:lineSpacingExtra="2dp"
+                android:background="?attr/hfSurfaceAlt"/>
+
+            <!-- ============================ 身份证 ============================ -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:layout_marginLeft="2dp"
+                android:text="身份证号"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="?attr/hfText"/>
+
+            <LinearLayout
+                android:id="@+id/td_id_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="出生地"
+                    android:textSize="11sp"
+                    android:textColor="?attr/hfTextSub"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <Spinner
+                        android:id="@+id/sp_prov"
+                        android:layout_width="0dp"
+                        android:layout_height="42dp"
+                        android:layout_weight="1.25"
+                        android:spinnerMode="dialog"/>
+
+                    <Spinner
+                        android:id="@+id/sp_city"
+                        android:layout_width="0dp"
+                        android:layout_height="42dp"
+                        android:layout_weight="1"
+                        android:spinnerMode="dialog"/>
+
+                    <Spinner
+                        android:id="@+id/sp_dist"
+                        android:layout_width="0dp"
+                        android:layout_height="42dp"
+                        android:layout_weight="1"
+                        android:spinnerMode="dialog"/>
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="出生日期"
+                    android:textSize="11sp"
+                    android:textColor="?attr/hfTextSub"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <Spinner
+                        android:id="@+id/sp_year"
+                        android:layout_width="0dp"
+                        android:layout_height="42dp"
+                        android:layout_weight="1.2"
+                        android:spinnerMode="dialog"/>
+
+                    <Spinner
+                        android:id="@+id/sp_month"
+                        android:layout_width="0dp"
+                        android:layout_height="42dp"
+                        android:layout_weight="1"
+                        android:spinnerMode="dialog"/>
+
+                    <Spinner
+                        android:id="@+id/sp_day"
+                        android:layout_width="0dp"
+                        android:layout_height="42dp"
+                        android:layout_weight="1"
+                        android:spinnerMode="dialog"/>
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="性别"
+                    android:textSize="11sp"
+                    android:textColor="?attr/hfTextSub"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/chip_male"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="男"
+                        android:textSize="13sp"/>
+
+                    <TextView
+                        android:id="@+id/chip_female"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:layout_marginLeft="8dp"
+                        android:gravity="center"
+                        android:text="女"
+                        android:textSize="13sp"/>
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/btn_id"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="14dp"
+                    android:gravity="center"
+                    android:text="生成身份证号"
+                    android:textSize="14sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:id="@+id/id_out"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:padding="12dp"
+                    android:gravity="center"
+                    android:typeface="monospace"
+                    android:textSize="19sp"
+                    android:letterSpacing="0.06"
+                    android:textIsSelectable="true"
+                    android:textColor="?attr/hfText"
+                    android:background="?attr/hfBg"/>
+
+                <TextView
+                    android:id="@+id/id_meta"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:typeface="monospace"
+                    android:textSize="11.5sp"
+                    android:lineSpacingExtra="3dp"
+                    android:textColor="?attr/hfTextSub"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/id_copy"
+                        android:layout_width="0dp"
+                        android:layout_height="38dp"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="复制"
+                        android:textSize="13sp"/>
+
+                    <TextView
+                        android:id="@+id/id_new"
+                        android:layout_width="0dp"
+                        android:layout_height="38dp"
+                        android:layout_weight="1"
+                        android:layout_marginLeft="8dp"
+                        android:gravity="center"
+                        android:text="换一个"
+                        android:textSize="13sp"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- ============================ 银行卡 ============================ -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:layout_marginLeft="2dp"
+                android:text="银行卡号"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="?attr/hfText"/>
+
+            <LinearLayout
+                android:id="@+id/td_card_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="发卡行"
+                    android:textSize="11sp"
+                    android:textColor="?attr/hfTextSub"/>
+
+                <LinearLayout
+                    android:id="@+id/td_banks"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:orientation="vertical"/>
+
+                <TextView
+                    android:id="@+id/btn_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center"
+                    android:text="生成银行卡号"
+                    android:textSize="14sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:id="@+id/card_out"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:padding="12dp"
+                    android:gravity="center"
+                    android:typeface="monospace"
+                    android:textSize="17sp"
+                    android:textIsSelectable="true"
+                    android:lineSpacingExtra="4dp"
+                    android:textColor="?attr/hfText"
+                    android:background="?attr/hfBg"/>
+
+                <TextView
+                    android:id="@+id/card_meta"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:typeface="monospace"
+                    android:textSize="11.5sp"
+                    android:lineSpacingExtra="3dp"
+                    android:textColor="?attr/hfTextSub"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/card_copy"
+                        android:layout_width="0dp"
+                        android:layout_height="38dp"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="复制"
+                        android:textSize="13sp"/>
+
+                    <TextView
+                        android:id="@+id/card_new"
+                        android:layout_width="0dp"
+                        android:layout_height="38dp"
+                        android:layout_weight="1"
+                        android:layout_marginLeft="8dp"
+                        android:gravity="center"
+                        android:text="换一个"
+                        android:textSize="13sp"/>
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
