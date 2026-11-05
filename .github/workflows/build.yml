@@ -26,15 +26,35 @@ jobs:
 
       - name: Install Android SDK (cmdline-tools / build-tools / platform / ndk)
         run: |
+          set -euo pipefail
           SDK=$HOME/android-sdk
           mkdir -p "$SDK/cmdline-tools"
-          curl -fsSL -o /tmp/cmdtools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          URL=https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          # dl.google.com 走 HTTP/2 偶发 INTERNAL_ERROR（v1.71.0 构建失败原因），
+          # 强制 HTTP/1.1 + 多次重试 + 校验压缩包完整性
+          ok=0
+          for i in 1 2 3 4 5; do
+            if curl -fsSL --http1.1 --connect-timeout 20 --max-time 600 \
+                 --retry 5 --retry-delay 3 --retry-all-errors \
+                 -o /tmp/cmdtools.zip "$URL" && unzip -tq /tmp/cmdtools.zip >/dev/null 2>&1; then
+              ok=1; break
+            fi
+            echo "::warning::cmdline-tools 下载失败（第 $i 次），3 秒后重试"
+            rm -f /tmp/cmdtools.zip
+            sleep 3
+          done
+          [ "$ok" = "1" ] || { echo "::error::cmdline-tools 连续下载失败，放弃构建"; exit 1; }
           unzip -q /tmp/cmdtools.zip -d "$SDK/cmdline-tools"
           mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
           yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --licenses >/dev/null
-          "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" \
-            "platform-tools" "build-tools;37.0.0" "platforms;android-35" "ndk;27.0.12077973"
+          for i in 1 2 3; do
+            "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" \
+              "platform-tools" "build-tools;37.0.0" "platforms;android-35" "ndk;27.0.12077973" && break
+            echo "::warning::sdkmanager 安装失败（第 $i 次），5 秒后重试"
+            sleep 5
+            [ "$i" = "3" ] && { echo "::error::SDK 组件安装失败"; exit 1; }
+          done
           echo "ANDROID_NDK_HOME=$SDK/ndk/27.0.12077973" >> "$GITHUB_ENV"
 
       - name: Build APK
@@ -50,6 +70,13 @@ jobs:
           name: HexFile-APK
           path: out/HexFile-[0-9]*.apk
 
+      - name: Read version name
+        id: ver
+        run: |
+          V=$(grep -o 'android:versionName="[^"]*"' AndroidManifest.xml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          echo "name=$V" >> "$GITHUB_OUTPUT"
+          echo "APK 版本：$V"
+
       - name: Release (tagged version)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -62,6 +89,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: continuous
-          name: Continuous Build (latest from main)
+          name: Continuous Build v${{ steps.ver.outputs.name }} (latest from main)
           prerelease: true
           files: out/HexFile-[0-9]*.apk
