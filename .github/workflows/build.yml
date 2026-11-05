@@ -98,6 +98,25 @@ jobs:
           files: out/HexFile-[0-9]*.apk
           generate_release_notes: true
 
+      - name: Prune older APKs from continuous release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # continuous 是固定 tag，每版都会往同一个 release 里新增 asset，
+          # 旧包不清理就会一直堆（1.71.0、1.72.0…）。发布前先清空，下一步只留本次产物。
+          OLD=$(gh release view continuous --json assets --jq '.assets[].name' 2>/dev/null \
+                | grep -E '^HexFile-.*\.apk$' || true)
+          if [ -z "$OLD" ]; then
+            echo "无历史 APK 需要清理"
+            exit 0
+          fi
+          echo "$OLD" | while read -r name; do
+            [ -z "$name" ] && continue
+            echo "删除旧资产：$name"
+            gh release delete-asset continuous "$name" --yes || true
+          done
+
       - name: Continuous release (latest from main)
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
