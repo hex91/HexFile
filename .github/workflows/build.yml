@@ -47,13 +47,15 @@ jobs:
           unzip -q /tmp/cmdtools.zip -d "$SDK/cmdline-tools"
           mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
-          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --licenses >/dev/null
+          # sdkmanager 读够输入就退出，yes 收到 SIGPIPE 返回 141；
+          # pipefail + set -e 会把它当失败，必须显式吞掉
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --licenses >/dev/null || true
           for i in 1 2 3; do
             "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" \
               "platform-tools" "build-tools;37.0.0" "platforms;android-35" "ndk;27.0.12077973" && break
             echo "::warning::sdkmanager 安装失败（第 $i 次），5 秒后重试"
             sleep 5
-            [ "$i" = "3" ] && { echo "::error::SDK 组件安装失败"; exit 1; }
+            if [ "$i" = "3" ]; then echo "::error::SDK 组件安装失败"; exit 1; fi
           done
           echo "ANDROID_NDK_HOME=$SDK/ndk/27.0.12077973" >> "$GITHUB_ENV"
 
