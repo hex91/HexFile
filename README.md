@@ -15,13 +15,18 @@ adb install -r out/HexFile-*.apk
 
 > **CI / Release**：推送到 `main` 会自动编译并把 APK 发布到 Release 的 `continuous`（预发布）标签；打 `v*` 标签则发布正式 Release。
 > 签名密钥通过仓库 **Secrets**（`HEXFILE_KEYSTORE_BASE64` / `HEXFILE_KEYSTORE_PASS`）注入，**不入库**。
+>
+> **版本守卫**：`build.sh` 会比对上次成功出包的记录（`build/last_build.txt`，不入库）。若 `src/`、`res/`、`native/*.c` 或
+> `AndroidManifest.xml` 有改动而 `versionCode` 没升，直接**拒绝构建**，避免"新包装上去版本号还是旧的"这种排查噩梦。
+> 只是本地看效果、暂不发布：`VERSION_GUARD=warn bash build.sh`（仅警告）或 `VERSION_GUARD=off bash build.sh`（完全跳过）。
+> CI 侧另有一道提醒：本次版本号与上次发布相同会输出 `::warning`，防止同名 APK 被静默覆盖。
 
 ## 工程结构
 
 ```
 /
 ├── AndroidManifest.xml          # minSdk 21 / targetSdk 30 / 存储权限 / 4 Activity
-├── build.sh                     # 一键构建（6 步：aapt2→link→javac→d8→zipalign→sign）
+├── build.sh                     # 一键构建（7 步：aapt2 compile→link→NDK→javac→d8→zipalign→sign，带版本守卫）
 ├── res/
 │   ├── layout/activity_main.xml # 格双栏布局（深色顶栏+统计行、底部 ‹ › ＋ ⇄ ↑ 工具栏）
 │   ├── layout/activity_search.xml / item_result.xml

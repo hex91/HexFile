@@ -18,6 +18,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Warn if version already published
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER=$(grep -o 'android:versionName="[^"]*"' AndroidManifest.xml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          PREV=$(gh release view continuous --json assets --jq '.assets[].name' 2>/dev/null \
+                 | sed -n 's/^HexFile-\(.*\)\.apk$/\1/p' | head -1 || true)
+          echo "本次版本：$VER / 上次发布：${PREV:-（无）}"
+          if [ -n "$PREV" ] && [ "$PREV" = "$VER" ]; then
+            echo "::warning title=版本号未升级::上次已发布 $PREV，本次推送仍是 $VER。若是功能改动，请升 AndroidManifest.xml 的 versionCode/versionName，否则同名 APK 会被覆盖。"
+          fi
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:

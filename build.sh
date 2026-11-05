@@ -74,7 +74,69 @@ OUT="$ROOT/out"
 
 # 版本号从 AndroidManifest 读取，避免硬编码
 VER="$(grep -o 'android:versionName="[^"]*"' "$ROOT/AndroidManifest.xml" | head -1 | sed 's/.*"\(.*\)"/\1/')"
-echo "Building HexFile $VER"
+VER_CODE="$(grep -o 'android:versionCode="[^"]*"' "$ROOT/AndroidManifest.xml" | head -1 | sed 's/.*"\(.*\)"/\1/')"
+echo "Building HexFile $VER ($VER_CODE)"
+
+# ============================================================
+# 版本守卫：拦住"改了代码却忘了升 versionCode"
+# 忘记升版的后果：新包覆盖安装后系统里版本号还是旧的，出问题时分不清装的哪一版，
+# 应用内升级检测、渠道统计也全乱。这里用「上次成功出包的记录」做基线比对。
+#
+# 规则（基线 = build/last_build.txt，build/ 已 gitignore，仅本机有效）：
+#   versionCode 变小            → 拒绝（回退）
+#   versionCode 相同 + 源码变了 → 拒绝（改码未升版）
+#   versionCode 相同 + 源码没变 → 放行（同版本重建）
+#   versionCode 变大            → 放行
+# 逃生口：VERSION_GUARD=warn（只警告）/ off（完全跳过），例：VERSION_GUARD=warn ./build.sh
+# ============================================================
+GUARD_MODE="${VERSION_GUARD:-strict}"
+STAMP="$BUILD/last_build.txt"
+
+# 源码指纹：src/ + res/ + native/*.c + Manifest 的内容哈希（走管道一次 md5sum，几十毫秒）
+SRC_FP="$( {
+    find "$ROOT/src" -type f -print
+    find "$ROOT/res" -type f -print
+    find "$ROOT/native" -type f -name '*.c' -print
+    printf '%s\n' "$ROOT/AndroidManifest.xml"
+} | LC_ALL=C sort | xargs -d '\n' md5sum 2>/dev/null | md5sum | cut -c1-16 )"
+
+guard_error() {
+    echo "" >&2
+    echo "✗ 版本守卫拦截：$1" >&2
+    echo "  改 $ROOT/AndroidManifest.xml：" >&2
+    echo "    android:versionCode=\"$VER_CODE\"  → 至少改为 $2" >&2
+    echo "    android:versionName=\"$VER\"  → 同步升一位（如 1.71.1）" >&2
+    echo "  只想本地看效果、暂不发布：VERSION_GUARD=warn ./build.sh" >&2
+    echo "" >&2
+    if [ "$GUARD_MODE" = "warn" ]; then
+        echo "  （VERSION_GUARD=warn：仅警告，继续构建）" >&2
+        return 0
+    fi
+    exit 1
+}
+
+if [ "$GUARD_MODE" = "off" ]; then
+    echo "版本守卫：已关闭（VERSION_GUARD=off）"
+elif [ ! -f "$STAMP" ]; then
+    echo "版本守卫：首次构建，建立基线 $VER ($VER_CODE)"
+else
+    OLD_CODE="$(sed -n 's/^versionCode=//p' "$STAMP" | head -1)"
+    OLD_FP="$(sed -n 's/^fingerprint=//p' "$STAMP" | head -1)"
+    if [ -z "$OLD_CODE" ]; then
+        echo "版本守卫：基线记录不完整，重新建立"
+    elif [ "$VER_CODE" -lt "$OLD_CODE" ]; then
+        guard_error "versionCode 从 $OLD_CODE 回退到 $VER_CODE（覆盖安装会被系统拒绝）" "$OLD_CODE"
+    elif [ "$VER_CODE" -eq "$OLD_CODE" ]; then
+        if [ "$SRC_FP" = "$OLD_FP" ]; then
+            echo "版本守卫：$VER ($VER_CODE) 同版本重建，源码未变，放行"
+        else
+            guard_error "源码/资源已变更，但 versionCode 仍是 $VER_CODE（$VER）" "$((OLD_CODE + 1))"
+        fi
+    else
+        echo "版本守卫：$OLD_CODE → $VER_CODE（$VER），升版通过"
+    fi
+fi
+
 SECONDS=0
 
 # 增量清理：只删本次构建会被覆盖的产物
@@ -242,3 +304,12 @@ echo ""
 echo "BUILD OK -> $OUT/HexFile-$VER.apk"
 ls -lh "$OUT/HexFile-$VER.apk" | awk '{print "size:", $5}'
 echo "耗时: $((SECONDS / 60)) 分 $((SECONDS % 60)) 秒"
+
+# 记录基线：下次构建据此判断「版本号是否升过 / 源码是否动过」
+{
+    echo "versionCode=$VER_CODE"
+    echo "versionName=$VER"
+    echo "fingerprint=$SRC_FP"
+    echo "apk=HexFile-$VER.apk"
+    echo "builtAt=$(date '+%Y-%m-%d %H:%M:%S')"
+} > "$STAMP"
