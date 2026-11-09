@@ -130,9 +130,24 @@ public final class FileTaskEngine {
         }
     }
 
+    /**
+     * 是否还有未结束的任务。
+     *
+     * <p>v1.77.1 修正：原来只判断 {@code pending} 是否为空，而 worker 一旦把任务取走
+     * 就从 pending 里移除了，于是<b>正在拷贝时</b>这里返回 false —— 任务条的「取消」
+     * 按钮因此走成「打开任务面板」，只有进弹窗才取消得掉。现在把正在跑的任务也算上。</p>
+     */
     public boolean isBusy() {
+        return hasActive();
+    }
+
+    /** 存在排队中或正在执行的任务（任务条按钮该显示「取消」而不是「查看」） */
+    public boolean hasActive() {
         synchronized (lock) {
-            return !pending.isEmpty();
+            for (FileTask t : all) {
+                if (t.cancelable()) return true;
+            }
+            return false;
         }
     }
 
@@ -375,6 +390,9 @@ public final class FileTaskEngine {
 
     /** 递归量体积：字节进 totalBytes、文件进 totalFiles（目录本身不计） */
     static void measure(File f, FileTask t, int depth) {
+        // 量体积也要能取消：几十万文件的大目录量一遍要好几秒，
+        // 期间点取消却毫无反应，用户会以为按钮坏了。
+        if (t != null && t.cancelRequested) throw new Cancel();
         if (depth > MAX_DEPTH) return;
         if (f.isDirectory()) {
             File[] kids = f.listFiles();

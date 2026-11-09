@@ -226,8 +226,15 @@ public class MainActivity extends BaseActivity {
         UiDecor.paintPill(taskAction, this, UiDecor.KIND_SOFT);
         taskAction.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                if (FileTaskEngine.get().isBusy()) askCancelTasks();
-                else showTaskPanel();
+                // v1.77.1：这里原来先判断 isBusy()，而 isBusy() 在「正在拷贝」时返回 false
+                // （worker 已把任务从 pending 取走），于是点「取消」反而打开了任务面板。
+                // 现在用 hasActive()，并且一点就取消，不再弹二次确认。
+                if (FileTaskEngine.get().hasActive()) {
+                    FileTaskEngine.get().cancelAll();
+                    renderTaskBar();                 // 立刻把「取消中」画出来
+                } else {
+                    showTaskPanel();
+                }
             }
         });
         findViewById(R.id.task_body).setOnClickListener(new View.OnClickListener() {
@@ -241,19 +248,6 @@ public class MainActivity extends BaseActivity {
 
             public boolean delete(File f) { return RootIO.delete(f); }
         });
-    }
-
-    private void askCancelTasks() {
-        new HfDialogBuilder(this)
-                .setTitle("取消任务")
-                .setMessage("正在拷贝的文件会中断；已写完的文件保留，未写完的临时文件会被清理。")
-                .setPositiveButton("取消任务", new android.content.DialogInterface.OnClickListener() {
-                    public void onClick(android.content.DialogInterface d, int w) {
-                        FileTaskEngine.get().cancelAll();
-                    }
-                })
-                .setNegativeButton("继续", null)
-                .show();
     }
 
     /** 任务条：一个活动任务显示「正在复制 3 项 · 42% · 12 MB/s」，全部结束显示结果 */
@@ -284,17 +278,30 @@ public class MainActivity extends BaseActivity {
             taskUi.removeCallbacks(hideTaskBar);
             int pct = running.percent();
             taskProgress.setProgress(pct);
-            StringBuilder sb = new StringBuilder("正在").append(running.title)
-                    .append(" · ").append(pct).append('%');
-            long sp = running.speed(System.currentTimeMillis());
-            if (sp > 0) sb.append(" · ").append(FileOps.formatSize(sp)).append("/s");
-            if (active > 1) sb.append(" · 另 ").append(active - 1).append(" 项排队");
-            taskText.setText(sb.toString());
-            taskAction.setText("取消");
+            if (running.cancelRequested) {
+                // 取消标志每 128KB 才检查一次，写大块数据时还会晚几百毫秒；
+                // 这段时间必须给出反馈，否则按钮看起来「点了没反应」，用户会连点。
+                taskText.setText("正在取消 " + running.title + "…");
+                taskAction.setText("取消中");
+                taskAction.setEnabled(false);
+                taskAction.setAlpha(0.45f);
+            } else {
+                StringBuilder sb = new StringBuilder("正在").append(running.title)
+                        .append(" · ").append(pct).append('%');
+                long sp = running.speed(System.currentTimeMillis());
+                if (sp > 0) sb.append(" · ").append(FileOps.formatSize(sp)).append("/s");
+                if (active > 1) sb.append(" · 另 ").append(active - 1).append(" 项排队");
+                taskText.setText(sb.toString());
+                taskAction.setText("取消");
+                taskAction.setEnabled(true);
+                taskAction.setAlpha(1f);
+            }
         } else {
             taskProgress.setProgress(100);
             taskText.setText(resultLine(last));
             taskAction.setText("查看");
+            taskAction.setEnabled(true);
+            taskAction.setAlpha(1f);
             taskUi.removeCallbacks(hideTaskBar);
             taskUi.postDelayed(hideTaskBar, 8000);
         }

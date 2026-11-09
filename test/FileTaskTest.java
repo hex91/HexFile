@@ -197,6 +197,38 @@ public class FileTaskTest {
             ok(b.state == FileTask.CANCELLED, "排队取消：没有开始拷贝就记为 CANCELLED");
         }
 
+        // ------------------------------------------------ 运行中取消 + hasActive 语义
+        // v1.77.1：任务条「取消」曾经点不动，根因是 isBusy() 只判断 pending，
+        // 而 worker 一开始执行就把任务从 pending 取走了 —— 正在拷贝时它返回 false，
+        // 按钮于是走进了「打开任务面板」分支（用户只能在弹窗里取消）。
+        // 这里把语义固定住，回归时不能再退回去。
+        {
+            File src = dir("runcancel_src");
+            File dst = dir("runcancel_dst");
+            File f = sparse(new File(src, "huge.bin"), 48L * 1024 * 1024);
+            FileTask t = eng.submit(FileTask.COPY, list(f), dst);
+            long until = System.currentTimeMillis() + 8000;
+            while (System.currentTimeMillis() < until
+                    && t.state != FileTask.RUNNING && !t.finished()) {
+                Thread.sleep(1);
+            }
+            if (t.state == FileTask.RUNNING) {
+                ok(eng.hasActive(), "运行中：hasActive() 为 true（旧 isBusy 在此误报 false）");
+                ok(eng.isBusy(), "运行中：isBusy() 也为 true");
+                eng.cancelAll();
+                ok(t.cancelRequested, "运行中：cancelAll 置上取消标志");
+                waitDone(t, 8000);
+                ok(t.state == FileTask.CANCELLED, "运行中取消：状态 CANCELLED");
+                ok(!hasPart(dst), "运行中取消：不残留 .part");
+                ok(t.percent() < 100, "运行中取消：进度没有走到 100");
+            } else {
+                // 极快的存储上 48MB 可能在轮询到 RUNNING 之前就结束了，跳过不算失败
+                System.out.println("SKIP  运行中取消：拷贝太快，未观测到 RUNNING");
+                waitDone(t, 20000);
+            }
+            ok(!eng.hasActive(), "全部结束后：hasActive() 为 false");
+        }
+
         eng.clearFinished();
         System.out.println("-----------------------------------------");
         System.out.println("pass=" + pass + " fail=" + fail);
@@ -208,6 +240,18 @@ public class FileTaskTest {
     static void waitDone(FileTask t, long timeoutMs) throws Exception {
         long end = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() < end && !t.finished()) Thread.sleep(10);
+    }
+
+    /** 稀疏文件：setLength 秒建，拷贝时仍要真实写满，用来制造「够慢的大任务」 */
+    static File sparse(File f, long len) throws Exception {
+        if (f.getParentFile() != null) f.getParentFile().mkdirs();
+        java.io.RandomAccessFile raf = new java.io.RandomAccessFile(f, "rw");
+        try {
+            raf.setLength(len);
+        } finally {
+            raf.close();
+        }
+        return f;
     }
 
     static List<File> list(File f) {
