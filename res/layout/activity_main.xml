@@ -187,6 +187,65 @@
     </LinearLayout>
 
     <!-- 底部 MT 风格工具栏：‹ 历史 › / ＋ 新建 / ⇄ 交换 / ↑ 上级 -->
+    <!-- v1.77.0：文件任务条（复制/移动进行中显示；点条体打开任务面板，右侧胶囊取消） -->
+    <LinearLayout
+        android:id="@+id/task_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="?attr/hfSurfaceAlt"
+        android:paddingLeft="12dp"
+        android:paddingRight="9dp"
+        android:paddingTop="7dp"
+        android:paddingBottom="8dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/task_body"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/task_icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingRight="8dp"
+                android:text="⇅"
+                android:textColor="?attr/hfAccent"
+                android:textSize="15sp"/>
+
+            <TextView
+                android:id="@+id/task_text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:text="正在复制"
+                android:textColor="?attr/hfText"
+                android:textSize="12sp"/>
+
+            <TextView
+                android:id="@+id/task_action"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="取消"
+                android:textSize="11.5sp"/>
+        </LinearLayout>
+
+        <ProgressBar
+            android:id="@+id/task_progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginTop="6dp"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/hf_task_progress"/>
+    </LinearLayout>
+
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"

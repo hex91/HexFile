@@ -1,0 +1,441 @@
+package com.hex91.file;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+
+/**
+ * 文件任务队列（v1.77.0）：把「复制 / 移动」从阻塞调用改成可看进度、可取消的后台任务。
+ *
+ * <p>以前 {@link FileOps#copy} 是同步 64KB 循环，调用方只能套一个不确定进度条干等；
+ * 几万文件的目录既不知道还剩多久，也中断不了，中断后还会留下半截文件。这里解决三件事：</p>
+ * <ol>
+ *   <li><b>真实进度</b>：先把源递归量一遍（字节 + 文件数）作为分母，拷贝时按块累加。</li>
+ *   <li><b>可取消</b>：每个 128KB 块检查一次取消标志，抛 {@link Cancel} 打断深递归。</li>
+ *   <li><b>不留半截</b>：写入 {@code 名字.part}，写完才 rename 成正式名字；
+ *       取消或出错时删掉 .part，正式文件要么完整要么不存在。</li>
+ * </ol>
+ *
+ * <p>单线程串行执行：手机存储是同一块闪存，多线程并发拷贝只会互相拖慢并让进度乱跳。
+ * 队列本身也是「用户操作顺序」的体现，第二个任务排在后面才符合直觉。</p>
+ */
+public final class FileTaskEngine {
+
+    /** 任务列表变化（含进度），可能在**工作线程**回调，UI 侧自行切主线程 */
+    public interface Listener {
+        void onTasksChanged();
+    }
+
+    /** 进度回调（引擎内部用，测试可传 null） */
+    public interface Sink {
+        void onProgress(FileTask t);
+    }
+
+    /**
+     * root 区回退：/data 等 File API 无权限的目录用 su 兜底。
+     * 做成接口注入而不是直接调 {@link RootIO}，是为了让引擎保持纯 Java 可单测。
+     */
+    public interface RootFallback {
+        boolean copy(File src, File dstDir);
+
+        boolean move(File src, File dstDir);
+
+        boolean delete(File f);
+    }
+
+    /** 取消信号：用异常打断多层递归，比每层返回 boolean 干净 */
+    static final class Cancel extends RuntimeException {
+        Cancel() { super("cancelled"); }
+    }
+
+    private static final FileTaskEngine INSTANCE = new FileTaskEngine();
+
+    public static FileTaskEngine get() { return INSTANCE; }
+
+    private static final int BUF = 128 * 1024;
+    private static final int MAX_DEPTH = 64;
+    private static final long NOTIFY_MS = 120;
+    private static final int HISTORY_MAX = 20;
+
+    private static final class Job {
+        final FileTask task;
+        final List<File> srcs;
+        final File dstDir;
+
+        Job(FileTask task, List<File> srcs, File dstDir) {
+            this.task = task;
+            this.srcs = srcs;
+            this.dstDir = dstDir;
+        }
+    }
+
+    private final Object lock = new Object();
+    private final LinkedList<Job> pending = new LinkedList<Job>();
+    /** 含已完成的任务，供面板回看；超出上限时从头部淘汰已结束的 */
+    private final ArrayList<FileTask> all = new ArrayList<FileTask>();
+
+    private int seq = 1;
+    private Thread worker;
+    private volatile Listener listener;
+    private volatile RootFallback root;
+
+    private FileTaskEngine() {}
+
+    public void setListener(Listener l) { listener = l; }
+
+    public void setRootFallback(RootFallback r) { root = r; }
+
+    /**
+     * 提交一批文件/目录到 dstDir。
+     * 立即返回任务对象（此时状态 QUEUED），真正的量体积与拷贝在工作线程里做。
+     */
+    public FileTask submit(int kind, List<File> srcs, File dstDir) {
+        if (srcs == null || srcs.isEmpty() || dstDir == null) return null;
+        FileTask t;
+        synchronized (lock) {
+            t = new FileTask(seq++, kind,
+                    (kind == FileTask.MOVE ? "移动 " : "复制 ") + srcs.size() + " 项",
+                    dstDir.getPath());
+            pending.add(new Job(t, new ArrayList<File>(srcs), dstDir));
+            all.add(t);
+            // 淘汰策略：只从头部删「已结束」的，绝不碰队列里的
+            while (all.size() > HISTORY_MAX) {
+                FileTask head = all.get(0);
+                if (!head.finished()) break;
+                all.remove(0);
+            }
+            if (worker == null) {
+                worker = new Thread(new Runnable() {
+                    public void run() { loop(); }
+                }, "hf-file-task");
+                worker.setDaemon(true);
+                worker.start();
+            }
+            lock.notifyAll();
+        }
+        fire();
+        return t;
+    }
+
+    /** 当前任务快照（活动在前、已完成在后），面板与状态栏共用 */
+    public List<FileTask> tasks() {
+        synchronized (lock) {
+            return new ArrayList<FileTask>(all);
+        }
+    }
+
+    public boolean isBusy() {
+        synchronized (lock) {
+            return !pending.isEmpty();
+        }
+    }
+
+    /** 取消全部未结束任务（已经在拷的当前块会先写完，再退出） */
+    public void cancelAll() {
+        synchronized (lock) {
+            for (FileTask t : all) {
+                if (t.cancelable()) t.cancelRequested = true;
+            }
+        }
+        fire();
+    }
+
+    /** 只取消某个任务；排队中的会被 worker 跳过（进入 exec 时状态直接判取消） */
+    public void cancel(int id) {
+        synchronized (lock) {
+            for (FileTask t : all) {
+                if (t.id == id && t.cancelable()) t.cancelRequested = true;
+            }
+        }
+        fire();
+    }
+
+    /** 清掉已完成/失败的历史，面板上「清理」用 */
+    public void clearFinished() {
+        synchronized (lock) {
+            for (int i = all.size() - 1; i >= 0; i--) {
+                if (all.get(i).finished()) all.remove(i);
+            }
+        }
+        fire();
+    }
+
+    // ------------------------------------------------------------------ 工作线程
+
+    private void loop() {
+        while (true) {
+            Job job;
+            synchronized (lock) {
+                while (pending.isEmpty()) {
+                    try {
+                        lock.wait();
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+                }
+                job = pending.removeFirst();
+            }
+            exec(job);
+        }
+    }
+
+    private void exec(Job job) {
+        final FileTask t = job.task;
+        if (t.cancelRequested) {                  // 排队时就被取消：不必再量体积
+            t.state = FileTask.CANCELLED;
+            t.finishedAt = System.currentTimeMillis();
+            fire();
+            return;
+        }
+        t.state = FileTask.RUNNING;
+        t.startedAt = System.currentTimeMillis();
+        fire();
+        try {
+            for (File f : job.srcs) measure(f, t, 0);   // 先量分母
+            fire();
+            for (File f : job.srcs) {
+                if (t.cancelRequested) throw new Cancel();
+                try {
+                    if (t.isMove()) moveOne(f, job.dstDir, t);
+                    else copyOne(f, job.dstDir, t);
+                } catch (Cancel c) {
+                    throw c;
+                } catch (Throwable e) {
+                    // 单个文件失败不该让整批停下：记下来继续，最后报「部分失败」
+                    t.failedFiles++;
+                    t.message = f.getName() + ": " + shortMsg(e);
+                }
+            }
+            t.state = t.failedFiles > 0 ? FileTask.PARTIAL : FileTask.DONE;
+        } catch (Cancel c) {
+            t.state = FileTask.CANCELLED;
+        } catch (Throwable e) {
+            t.state = FileTask.FAILED;
+            t.message = shortMsg(e);
+        } finally {
+            t.finishedAt = System.currentTimeMillis();
+            if (t.state == FileTask.DONE || t.state == FileTask.PARTIAL) {
+                // 补记：跳过/秒移动的项没有走过字节累加，收尾对齐总量
+                t.doneBytes = Math.max(t.doneBytes, t.totalBytes);
+                t.doneFiles = Math.max(t.doneFiles, t.totalFiles - t.failedFiles);
+            }
+            fire();
+        }
+    }
+
+    private void copyOne(File src, File dstDir, FileTask t) throws IOException {
+        File dst = new File(dstDir, src.getName());
+        if (samePath(src, dst)) {
+            // 复制到自己所在目录：以前 FileOps 会「先把源截断再读」，直接把文件清空。
+            // 这里当无事发生（记完成），数据不会被毁。
+            creditDone(src, t);
+            return;
+        }
+        try {
+            copyTree(src, dstDir, t, sink);
+        } catch (IOException e) {
+            RootFallback r = root;
+            if (r == null || !r.copy(src, dstDir)) throw e;
+            creditDone(src, t);          // su cp 没有进度回调，按整份完成记
+        }
+    }
+
+    private void moveOne(File src, File dstDir, FileTask t) throws IOException {
+        File dst = new File(dstDir, src.getName());
+        if (samePath(src, dst)) {
+            creditDone(src, t);
+            return;
+        }
+        if (!dstDir.isDirectory() && !dstDir.mkdirs() && !dstDir.isDirectory())
+            throw new IOException("无法创建目录: " + dstDir);
+        if (src.renameTo(dst)) {          // 同分区：秒完成，不需要逐字节拷
+            creditDone(src, t);
+            pump(t);
+            return;
+        }
+        copyTree(src, dstDir, t, sink);   // 跨分区：拷贝后删源
+        if (!deleteTree(src, 0)) {
+            RootFallback r = root;
+            if (r == null || !r.delete(src))
+                throw new IOException("已复制，但源删除失败: " + src.getPath());
+        }
+    }
+
+    private final Sink sink = new Sink() {
+        public void onProgress(FileTask t) { pump(t); }
+    };
+
+    private void pump(FileTask t) {
+        long now = System.currentTimeMillis();
+        if (now - t.lastNotify < NOTIFY_MS) return;
+        t.lastNotify = now;
+        fire();
+    }
+
+    private void fire() {
+        Listener l = listener;
+        if (l == null) return;
+        try {
+            l.onTasksChanged();
+        } catch (Throwable ignored) {
+            // 列表刷新失败不该反过来影响拷贝
+        }
+    }
+
+    // ------------------------------------------------------------------ 拷贝核心
+
+    /**
+     * 把 src 拷进 dstDir（同名目录合并、同名文件覆盖）。
+     *
+     * @param t   可为 null（只要结果不要进度，单测用）
+     * @param sink 可为 null
+     */
+    public static void copyTree(File src, File dstDir, FileTask t, Sink sink) throws IOException {
+        if (!dstDir.isDirectory() && !dstDir.mkdirs() && !dstDir.isDirectory())
+            throw new IOException("无法创建目录: " + dstDir);
+        copyNode(src, new File(dstDir, src.getName()), t, sink, 0);
+    }
+
+    private static void copyNode(File src, File dst, FileTask t, Sink sink, int depth)
+            throws IOException {
+        if (t != null && t.cancelRequested) throw new Cancel();
+        if (depth > MAX_DEPTH) throw new IOException("目录层级过深: " + src.getPath());
+        if (src.isDirectory()) {
+            if (dst.isFile()) {                       // 同名文件挡路：目录优先，让位
+                if (!dst.delete()) throw new IOException("目标被占用: " + dst);
+            }
+            if (!dst.isDirectory() && !dst.mkdirs() && !dst.isDirectory())
+                throw new IOException("无法创建: " + dst);
+            File[] kids = src.listFiles();
+            if (kids == null) throw new IOException("无法读取: " + src.getPath());
+            for (File k : kids) {
+                copyNode(k, new File(dst, k.getName()), t, sink, depth + 1);
+            }
+        } else {
+            copyFile(src, dst, t, sink);
+            if (t != null) t.doneFiles++;
+        }
+    }
+
+    /** 单文件拷贝：写 .part → rename，保证目标不会出现「半截文件」 */
+    private static void copyFile(File src, File dst, FileTask t, Sink sink) throws IOException {
+        if (dst.isDirectory()) dst = uniqueFile(dst.getParentFile(), src.getName());
+        File parent = dst.getParentFile();
+        if (parent != null && !parent.isDirectory() && !parent.mkdirs() && !parent.isDirectory())
+            throw new IOException("无法创建: " + parent);
+        File part = new File(parent, dst.getName() + ".part");
+        InputStream in = null;
+        OutputStream out = null;
+        try {
+            in = new FileInputStream(src);
+            out = new FileOutputStream(part);
+            byte[] buf = new byte[BUF];
+            int n;
+            while ((n = in.read(buf)) != -1) {
+                if (t != null && t.cancelRequested) throw new Cancel();
+                out.write(buf, 0, n);
+                if (t != null) {
+                    t.doneBytes += n;
+                    if (sink != null) sink.onProgress(t);
+                }
+            }
+            out.flush();
+        } catch (Cancel c) {
+            closeQuietly(in);
+            closeQuietly(out);
+            part.delete();                            // 取消：清掉半截临时文件
+            throw c;                                  // 必须原样抛出，交由引擎记为「已取消」
+        } catch (IOException e) {
+            closeQuietly(in);
+            closeQuietly(out);
+            part.delete();
+            throw e;
+        } catch (Throwable e) {
+            closeQuietly(in);
+            closeQuietly(out);
+            part.delete();
+            throw new IOException(shortMsg(e));
+        }
+        closeQuietly(in);
+        closeQuietly(out);
+        if (!part.renameTo(dst)) {
+            // 少数文件系统不支持覆盖式 rename（目标已存在时）
+            if (!dst.delete() || !part.renameTo(dst)) {
+                part.delete();
+                throw new IOException("写入失败: " + dst.getPath());
+            }
+        }
+    }
+
+    /** 递归量体积：字节进 totalBytes、文件进 totalFiles（目录本身不计） */
+    static void measure(File f, FileTask t, int depth) {
+        if (depth > MAX_DEPTH) return;
+        if (f.isDirectory()) {
+            File[] kids = f.listFiles();
+            if (kids == null) return;
+            for (File k : kids) measure(k, t, depth + 1);
+        } else {
+            t.totalFiles++;
+            long len = f.length();
+            if (len > 0) t.totalBytes += len;
+        }
+    }
+
+    /** 没有实际读写的完成路径（跳过 / rename 秒移动）补记进度 */
+    private static void creditDone(File src, FileTask t) {
+        FileTask tmp = new FileTask(-1, t.kind, "", "");
+        measure(src, tmp, 0);
+        t.doneBytes += tmp.totalBytes;
+        t.doneFiles += tmp.totalFiles;
+    }
+
+    private static boolean deleteTree(File f, int depth) {
+        if (depth > MAX_DEPTH) return false;
+        if (f.isDirectory()) {
+            File[] kids = f.listFiles();
+            if (kids != null) for (File k : kids) deleteTree(k, depth + 1);
+        }
+        return f.delete();
+    }
+
+    private static boolean samePath(File a, File b) {
+        try {
+            return a.getAbsoluteFile().equals(b.getAbsoluteFile());
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /** 文件要覆盖的路径上是一个同名目录 → 换个名字，别把目录删了 */
+    private static File uniqueFile(File dir, String name) {
+        File f = new File(dir, name);
+        if (!f.exists()) return f;
+        int dot = name.lastIndexOf('.');
+        String base = dot > 0 ? name.substring(0, dot) : name;
+        String ext = dot > 0 ? name.substring(dot) : "";
+        for (int i = 1; i < 1000; i++) {
+            File c = new File(dir, base + "(" + i + ")" + ext);
+            if (!c.exists()) return c;
+        }
+        return new File(dir, base + "(" + System.currentTimeMillis() + ")" + ext);
+    }
+
+    private static void closeQuietly(java.io.Closeable c) {
+        if (c == null) return;
+        try {
+            c.close();
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static String shortMsg(Throwable e) {
+        String m = e.getMessage();
+        return m == null || m.length() == 0 ? e.getClass().getSimpleName() : m;
+    }
+}

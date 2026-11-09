@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.77.0：任务进度条（圆角轨道 + 强调色填充）。颜色走主题 attr，换色板自动跟随。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <solid android:color="#33808080"/>
+            <corners android:radius="3dp"/>
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape android:shape="rectangle">
+                <solid android:color="?attr/hfAccent"/>
+                <corners android:radius="3dp"/>
+            </shape>
+        </clip>
+    </item>
+</layer-list>

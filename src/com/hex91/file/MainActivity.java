@@ -186,7 +186,266 @@ public class MainActivity extends BaseActivity {
         setupDrawer();
 
         setupSelectionBar();
+        setupTaskBar();
         handleJump(getIntent());
+    }
+
+    // ============================================================ 文件任务条（v1.77.0）
+
+    private View taskBar;
+    private TextView taskText, taskAction;
+    private android.widget.ProgressBar taskProgress;
+    private final android.os.Handler taskUi =
+            new android.os.Handler(android.os.Looper.getMainLooper());
+    /** 已结束任务计数：变化时才刷新窗格，避免每次进度回调都重列目录 */
+    private int taskDoneSeen;
+
+    /** 任务条自动收起：全部结束后停留 8 秒，让用户看得见结果 */
+    private final Runnable hideTaskBar = new Runnable() {
+        public void run() {
+            if (taskBar != null && !FileTaskEngine.get().isBusy()) {
+                taskBar.setVisibility(View.GONE);
+            }
+        }
+    };
+
+    private final FileTaskEngine.Listener taskListener = new FileTaskEngine.Listener() {
+        public void onTasksChanged() {
+            taskUi.post(new Runnable() {
+                public void run() { renderTaskBar(); }
+            });
+        }
+    };
+
+    private void setupTaskBar() {
+        taskBar = findViewById(R.id.task_bar);
+        if (taskBar == null) return;
+        taskText = (TextView) findViewById(R.id.task_text);
+        taskAction = (TextView) findViewById(R.id.task_action);
+        taskProgress = (android.widget.ProgressBar) findViewById(R.id.task_progress);
+        UiDecor.paintPill(taskAction, this, UiDecor.KIND_SOFT);
+        taskAction.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                if (FileTaskEngine.get().isBusy()) askCancelTasks();
+                else showTaskPanel();
+            }
+        });
+        findViewById(R.id.task_body).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { showTaskPanel(); }
+        });
+        // root 区（/data 等）File API 无权限时的兜底，注入给引擎，引擎本身保持纯 Java
+        FileTaskEngine.get().setRootFallback(new FileTaskEngine.RootFallback() {
+            public boolean copy(File src, File dstDir) { return RootIO.copyInto(src, dstDir); }
+
+            public boolean move(File src, File dstDir) { return RootIO.moveInto(src, dstDir); }
+
+            public boolean delete(File f) { return RootIO.delete(f); }
+        });
+    }
+
+    private void askCancelTasks() {
+        new HfDialogBuilder(this)
+                .setTitle("取消任务")
+                .setMessage("正在拷贝的文件会中断；已写完的文件保留，未写完的临时文件会被清理。")
+                .setPositiveButton("取消任务", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        FileTaskEngine.get().cancelAll();
+                    }
+                })
+                .setNegativeButton("继续", null)
+                .show();
+    }
+
+    /** 任务条：一个活动任务显示「正在复制 3 项 · 42% · 12 MB/s」，全部结束显示结果 */
+    private void renderTaskBar() {
+        if (taskBar == null) return;
+        List<FileTask> list = FileTaskEngine.get().tasks();
+        FileTask running = null, last = null;
+        int active = 0, done = 0;
+        for (FileTask t : list) {
+            if (t.cancelable()) {
+                active++;
+                if (running == null || t.state == FileTask.RUNNING) running = t;
+            } else {
+                done++;
+                last = t;
+            }
+        }
+        if (done != taskDoneSeen) {
+            taskDoneSeen = done;
+            if (active == 0) refreshAll();     // 收尾刷新：新文件立刻出现在对面窗格
+        }
+        if (active == 0 && last == null) {
+            taskBar.setVisibility(View.GONE);
+            return;
+        }
+        taskBar.setVisibility(View.VISIBLE);
+        if (active > 0) {
+            taskUi.removeCallbacks(hideTaskBar);
+            int pct = running.percent();
+            taskProgress.setProgress(pct);
+            StringBuilder sb = new StringBuilder("正在").append(running.title)
+                    .append(" · ").append(pct).append('%');
+            long sp = running.speed(System.currentTimeMillis());
+            if (sp > 0) sb.append(" · ").append(FileOps.formatSize(sp)).append("/s");
+            if (active > 1) sb.append(" · 另 ").append(active - 1).append(" 项排队");
+            taskText.setText(sb.toString());
+            taskAction.setText("取消");
+        } else {
+            taskProgress.setProgress(100);
+            taskText.setText(resultLine(last));
+            taskAction.setText("查看");
+            taskUi.removeCallbacks(hideTaskBar);
+            taskUi.postDelayed(hideTaskBar, 8000);
+        }
+    }
+
+    private String resultLine(FileTask t) {
+        switch (t.state) {
+            case FileTask.DONE:
+                return "✓ " + t.title + "完成 · " + FileOps.formatSize(t.totalBytes);
+            case FileTask.PARTIAL:
+                return "⚠ " + t.title + "，失败 " + t.failedFiles + " 项";
+            case FileTask.FAILED:
+                return "✗ " + t.title + "失败";
+            case FileTask.CANCELLED:
+                return "已取消 " + t.title;
+            default:
+                return t.title;
+        }
+    }
+
+    /** 任务面板：所有任务的进度、速度、目标目录，可逐个取消 */
+    private void showTaskPanel() {
+        final LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = UiDecor.dp(this, 14);
+        box.setPadding(pad, pad, pad, pad);
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(box);
+
+        final AlertDialog dlg = new HfDialogBuilder(this)
+                .setTitle("文件任务")
+                .setView(sv)
+                .setNeutralButton("清理已完成", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        FileTaskEngine.get().clearFinished();
+                    }
+                })
+                .setNegativeButton("全部取消", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        FileTaskEngine.get().cancelAll();
+                    }
+                })
+                .setPositiveButton("关闭", null)
+                .create();
+
+        // 面板开着时每 500ms 刷一次；不用引擎回调是因为弹窗里还要重算自己的行布局
+        final Runnable tick = new Runnable() {
+            public void run() {
+                fillTaskPanel(box);
+                if (dlg.isShowing()) taskUi.postDelayed(this, 500);
+            }
+        };
+        dlg.setOnDismissListener(new android.content.DialogInterface.OnDismissListener() {
+            public void onDismiss(android.content.DialogInterface d) {
+                taskUi.removeCallbacks(tick);
+            }
+        });
+        dlg.show();
+        tick.run();
+    }
+
+    private void fillTaskPanel(LinearLayout box) {
+        box.removeAllViews();
+        List<FileTask> list = FileTaskEngine.get().tasks();
+        if (list.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText("暂无任务\n\n复制 / 移动文件时会在这里显示进度，可随时取消。");
+            empty.setTextSize(12.5f);
+            empty.setTextColor(ThemeManager.textSub(this));
+            empty.setGravity(Gravity.CENTER);
+            empty.setPadding(0, UiDecor.dp(this, 16), 0, UiDecor.dp(this, 16));
+            box.addView(empty);
+            return;
+        }
+        for (int i = list.size() - 1; i >= 0; i--) {   // 最新在上
+            box.addView(taskRow(list.get(i)));
+        }
+    }
+
+    private View taskRow(final FileTask t) {
+        LinearLayout card = UiDecor.card(this);
+        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        clp.bottomMargin = UiDecor.dp(this, 8);
+        card.setLayoutParams(clp);
+
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        TextView name = new TextView(this);
+        name.setText(t.title);
+        name.setTextSize(13f);
+        name.setTextColor(ThemeManager.text(this));
+        name.setSingleLine(true);
+        name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        top.addView(name, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        TextView state = new TextView(this);
+        state.setText(t.stateText());
+        state.setTextSize(11.5f);
+        boolean bad = t.finished() && t.state != FileTask.DONE;
+        state.setTextColor(bad ? ThemeManager.err(this) : ThemeManager.accent(this));
+        top.addView(state);
+        card.addView(top);
+
+        android.widget.ProgressBar pb = new android.widget.ProgressBar(
+                this, null, android.R.attr.progressBarStyleHorizontal);
+        pb.setMax(100);
+        pb.setProgress(t.percent());
+        // 必须带 theme 解析：进度条颜色是 ?attr/hfAccent，无主题的 getDrawable 会解析失败
+        pb.setProgressDrawable(getResources().getDrawable(R.drawable.hf_task_progress, getTheme()));
+        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, UiDecor.dp(this, 4));
+        plp.topMargin = UiDecor.dp(this, 8);
+        card.addView(pb, plp);
+
+        LinearLayout foot = new LinearLayout(this);
+        foot.setOrientation(LinearLayout.HORIZONTAL);
+        foot.setGravity(Gravity.CENTER_VERTICAL);
+        TextView info = new TextView(this);
+        info.setText(taskDetail(t));
+        info.setTextSize(11f);
+        info.setTextColor(ThemeManager.textSub(this));
+        info.setPadding(0, UiDecor.dp(this, 7), UiDecor.dp(this, 6), 0);
+        foot.addView(info, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        if (t.cancelable()) {
+            TextView cancel = UiDecor.action(this, "✕", "取消", ThemeManager.err(this));
+            cancel.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { FileTaskEngine.get().cancel(t.id); }
+            });
+            foot.addView(cancel);
+        }
+        card.addView(foot);
+        return card;
+    }
+
+    private String taskDetail(FileTask t) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(FileOps.formatSize(t.doneBytes)).append(" / ")
+                .append(FileOps.formatSize(t.totalBytes))
+                .append(" · ").append(t.doneFiles).append('/').append(t.totalFiles).append(" 个文件");
+        if (t.state == FileTask.RUNNING) {
+            long sp = t.speed(System.currentTimeMillis());
+            if (sp > 0) sb.append(" · ").append(FileOps.formatSize(sp)).append("/s");
+        }
+        if (t.message != null && t.finished() && t.state != FileTask.DONE) {
+            sb.append('\n').append(t.message);
+        }
+        sb.append('\n').append(t.dstPath);
+        return sb.toString();
     }
 
     // ============================================================ 左侧抽屉（v1.41.0）
@@ -833,7 +1092,10 @@ public class MainActivity extends BaseActivity {
             showKeystoreAction(f);          // v1.68.0：签名文件 → 导入 / 查看 / HEX
         } else if (isTextFile(f, lower)) {
             openEditor(f);
-        } else {
+        } else if (!OpenWith.open(this, f)) {
+            // v1.77.0：以前所有不认识的文件一律弹属性，视频/Office 在文件管理器里等于打不开。
+            // 先交给系统找应用；真没应用能处理时才退回属性页，并说清原因。
+            toast("没有可打开该类型的应用");
             showProps(f);
         }
     }
@@ -3508,7 +3770,7 @@ public class MainActivity extends BaseActivity {
                 A_REN = 5, A_ZIP = 6, A_DEL = 7, A_PROP = 8, A_ASSEMBLE = 9, A_DEXPP = 14,
                 A_TOZIP_C = 18, A_TOZIP_M = 19, A_COMPARE = 21,
                 A_ENCRYPT = 24, A_DECRYPT = 25, A_SPLIT = 27, A_MERGE = 28,
-                A_ZSTDC = 29, A_ZSTDD = 30, A_STRINGS = 31, A_SHARE = 45, A_LAN = 46;
+                A_ZSTDC = 29, A_ZSTDD = 30, A_STRINGS = 31, A_SHARE = 45, A_LAN = 46, A_OPEN = 47;
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
         if (isSmaliDir) { ops.add("编译为 dex"); acts.add(A_ASSEMBLE); }
@@ -3530,6 +3792,7 @@ public class MainActivity extends BaseActivity {
         }
         if (!isFile) { ops.add("查找重复文件"); acts.add(39); }   // v1.59：内容级查重
         if (isFile) { ops.add("HEX 查看"); acts.add(A_HEX); }
+        if (isFile) { ops.add("打开方式"); acts.add(A_OPEN); }   // v1.77.0：交给系统应用
         if (isFile) { ops.add("分享"); acts.add(A_SHARE); }
         if (isFile) { ops.add("局域网快传"); acts.add(A_LAN); }   // v1.74.0
         ops.add("复制到对面"); acts.add(A_COPY);
@@ -3565,7 +3828,7 @@ public class MainActivity extends BaseActivity {
                 A_SIGN = 13, A_COPY = 3, A_REN = 5, A_PROP = 8, A_DEXPP = 15, A_ARSCPP = 16, A_MFPP = 17,
                 A_TOZIP_C = 18, A_TOZIP_M = 19, A_SIGN_APK = 20, A_APK_COMPARE = 22, A_APK_CLONE = 23,
                 A_SIGKILL = 26, A_INFO = 32, A_UNPACK = 33, A_SIGN_CUSTOM = 34, A_RM_SIGN = 35,
-                A_DEL = 7, A_IMGBATCH = 37, A_ARSCPP2 = 40, A_SHARE = 45, A_LAN = 46;
+                A_DEL = 7, A_IMGBATCH = 37, A_ARSCPP2 = 40, A_SHARE = 45, A_LAN = 46, A_OPEN = 47;
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
         ops.add("Dex 编辑器++"); acts.add(A_DEXPP);
@@ -3575,6 +3838,7 @@ public class MainActivity extends BaseActivity {
         ops.add("反编译 dex→smali"); acts.add(A_DEX2SMALI);
         ops.add("提取 dex"); acts.add(A_EXTRACT_DEX);
         ops.add("分享"); acts.add(A_SHARE);
+        ops.add("打开方式"); acts.add(A_OPEN);   // v1.77.0
         ops.add("局域网快传"); acts.add(A_LAN);   // v1.74.0
         ops.add("签名信息"); acts.add(A_SIGN);
         ops.add("APK 签名"); acts.add(A_SIGN_APK);
@@ -3642,12 +3906,14 @@ public class MainActivity extends BaseActivity {
             case 1: openEditor(f); break;         // 文本编辑
             case 2: openHex(f); break;            // HEX 查看
             case 3:
-                toast(FileOps.copy(f, dst.dir) ? "已复制" : "复制失败");
-                refreshAll();
+                FileTaskEngine.get().submit(FileTask.COPY,
+                        java.util.Collections.singletonList(f), dst.dir);
+                toast("已加入复制队列");
                 break;
             case 4:
-                toast(FileOps.move(f, dst.dir) ? "已移动" : "移动失败");
-                refreshAll();
+                FileTaskEngine.get().submit(FileTask.MOVE,
+                        java.util.Collections.singletonList(f), dst.dir);
+                toast("已加入移动队列");
                 break;
             case 5: askRename(f); break;
             case 6: askCompress(f); break;
@@ -3757,6 +4023,9 @@ public class MainActivity extends BaseActivity {
                 break;
             case 46:                              // 局域网快传（v1.74.0）
                 openLanShare(f);
+                break;
+            case 47:                              // 打开方式（v1.77.0）
+                if (!OpenWith.open(this, f)) toast("没有可打开该类型的应用");
                 break;
         }
     }
@@ -4948,14 +5217,11 @@ public class MainActivity extends BaseActivity {
             extractEntriesBatch(selPanel, archEntries, dst, isMove);
             return;
         }
-        int ok = 0;
-        for (File f : realFiles) {
-            if (isMove ? FileOps.move(f, dst.dir) : FileOps.copy(f, dst.dir)) ok++;
-        }
-        toast((isMove ? "已移动 " : "已复制 ") + ok + "/" + realFiles.size()
-                + " 项到\n" + dst.dir.getPath());
+        // v1.77.0：改为提交后台任务——有真实进度、可取消、失败不会连带中断
+        FileTaskEngine.get().submit(isMove ? FileTask.MOVE : FileTask.COPY, realFiles, dst.dir);
+        toast((isMove ? "已加入移动队列 " : "已加入复制队列 ") + realFiles.size()
+                + " 项 →\n" + dst.dir.getPath());
         exitSelection(selPanel);
-        refreshAll();
     }
 
     /** 批量提取压缩包条目到目标窗格目录；alsoDelete=true 时提取后从压缩包删除（仅 ZIP/APK） */
@@ -5131,10 +5397,21 @@ public class MainActivity extends BaseActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // v1.77.0：任务可能在后台继续，回到前台先接上进度回调再补一次刷新
+        FileTaskEngine.get().setListener(taskListener);
+        renderTaskBar();
         for (Panel p : new Panel[]{left, right}) {
             if (p.archiveFile != null) showArchiveDir(p);
             else if (p.dir != null) loadDir(p, p.dir);
         }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // 不持有 Activity 引用，避免任务线程把已销毁的界面拖住
+        FileTaskEngine.get().setListener(null);
+        taskUi.removeCallbacks(hideTaskBar);
     }
 
     @Override
