@@ -160,7 +160,7 @@ public class ArscPlusActivity extends BaseActivity {
             ui.post(new Runnable() { public void run() {
                 pd.dismiss();
                 if (e != null) {
-                    new AlertDialog.Builder(ArscPlusActivity.this)
+                    new HfDialogBuilder(ArscPlusActivity.this)
                             .setTitle("加载失败").setMessage(e)
                             .setPositiveButton("关闭", new DialogInterface.OnClickListener() {
                                 public void onClick(DialogInterface d, int w) { finish(); }
@@ -345,7 +345,7 @@ public class ArscPlusActivity extends BaseActivity {
             cfgs.add(c.label + " (" + c.count + ")");
             total += c.count;
         }
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("类型信息: " + n.type)
                 .setMessage("条目总数: " + total
                         + "\n配置数: " + cfgs.size()

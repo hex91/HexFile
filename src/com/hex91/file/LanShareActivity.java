@@ -497,7 +497,7 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
     }
 
     private void confirmDelete(final File f) {
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("删除文件")
                 .setMessage("从接收目录删除「" + f.getName() + "」？\n（只删本地这一份，不影响发送方）")
                 .setPositiveButton("删除", new DialogInterface.OnClickListener() {
@@ -614,7 +614,7 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
             pickFile();
             return;
         }
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("发送到 " + d.name)
                 .setMessage(sendName + "\n" + FileOps.formatSize(sendSize))
                 .setPositiveButton("发送", new DialogInterface.OnClickListener() {

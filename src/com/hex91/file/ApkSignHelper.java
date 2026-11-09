@@ -130,7 +130,7 @@ public final class ApkSignHelper {
         scheme.setSelection(sp.getInt("scheme", 0));
         box.addView(scheme);
 
-        new AlertDialog.Builder(a)
+        new HfDialogBuilder(a)
                 .setTitle("自动签名设置")
                 .setView(box)
                 .setPositiveButton("确定", new DialogInterface.OnClickListener() {
@@ -181,7 +181,7 @@ public final class ApkSignHelper {
                                   : (e.keyCount > 0 ? "（" + e.keyCount + " 个私钥别名）" : "")));
         items.add("管理签名…（导入 / 查看证书信息 / 删除）");
 
-        new AlertDialog.Builder(a)
+        new HfDialogBuilder(a)
                 .setTitle("选择签名密钥")
                 .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int which) {
@@ -192,7 +192,7 @@ public final class ApkSignHelper {
                         } else {
                             SignKeyManagerActivity.KeyEntry e = keys.get(which - 1);
                             if (e.broken()) {
-                                new AlertDialog.Builder(a)
+                                new HfDialogBuilder(a)
                                         .setTitle(e.name)
                                         .setMessage("该签名的密码已无法解密（换机/恢复出厂/清除数据后 "
                                                 + "Android Keystore 密钥丢失）。请到「签名管理」删除后重新导入。")

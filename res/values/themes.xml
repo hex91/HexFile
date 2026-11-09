@@ -4,6 +4,7 @@
   v1.48.0 主题系统：22 套 MT 色板 × 明/暗 = 44 个色板 style + 2 个基座 style。
   基座（Theme_Hex_Light / Theme_Hex_Dark）定义全部语义色 attr，
   色板 style 仅覆盖随主题变化的部分（顶栏/强调色/选中态/状态栏）。
+  v1.76.0：追加 HfDialog_* 弹窗主题，供 android:alertDialogTheme 引用。
 -->
 <resources>
 
@@ -31,6 +32,7 @@
         <item name="android:statusBarColor">#212121</item>
         <item name="android:navigationBarColor">#212121</item>
         <item name="android:colorAccent">#1E88E5</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Light</item>
     </style>
 
     <!-- ================= 模式基座：暗色 ================= -->
@@ -57,6 +59,7 @@
         <item name="android:statusBarColor">#121212</item>
         <item name="android:navigationBarColor">#121212</item>
         <item name="android:colorAccent">#1E88E5</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark</item>
     </style>
 
     <!-- 0 蓝色 #3E9AFB -->
@@ -72,6 +75,7 @@
         <item name="android:statusBarColor">#2B6BAF</item>
         <item name="android:navigationBarColor">#235991</item>
         <item name="android:colorAccent">#3E9AFB</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_0</item>
     </style>
 
     <!-- 0 蓝色 #3E9AFB（暗） -->
@@ -87,6 +91,7 @@
         <item name="android:statusBarColor">#1B4570</item>
         <item name="android:navigationBarColor">#153557</item>
         <item name="android:colorAccent">#3E9AFB</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_0</item>
     </style>
 
     <!-- 1 绿色 #61BC80 -->
@@ -102,6 +107,7 @@
         <item name="android:statusBarColor">#438359</item>
         <item name="android:navigationBarColor">#386D4A</item>
         <item name="android:colorAccent">#61BC80</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_1</item>
     </style>
 
     <!-- 1 绿色 #61BC80（暗） -->
@@ -117,6 +123,7 @@
         <item name="android:statusBarColor">#2B5439</item>
         <item name="android:navigationBarColor">#21412C</item>
         <item name="android:colorAccent">#61BC80</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_1</item>
     </style>
 
     <!-- 2 琥珀 #E3A23C -->
@@ -132,6 +139,7 @@
         <item name="android:statusBarColor">#9E712A</item>
         <item name="android:navigationBarColor">#835D22</item>
         <item name="android:colorAccent">#E3A23C</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_2</item>
     </style>
 
     <!-- 2 琥珀 #E3A23C（暗） -->
@@ -147,6 +155,7 @@
         <item name="android:statusBarColor">#66481B</item>
         <item name="android:navigationBarColor">#4F3815</item>
         <item name="android:colorAccent">#E3A23C</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_2</item>
     </style>
 
     <!-- 3 珊瑚 #F16D6D -->
@@ -162,6 +171,7 @@
         <item name="android:statusBarColor">#A84C4C</item>
         <item name="android:navigationBarColor">#8B3F3F</item>
         <item name="android:colorAccent">#F16D6D</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_3</item>
     </style>
 
     <!-- 3 珊瑚 #F16D6D（暗） -->
@@ -177,6 +187,7 @@
         <item name="android:statusBarColor">#6C3131</item>
         <item name="android:navigationBarColor">#542626</item>
         <item name="android:colorAccent">#F16D6D</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_3</item>
     </style>
 
     <!-- 4 灰绿 #8E9587 -->
@@ -192,6 +203,7 @@
         <item name="android:statusBarColor">#63685E</item>
         <item name="android:navigationBarColor">#52564E</item>
         <item name="android:colorAccent">#8E9587</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_4</item>
     </style>
 
     <!-- 4 灰绿 #8E9587（暗） -->
@@ -207,6 +219,7 @@
         <item name="android:statusBarColor">#3F433C</item>
         <item name="android:navigationBarColor">#31342F</item>
         <item name="android:colorAccent">#8E9587</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_4</item>
     </style>
 
     <!-- 5 石墨 #626566 -->
@@ -222,6 +235,7 @@
         <item name="android:statusBarColor">#444647</item>
         <item name="android:navigationBarColor">#383A3B</item>
         <item name="android:colorAccent">#626566</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_5</item>
     </style>
 
     <!-- 5 石墨 #626566（暗） -->
@@ -237,6 +251,7 @@
         <item name="android:statusBarColor">#2C2D2D</item>
         <item name="android:navigationBarColor">#222323</item>
         <item name="android:colorAccent">#626566</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_5</item>
     </style>
 
     <!-- 6 曜石 #333033 -->
@@ -252,6 +267,7 @@
         <item name="android:statusBarColor">#232123</item>
         <item name="android:navigationBarColor">#1D1B1D</item>
         <item name="android:colorAccent">#333033</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_6</item>
     </style>
 
     <!-- 6 曜石 #333033（暗） -->
@@ -267,6 +283,7 @@
         <item name="android:statusBarColor">#161516</item>
         <item name="android:navigationBarColor">#111011</item>
         <item name="android:colorAccent">#333033</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_6</item>
     </style>
 
     <!-- 7 粉色 #FC5C99 -->
@@ -282,6 +299,7 @@
         <item name="android:statusBarColor">#B0406B</item>
         <item name="android:navigationBarColor">#923558</item>
         <item name="android:colorAccent">#FC5C99</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_7</item>
     </style>
 
     <!-- 7 粉色 #FC5C99（暗） -->
@@ -297,6 +315,7 @@
         <item name="android:statusBarColor">#712944</item>
         <item name="android:navigationBarColor">#582035</item>
         <item name="android:colorAccent">#FC5C99</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_7</item>
     </style>
 
     <!-- 8 正红 #FC0001 -->
@@ -312,6 +331,7 @@
         <item name="android:statusBarColor">#B00000</item>
         <item name="android:navigationBarColor">#920000</item>
         <item name="android:colorAccent">#FC0001</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_8</item>
     </style>
 
     <!-- 8 正红 #FC0001（暗） -->
@@ -327,6 +347,7 @@
         <item name="android:statusBarColor">#710000</item>
         <item name="android:navigationBarColor">#580000</item>
         <item name="android:colorAccent">#FC0001</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_8</item>
     </style>
 
     <!-- 9 紫罗兰 #981FFF -->
@@ -342,6 +363,7 @@
         <item name="android:statusBarColor">#6A15B2</item>
         <item name="android:navigationBarColor">#581193</item>
         <item name="android:colorAccent">#981FFF</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_9</item>
     </style>
 
     <!-- 9 紫罗兰 #981FFF（暗） -->
@@ -357,6 +379,7 @@
         <item name="android:statusBarColor">#440D72</item>
         <item name="android:navigationBarColor">#350A59</item>
         <item name="android:colorAccent">#981FFF</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_9</item>
     </style>
 
     <!-- 10 深蓝 #032DA3 -->
@@ -372,6 +395,7 @@
         <item name="android:statusBarColor">#021F72</item>
         <item name="android:navigationBarColor">#011A5E</item>
         <item name="android:colorAccent">#032DA3</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_10</item>
     </style>
 
     <!-- 10 深蓝 #032DA3（暗） -->
@@ -387,6 +411,7 @@
         <item name="android:statusBarColor">#011449</item>
         <item name="android:navigationBarColor">#010F39</item>
         <item name="android:colorAccent">#032DA3</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_10</item>
     </style>
 
     <!-- 11 湖蓝 #80D7CF -->
@@ -402,6 +427,7 @@
         <item name="android:statusBarColor">#599690</item>
         <item name="android:navigationBarColor">#4A7C78</item>
         <item name="android:colorAccent">#80D7CF</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_11</item>
     </style>
 
     <!-- 11 湖蓝 #80D7CF（暗） -->
@@ -417,6 +443,7 @@
         <item name="android:statusBarColor">#39605D</item>
         <item name="android:navigationBarColor">#2C4B48</item>
         <item name="android:colorAccent">#80D7CF</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_11</item>
     </style>
 
     <!-- 12 藏青 #02304F -->
@@ -432,6 +459,7 @@
         <item name="android:statusBarColor">#012137</item>
         <item name="android:navigationBarColor">#011B2D</item>
         <item name="android:colorAccent">#02304F</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_12</item>
     </style>
 
     <!-- 12 藏青 #02304F（暗） -->
@@ -447,6 +475,7 @@
         <item name="android:statusBarColor">#001523</item>
         <item name="android:navigationBarColor">#00101B</item>
         <item name="android:colorAccent">#02304F</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_12</item>
     </style>
 
     <!-- 13 靛蓝 #6A67A8 -->
@@ -462,6 +491,7 @@
         <item name="android:statusBarColor">#4A4875</item>
         <item name="android:navigationBarColor">#3D3B61</item>
         <item name="android:colorAccent">#6A67A8</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_13</item>
     </style>
 
     <!-- 13 靛蓝 #6A67A8（暗） -->
@@ -477,6 +507,7 @@
         <item name="android:statusBarColor">#2F2E4B</item>
         <item name="android:navigationBarColor">#25243A</item>
         <item name="android:colorAccent">#6A67A8</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_13</item>
     </style>
 
     <!-- 14 松石 #06837B -->
@@ -492,6 +523,7 @@
         <item name="android:statusBarColor">#045B56</item>
         <item name="android:navigationBarColor">#034B47</item>
         <item name="android:colorAccent">#06837B</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_14</item>
     </style>
 
     <!-- 14 松石 #06837B（暗） -->
@@ -507,6 +539,7 @@
         <item name="android:statusBarColor">#023A37</item>
         <item name="android:navigationBarColor">#022D2B</item>
         <item name="android:colorAccent">#06837B</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_14</item>
     </style>
 
     <!-- 15 玫红 #C4112C -->
@@ -522,6 +555,7 @@
         <item name="android:statusBarColor">#890B1E</item>
         <item name="android:navigationBarColor">#710919</item>
         <item name="android:colorAccent">#C4112C</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_15</item>
     </style>
 
     <!-- 15 玫红 #C4112C（暗） -->
@@ -537,6 +571,7 @@
         <item name="android:statusBarColor">#580713</item>
         <item name="android:navigationBarColor">#44050F</item>
         <item name="android:colorAccent">#C4112C</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_15</item>
     </style>
 
     <!-- 16 古铜 #A45C2D -->
@@ -552,6 +587,7 @@
         <item name="android:statusBarColor">#72401F</item>
         <item name="android:navigationBarColor">#5F351A</item>
         <item name="android:colorAccent">#A45C2D</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_16</item>
     </style>
 
     <!-- 16 古铜 #A45C2D（暗） -->
@@ -567,6 +603,7 @@
         <item name="android:statusBarColor">#492914</item>
         <item name="android:navigationBarColor">#39200F</item>
         <item name="android:colorAccent">#A45C2D</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_16</item>
     </style>
 
     <!-- 17 暗紫 #45012A -->
@@ -582,6 +619,7 @@
         <item name="android:statusBarColor">#30001D</item>
         <item name="android:navigationBarColor">#280018</item>
         <item name="android:colorAccent">#45012A</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_17</item>
     </style>
 
     <!-- 17 暗紫 #45012A（暗） -->
@@ -597,6 +635,7 @@
         <item name="android:statusBarColor">#1F0012</item>
         <item name="android:navigationBarColor">#18000E</item>
         <item name="android:colorAccent">#45012A</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_17</item>
     </style>
 
     <!-- 18 酒红 #4E000A -->
@@ -612,6 +651,7 @@
         <item name="android:statusBarColor">#360007</item>
         <item name="android:navigationBarColor">#2D0005</item>
         <item name="android:colorAccent">#4E000A</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_18</item>
     </style>
 
     <!-- 18 酒红 #4E000A（暗） -->
@@ -627,6 +667,7 @@
         <item name="android:statusBarColor">#230004</item>
         <item name="android:navigationBarColor">#1B0003</item>
         <item name="android:colorAccent">#4E000A</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_18</item>
     </style>
 
     <!-- 19 橙红 #EB5F21 -->
@@ -642,6 +683,7 @@
         <item name="android:statusBarColor">#A44217</item>
         <item name="android:navigationBarColor">#883713</item>
         <item name="android:colorAccent">#EB5F21</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_19</item>
     </style>
 
     <!-- 19 橙红 #EB5F21（暗） -->
@@ -657,6 +699,7 @@
         <item name="android:statusBarColor">#692A0E</item>
         <item name="android:navigationBarColor">#52210B</item>
         <item name="android:colorAccent">#EB5F21</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_19</item>
     </style>
 
     <!-- 20 金黄 #FAD16B -->
@@ -672,6 +715,7 @@
         <item name="android:statusBarColor">#AF924A</item>
         <item name="android:navigationBarColor">#91793E</item>
         <item name="android:colorAccent">#FAD16B</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_20</item>
     </style>
 
     <!-- 20 金黄 #FAD16B（暗） -->
@@ -687,6 +731,7 @@
         <item name="android:statusBarColor">#705E30</item>
         <item name="android:navigationBarColor">#574925</item>
         <item name="android:colorAccent">#FAD16B</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_20</item>
     </style>
 
     <!-- 21 深褐 #442E20 -->
@@ -702,6 +747,7 @@
         <item name="android:statusBarColor">#2F2016</item>
         <item name="android:navigationBarColor">#271A12</item>
         <item name="android:colorAccent">#442E20</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_21</item>
     </style>
 
     <!-- 21 深褐 #442E20（暗） -->
@@ -717,6 +763,249 @@
         <item name="android:statusBarColor">#1E140E</item>
         <item name="android:navigationBarColor">#17100B</item>
         <item name="android:colorAccent">#442E20</item>
+        <item name="android:alertDialogTheme">@style/HfDialog_Dark_21</item>
+    </style>
+
+    <!-- ============ 弹窗主题（v1.76.0）============ -->
+    <!-- 只改 windowBackground（面板底色与圆角）和强调色；
+         布局内边距由 AlertDialogLayout 自己控制，不要在这里加 padding。 -->
+    <style name="HfDialog_Light" parent="@android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/hf_dialog_bg_light</item>
+        <item name="android:colorBackgroundFloating">#FFFFFF</item>
+        <item name="android:textColorPrimary">#212121</item>
+        <item name="android:textColorSecondary">#757575</item>
+        <item name="android:colorAccent">#1E88E5</item>
+        <item name="android:colorControlActivated">#1E88E5</item>
+        <item name="android:colorControlHighlight">#331E88E5</item>
+    </style>
+    <style name="HfDialog_Dark" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/hf_dialog_bg_dark</item>
+        <item name="android:colorBackgroundFloating">#1E1E1E</item>
+        <item name="android:textColorPrimary">#ECECEC</item>
+        <item name="android:textColorSecondary">#9E9E9E</item>
+        <item name="android:colorAccent">#1E88E5</item>
+        <item name="android:colorControlActivated">#1E88E5</item>
+        <item name="android:colorControlHighlight">#331E88E5</item>
+    </style>
+    <style name="HfDialog_0" parent="HfDialog_Light">
+        <item name="android:colorAccent">#3E9AFB</item>
+        <item name="android:colorControlActivated">#3E9AFB</item>
+        <item name="android:colorControlHighlight">#333E9AFB</item>
+    </style>
+    <style name="HfDialog_Dark_0" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#3E9AFB</item>
+        <item name="android:colorControlActivated">#3E9AFB</item>
+        <item name="android:colorControlHighlight">#333E9AFB</item>
+    </style>
+    <style name="HfDialog_1" parent="HfDialog_Light">
+        <item name="android:colorAccent">#61BC80</item>
+        <item name="android:colorControlActivated">#61BC80</item>
+        <item name="android:colorControlHighlight">#3361BC80</item>
+    </style>
+    <style name="HfDialog_Dark_1" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#61BC80</item>
+        <item name="android:colorControlActivated">#61BC80</item>
+        <item name="android:colorControlHighlight">#3361BC80</item>
+    </style>
+    <style name="HfDialog_2" parent="HfDialog_Light">
+        <item name="android:colorAccent">#E3A23C</item>
+        <item name="android:colorControlActivated">#E3A23C</item>
+        <item name="android:colorControlHighlight">#33E3A23C</item>
+    </style>
+    <style name="HfDialog_Dark_2" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#E3A23C</item>
+        <item name="android:colorControlActivated">#E3A23C</item>
+        <item name="android:colorControlHighlight">#33E3A23C</item>
+    </style>
+    <style name="HfDialog_3" parent="HfDialog_Light">
+        <item name="android:colorAccent">#F16D6D</item>
+        <item name="android:colorControlActivated">#F16D6D</item>
+        <item name="android:colorControlHighlight">#33F16D6D</item>
+    </style>
+    <style name="HfDialog_Dark_3" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#F16D6D</item>
+        <item name="android:colorControlActivated">#F16D6D</item>
+        <item name="android:colorControlHighlight">#33F16D6D</item>
+    </style>
+    <style name="HfDialog_4" parent="HfDialog_Light">
+        <item name="android:colorAccent">#8E9587</item>
+        <item name="android:colorControlActivated">#8E9587</item>
+        <item name="android:colorControlHighlight">#338E9587</item>
+    </style>
+    <style name="HfDialog_Dark_4" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#8E9587</item>
+        <item name="android:colorControlActivated">#8E9587</item>
+        <item name="android:colorControlHighlight">#338E9587</item>
+    </style>
+    <style name="HfDialog_5" parent="HfDialog_Light">
+        <item name="android:colorAccent">#626566</item>
+        <item name="android:colorControlActivated">#626566</item>
+        <item name="android:colorControlHighlight">#33626566</item>
+    </style>
+    <style name="HfDialog_Dark_5" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#626566</item>
+        <item name="android:colorControlActivated">#626566</item>
+        <item name="android:colorControlHighlight">#33626566</item>
+    </style>
+    <style name="HfDialog_6" parent="HfDialog_Light">
+        <item name="android:colorAccent">#333033</item>
+        <item name="android:colorControlActivated">#333033</item>
+        <item name="android:colorControlHighlight">#33333033</item>
+    </style>
+    <style name="HfDialog_Dark_6" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#333033</item>
+        <item name="android:colorControlActivated">#333033</item>
+        <item name="android:colorControlHighlight">#33333033</item>
+    </style>
+    <style name="HfDialog_7" parent="HfDialog_Light">
+        <item name="android:colorAccent">#FC5C99</item>
+        <item name="android:colorControlActivated">#FC5C99</item>
+        <item name="android:colorControlHighlight">#33FC5C99</item>
+    </style>
+    <style name="HfDialog_Dark_7" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#FC5C99</item>
+        <item name="android:colorControlActivated">#FC5C99</item>
+        <item name="android:colorControlHighlight">#33FC5C99</item>
+    </style>
+    <style name="HfDialog_8" parent="HfDialog_Light">
+        <item name="android:colorAccent">#FC0001</item>
+        <item name="android:colorControlActivated">#FC0001</item>
+        <item name="android:colorControlHighlight">#33FC0001</item>
+    </style>
+    <style name="HfDialog_Dark_8" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#FC0001</item>
+        <item name="android:colorControlActivated">#FC0001</item>
+        <item name="android:colorControlHighlight">#33FC0001</item>
+    </style>
+    <style name="HfDialog_9" parent="HfDialog_Light">
+        <item name="android:colorAccent">#981FFF</item>
+        <item name="android:colorControlActivated">#981FFF</item>
+        <item name="android:colorControlHighlight">#33981FFF</item>
+    </style>
+    <style name="HfDialog_Dark_9" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#981FFF</item>
+        <item name="android:colorControlActivated">#981FFF</item>
+        <item name="android:colorControlHighlight">#33981FFF</item>
+    </style>
+    <style name="HfDialog_10" parent="HfDialog_Light">
+        <item name="android:colorAccent">#032DA3</item>
+        <item name="android:colorControlActivated">#032DA3</item>
+        <item name="android:colorControlHighlight">#33032DA3</item>
+    </style>
+    <style name="HfDialog_Dark_10" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#032DA3</item>
+        <item name="android:colorControlActivated">#032DA3</item>
+        <item name="android:colorControlHighlight">#33032DA3</item>
+    </style>
+    <style name="HfDialog_11" parent="HfDialog_Light">
+        <item name="android:colorAccent">#80D7CF</item>
+        <item name="android:colorControlActivated">#80D7CF</item>
+        <item name="android:colorControlHighlight">#3380D7CF</item>
+    </style>
+    <style name="HfDialog_Dark_11" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#80D7CF</item>
+        <item name="android:colorControlActivated">#80D7CF</item>
+        <item name="android:colorControlHighlight">#3380D7CF</item>
+    </style>
+    <style name="HfDialog_12" parent="HfDialog_Light">
+        <item name="android:colorAccent">#02304F</item>
+        <item name="android:colorControlActivated">#02304F</item>
+        <item name="android:colorControlHighlight">#3302304F</item>
+    </style>
+    <style name="HfDialog_Dark_12" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#02304F</item>
+        <item name="android:colorControlActivated">#02304F</item>
+        <item name="android:colorControlHighlight">#3302304F</item>
+    </style>
+    <style name="HfDialog_13" parent="HfDialog_Light">
+        <item name="android:colorAccent">#6A67A8</item>
+        <item name="android:colorControlActivated">#6A67A8</item>
+        <item name="android:colorControlHighlight">#336A67A8</item>
+    </style>
+    <style name="HfDialog_Dark_13" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#6A67A8</item>
+        <item name="android:colorControlActivated">#6A67A8</item>
+        <item name="android:colorControlHighlight">#336A67A8</item>
+    </style>
+    <style name="HfDialog_14" parent="HfDialog_Light">
+        <item name="android:colorAccent">#06837B</item>
+        <item name="android:colorControlActivated">#06837B</item>
+        <item name="android:colorControlHighlight">#3306837B</item>
+    </style>
+    <style name="HfDialog_Dark_14" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#06837B</item>
+        <item name="android:colorControlActivated">#06837B</item>
+        <item name="android:colorControlHighlight">#3306837B</item>
+    </style>
+    <style name="HfDialog_15" parent="HfDialog_Light">
+        <item name="android:colorAccent">#C4112C</item>
+        <item name="android:colorControlActivated">#C4112C</item>
+        <item name="android:colorControlHighlight">#33C4112C</item>
+    </style>
+    <style name="HfDialog_Dark_15" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#C4112C</item>
+        <item name="android:colorControlActivated">#C4112C</item>
+        <item name="android:colorControlHighlight">#33C4112C</item>
+    </style>
+    <style name="HfDialog_16" parent="HfDialog_Light">
+        <item name="android:colorAccent">#A45C2D</item>
+        <item name="android:colorControlActivated">#A45C2D</item>
+        <item name="android:colorControlHighlight">#33A45C2D</item>
+    </style>
+    <style name="HfDialog_Dark_16" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#A45C2D</item>
+        <item name="android:colorControlActivated">#A45C2D</item>
+        <item name="android:colorControlHighlight">#33A45C2D</item>
+    </style>
+    <style name="HfDialog_17" parent="HfDialog_Light">
+        <item name="android:colorAccent">#45012A</item>
+        <item name="android:colorControlActivated">#45012A</item>
+        <item name="android:colorControlHighlight">#3345012A</item>
+    </style>
+    <style name="HfDialog_Dark_17" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#45012A</item>
+        <item name="android:colorControlActivated">#45012A</item>
+        <item name="android:colorControlHighlight">#3345012A</item>
+    </style>
+    <style name="HfDialog_18" parent="HfDialog_Light">
+        <item name="android:colorAccent">#4E000A</item>
+        <item name="android:colorControlActivated">#4E000A</item>
+        <item name="android:colorControlHighlight">#334E000A</item>
+    </style>
+    <style name="HfDialog_Dark_18" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#4E000A</item>
+        <item name="android:colorControlActivated">#4E000A</item>
+        <item name="android:colorControlHighlight">#334E000A</item>
+    </style>
+    <style name="HfDialog_19" parent="HfDialog_Light">
+        <item name="android:colorAccent">#EB5F21</item>
+        <item name="android:colorControlActivated">#EB5F21</item>
+        <item name="android:colorControlHighlight">#33EB5F21</item>
+    </style>
+    <style name="HfDialog_Dark_19" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#EB5F21</item>
+        <item name="android:colorControlActivated">#EB5F21</item>
+        <item name="android:colorControlHighlight">#33EB5F21</item>
+    </style>
+    <style name="HfDialog_20" parent="HfDialog_Light">
+        <item name="android:colorAccent">#FAD16B</item>
+        <item name="android:colorControlActivated">#FAD16B</item>
+        <item name="android:colorControlHighlight">#33FAD16B</item>
+    </style>
+    <style name="HfDialog_Dark_20" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#FAD16B</item>
+        <item name="android:colorControlActivated">#FAD16B</item>
+        <item name="android:colorControlHighlight">#33FAD16B</item>
+    </style>
+    <style name="HfDialog_21" parent="HfDialog_Light">
+        <item name="android:colorAccent">#442E20</item>
+        <item name="android:colorControlActivated">#442E20</item>
+        <item name="android:colorControlHighlight">#33442E20</item>
+    </style>
+    <style name="HfDialog_Dark_21" parent="HfDialog_Dark">
+        <item name="android:colorAccent">#442E20</item>
+        <item name="android:colorControlActivated">#442E20</item>
+        <item name="android:colorControlHighlight">#33442E20</item>
     </style>
 
 </resources>

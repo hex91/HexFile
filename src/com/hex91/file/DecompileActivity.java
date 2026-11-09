@@ -192,7 +192,7 @@ public class DecompileActivity extends BaseActivity {
                 | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
         input.setText(String.valueOf((int) mTextSize));
         input.setSelection(input.getText().length());
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("字体大小（sp，8-40）")
                 .setView(input)
                 .setPositiveButton("确定", new DialogInterface.OnClickListener() {

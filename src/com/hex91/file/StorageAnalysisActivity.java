@@ -516,7 +516,7 @@ public class StorageAnalysisActivity extends BaseActivity {
     }
 
     private void askDelete(final File f) {
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("删除文件")
                 .setMessage(f.getName() + "\n" + FileOps.formatSize(f.length())
                         + "\n\n确定删除？")

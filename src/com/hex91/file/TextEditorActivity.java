@@ -260,9 +260,11 @@ public class TextEditorActivity extends BaseActivity {
             });
         }
 
+        // v1.76.0：底部操作区统一胶囊化
+        styleBottomBar(symBar);
+
         // 搜索面板
-        searchPanel = (LinearLayout) findViewById(R.id.editor_search_panel);
-        searchText = (EditText) findViewById(R.id.editor_search_text);
+        searchPanel = (LinearLayout) findViewById(R.id.editor_search_panel);        searchText = (EditText) findViewById(R.id.editor_search_text);
         replaceText = (EditText) findViewById(R.id.editor_replace_text);
         searchCount = (TextView) findViewById(R.id.editor_search_count);
         searchText.addTextChangedListener(new TextWatcher() {
@@ -308,6 +310,44 @@ public class TextEditorActivity extends BaseActivity {
     }
 
     // ============================================================ 搜索 / 替换
+
+    /**
+     * v1.76.0：编辑器底部三块操作区统一外观。
+     *
+     * <ul>
+     *   <li>符号键：系统 {@code Button} 的白色方角块（暗色主题下是一片刺眼白块）
+     *       → 中性圆角软底，文字跟随主题；</li>
+     *   <li>替换/全部：小胶囊；</li>
+     *   <li>底部「搜索 跳转 关闭」：搜索=主操作实心，跳转/关闭=描边，
+     *       并给后两个加左右间距，三个块之间不再粘在一起。</li>
+     * </ul>
+     */
+    private void styleBottomBar(LinearLayout symBar) {
+        for (int i = 0; i < symBar.getChildCount(); i++) {
+            View v = symBar.getChildAt(i);
+            if (!(v instanceof TextView)) continue;
+            TextView tv = (TextView) v;
+            tv.setAllCaps(false);
+            tv.setStateListAnimator(null);
+            tv.setElevation(0f);
+            tv.setMinWidth(0);
+            tv.setMinimumWidth(0);
+            tv.setMinHeight(0);
+            tv.setMinimumHeight(0);
+            tv.setPadding(UiDecor.dp(this, 8), 0, UiDecor.dp(this, 8), 0);
+            tv.setBackground(UiDecor.keyBg(this));
+            tv.setTextColor(ThemeManager.text(this));
+        }
+        UiDecor.barButton((TextView) findViewById(R.id.editor_replace_one), this, UiDecor.KIND_SOFT, 12f);
+        UiDecor.barButton((TextView) findViewById(R.id.editor_replace_all), this, UiDecor.KIND_SOFT, 12f);
+        UiDecor.gap((TextView) findViewById(R.id.editor_replace_all), this, 4f);
+
+        UiDecor.barButton((TextView) findViewById(R.id.editor_search), this, UiDecor.KIND_PRIMARY, 12.5f);
+        UiDecor.barButton((TextView) findViewById(R.id.editor_goto), this, UiDecor.KIND_SOFT, 12.5f);
+        UiDecor.barButton((TextView) findViewById(R.id.editor_close), this, UiDecor.KIND_SOFT, 12.5f);
+        UiDecor.gap((TextView) findViewById(R.id.editor_goto), this, 4f);
+        UiDecor.gap((TextView) findViewById(R.id.editor_close), this, 4f);
+    }
 
     private void toggleSearch() {
         if (searchPanel.getVisibility() == View.GONE) {
@@ -481,7 +521,7 @@ public class TextEditorActivity extends BaseActivity {
         input.setInputType(InputType.TYPE_CLASS_NUMBER);
         input.setHint("行号");
         input.setSingleLine(true);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("跳转到行")
                 .setView(input)
                 .setPositiveButton("跳转", new DialogInterface.OnClickListener() {
@@ -648,7 +688,7 @@ public class TextEditorActivity extends BaseActivity {
     }
 
     private void askBinary(String type) {
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("疑似二进制文件")
                 .setMessage("该文件含二进制数据，文本方式打开会乱码。\n仍要打开，还是改用 HEX 查看？")
                 .setPositiveButton("用 HEX 查看", new DialogInterface.OnClickListener() {
@@ -762,7 +802,7 @@ public class TextEditorActivity extends BaseActivity {
     private void showEditMenu() {
         final String[] items = {"复制行", "剪切行", "删除行", "清空行", "替换行",
                 "重复行", "转为大写", "转为小写", "增加缩进", "减小缩进", "自定义", "格式化"};
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("编辑操作")
                 .setItems(items, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
@@ -847,7 +887,7 @@ public class TextEditorActivity extends BaseActivity {
         final int[] r = lineRange();
         final EditText input = new EditText(this);
         input.setHint("替换为该行内容");
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("替换行")
                 .setView(input)
                 .setPositiveButton("替换", new DialogInterface.OnClickListener() {
@@ -928,7 +968,7 @@ public class TextEditorActivity extends BaseActivity {
 
     private void showCustomMenu() {
         final String[] items = {"行首插入文本", "行尾插入文本", "删除空行", "按行排序", "删除重复行"};
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("自定义")
                 .setItems(items, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
@@ -947,7 +987,7 @@ public class TextEditorActivity extends BaseActivity {
         if (userReadOnly) { toast("只读模式"); return; }
         final EditText input = new EditText(this);
         input.setHint(head ? "行首插入" : "行尾插入");
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(head ? "行首插入" : "行尾插入")
                 .setView(input)
                 .setPositiveButton("确定", new DialogInterface.OnClickListener() {
@@ -1048,7 +1088,7 @@ public class TextEditorActivity extends BaseActivity {
             { items.add("预览 Markdown"); acts.add(10); }
         items.add("关闭文件"); acts.add(11);
 
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("菜单")
                 .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
@@ -1083,7 +1123,7 @@ public class TextEditorActivity extends BaseActivity {
 
     private void showFileMenu() {
         final String[] items = {"重新打开", "另存为副本", "分享"};
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("文件")
                 .setItems(items, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
@@ -1098,7 +1138,7 @@ public class TextEditorActivity extends BaseActivity {
         List<SyntaxHighlight.LangInfo> langs = SyntaxHighlight.listLanguages();
         String[] names = new String[langs.size()];
         for (int i = 0; i < langs.size(); i++) names[i] = langs.get(i).label;
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("语法高亮")
                 .setItems(names, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
@@ -1133,7 +1173,7 @@ public class TextEditorActivity extends BaseActivity {
         input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
         input.setText(String.valueOf(fontSize));
         input.setSelection(input.getText().length());
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("字体大小（sp，8-40）")
                 .setView(input)
                 .setPositiveButton("确定", new DialogInterface.OnClickListener() {
@@ -1165,7 +1205,7 @@ public class TextEditorActivity extends BaseActivity {
         if (detected == FormatUtil.FMT_JSON) title += "（检测到 JSON）";
         else if (detected == FormatUtil.FMT_XML) title += "（检测到 XML/HTML）";
         else if (detected == FormatUtil.FMT_CODE) title += "（检测到代码）";
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(title)
                 .setItems(items, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
@@ -1196,7 +1236,7 @@ public class TextEditorActivity extends BaseActivity {
 
     private void previewMarkdown() {
         String html = MarkdownRender.render(editor.getText().toString());
-        AlertDialog.Builder b = new AlertDialog.Builder(this);
+        AlertDialog.Builder b = new HfDialogBuilder(this);
         android.webkit.WebView wv = new android.webkit.WebView(this);
         wv.loadDataWithBaseURL(null, html, "text/html", "utf-8", null);
         b.setTitle("Markdown 预览").setView(wv)
@@ -1432,7 +1472,7 @@ public class TextEditorActivity extends BaseActivity {
                         pd.dismiss();
                         if (ferr != null) {
                             pendingFinishAfterSave = false;
-                            new AlertDialog.Builder(TextEditorActivity.this)
+                            new HfDialogBuilder(TextEditorActivity.this)
                                     .setTitle(fuerr ? "不支持的修改" : "编译失败")
                                     .setMessage(ferr)
                                     .setPositiveButton("知道了", null).show();
@@ -1576,7 +1616,7 @@ public class TextEditorActivity extends BaseActivity {
                     public void run() {
                         if (ferr != null) {
                             pendingFinishAfterSave = false;
-                            new AlertDialog.Builder(TextEditorActivity.this)
+                            new HfDialogBuilder(TextEditorActivity.this)
                                     .setTitle("保存失败")
                                     .setMessage(ferr)
                                     .setPositiveButton("知道了", null).show();
@@ -1635,7 +1675,7 @@ public class TextEditorActivity extends BaseActivity {
             save();
             return;
         }
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("未保存的修改")
                 .setMessage("内容已修改，是否保存？")
                 .setPositiveButton("保存", new DialogInterface.OnClickListener() {

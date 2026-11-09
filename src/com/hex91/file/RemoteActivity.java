@@ -72,6 +72,9 @@ public final class RemoteActivity extends BaseActivity {
         mRegen.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { regenKey(); }
         });
+        // v1.76.0：主按钮胶囊化（具体配色随运行状态在 applyUi 里刷新）
+        UiDecor.barButton((TextView) mToggle, this, UiDecor.KIND_PRIMARY, 13f);
+        UiDecor.barButton((TextView) mRegen, this, UiDecor.KIND_SOFT, 12f);
         mUrl.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { copyUrl(); }
         });
@@ -169,7 +172,11 @@ public final class RemoteActivity extends BaseActivity {
         mStatus.setText(running ? "● 运行中" : "○ 未启动");
         mStatus.setTextColor(running ? 0xFF2E9E44 : ThemeManager.textSub(this));
         mToggle.setText(running ? "停止服务" : "启动服务");
+        // 运行中用危险色（停止是一项"中断服务"的操作），未启动用主操作色
+        UiDecor.barButton((TextView) mToggle, this,
+                running ? UiDecor.KIND_DANGER : UiDecor.KIND_PRIMARY, 13f);
         mRegen.setEnabled(!running);
+        mRegen.setAlpha(running ? 0.45f : 1f);
 
         if (running) {
             List<String> ips = lanAddresses();

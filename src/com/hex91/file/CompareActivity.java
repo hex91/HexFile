@@ -91,6 +91,10 @@ public class CompareActivity extends BaseActivity {
         ((Button) findViewById(R.id.compare_copy)).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { copyReport(); }
         });
+        // v1.76.0：底部两个系统方角按钮 → 胶囊（复制报告为主操作）
+        UiDecor.barButton((Button) findViewById(R.id.compare_copy), this, UiDecor.KIND_PRIMARY, 12.5f);
+        UiDecor.barButton((Button) findViewById(R.id.compare_close), this, UiDecor.KIND_SOFT, 12.5f);
+        UiDecor.gap((Button) findViewById(R.id.compare_close), this, 4f);
 
         // v1.37.0：目录对比差异条目可操作（打开/再对比/复制到另一侧/删除）
         listView.setOnItemClickListener(new android.widget.AdapterView.OnItemClickListener() {
@@ -247,7 +251,7 @@ public class CompareActivity extends BaseActivity {
         } else {
             return;
         }
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(it.dir ? it.relPath + "/" : it.relPath)
                 .setItems(ops.toArray(new String[0]),
                         new android.content.DialogInterface.OnClickListener() {
@@ -327,7 +331,7 @@ public class CompareActivity extends BaseActivity {
 
     /** 删除一侧条目（二次确认），完成后刷新对比 */
     private void confirmDelete(final CompareUtil.Item it, final boolean sideA) {
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("确认删除")
                 .setMessage("将从 " + (sideA ? "A 侧" : "B 侧") + " 删除：\n"
                         + it.relPath + (it.dir ? "/" : "")

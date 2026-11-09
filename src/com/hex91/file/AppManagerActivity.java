@@ -303,7 +303,7 @@ public class AppManagerActivity extends BaseActivity {
             public void onClick(View v) { copyPkg(r); }
         });
 
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(r.label)
                 .setView(box)
                 .setNegativeButton("关闭", null)
@@ -365,7 +365,7 @@ public class AppManagerActivity extends BaseActivity {
 
     /** v1.51.0：卸载应用（Root 走 su pm uninstall --user 0；无 Root 走系统卸载器） */
     private void confirmUninstall(final AppRow r) {
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("卸载应用")
                 .setMessage("确定卸载 " + r.label + "（" + r.pkg + "）？此操作不可撤销。")
                 .setPositiveButton("卸载", new android.content.DialogInterface.OnClickListener() {
@@ -537,7 +537,7 @@ public class AppManagerActivity extends BaseActivity {
         }
         sv.addView(box);
 
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("权限 — " + r.label)
                 .setView(sv)
                 .setPositiveButton("授予全部危险", new android.content.DialogInterface.OnClickListener() {

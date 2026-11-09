@@ -96,7 +96,7 @@ public class ImageViewerActivity extends BaseActivity {
     private Button mkBtn(LinearLayout bar, LinearLayout.LayoutParams lp, String text) {
         Button b = new Button(this);
         b.setText(text);
-        b.setTextSize(13);
+        UiDecor.barButton(b, this, UiDecor.KIND_SOFT, 12f);
         bar.addView(b, lp);
         return b;
     }

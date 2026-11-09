@@ -183,7 +183,7 @@ public class ArscEditorActivity extends BaseActivity {
             ui.post(new Runnable() { public void run() {
                 pd.dismiss();
                 if (e != null) {
-                    new AlertDialog.Builder(ArscEditorActivity.this)
+                    new HfDialogBuilder(ArscEditorActivity.this)
                             .setTitle("加载失败").setMessage(e)
                             .setPositiveButton("关闭", new DialogInterface.OnClickListener() {
                                 public void onClick(DialogInterface d, int w) { finish(); }
@@ -564,7 +564,7 @@ public class ArscEditorActivity extends BaseActivity {
             box.addView(old);
         }
 
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("编辑资源")
                 .setView(box)
                 .setPositiveButton("确定", new DialogInterface.OnClickListener() {
@@ -596,7 +596,7 @@ public class ArscEditorActivity extends BaseActivity {
                     + " = " + (cur != null ? cur : ArscValues.rawDisplay(arsc, nvs.get(i).getRawValue()))
                     + (cur != null ? "   ✎" : "");
         }
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(currentName(r) + "  (bag " + nvs.size() + " 项)")
                 .setItems(labels, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int which) {
@@ -634,7 +634,7 @@ public class ArscEditorActivity extends BaseActivity {
         et.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         et.setMinLines(2);
         box.addView(et);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("编辑 bag 值")
                 .setView(box)
                 .setPositiveButton("确定", new DialogInterface.OnClickListener() {
@@ -844,7 +844,7 @@ public class ArscEditorActivity extends BaseActivity {
         box.addView(tv);
         final CheckBox autoSign = ApkSignHelper.addAutoSignCheckBox(this, box,
                 "保存后自动签名（长按设置密钥 / 签名方案）", true);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("保存修改")
                 .setView(box)
                 .setPositiveButton("保存", new DialogInterface.OnClickListener() {
@@ -892,7 +892,7 @@ public class ArscEditorActivity extends BaseActivity {
                 pd.setProgress(100);
                 pd.dismiss();
                 if (e != null) {
-                    new AlertDialog.Builder(ArscEditorActivity.this)
+                    new HfDialogBuilder(ArscEditorActivity.this)
                             .setTitle("保存失败").setMessage(e)
                             .setPositiveButton("知道了", null).show();
                 } else {
@@ -923,7 +923,7 @@ public class ArscEditorActivity extends BaseActivity {
         box.addView(tv);
         final CheckBox autoSign = ApkSignHelper.addAutoSignCheckBox(this, box,
                 "保存后自动签名（长按设置密钥 / 签名方案）", true);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("数据已修改")
                 .setView(box)
                 .setPositiveButton("保存", new DialogInterface.OnClickListener() {

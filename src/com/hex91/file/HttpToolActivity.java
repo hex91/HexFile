@@ -287,7 +287,7 @@ public class HttpToolActivity extends BaseActivity {
         String[] shown = new String[items.length + 1];
         for (int i = 0; i < items.length; i++) shown[i] = items[i];
         shown[items.length] = "✕ 清空历史";
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("最近请求")
                 .setItems(shown, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int which) {

@@ -36,10 +36,12 @@ public class TrashActivity extends BaseActivity {
             }
         });
 
-        findViewById(R.id.btn_clear).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
+        // v1.76.0：顶栏「清空」按钮 → 危险色小胶囊
+        UiDecor.barButton((android.widget.Button) findViewById(R.id.btn_clear),
+                this, UiDecor.KIND_DANGER, 11.5f);
+        findViewById(R.id.btn_clear).setOnClickListener(new View.OnClickListener() {            public void onClick(View v) {
                 if (data.isEmpty()) { toast("回收站已为空"); return; }
-                new AlertDialog.Builder(TrashActivity.this)
+                new HfDialogBuilder(TrashActivity.this)
                         .setTitle("清空回收站")
                         .setMessage("将彻底删除全部 " + data.size() + " 项，无法恢复！")
                         .setPositiveButton("清空", new android.content.DialogInterface.OnClickListener() {
@@ -67,7 +69,7 @@ public class TrashActivity extends BaseActivity {
         String msg = "原路径: " + e.origPath
                 + "\n删除时间: " + FileOps.formatTime(e.time)
                 + "\n类型: " + (e.isDir ? "文件夹" : "文件");
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(e.name)
                 .setMessage(msg)
                 .setPositiveButton("恢复", new android.content.DialogInterface.OnClickListener() {

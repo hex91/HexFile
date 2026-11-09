@@ -127,6 +127,10 @@ public class SearchActivity extends BaseActivity {
                 doSearch();
             }
         });
+        // v1.76.0：筛选 / 搜索 从系统方角按钮改胶囊
+        UiDecor.barButton(btnAdv, this, UiDecor.KIND_SOFT, 12.5f);
+        UiDecor.barButton(btn, this, UiDecor.KIND_PRIMARY, 12.5f);
+        UiDecor.gap(btn, this, 4f);
     }
 
     /** 读取界面条件；返回 null 表示输入非法（已提示） */

@@ -178,7 +178,7 @@ public class DexEditorActivity extends BaseActivity {
         final boolean[] chk = new boolean[all.size()];
         for (int i = 0; i < all.size(); i++)
             chk[i] = prechecked == null ? (i == 0) : contains(prechecked, all.get(i));
-        AlertDialog.Builder b = new AlertDialog.Builder(this)
+        AlertDialog.Builder b = new HfDialogBuilder(this)
                 .setTitle("MultiDex")
                 .setMultiChoiceItems(all.toArray(new String[0]), chk,
                         new DialogInterface.OnMultiChoiceClickListener() {
@@ -295,7 +295,7 @@ public class DexEditorActivity extends BaseActivity {
             ui.post(new Runnable() { public void run() {
                 pd.dismiss();
                 if (e != null) {
-                    new AlertDialog.Builder(DexEditorActivity.this)
+                    new HfDialogBuilder(DexEditorActivity.this)
                             .setTitle("加载失败").setMessage(e)
                             .setPositiveButton("关闭", new DialogInterface.OnClickListener() {
                                 public void onClick(DialogInterface d, int w) { finish(); }
@@ -355,7 +355,7 @@ public class DexEditorActivity extends BaseActivity {
         // v1.66.9：有未写回的 smali → 唯一一次弹窗「是否编译并保存文件」，
         // 确定后走 编译（进度条）→ 更新压缩包（含自动签名复选框）→ 完成退出
         if (apk != null && hasUnwrittenSmali()) {
-            new AlertDialog.Builder(this)
+            new HfDialogBuilder(this)
                     .setTitle("smali 修改尚未写回")
                     .setMessage("是否编译并保存文件？\n\n"
                             + "工程里的 smali 改动还没有写回 " + apk.getName()
@@ -721,7 +721,7 @@ public class DexEditorActivity extends BaseActivity {
                         if (exitWhenDone) finish();
                     }
                 } else {
-                    new AlertDialog.Builder(DexEditorActivity.this)
+                    new HfDialogBuilder(DexEditorActivity.this)
                             .setTitle("编译失败")
                             .setMessage(e + "\n\n通常是某个 smali 语法有误——检查最近改过的类。")
                             .setPositiveButton("知道了", null)
@@ -736,7 +736,7 @@ public class DexEditorActivity extends BaseActivity {
         // 64K 方法数守卫
         int mcnt = SmaliTool.dexMethodCount(outDex);
         if (mcnt > 65535) {
-            new AlertDialog.Builder(this)
+            new HfDialogBuilder(this)
                     .setTitle("无法写回")
                     .setMessage("合并后的 dex 含 " + mcnt + " 个方法引用，超过单 dex 65535 的上限。\n\n"
                             + "解决办法：回到 MultiDex 对话框只勾选需要修改的 dex，改完单独写回。")
@@ -773,7 +773,7 @@ public class DexEditorActivity extends BaseActivity {
         });
         box.addView(autoSign);
 
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("编译成功")
                 .setView(box)
                 .setPositiveButton("更新", new DialogInterface.OnClickListener() {
@@ -838,7 +838,7 @@ public class DexEditorActivity extends BaseActivity {
                             Toast.LENGTH_LONG).show();
                     if (exitWhenDone) finish();
                 } else {
-                    new AlertDialog.Builder(DexEditorActivity.this)
+                    new HfDialogBuilder(DexEditorActivity.this)
                             .setTitle("完成（有提示）").setMessage(e)
                             .setPositiveButton("知道了", new DialogInterface.OnClickListener() {
                                 public void onClick(DialogInterface d, int w) {

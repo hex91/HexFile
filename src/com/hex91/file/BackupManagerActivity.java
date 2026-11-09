@@ -123,7 +123,7 @@ public class BackupManagerActivity extends BaseActivity {
 
     /** 删除某个备份目录（二次确认 + 递归删除） */
     private void confirmDelete(final BackupRestore.BackupEntry e) {
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("删除备份")
                 .setMessage("确定删除 " + e.label + " 的备份吗？\n目录：" + e.dir.getPath()
                         + "\n此操作不可恢复。")
@@ -194,12 +194,13 @@ public class BackupManagerActivity extends BaseActivity {
 
                 btnRestore = new Button(BackupManagerActivity.this);
                 btnRestore.setText("还原");
-                btnRestore.setTextSize(13);
+                UiDecor.barButton(btnRestore, BackupManagerActivity.this, UiDecor.KIND_SOFT, 12f);
                 row.addView(btnRestore);
 
                 btnDelete = new Button(BackupManagerActivity.this);
                 btnDelete.setText("删除");
-                btnDelete.setTextSize(13);
+                UiDecor.barButton(btnDelete, BackupManagerActivity.this, UiDecor.KIND_DANGER, 12f);
+                UiDecor.gap(btnDelete, BackupManagerActivity.this, 4f);
                 row.addView(btnDelete);
             } else {
                 row = (LinearLayout) convert;

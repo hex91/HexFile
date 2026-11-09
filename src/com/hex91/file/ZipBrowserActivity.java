@@ -67,6 +67,12 @@ public class ZipBrowserActivity extends BaseActivity {
         btnExtract.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { extractAll(); }
         });
+        // v1.76.0：底栏三个系统按钮 → 胶囊（解压全部为主操作）
+        UiDecor.barButton((Button) findViewById(R.id.zip_up), this, UiDecor.KIND_SOFT, 12.5f);
+        UiDecor.barButton(btnExtract, this, UiDecor.KIND_PRIMARY, 12.5f);
+        UiDecor.barButton((Button) findViewById(R.id.zip_close), this, UiDecor.KIND_SOFT, 12.5f);
+        UiDecor.gap((Button) findViewById(R.id.zip_extract), this, 4f);
+        UiDecor.gap((Button) findViewById(R.id.zip_close), this, 4f);
 
         adapter = new ZipAdapter(this);
         list.setAdapter(adapter);
@@ -142,7 +148,7 @@ public class ZipBrowserActivity extends BaseActivity {
                 "解压到: " + dest.getPath(),
                 "解压到压缩包同目录: " + archiveFile.getParentFile().getPath()
         };
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("解压全部 (" + format + ")")
                 .setItems(labels, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int which) {
@@ -179,7 +185,7 @@ public class ZipBrowserActivity extends BaseActivity {
         opList.add("解压此条目"); actList.add(1);
         if (zipMode && isDex) { opList.add("反编译为 smali"); actList.add(2); }
         opList.add("解压全部"); actList.add(4);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(e.name + (isDex ? "  (dex)" : isArsc ? "  (arsc)" : ""))
                 .setItems(opList.toArray(new String[0]),
                         new android.content.DialogInterface.OnClickListener() {

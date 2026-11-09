@@ -162,7 +162,7 @@ public class ActivityLogActivity extends BaseActivity {
         ActivityLog.setRecording(true);
         refreshStatus();
         if (!ActivityTraceService.isEnabled(this)) {
-            new AlertDialog.Builder(this)
+            new HfDialogBuilder(this)
                     .setTitle("需要无障碍权限")
                     .setMessage("Android 不允许普通应用直接读取别的应用当前页面，"
                             + "只能通过无障碍服务拿到「哪个应用打开了哪个 Activity」。\n\n"
@@ -201,7 +201,7 @@ public class ActivityLogActivity extends BaseActivity {
 
     private void fixPermission() {
         if (!ActivityTraceService.isEnabled(this)) {
-            new AlertDialog.Builder(this)
+            new HfDialogBuilder(this)
                     .setTitle("无障碍权限")
                     .setMessage("请在「设置 → 无障碍 → 已下载的服务 / HexFile」中开启 Activity 记录。\n\n"
                             + "若开关是灰的或提示「受限制的设置」，先到「应用信息 → 右上角 ⋮ → "
@@ -322,7 +322,7 @@ public class ActivityLogActivity extends BaseActivity {
             toast("还没有记录");
             return;
         }
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("清空记录")
                 .setMessage("将删除当前 " + data.size() + " 条页面切换记录（不影响浮窗开关）。")
                 .setPositiveButton("清空", new DialogInterface.OnClickListener() {
@@ -341,7 +341,7 @@ public class ActivityLogActivity extends BaseActivity {
                 + "Activity：" + e.cls + "\n"
                 + "最近：" + timeText(e.time)
                 + (e.count > 1 ? "（连续 " + e.count + " 次）" : "");
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(e.shortName())
                 .setMessage(msg)
                 .setPositiveButton("复制", new DialogInterface.OnClickListener() {

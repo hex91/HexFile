@@ -1668,6 +1668,38 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.76.0 —— 全站弹窗与按钮统一美化
+
+- **弹窗（145 处调用点，一处改法全覆盖）**：
+  - 新增 `HfDialogBuilder`（继承 `AlertDialog.Builder`，只重写 `create()`）与
+    `UiDecor.polishDialog()`：面板 18dp 圆角、主题表面色、标题/正文跟随明暗主题、
+    肯定按钮做成实心强调色胶囊、否定/中性做成描边胶囊。
+  - 为什么不是逐个改：`Builder.show()` 内部**虚调用** `create()`，所以链式调用里
+    `setTitle` 等仍返回父类型也没关系，最后一步照样会走到美化逻辑；`AlertDialog` 的子 View
+    要等 `onCreate` 里 installContent 之后才存在，所以内容美化挂在 `OnShowListener`。
+  - 全局兜底：主题里加了 `android:alertDialogTheme`（`HfDialog_Light|Dark` +
+    每套色板一个覆盖强调色的 `HfDialog_*_N`，由 `tools/gen_themes.py` 生成共 46 个）。
+    这样连没改过代码的 `ProgressDialog`（34 处）也跟着换面板色与强调色——
+    以前暗色主题下它们是一块刺眼的白板。
+  - 面板背景是 `res/drawable/hf_dialog_bg_light|dark.xml`：结构与系统
+    `@android:drawable/dialog_background_material` 一致（16dp 透明 inset 留给投影 +
+    圆角矩形），只把 4dp 圆角换成 18dp 并换成主题底色，所以内容位置不受影响。
+- **多选栏**：7 个系统方角 `Button` → 圆角工具条 + 小胶囊；完成=实心强调色（主操作）、
+  删除=红、其余=描边；按钮间 2dp 间距，字号压到 11sp，360dp 屏不会把「重命名」截断。
+- **编辑器底栏**：「搜索 跳转 关闭」搜索=实心、跳转/关闭=描边并留间距；符号键原来是
+  **写死的白色背景**（暗色主题下是一片白块），改为中性圆角软底、文字跟随主题。
+- **顺带收拾的其他位置**：
+  - `activity_compare.xml` 7 处硬编码浅色（#FFF2F7FB / #4A1528 / #5B7A99 …）→ 全部换成
+    `?attr/hf*`，比较页终于能跟暗色主题；底部「复制报告/关闭」胶囊化。
+  - 压缩包浏览（上级/解压全部/关闭）、搜索页（筛选/搜索）、回收站（清空→危险色）、
+    远程管理（启动服务⇄停止服务，运行中自动转危险色）、重复文件查找、图片查看器、
+    备份管理（还原/删除）、属性弹窗里的行内按钮 → 统一胶囊。
+  - Hex 编辑器工具条 9 个色块 → 圆角软底；`ApkActionText` 写死的蓝字 → `?attr/hfAccent`；
+    Manifest 预览弹窗的深灰字（#37474F，暗色下几乎看不见）→ `ThemeManager.text`。
+- 版本守卫照常生效（145 → 146）。
+
+---
+
 ## v1.75.0 —— 快传接收列表 + 全站按钮美化
 
 - **接收目录统一**：从 `Download/HexFile/LanShare` 改为 **`/sdcard/HexFile/LanShare`**，

@@ -193,8 +193,18 @@ public class HexViewerActivity extends BaseActivity {
         saveBtn.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { save(); }
         });
-        findViewById(R.id.hex_jump).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { askJump(); }
+        // v1.76.0：工具条上的小方块 → 圆角软底（原来是平面色块，暗色下几乎看不出边界）
+        LinearLayout hexTools = (LinearLayout) findViewById(R.id.hex_tools);
+        if (hexTools != null) {
+            for (int i = 0; i < hexTools.getChildCount(); i++) {
+                View v = hexTools.getChildAt(i);
+                if (!(v instanceof TextView)) continue;
+                TextView tv = (TextView) v;
+                tv.setBackground(UiDecor.keyBg(this));
+                tv.setPadding(UiDecor.dp(this, 11), 0, UiDecor.dp(this, 11), 0);
+            }
+        }
+        findViewById(R.id.hex_jump).setOnClickListener(new View.OnClickListener() {            public void onClick(View v) { askJump(); }
         });
         findViewById(R.id.hex_block).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { askBlock(); }
@@ -259,7 +269,7 @@ public class HexViewerActivity extends BaseActivity {
     @Override
     public void onBackPressed() {
         if (!dirty) { super.onBackPressed(); return; }
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("有未保存的修改")
                 .setMessage("内存里有改动尚未写回文件。\n\n" + file.getName())
                 .setPositiveButton("保存", new DialogInterface.OnClickListener() {
@@ -860,7 +870,7 @@ public class HexViewerActivity extends BaseActivity {
         final EditText et = new EditText(this);
         et.setHint("偏移：1024 或 0x400");
         et.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("跳转到偏移")
                 .setView(et)
                 .setPositiveButton("跳转", new DialogInterface.OnClickListener() {
@@ -985,7 +995,7 @@ public class HexViewerActivity extends BaseActivity {
         btns.addView(next);
         box.addView(btns);
 
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("跳转到块")
                 .setView(box)
                 .setPositiveButton("跳转", new DialogInterface.OnClickListener() {
@@ -1044,7 +1054,7 @@ public class HexViewerActivity extends BaseActivity {
                         tv.setText(ft);
                         sv.addView(tv);
                         FileInspect.Elf elf = FileInspect.parseElf(data);
-                        AlertDialog.Builder b = new AlertDialog.Builder(HexViewerActivity.this)
+                        AlertDialog.Builder b = new HfDialogBuilder(HexViewerActivity.this)
                                 .setTitle("文件解析")
                                 .setView(sv)
                                 .setPositiveButton("复制", new DialogInterface.OnClickListener() {
@@ -1076,7 +1086,7 @@ public class HexViewerActivity extends BaseActivity {
                     + "   " + FileOps.formatSize(s.size));
         }
         if (labels.isEmpty()) { toast("没有可跳转的节"); return; }
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("跳到节")
                 .setItems(labels.toArray(new String[0]), new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int which) {
@@ -1113,7 +1123,7 @@ public class HexViewerActivity extends BaseActivity {
             public void onNothingSelected(AdapterView<?> a) {}
         });
 
-        final AlertDialog dlg = new AlertDialog.Builder(this)
+        final AlertDialog dlg = new HfDialogBuilder(this)
                 .setTitle("类型搜索")
                 .setView(v)
                 .setPositiveButton("搜索", null)
@@ -1255,7 +1265,7 @@ public class HexViewerActivity extends BaseActivity {
 
         box.addView(preview);
 
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("显示设置")
                 .setView(box)
                 .setPositiveButton("完成", null)
@@ -1293,7 +1303,7 @@ public class HexViewerActivity extends BaseActivity {
     }
 
     private void askCharset() {
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("文本预览字符集")
                 .setSingleChoiceItems(CHARSETS, indexOfCharset(), new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
@@ -1315,7 +1325,7 @@ public class HexViewerActivity extends BaseActivity {
 
     private void askCopy() {
         if (data == null) return;
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("复制")
                 .setItems(new String[]{"当前行 HEX", "当前行文本", "选中字节（光标处 1 字节）"},
                         new DialogInterface.OnClickListener() {

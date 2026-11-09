@@ -65,7 +65,7 @@ public class DupFinderActivity extends BaseActivity {
         bottom.setPadding((int) (12 * den), (int) (6 * den), (int) (12 * den), (int) (6 * den));
         final Button del = new Button(this);
         del.setText("删除勾选项");
-        del.setTextSize(13);
+        UiDecor.barButton(del, this, UiDecor.KIND_DANGER, 12.5f);
         del.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { askDeleteChecked(); }
         });
@@ -73,7 +73,8 @@ public class DupFinderActivity extends BaseActivity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         final Button keepFirst = new Button(this);
         keepFirst.setText("恢复默认勾选");
-        keepFirst.setTextSize(13);
+        UiDecor.barButton(keepFirst, this, UiDecor.KIND_SOFT, 12.5f);
+        UiDecor.gap(keepFirst, this, 4f);
         keepFirst.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { defaultChecks(); render(); }
         });
@@ -81,7 +82,8 @@ public class DupFinderActivity extends BaseActivity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         final Button close = new Button(this);
         close.setText("关闭");
-        close.setTextSize(13);
+        UiDecor.barButton(close, this, UiDecor.KIND_SOFT, 12.5f);
+        UiDecor.gap(close, this, 4f);
         close.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { finish(); }
         });
@@ -209,7 +211,7 @@ public class DupFinderActivity extends BaseActivity {
         for (int i = 0; i < groups.size(); i++)
             for (File f : checked.get(i)) { n++; bytes += f.length(); }
         if (n == 0) { Toast.makeText(this, "未勾选任何文件", Toast.LENGTH_SHORT).show(); return; }
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("删除勾选项")
                 .setMessage("共 " + n + " 个文件，约 " + FileOps.formatSize(bytes)
                         + "\n\n确定删除？（不可恢复）")

@@ -550,7 +550,7 @@ public class SignKeyManagerActivity extends BaseActivity {
         tip.setPadding(0, (int) (8 * den), 0, 0);
         box.addView(tip);
 
-        new AlertDialog.Builder(act)
+        new HfDialogBuilder(act)
                 .setTitle("导入签名")
                 .setView(box)
                 .setPositiveButton("导入", new DialogInterface.OnClickListener() {
@@ -599,7 +599,7 @@ public class SignKeyManagerActivity extends BaseActivity {
             h.post(new Runnable() { public void run() {
                 pd.dismiss();
                 if (ferr != null) {
-                    new AlertDialog.Builder(act)
+                    new HfDialogBuilder(act)
                             .setTitle("导入失败").setMessage(ferr)
                             .setPositiveButton("知道了", null).show();
                     return;
@@ -685,7 +685,7 @@ public class SignKeyManagerActivity extends BaseActivity {
         bitTv.setPadding(0, (int) (12 * den), 0, 0);
         bitTv.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                new AlertDialog.Builder(SignKeyManagerActivity.this)
+                new HfDialogBuilder(SignKeyManagerActivity.this)
                         .setTitle("密钥长度")
                         .setItems(new String[]{"2048 位（推荐）", "3072 位", "4096 位（生成较慢）"},
                                 new DialogInterface.OnClickListener() {
@@ -705,7 +705,7 @@ public class SignKeyManagerActivity extends BaseActivity {
         yearTv.setPadding(0, (int) (8 * den), 0, (int) (8 * den));
         yearTv.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                new AlertDialog.Builder(SignKeyManagerActivity.this)
+                new HfDialogBuilder(SignKeyManagerActivity.this)
                         .setTitle("有效期")
                         .setItems(new String[]{"1 年", "10 年", "30 年", "50 年"},
                                 new DialogInterface.OnClickListener() {
@@ -725,7 +725,7 @@ public class SignKeyManagerActivity extends BaseActivity {
         tip.setTextColor(ThemeManager.textSub(this));
         box.addView(tip);
 
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("创建签名")
                 .setView(sv)
                 .setPositiveButton("创建", new DialogInterface.OnClickListener() {
@@ -766,7 +766,7 @@ public class SignKeyManagerActivity extends BaseActivity {
             ui.post(new Runnable() { public void run() {
                 pd.dismiss();
                 if (ferr != null || fr == null) {
-                    new AlertDialog.Builder(SignKeyManagerActivity.this)
+                    new HfDialogBuilder(SignKeyManagerActivity.this)
                             .setTitle("创建失败").setMessage(String.valueOf(ferr))
                             .setPositiveButton("知道了", null).show();
                     return;
@@ -791,7 +791,7 @@ public class SignKeyManagerActivity extends BaseActivity {
                             .putString("key_id", e.id).putInt("ks_mode", 1).apply();
                 }
                 reload();
-                new AlertDialog.Builder(SignKeyManagerActivity.this)
+                new HfDialogBuilder(SignKeyManagerActivity.this)
                         .setTitle("已创建签名")
                         .setMessage(fr.summary() + "\n\n密码: " + fr.storePass
                                 + "\n（已存入签名管理，密码用应用内加密保存）")
@@ -907,7 +907,7 @@ public class SignKeyManagerActivity extends BaseActivity {
         tip.setPadding(0, dp(12), 0, 0);
         box.addView(tip);
 
-        holder[0] = new AlertDialog.Builder(this)
+        holder[0] = new HfDialogBuilder(this)
                 .setView(box)
                 .setNegativeButton("关闭", null)
                 .create();
@@ -918,7 +918,7 @@ public class SignKeyManagerActivity extends BaseActivity {
         final EditText et = new EditText(this);
         et.setText(e.name);
         et.setSelection(et.getText().length());
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("重命名签名")
                 .setView(et)
                 .setPositiveButton("保存", new DialogInterface.OnClickListener() {
@@ -968,7 +968,7 @@ public class SignKeyManagerActivity extends BaseActivity {
     private void showDetail(final KeyEntry e) {
         // v1.67.3：密码解不开时不再拿空密码去解析（只会得到一个无意义的报错），直接给可操作提示
         if (e.broken()) {
-            new AlertDialog.Builder(this)
+            new HfDialogBuilder(this)
                     .setTitle(e.name)
                     .setMessage("这条签名的密码已无法解密（常见原因：换机、恢复出厂、清除应用数据后"
                             + "Android Keystore 密钥丢失）。\n\n"
@@ -1012,7 +1012,7 @@ public class SignKeyManagerActivity extends BaseActivity {
                 tv.setTextColor(ThemeManager.text(SignKeyManagerActivity.this));
                 sv.addView(tv);
                 String defId = signPrefs(SignKeyManagerActivity.this).getString("key_id", null);
-                new AlertDialog.Builder(SignKeyManagerActivity.this)
+                new HfDialogBuilder(SignKeyManagerActivity.this)
                         .setTitle("签名信息")
                         .setView(sv)
                         .setPositiveButton(e.id.equals(defId) ? "已是默认签名" : "设为默认签名",
@@ -1036,7 +1036,7 @@ public class SignKeyManagerActivity extends BaseActivity {
     }
 
     private void confirmDelete(final KeyEntry e) {
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("删除签名")
                 .setMessage("删除「" + e.name + "」？（只删除应用内导入的副本，不影响原文件）")
                 .setPositiveButton("删除", new DialogInterface.OnClickListener() {

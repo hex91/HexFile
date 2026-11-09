@@ -406,7 +406,7 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
         refreshSchemeChips();
         box.addView(schemeRow);
 
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("终端显示")
                 .setView(box)
                 .setPositiveButton("完成", null)

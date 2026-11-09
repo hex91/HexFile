@@ -22,6 +22,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
@@ -449,7 +450,7 @@ public class MainActivity extends BaseActivity {
 
     /** 未完成功能占位弹窗（主题设置/远程管理/终端模拟器） */
     private void showComingSoon(String title, String desc) {
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(title)
                 .setMessage(desc)
                 .setPositiveButton("知道了", null)
@@ -523,7 +524,7 @@ public class MainActivity extends BaseActivity {
     /** 排序方式：名称 / 大小 / 修改时间（仅活动栏生效；压缩包浏览中只重列） */
     private void askSortMode() {
         final Panel p = active();
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("排序方式")
                 .setSingleChoiceItems(
                         new String[]{"按名称", "按大小", "按修改时间"}, p.adapter.sortMode,
@@ -541,7 +542,7 @@ public class MainActivity extends BaseActivity {
 
     /** ＋ 新建：文件夹 / 文本文件 */
     private void askCreateNew() {
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("新建")
                 .setItems(new String[]{"文件夹", "文本文件"},
                         new android.content.DialogInterface.OnClickListener() {
@@ -558,7 +559,7 @@ public class MainActivity extends BaseActivity {
         if (p.archiveFile != null) { toast("压缩包浏览中不可新建，请先退出压缩包"); return; }
         final EditText et = new EditText(this);
         et.setInputType(InputType.TYPE_CLASS_TEXT);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("新建文本文件 @ " + p.dir.getName())
                 .setView(et)
                 .setPositiveButton("创建", new android.content.DialogInterface.OnClickListener() {
@@ -858,7 +859,7 @@ public class MainActivity extends BaseActivity {
     /** 点击签名文件：导入签名管理 / 查看签名信息 / HEX 查看 / 属性 */
     private void showKeystoreAction(final File f) {
         final String[] ops = {"导入到签名管理", "查看签名信息", "HEX 查看", "属性"};
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(f.getName())
                 .setItems(ops, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int which) {
@@ -907,7 +908,7 @@ public class MainActivity extends BaseActivity {
         final EditText et = new EditText(this);
         et.setHint("keystore 密码");
         et.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("查看签名信息")
                 .setMessage(f.getName() + "\n\n请输入 keystore 密码（私钥密码不同时留空即可）")
                 .setView(et)
@@ -959,7 +960,7 @@ public class MainActivity extends BaseActivity {
                         tv.setTextSize(13);
                         tv.setTextColor(ThemeManager.text(MainActivity.this));
                         sv.addView(tv);
-                        new AlertDialog.Builder(MainActivity.this)
+                        new HfDialogBuilder(MainActivity.this)
                                 .setTitle("签名信息")
                                 .setView(sv)
                                 .setPositiveButton("导入到签名管理",
@@ -1012,7 +1013,7 @@ public class MainActivity extends BaseActivity {
     /** 点击 .dex → 操作菜单（Dex 编辑器++ / 反编译 / HEX / 属性） */
     private void askDexAction(final File f) {
         String[] ops = {"Dex 编辑器++", "反编译为 smali", "HEX 查看", "属性"};
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(f.getName())
                 .setItems(ops, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int which) {
@@ -1093,7 +1094,7 @@ public class MainActivity extends BaseActivity {
      * （包括 7-Zip native 引擎，MT 管理器同样只读）。提供「转存为同名 ZIP」绕行。
      */
     private void askRarToZip(final File rar) {
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("RAR 为只读格式")
                 .setMessage("RAR 是专有压缩格式，任何通用库都无法写入（MT 亦只读）。\n\n"
                         + "可立即转存为同名 ZIP（内容不变），之后即可像文件夹一样增删改。\n"
@@ -1268,7 +1269,7 @@ public class MainActivity extends BaseActivity {
                 return true;
             }
         });
-        AlertDialog dlg = new AlertDialog.Builder(this)
+        AlertDialog dlg = new HfDialogBuilder(this)
                 .setTitle(wrong ? "密码错误" : "输入密码")
                 .setMessage(wrong
                         ? f.getName() + " 密码不正确，请重新输入"
@@ -1390,7 +1391,7 @@ public class MainActivity extends BaseActivity {
         ops.add("提取到当前窗格目录");
         ops.add("提取到对面窗格");
         if (canToArch) ops.add("写入对面压缩包");
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(it.archShort)
                 .setItems(ops.toArray(new String[0]),
                         new android.content.DialogInterface.OnClickListener() {
@@ -1407,7 +1408,7 @@ public class MainActivity extends BaseActivity {
 
     /** APK 内点击 AndroidManifest.xml：改属性走 Manifest 编辑器++，文本编辑走往返编译 */
     private void askArchManifestAction(final Panel p, final FileItem it) {
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(it.archShort)
                 .setItems(new String[] {
                         "Manifest 编辑器++（可视化改属性）",
@@ -1648,7 +1649,7 @@ public class MainActivity extends BaseActivity {
         if (isApk) ops.add("Dex 修复");
         ops.add("HEX 查看");
         ops.add("提取到当前窗格");
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(it.archShort)
                 .setItems(ops.toArray(new String[0]),
                         new android.content.DialogInterface.OnClickListener() {
@@ -1681,7 +1682,7 @@ public class MainActivity extends BaseActivity {
 
     /** v1.65.0：压缩包内点击 .arsc → 弹选择框（用哪个编辑器打开），不直接进入修改 */
     private void openArchArsc(final Panel p, final FileItem it) {
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(it.archShort)
                 .setItems(new String[] {
                         "ARSC 编辑（传统资源表编辑器）",
@@ -1773,7 +1774,7 @@ public class MainActivity extends BaseActivity {
         tv.setTextIsSelectable(true);
         float den = getResources().getDisplayMetrics().density;
         tv.setPadding((int) (24 * den), (int) (16 * den), (int) (24 * den), (int) (8 * den));
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(title)
                 .setView(tv)
                 .setPositiveButton("确定", null)
@@ -1782,7 +1783,7 @@ public class MainActivity extends BaseActivity {
 
     /** Dex 修复（v1.66.5，独立 dex）：确认 → 备份 → 修头部校验 → dexlib2 验证 */
     private void askDexFix(final File dex) {
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("Dex 修复")
                 .setMessage("将修正 file_size / header_size / endian_tag，重算 SHA-1 签名与 "
                         + "Adler-32 校验和，并用 dexlib2 实际解析验证。\n"
@@ -1850,7 +1851,7 @@ public class MainActivity extends BaseActivity {
     /** 压缩包内 dex 修复（v1.66.5，仅 APK 归档）：提取 → 修复 → 会话写回原包 */
     private void askArchDexFix(final Panel p, final FileItem it) {
         final File apk = p.archiveFile;
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("Dex 修复")
                 .setMessage("对 " + it.archShort + " 修正 file_size / header_size / endian_tag，"
                         + "重算 SHA-1 签名与 Adler-32 校验和，并用 dexlib2 实际解析验证。\n"
@@ -2039,7 +2040,7 @@ public class MainActivity extends BaseActivity {
             final EditText et = new EditText(this);
             et.setText(it.archShort);
             et.setInputType(InputType.TYPE_CLASS_TEXT);
-            new AlertDialog.Builder(this)
+            new HfDialogBuilder(this)
                     .setTitle((move ? "移动" : "复制") + "到压缩包: " + dst.archiveFile.getName())
                     .setMessage("目标条目名（含后缀；目录将作为前缀，可写 a/b 加入子目录）")
                     .setView(et)
@@ -2148,7 +2149,7 @@ public class MainActivity extends BaseActivity {
     private void archDelete(final Panel p, final List<FileItem> items) {
         final List<String> names = new ArrayList<String>();
         for (FileItem it : items) names.add(it.archPath());
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("删除确认")
                 .setMessage("从压缩包永久删除 " + names.size() + " 项（不可恢复）？")
                 .setPositiveButton("删除", new android.content.DialogInterface.OnClickListener() {
@@ -2323,7 +2324,7 @@ public class MainActivity extends BaseActivity {
         wm.setHint("如：© HexFile");
         box.addView(wm);
 
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("图片处理（" + paths.size() + " 张）")
                 .setView(box)
                 .setPositiveButton("开始处理", new android.content.DialogInterface.OnClickListener() {
@@ -2447,7 +2448,7 @@ public class MainActivity extends BaseActivity {
             }
         });
 
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("文件校验 · " + f.getName() + "（点击哈希值可复制）")
                 .setView(box)
                 .setPositiveButton("关闭", null)
@@ -2594,7 +2595,7 @@ public class MainActivity extends BaseActivity {
                                   : (e.keyCount > 0 ? "（" + e.keyCount + " 个私钥别名）" : "")));
         items.add("从文件选择（一次性）…");
         items.add("管理签名…（导入 / 查看证书信息 / 删除）");
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("自定义密钥签名 — " + apk.getName())
                 .setItems(items.toArray(new String[0]), new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
@@ -2690,7 +2691,7 @@ public class MainActivity extends BaseActivity {
                         pd.dismiss();
                         if (ferr != null) { toast("打包失败: " + ferr); return; }
                         refreshAll();
-                        new AlertDialog.Builder(MainActivity.this)
+                        new HfDialogBuilder(MainActivity.this)
                                 .setTitle("打包完成")
                                 .setMessage(fout.getName()
                                         + "（未签名）\n\n选择签名方式：")
@@ -2807,7 +2808,7 @@ public class MainActivity extends BaseActivity {
         final EditText et = new EditText(this);
         et.setText(src.getName());
         et.setInputType(InputType.TYPE_CLASS_TEXT);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle((move ? "移动" : "复制") + "到压缩包: "
                         + archPane.archiveFile.getName())
                 .setMessage(src.isDirectory()
@@ -2898,7 +2899,7 @@ public class MainActivity extends BaseActivity {
             }
         });
 
-        final AlertDialog dlg = new AlertDialog.Builder(this)
+        final AlertDialog dlg = new HfDialogBuilder(this)
                 .setView(view)
                 .create();
         view.findViewById(R.id.apk_act_features).setOnClickListener(new View.OnClickListener() {
@@ -2986,7 +2987,7 @@ public class MainActivity extends BaseActivity {
                                 copyToClipboard(rows.get(i)[0], rows.get(i)[1]);
                             }
                         });
-                        new AlertDialog.Builder(MainActivity.this)
+                        new HfDialogBuilder(MainActivity.this)
                                 .setTitle("签名详情: " + f.getName())
                                 .setView(lv)
                                 .setPositiveButton("关闭", null)
@@ -3054,7 +3055,7 @@ public class MainActivity extends BaseActivity {
                     public void onClick(View v) { showOwnerEditor(f); }
                 });
 
-        final AlertDialog dlg = new AlertDialog.Builder(this)
+        final AlertDialog dlg = new HfDialogBuilder(this)
                 .setTitle("属性")
                 .setView(root)
                 .setNeutralButton("更多", new android.content.DialogInterface.OnClickListener() {
@@ -3092,7 +3093,7 @@ public class MainActivity extends BaseActivity {
     /** 属性「更多」：常用操作入口 */
     private void showPropsMore(final File f) {
         String[] ops = {"重命名", "删除", "复制路径"};
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(f.getName())
                 .setItems(ops, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface di, int w) {
@@ -3141,10 +3142,8 @@ public class MainActivity extends BaseActivity {
         if (btnText != null) {
             Button b = new Button(this);
             b.setText(btnText);
-            b.setTextSize(12);
-            b.setMinHeight(0);
-            b.setMinWidth(0);
-            b.setPadding((int) (14 * d), (int) (2 * d), (int) (14 * d), (int) (2 * d));
+            // v1.76.0：属性弹窗里行内按钮改为小胶囊（原来是系统方角块）
+            UiDecor.barButton(b, this, UiDecor.KIND_SOFT, 11.5f);
             b.setOnClickListener(btnClick);
             row.addView(b, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -3231,7 +3230,7 @@ public class MainActivity extends BaseActivity {
         }
         oct.setText("八进制: " + Integer.toOctalString(o));   // 初值（v1.43.0 八进制修复）
 
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("更改权限 — " + f.getName())
                 .setView(root)
                 .setPositiveButton("确定", new android.content.DialogInterface.OnClickListener() {
@@ -3296,7 +3295,7 @@ public class MainActivity extends BaseActivity {
         glp.topMargin = (int) (6 * d);
         root.addView(etGroup, glp);
 
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("更改所有者 — " + f.getName())
                 .setView(root)
                 .setPositiveButton("确定", new android.content.DialogInterface.OnClickListener() {
@@ -3373,9 +3372,7 @@ public class MainActivity extends BaseActivity {
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         Button pasteBtn = new Button(this);
         pasteBtn.setText("粘贴");
-        pasteBtn.setTextSize(12);
-        pasteBtn.setMinHeight(0);
-        pasteBtn.setMinWidth(0);
+        UiDecor.barButton(pasteBtn, this, UiDecor.KIND_SOFT, 12f);
         pasteRow.addView(pasteBtn, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
@@ -3399,9 +3396,7 @@ public class MainActivity extends BaseActivity {
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         Button closeBtn = new Button(this);
         closeBtn.setText("关闭");
-        closeBtn.setTextSize(13);
-        closeBtn.setMinHeight(0);
-        closeBtn.setMinWidth(0);
+        UiDecor.barButton(closeBtn, this, UiDecor.KIND_SOFT, 12.5f);
         bottom.addView(closeBtn, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
@@ -3412,7 +3407,7 @@ public class MainActivity extends BaseActivity {
 
         final java.util.Map<String, String> hashCache =
                 new java.util.HashMap<String, String>();
-        final AlertDialog dlg = new AlertDialog.Builder(this)
+        final AlertDialog dlg = new HfDialogBuilder(this)
                 .setTitle("校验")
                 .setView(root)
                 .show();
@@ -3634,7 +3629,7 @@ public class MainActivity extends BaseActivity {
             }
             grid.addView(row);
         }
-        holder[0] = new AlertDialog.Builder(this)
+        holder[0] = new HfDialogBuilder(this)
                 .setTitle(title)
                 .setView(grid)
                 .show();
@@ -3811,7 +3806,7 @@ public class MainActivity extends BaseActivity {
         et.setText((oldPkg == null ? "com.example.app" : oldPkg) + ".clone1");
         et.setInputType(InputType.TYPE_CLASS_TEXT);
         et.setSingleLine(true);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("APK 共存")
                 .setMessage("原包名: " + (oldPkg == null ? "(读取失败，请手动输入)" : oldPkg)
                         + "\n\n输入新包名（provider authorities 等引用将同步替换，"
@@ -3873,12 +3868,12 @@ public class MainActivity extends BaseActivity {
                     public void run() {
                         pd.dismiss();
                         if (e != null) {
-                            new AlertDialog.Builder(MainActivity.this)
+                            new HfDialogBuilder(MainActivity.this)
                                     .setTitle("共存失败").setMessage(e)
                                     .setPositiveButton("知道了", null).show();
                         } else {
                             refreshAll();
-                            new AlertDialog.Builder(MainActivity.this)
+                            new HfDialogBuilder(MainActivity.this)
                                     .setTitle("共存 APK 已生成")
                                     .setMessage(ok)
                                     .setPositiveButton("关闭", null)
@@ -3990,12 +3985,12 @@ public class MainActivity extends BaseActivity {
                     public void run() {
                         pd.dismiss();
                         if (e != null) {
-                            new AlertDialog.Builder(MainActivity.this)
+                            new HfDialogBuilder(MainActivity.this)
                                     .setTitle("去除签名校验").setMessage(e)
                                     .setPositiveButton("知道了", null).show();
                         } else {
                             refreshAll();
-                            new AlertDialog.Builder(MainActivity.this)
+                            new HfDialogBuilder(MainActivity.this)
                                     .setTitle("已生成 <名>_nosig.apk")
                                     .setMessage(ok)
                                     .setPositiveButton("关闭", null)
@@ -4040,7 +4035,7 @@ public class MainActivity extends BaseActivity {
             });
             box.addView(tv);
         }
-        holder[0] = new AlertDialog.Builder(this)
+        holder[0] = new HfDialogBuilder(this)
                 .setTitle("文件分割")
                 .setView(box)
                 .show();
@@ -4072,7 +4067,7 @@ public class MainActivity extends BaseActivity {
                             toast("分割失败: " + e);
                         } else {
                             refreshAll();
-                            new AlertDialog.Builder(MainActivity.this)
+                            new HfDialogBuilder(MainActivity.this)
                                     .setTitle("分割完成")
                                     .setMessage(ok)
                                     .setPositiveButton("关闭", null)
@@ -4106,12 +4101,12 @@ public class MainActivity extends BaseActivity {
                     public void run() {
                         pd.dismiss();
                         if (e != null) {
-                            new AlertDialog.Builder(MainActivity.this)
+                            new HfDialogBuilder(MainActivity.this)
                                     .setTitle("合并失败").setMessage(e)
                                     .setPositiveButton("知道了", null).show();
                         } else {
                             refreshAll();
-                            new AlertDialog.Builder(MainActivity.this)
+                            new HfDialogBuilder(MainActivity.this)
                                     .setTitle("合并完成")
                                     .setMessage(ok)
                                     .setPositiveButton("关闭", null)
@@ -4258,13 +4253,14 @@ public class MainActivity extends BaseActivity {
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
         Button bBrowse = new Button(this);
         bBrowse.setText("浏览…");
-        bBrowse.setTextSize(12);
+        UiDecor.barButton(bBrowse, this, UiDecor.KIND_SOFT, 12f);
         bBrowse.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { pickComparePath(f, startDir, et); }
         });
         Button bOther = new Button(this);
         bOther.setText("对面窗格");
-        bOther.setTextSize(12);
+        UiDecor.barButton(bOther, this, UiDecor.KIND_SOFT, 12f);
+        UiDecor.gap(bOther, this, 4f);
         bOther.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { et.setText(startDir); }
         });
@@ -4276,7 +4272,7 @@ public class MainActivity extends BaseActivity {
         cbHash.setTextSize(13);
         cbHash.setPadding(0, (int) (8 * getResources().getDisplayMetrics().density), 0, 0);
         box.addView(cbHash);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle((apkMode ? "APK 对比" : "对比") + "：另一个"
                         + (f.isDirectory() ? "目录" : "文件"))
                 .setMessage("A: " + f.getAbsolutePath()
@@ -4352,7 +4348,7 @@ public class MainActivity extends BaseActivity {
         wrap.setOrientation(android.widget.LinearLayout.VERTICAL);
         wrap.addView(lv, new android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
-        holder[0] = new AlertDialog.Builder(this)
+        holder[0] = new HfDialogBuilder(this)
                 .setTitle("选择对比目标")
                 .setView(wrap)
                 .setPositiveButton("选此目录", new android.content.DialogInterface.OnClickListener() {
@@ -4420,7 +4416,7 @@ public class MainActivity extends BaseActivity {
                             toast("已编译 → " + out.getPath());
                             refreshAll();
                         } else {
-                            new AlertDialog.Builder(MainActivity.this)
+                            new HfDialogBuilder(MainActivity.this)
                                     .setTitle("编译失败")
                                     .setMessage(err + "\n\n提示：可打开输出侧 .smali 排查语法错误")
                                     .setPositiveButton("关闭", null)
@@ -4544,7 +4540,7 @@ public class MainActivity extends BaseActivity {
     private void askRename(final File f) {
         final EditText et = new EditText(this);
         et.setText(f.getName());
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("重命名")
                 .setView(et)
                 .setPositiveButton("确定", new android.content.DialogInterface.OnClickListener() {
@@ -4586,7 +4582,7 @@ public class MainActivity extends BaseActivity {
         stv.setPadding(0, (int) (10 * den), 0, (int) (4 * den));
         stv.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                new AlertDialog.Builder(MainActivity.this)
+                new HfDialogBuilder(MainActivity.this)
                         .setTitle("选择加密方式")
                         .setSingleChoiceItems(modes, sel[0],
                                 new android.content.DialogInterface.OnClickListener() {
@@ -4600,7 +4596,7 @@ public class MainActivity extends BaseActivity {
             }
         });
         root.addView(stv);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("压缩为 ZIP")
                 .setMessage("将 " + f.getName() + " 打包为:\n" + out.getPath())
                 .setView(root)
@@ -4639,7 +4635,7 @@ public class MainActivity extends BaseActivity {
         pw2.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         root.addView(pw);
         root.addView(pw2);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("加密文件")
                 .setMessage("将 " + f.getName() + " 加密为 " + f.getName() + ".enc\n（AES-256-CBC + HMAC-SHA256 认证，仅本工具可解密）")
                 .setView(root)
@@ -4724,7 +4720,7 @@ public class MainActivity extends BaseActivity {
         final EditText pw = new EditText(this);
         pw.setHint("输入解密密码");
         pw.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("解密文件")
                 .setMessage("解密 " + f.getName())
                 .setView(pw)
@@ -4740,7 +4736,7 @@ public class MainActivity extends BaseActivity {
     }
 
     private void confirmDelete(final File f) {
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("删除确认")
                 .setMessage("将 " + f.getName() + " 移入回收站（可恢复）？")
                 .setPositiveButton("移入回收站", new android.content.DialogInterface.OnClickListener() {
@@ -4833,6 +4829,7 @@ public class MainActivity extends BaseActivity {
     }
 
     private void setupSelectionBar() {
+        styleSelectionBar();
         findViewById(R.id.btn_sel_all).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 if (selPanel == null) return;
@@ -4859,6 +4856,43 @@ public class MainActivity extends BaseActivity {
         findViewById(R.id.btn_sel_done).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { if (selPanel != null) exitSelection(selPanel); }
         });
+    }
+
+    /**
+     * v1.76.0：多选栏外观。
+     *
+     * <p>原来 7 个系统 Button 是「灰底方角 + 各自为政」，挤在一条 4dp 内边距的横条里，
+     * 既看不出主次也不知道能点。改为：整条包成一块圆角工具条，按钮全部做成小胶囊，
+     * 用语义上色——完成=实心强调色（主操作）、删除=红、其余=描边。</p>
+     *
+     * <p>7 个按钮同权重平分宽度，所以字号压到 11sp、左右内边距 4dp，
+     * 否则「重命名」在 360dp 屏上会被截断。</p>
+     */
+    private void styleSelectionBar() {
+        View bar = findViewById(R.id.selection_bar);
+        bar.setBackground(UiDecor.barBg(this));
+        ViewGroup.LayoutParams lp = bar.getLayoutParams();
+        if (lp instanceof LinearLayout.LayoutParams) {
+            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) lp;
+            int m = UiDecor.dp(this, 6);
+            p.leftMargin = m;
+            p.rightMargin = m;
+            p.topMargin = UiDecor.dp(this, 2);
+            p.bottomMargin = m;
+            bar.setLayoutParams(p);
+        }
+        int[] soft = {R.id.btn_sel_all, R.id.btn_sel_copy, R.id.btn_sel_move,
+                R.id.btn_sel_rename, R.id.btn_sel_img};
+        for (int id : soft) {
+            UiDecor.barButton((TextView) findViewById(id), this, UiDecor.KIND_SOFT, 11f);
+        }
+        UiDecor.barButton((TextView) findViewById(R.id.btn_sel_del), this, UiDecor.KIND_DANGER, 11f);
+        UiDecor.barButton((TextView) findViewById(R.id.btn_sel_done), this, UiDecor.KIND_PRIMARY, 11f);
+        int[] spaced = {R.id.btn_sel_copy, R.id.btn_sel_move, R.id.btn_sel_del,
+                R.id.btn_sel_rename, R.id.btn_sel_img, R.id.btn_sel_done};
+        for (int id : spaced) {
+            UiDecor.gap((TextView) findViewById(id), this, 2f);
+        }
     }
 
     /** 批量重命名入口（v1.30.0）：仅支持普通文件，压缩包内条目暂不支持 */
@@ -4984,7 +5018,7 @@ public class MainActivity extends BaseActivity {
             return;
         }
         final Panel p = selPanel;
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("批量删除")
                 .setMessage("将 " + realFiles.size() + " 项移入回收站（可恢复）？")
                 .setPositiveButton("删除", new android.content.DialogInterface.OnClickListener() {
@@ -5010,7 +5044,7 @@ public class MainActivity extends BaseActivity {
         for (int i = 0; i < marks.size(); i++) items[i] = marks.get(i);
         items[marks.size()] = "+ 添加当前目录: " + cur;
         items[marks.size() + 1] = "- 删除书签";
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("书签")
                 .setItems(items, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int which) {
@@ -5031,7 +5065,7 @@ public class MainActivity extends BaseActivity {
 
     private void showBookmarkRemove(final BookmarkStore store, final List<String> marks) {
         if (marks.isEmpty()) { toast("暂无书签"); return; }
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("点击删除书签")
                 .setItems(marks.toArray(new String[marks.size()]),
                         new android.content.DialogInterface.OnClickListener() {
@@ -5056,7 +5090,7 @@ public class MainActivity extends BaseActivity {
             opts[i] = it.name() + "\n" + FileOps.formatTime(it.time) + "  ·  " + it.path;
         }
         opts[items.size()] = "- 清空记录";
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("最近打开")
                 .setItems(opts, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
@@ -5122,7 +5156,7 @@ public class MainActivity extends BaseActivity {
         pass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
                 | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
         pass.setHint("keystore 密码");
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("自定义密钥签名")
                 .setMessage("keystore: " + (keystoreUri.getLastPathSegment() != null
                         ? keystoreUri.getLastPathSegment() : "已选择")
@@ -5239,7 +5273,7 @@ public class MainActivity extends BaseActivity {
         if (p.archiveFile != null) { toast("压缩包浏览中不可新建，请先退出压缩包"); return; }
         final EditText et = new EditText(this);
         et.setInputType(InputType.TYPE_CLASS_TEXT);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("新建文件夹 @ " + p.dir.getName())
                 .setView(et)
                 .setPositiveButton("创建", new android.content.DialogInterface.OnClickListener() {

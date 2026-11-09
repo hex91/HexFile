@@ -225,7 +225,7 @@ public final class NetStorageActivity extends BaseActivity {
 
     private void serverMenu(final org.json.JSONObject s) {
         final int idx = mServers.indexOf(s);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(serverLabel(s))
                 .setItems(new String[]{"连接", "编辑", "删除"}, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int which) {
@@ -291,7 +291,7 @@ public final class NetStorageActivity extends BaseActivity {
             pass.setText(editing.optString("pass"));
         }
 
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(editing == null ? "添加服务器" : "编辑服务器")
                 .setView(wrapScroll(box))
                 .setPositiveButton("保存", new android.content.DialogInterface.OnClickListener() {
@@ -469,7 +469,7 @@ public final class NetStorageActivity extends BaseActivity {
         ops.add("下载到本地");
         ops.add("重命名");
         ops.add("删除");
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle((e.dir ? "📁 " : "📄 ") + e.name
                         + (e.dir ? "" : " · " + FileOps.formatSize(e.size)))
                 .setItems(ops.toArray(new String[0]), new android.content.DialogInterface.OnClickListener() {
@@ -654,7 +654,7 @@ public final class NetStorageActivity extends BaseActivity {
 
     private void doMkdir() {
         final EditText e = inputDialog("新建目录", "目录名", "");
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("新建目录")
                 .setView(wrapScroll(inputBox(e)))
                 .setPositiveButton("创建", new android.content.DialogInterface.OnClickListener() {
@@ -708,7 +708,7 @@ public final class NetStorageActivity extends BaseActivity {
         e.setText(en.name);
         e.setTextSize(14);
         LinearLayout box = inputBox(e);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("重命名")
                 .setView(wrapScroll(box))
                 .setPositiveButton("确定", new android.content.DialogInterface.OnClickListener() {
@@ -740,7 +740,7 @@ public final class NetStorageActivity extends BaseActivity {
     }
 
     private void doDelete(final NetFs.NetEntry en, final String path) {
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("删除 " + en.name)
                 .setMessage(en.dir ? "目录及其全部内容将被删除，且不可恢复。" : "文件将被删除，且不可恢复。")
                 .setPositiveButton("删除", new android.content.DialogInterface.OnClickListener() {
@@ -817,7 +817,7 @@ public final class NetStorageActivity extends BaseActivity {
     }
 
     private void errorDialog(String title, String msg) {
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(title)
                 .setMessage(msg)
                 .setPositiveButton("知道了", null)

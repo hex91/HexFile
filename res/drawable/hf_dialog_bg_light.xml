@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  v1.76.0：弹窗面板（亮色）。
+  结构与系统 @android:drawable/dialog_background_material 一致：
+  16dp 透明 inset（留给投影） + 圆角矩形。只改圆角（4dp → 18dp）与底色，
+  所以内容区的文字/按钮位置不受影响。
+-->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:inset="16dp">
+    <shape android:shape="rectangle">
+        <corners android:radius="18dp" />
+        <solid android:color="#FFFFFF" />
+        <stroke android:width="1dp" android:color="#14000000" />
+    </shape>
+</inset>

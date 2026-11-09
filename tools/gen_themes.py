@@ -97,7 +97,7 @@ DARK = dict(bg="121212", surface="1E1E1E", surface_alt="2A2A2A",
             status="121212", nav="121212")
 
 
-def base_block(name, parent, p, comment):
+def base_block(name, parent, p, comment, dark=False):
     """输出一个基座 style：定义全部语义色 attr"""
     o = []
     o.append('')
@@ -125,6 +125,8 @@ def base_block(name, parent, p, comment):
     o.append('        <item name="android:statusBarColor">#%s</item>' % p['status'])
     o.append('        <item name="android:navigationBarColor">#%s</item>' % p['nav'])
     o.append('        <item name="android:colorAccent">#%s</item>' % p['accent'])
+    o.append('        <item name="android:alertDialogTheme">@style/HfDialog_%s</item>'
+             % ('Dark' if dark else 'Light'))
     o.append('    </style>')
     return o
 
@@ -166,7 +168,49 @@ def scheme_block(idx, name, c, dark):
     o.append('        <item name="android:statusBarColor">#%s</item>' % status)
     o.append('        <item name="android:navigationBarColor">#%s</item>' % nav)
     o.append('        <item name="android:colorAccent">#%s</item>' % accent)
+    o.append('        <item name="android:alertDialogTheme">@style/HfDialog_%s%d</item>'
+             % ('Dark_' if dark else '', idx))
     o.append('    </style>')
+    return o
+
+
+def dialog_styles():
+    """输出弹窗主题（v1.76.0）。
+
+    AlertDialog / ProgressDialog 都会读主题里的 android:alertDialogTheme。
+    系统默认是「4dp 圆角 + colorBackground + 系统强调色」，这里换成
+    「18dp 圆角 + 主题表面色 + 色板强调色」，于是所有弹窗（含没改过代码的
+    ProgressDialog）自动跟随主题，不用逐个改调用点。
+    """
+    o = []
+    o.append('')
+    o.append('    <!-- ============ 弹窗主题（v1.76.0）============ -->')
+    o.append('    <!-- 只改 windowBackground（面板底色与圆角）和强调色；')
+    o.append('         布局内边距由 AlertDialogLayout 自己控制，不要在这里加 padding。 -->')
+    for dark in (False, True):
+        p = DARK if dark else LIGHT
+        o.append('    <style name="HfDialog_%s" parent="%s">' % (
+            'Dark' if dark else 'Light',
+            '@android:style/Theme.Material.Dialog.Alert' if dark
+            else '@android:style/Theme.Material.Light.Dialog.Alert'))
+        o.append('        <item name="android:windowBackground">@drawable/hf_dialog_bg_%s</item>'
+                 % ('dark' if dark else 'light'))
+        o.append('        <item name="android:colorBackgroundFloating">#%s</item>' % p['surface'])
+        o.append('        <item name="android:textColorPrimary">#%s</item>' % p['text'])
+        o.append('        <item name="android:textColorSecondary">#%s</item>' % p['text_sub'])
+        o.append('        <item name="android:colorAccent">#%s</item>' % p['accent'])
+        o.append('        <item name="android:colorControlActivated">#%s</item>' % p['accent'])
+        o.append('        <item name="android:colorControlHighlight">#33%s</item>' % p['accent'])
+        o.append('    </style>')
+    # 每套色板只覆盖强调色（面板底色由明/暗决定，与色板无关）
+    for idx, (name, c) in enumerate(SCHEMES):
+        for dark in (False, True):
+            o.append('    <style name="HfDialog_%s%d" parent="HfDialog_%s">' % (
+                'Dark_' if dark else '', idx, 'Dark' if dark else 'Light'))
+            o.append('        <item name="android:colorAccent">#%s</item>' % c)
+            o.append('        <item name="android:colorControlActivated">#%s</item>' % c)
+            o.append('        <item name="android:colorControlHighlight">#33%s</item>' % c)
+            o.append('    </style>')
     return o
 
 
@@ -178,15 +222,17 @@ def build():
     out.append('  v1.48.0 主题系统：22 套 MT 色板 × 明/暗 = 44 个色板 style + 2 个基座 style。')
     out.append('  基座（Theme_Hex_Light / Theme_Hex_Dark）定义全部语义色 attr，')
     out.append('  色板 style 仅覆盖随主题变化的部分（顶栏/强调色/选中态/状态栏）。')
+    out.append('  v1.76.0：追加 HfDialog_* 弹窗主题，供 android:alertDialogTheme 引用。')
     out.append('-->')
     out.append('<resources>')
     out += base_block("Theme_Hex_Light", "@android:style/Theme.Material.Light.NoActionBar",
-                      LIGHT, "模式基座：亮色")
+                      LIGHT, "模式基座：亮色", dark=False)
     out += base_block("Theme_Hex_Dark", "@android:style/Theme.Material.NoActionBar",
-                      DARK, "模式基座：暗色")
+                      DARK, "模式基座：暗色", dark=True)
     for idx, (name, c) in enumerate(SCHEMES):
         out += scheme_block(idx, name, c, False)
         out += scheme_block(idx, name, c, True)
+    out += dialog_styles()
     out.append('')
     out.append('</resources>')
     return "\n".join(out) + "\n"

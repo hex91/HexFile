@@ -129,7 +129,7 @@ public class ManifestEditorActivity extends BaseActivity {
             ui.post(new Runnable() { public void run() {
                 pd.dismiss();
                 if (e != null) {
-                    new AlertDialog.Builder(ManifestEditorActivity.this)
+                    new HfDialogBuilder(ManifestEditorActivity.this)
                             .setTitle("加载失败").setMessage(e)
                             .setPositiveButton("关闭", new DialogInterface.OnClickListener() {
                                 public void onClick(DialogInterface d, int w) { finish(); }
@@ -289,7 +289,7 @@ public class ManifestEditorActivity extends BaseActivity {
         hint.setTextColor(ThemeManager.textSub(this));
         box.addView(hint);
 
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle(axml.attrDisplayName(a))
                 .setView(box)
                 .setPositiveButton("确定", new DialogInterface.OnClickListener() {
@@ -337,13 +337,14 @@ public class ManifestEditorActivity extends BaseActivity {
         TextView tv = new TextView(this);
         tv.setTypeface(android.graphics.Typeface.MONOSPACE);
         tv.setTextSize(12);
-        tv.setTextColor(0xFF37474F);
+        // v1.76.0：原来写死深灰，暗色主题下预览文字几乎看不见
+        tv.setTextColor(ThemeManager.text(this));
         // v1.67.4：预览要包含尚未保存的修改
         tv.setText(axml.prettyXml(edits));
         tv.setPadding((int) (12 * den), (int) (12 * den), (int) (12 * den), (int) (12 * den));
         ScrollView sc = new ScrollView(this);
         sc.addView(tv);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("AndroidManifest.xml（只读预览）")
                 .setView(sc)
                 .setPositiveButton("关闭", null)
@@ -358,7 +359,7 @@ public class ManifestEditorActivity extends BaseActivity {
         LinearLayout box = makeSavePrompt(false);
         final CheckBox autoSign = ApkSignHelper.addAutoSignCheckBox(this, box,
                 "保存后自动签名（长按设置密钥 / 签名方案）", true);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("保存修改")
                 .setView(box)
                 .setPositiveButton("保存", new DialogInterface.OnClickListener() {
@@ -377,7 +378,7 @@ public class ManifestEditorActivity extends BaseActivity {
         LinearLayout box = makeSavePrompt(true);
         final CheckBox autoSign = ApkSignHelper.addAutoSignCheckBox(this, box,
                 "保存后自动签名（长按设置密钥 / 签名方案）", true);
-        new AlertDialog.Builder(this)
+        new HfDialogBuilder(this)
                 .setTitle("数据已修改")
                 .setView(box)
                 .setPositiveButton("保存", new DialogInterface.OnClickListener() {
@@ -469,7 +470,7 @@ public class ManifestEditorActivity extends BaseActivity {
                 pd.setProgress(100);
                 pd.dismiss();
                 if (e != null) {
-                    new AlertDialog.Builder(ManifestEditorActivity.this)
+                    new HfDialogBuilder(ManifestEditorActivity.this)
                             .setTitle("保存失败").setMessage(e)
                             .setPositiveButton("知道了", null).show();
                 } else {
@@ -514,7 +515,7 @@ public class ManifestEditorActivity extends BaseActivity {
         TextView tv = new TextView(this);
         tv.setText(s);
         tv.setTextSize(12);
-        tv.setTextColor(0xFF9E9E9E);
+        tv.setTextColor(ThemeManager.textSub(this));
         return tv;
     }
 
