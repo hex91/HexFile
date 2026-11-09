@@ -43,7 +43,6 @@ public class StorageAnalysisActivity extends BaseActivity {
     private TextView summary;
     private TextView backBtn;
     private ScrollView sv;
-    private int scrollY = 0;
 
     /** 扫描线程与 UI 线程共享：取消标志 */
     private volatile boolean cancelScan;
@@ -52,6 +51,17 @@ public class StorageAnalysisActivity extends BaseActivity {
     private volatile boolean scanning;
     /** 当前进度对话框，UI 线程写、扫描线程读 */
     private volatile ProgressDialog pd;
+
+    // ---------- 目录结果缓存（v1.73.2） ----------
+    // 下钻再返回时，上一次的统计结果直接复用，不再重扫整棵子树。
+    // 大目录（相册、微信目录）动辄上千个文件，一次遍历几十到几百毫秒，
+    // 返回键反复按会让人明显感觉「卡一下又扫一遍」。
+    // 策略（LRU / TTL / 祖先失效）全在 ScanCache 里，纯 Java 可单测。
+    private final ScanCache<DiskScanUtil.Result> cache = new ScanCache<DiskScanUtil.Result>();
+
+    /** 每个目录记住离开时的滚动位置，返回上一级时回到原处而不是跳回顶部 */
+    private final java.util.HashMap<String, Integer> scrollMemo =
+            new java.util.HashMap<String, Integer>();
 
     @Override
     protected void onCreate(Bundle b) {
@@ -105,7 +115,12 @@ public class StorageAnalysisActivity extends BaseActivity {
         row1.addView(dup);
         TextView refresh = act("刷新", den);
         refresh.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { if (current != null) scan(current); }
+            public void onClick(View v) {
+                if (current == null) return;
+                // 强制重扫：先把本目录及祖先的缓存作废，否则返回上一级还会看到旧数字
+                cache.invalidate(current);
+                scan(current, true);
+            }
         });
         row1.addView(refresh);
         top.addView(row1);
@@ -145,14 +160,9 @@ public class StorageAnalysisActivity extends BaseActivity {
         scan(entryRoot);
     }
 
-    /** 规范化路径，用于判断「是否已回到入口根目录」 */
+    /** 规范化路径，用于判断「是否已回到入口根目录」；与缓存键共用同一套规范化规则 */
     private static String pathOf(File f) {
-        if (f == null) return "";
-        try {
-            return f.getCanonicalPath();
-        } catch (Throwable t) {
-            return f.getAbsolutePath();
-        }
+        return ScanCache.keyOf(f);
     }
 
     private boolean atEntryRoot() {
@@ -213,14 +223,33 @@ public class StorageAnalysisActivity extends BaseActivity {
         }
     }
 
+    private void scan(final File dir) { scan(dir, false); }
+
     /**
      * 后台扫描当前目录：真实进度（先数条目当分母，再按已处理文件推进）+ 目录占用 + 大文件 Top20。
      * scanSeq 保证连续下钻时只有最后一次结果会渲染。
+     *
+     * @param force true 时忽略缓存（「刷新」按钮、删除文件后）
      */
-    private void scan(final File dir) {
+    private void scan(final File dir, boolean force) {
         // 上一轮若还在跑，直接作废
         cancelScan = true;
         final long seq = ++scanSeq;
+
+        // 命中缓存：直接渲染，连进度对话框都不弹
+        if (!force) {
+            DiskScanUtil.Result hit = cache.get(dir);
+            if (hit != null) {
+                scanning = false;
+                ProgressDialog old = pd;
+                pd = null;
+                if (old != null) { try { old.dismiss(); } catch (Throwable ignored) {} }
+                long sec = cache.ageOf(dir) / 1000L;
+                render(dir, hit, sec <= 0 ? "缓存结果" : "缓存 · " + sec + " 秒前");
+                return;
+            }
+        }
+
         cancelScan = false;
         scanning = true;
 
@@ -286,16 +315,21 @@ public class StorageAnalysisActivity extends BaseActivity {
                                     "已取消扫描", Toast.LENGTH_SHORT).show();
                             return;
                         }
-                        render(dir, res, cost);
+                        // 写入缓存（LRU 自动淘汰最久未用的目录）
+                        cache.put(dir, res);
+                        render(dir, res, "扫描 " + cost + "ms");
                     }
                 });
             }
         }, "disk-scan").start();
     }
 
-    private void render(File dir, DiskScanUtil.Result r, long costMs) {
+    private void render(File dir, DiskScanUtil.Result r, String info) {
+        // 离开前记住当前目录的滚动位置，返回时才不会跳回顶部
+        if (current != null) {
+            scrollMemo.put(pathOf(current), sv.getScrollY());
+        }
         current = dir;
-        scrollY = sv.getScrollY();
         body.removeAllViews();
         float den = getResources().getDisplayMetrics().density;
         breadcrumb.setText(dir.getAbsolutePath());
@@ -308,8 +342,8 @@ public class StorageAnalysisActivity extends BaseActivity {
             body.addView(dirRow("⬆️ ..（上一级）", "", parent));
         }
         summary.setText("共 " + FileOps.formatSize(r.total) + " · 子目录 "
-                + r.subDirs.size() + " 个 · 文件 " + r.fileCount + " 个 · 扫描 "
-                + costMs + "ms（点击目录下钻）");
+                + r.subDirs.size() + " 个 · 文件 " + r.fileCount + " 个 · " + info
+                + "（点击目录下钻）");
 
         // 子目录占用排行（真实占比横条）
         if (!r.subDirs.isEmpty()) {
@@ -351,7 +385,9 @@ public class StorageAnalysisActivity extends BaseActivity {
             empty.setPadding(0, (int) (24 * den), 0, 0);
             body.addView(empty);
         }
-        sv.post(new Runnable() { public void run() { sv.scrollTo(0, scrollY); } });
+        Integer keep = scrollMemo.get(pathOf(dir));
+        final int target = keep == null ? 0 : keep;
+        sv.post(new Runnable() { public void run() { sv.scrollTo(0, target); } });
     }
 
     private TextView secTitle(String t) {
@@ -489,7 +525,9 @@ public class StorageAnalysisActivity extends BaseActivity {
                         if (f.delete()) {
                             Toast.makeText(StorageAnalysisActivity.this,
                                     "已删除", Toast.LENGTH_SHORT).show();
-                            scan(current);
+                            // 删了文件，本目录与所有上级的总量都变了：一并作废后重扫
+                            cache.invalidate(current);
+                            scan(current, true);
                         } else {
                             Toast.makeText(StorageAnalysisActivity.this,
                                     "删除失败（可能无权限）", Toast.LENGTH_SHORT).show();
