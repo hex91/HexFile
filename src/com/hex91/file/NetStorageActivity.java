@@ -70,6 +70,8 @@ public final class NetStorageActivity extends BaseActivity {
     private String mUploadName;
 
     private ProgressDialog mProgress;
+    /** v1.83.0：不支持加密的设备只提示一次，避免每次保存都弹 */
+    private static boolean warnedPlaintext;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -123,8 +125,33 @@ public final class NetStorageActivity extends BaseActivity {
             }
         });
 
+        CredentialVault.init(this);   // v1.83.0：密码加密（AndroidKeyStore）
         loadServers();
+        migrateCredentials();
         showServers();
+    }
+
+    /**
+     * v1.83.0：把旧版本留下的明文密码现场加密。
+     * 只在能加密时改写，避免在极少数不支持 Keystore 的设备上把配置写坏。
+     */
+    private void migrateCredentials() {
+        boolean changed = false;
+        for (org.json.JSONObject o : mServers) {
+            String p = o.optString("pass");
+            if (p == null || p.isEmpty() || CredentialVault.isEncrypted(p)) continue;
+            String enc = CredentialVault.encrypt(p);
+            if (!CredentialVault.isEncrypted(enc)) continue;
+            try {
+                o.put("pass", enc);
+                changed = true;
+            } catch (Exception ignored) {
+            }
+        }
+        if (changed) {
+            saveServers();
+            android.util.Log.i(TAG, "migrated plaintext credentials -> encrypted");
+        }
     }
 
     // =================================================================
@@ -188,7 +215,9 @@ public final class NetStorageActivity extends BaseActivity {
 
     private String serverSub(org.json.JSONObject s) {
         String u = s.optString("user");
-        return (u == null || u.isEmpty()) ? "访客登录" : "用户: " + u;
+        String p = s.optString("pass");
+        String lock = CredentialVault.isEncrypted(p) ? "  \uD83D\uDD12" : "";   // 🔒 密码已加密存储
+        return ((u == null || u.isEmpty()) ? "访客登录" : "用户: " + u) + lock;
     }
 
     private LinearLayout serverRow(final org.json.JSONObject s, String label, String sub) {
@@ -288,7 +317,8 @@ public final class NetStorageActivity extends BaseActivity {
             share.setText(editing.optString("share"));
             domain.setText(editing.optString("domain"));
             user.setText(editing.optString("user"));
-            pass.setText(editing.optString("pass"));
+            // v1.83.0：编辑框里放解密后的明文，保存时再加密（对旧明文同样适用）
+            pass.setText(CredentialVault.decrypt(editing.optString("pass")));
         }
 
         new HfDialogBuilder(this)
@@ -311,7 +341,14 @@ public final class NetStorageActivity extends BaseActivity {
                             o.put("share", share.getText().toString().trim());
                             o.put("domain", domain.getText().toString().trim());
                             o.put("user", user.getText().toString().trim());
-                            o.put("pass", pass.getText().toString());
+                            // v1.83.0：密码加密后落盘；设备不支持时退回明文并提示一次
+                            String rawPass = pass.getText().toString();
+                            o.put("pass", CredentialVault.encrypt(rawPass));
+                            if (!rawPass.isEmpty() && !CredentialVault.available()
+                                    && !warnedPlaintext) {
+                                warnedPlaintext = true;
+                                toast("当前设备无法使用系统密钥库，密码将以明文保存");
+                            }
                             if (editing == null) mServers.add(o);
                             saveServers();
                             showServers();
@@ -382,19 +419,21 @@ public final class NetStorageActivity extends BaseActivity {
                 try {
                     NetFs fs;
                     String t = s.optString("type");
+                    // v1.83.0：配置里存的是密文，连接前解密（旧明文原样返回）
+                    String pw = CredentialVault.decrypt(s.optString("pass"));
                     if (TYPE_WEBDAV.equals(t)) {
                         fs = new WebDavFs(s.optString("url").isEmpty() ? s.optString("host") : s.optString("url"),
-                                s.optString("user"), s.optString("pass"));
+                                s.optString("user"), pw);
                     } else if (TYPE_FTP.equals(t)) {
                         fs = FtpFs.connect(s.optString("host"), s.optInt("port", 21),
-                                s.optString("user"), s.optString("pass"));
+                                s.optString("user"), pw);
                     } else if (TYPE_SFTP.equals(t)) {
                         fs = SftpFs.connect(s.optString("host"), s.optInt("port", 22),
-                                s.optString("user"), s.optString("pass"));
+                                s.optString("user"), pw);
                     } else {
                         fs = SmbFs.connect(s.optString("host"), s.optInt("port", 445),
                                 s.optString("share"), s.optString("domain"),
-                                s.optString("user"), s.optString("pass"));
+                                s.optString("user"), pw);
                     }
                     // 试列根目录，尽早在 UI 上报连接错误
                     fs.list("");

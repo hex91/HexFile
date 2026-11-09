@@ -131,7 +131,19 @@ public class FileGridAdapter extends BaseAdapter {
             frame.setBackground(null);
             name.setTextColor(ThemeManager.text(ctx));
         }
-        name.setText(it.name());
+        // v1.81.0：符号链接在格子里加 → 尾巴（目标全文放列表模式看）
+        String linkSfx = it.linkSuffix();
+        if (linkSfx != null) {
+            android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(it.name());
+            int st = sb.length();
+            sb.append(it.linkBroken ? "  ⚠" : "  →");
+            sb.setSpan(new android.text.style.ForegroundColorSpan(
+                            it.linkBroken ? ThemeManager.err(ctx) : ThemeManager.textSub(ctx)),
+                    st, sb.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            name.setText(sb);
+        } else {
+            name.setText(it.name());
+        }
         return v;
     }
 

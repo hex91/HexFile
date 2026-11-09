@@ -20,6 +20,7 @@ public class TrashActivity extends BaseActivity {
     private final List<Trash.Entry> data = new ArrayList<Trash.Entry>();
     private TrashAdapter adapter;
     private TextView empty;
+    private TextView title;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -28,6 +29,7 @@ public class TrashActivity extends BaseActivity {
 
         ListView lv = (ListView) findViewById(R.id.list_trash);
         empty = (TextView) findViewById(R.id.tv_empty);
+        title = (TextView) findViewById(R.id.tv_title);
         adapter = new TrashAdapter();
         lv.setAdapter(adapter);
         lv.setOnItemClickListener(new AdapterView.OnItemClickListener() {
@@ -35,6 +37,14 @@ public class TrashActivity extends BaseActivity {
                 showEntryOps(data.get(i));
             }
         });
+
+        // v1.82.0：保留策略（天数 / 容量 / 自动清理开关）
+        android.widget.Button btnPolicy = (android.widget.Button) findViewById(R.id.btn_policy);
+        UiDecor.barButton(btnPolicy, this, UiDecor.KIND_SOFT, 11.5f);
+        btnPolicy.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { showPolicy(); }
+        });
+        UiDecor.gap(btnPolicy, this, 4f);
 
         // v1.76.0：顶栏「清空」按钮 → 危险色小胶囊
         UiDecor.barButton((android.widget.Button) findViewById(R.id.btn_clear),
@@ -63,6 +73,89 @@ public class TrashActivity extends BaseActivity {
         data.addAll(Trash.list());
         adapter.notifyDataSetChanged();
         empty.setVisibility(data.isEmpty() ? View.VISIBLE : View.GONE);
+        title.setText("回收站 · " + data.size() + " 项");
+        updateTotalSize();
+    }
+
+    /** 目录条目的占用要递归算，放后台，避免回收站里有个大文件夹时进页面卡一下 */
+    private void updateTotalSize() {
+        final List<Trash.Entry> snap = new ArrayList<Trash.Entry>(data);
+        new Thread(new Runnable() {
+            public void run() {
+                long total = 0;
+                for (Trash.Entry e : snap) total += Trash.sizeOf(e.store);
+                final String text = "回收站 · " + snap.size() + " 项 · " + FileOps.formatSize(total);
+                runOnUiThread(new Runnable() {
+                    public void run() { title.setText(text); }
+                });
+            }
+        }).start();
+    }
+
+    /** v1.82.0：保留策略设置 */
+    private void showPolicy() {
+        final TrashPolicy p = TrashPolicy.load(Trash.dir());
+
+        android.widget.LinearLayout box = new android.widget.LinearLayout(this);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        int pad = (int) (20 * getResources().getDisplayMetrics().density);
+        box.setPadding(pad, 8, pad, 0);
+
+        final android.widget.CheckBox cb = new android.widget.CheckBox(this);
+        cb.setText("启用自动清理");
+        cb.setTextSize(14);
+        cb.setChecked(p.enabled);
+        box.addView(cb);
+
+        android.widget.TextView hint = new android.widget.TextView(this);
+        hint.setText("超过保留天数或容量上限时，自动彻底删除最旧的条目。目录占用按递归计算。");
+        hint.setTextSize(11);
+        hint.setTextColor(ThemeManager.textSub(this));
+        hint.setPadding(0, 2, 0, 8);
+        box.addView(hint);
+
+        android.widget.EditText etDays = new android.widget.EditText(this);
+        etDays.setHint("保留天数（0 = 不限）");
+        etDays.setTextSize(14);
+        etDays.setSingleLine(true);
+        etDays.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        etDays.setText(String.valueOf(p.maxDays));
+        box.addView(etDays);
+
+        android.widget.EditText etMb = new android.widget.EditText(this);
+        etMb.setHint("容量上限 MB（0 = 不限）");
+        etMb.setTextSize(14);
+        etMb.setSingleLine(true);
+        etMb.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        etMb.setText(String.valueOf(p.maxBytes / (1024 * 1024)));
+        box.addView(etMb);
+
+        new HfDialogBuilder(this)
+                .setTitle("回收站保留策略")
+                .setView(box)
+                .setPositiveButton("保存并清理", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        p.enabled = cb.isChecked();
+                        p.maxDays = parseInt(etDays.getText().toString(), TrashPolicy.DEFAULT_DAYS);
+                        long mb = parseInt(etMb.getText().toString(),
+                                (int) (TrashPolicy.DEFAULT_BYTES / (1024 * 1024)));
+                        p.maxBytes = mb <= 0 ? 0 : mb * 1024L * 1024L;
+                        if (!p.save(Trash.dir())) { toast("策略保存失败"); return; }
+                        final TrashPolicy.Report rep = p.apply(Trash.dir(), System.currentTimeMillis());
+                        toast(rep.summary());
+                        reload();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private static int parseInt(String s, int def) {
+        try {
+            return Integer.parseInt(s.trim());
+        } catch (Exception e) {
+            return def;
+        }
     }
 
     private void showEntryOps(final Trash.Entry e) {

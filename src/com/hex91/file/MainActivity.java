@@ -159,6 +159,9 @@ public class MainActivity extends BaseActivity {
         // v1.67.3：后台预热签名密码的 Keystore 密钥（首次生成可能走 TEE，避免首次签名时卡 UI）
         KeyCipher.warmUp();
 
+        // v1.82.0：按回收站保留策略静默清理一次（后台线程，进程内只跑一次）
+        TrashJanitor.startOnce();
+
         headerPath = (TextView) findViewById(R.id.header_path);
         headerStats = (TextView) findViewById(R.id.header_stats);
         listLeft = (ListView) findViewById(R.id.list_left);

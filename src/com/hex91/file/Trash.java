@@ -86,8 +86,13 @@ public class Trash {
 
     /** 彻底删除单条 */
     public static boolean purge(Entry e) {
+        return purgeIn(dir(), e);
+    }
+
+    /** 彻底删除指定回收站目录下的单条（v1.82.0，供策略清理复用） */
+    public static boolean purgeIn(File trashDir, Entry e) {
         FileOps.deleteRecursive(e.store);
-        return new File(metaDir(), e.id + ".txt").delete();
+        return new File(new File(trashDir, "meta"), e.id + ".txt").delete();
     }
 
     /** 清空回收站 */
@@ -95,9 +100,25 @@ public class Trash {
         return FileOps.deleteRecursive(dir());
     }
 
+    /** 递归求大小（不跟随符号链接；失败按 0 计） */
+    public static long sizeOf(File f) {
+        if (f == null || !f.exists()) return 0;
+        if (f.isFile()) return f.length();
+        long total = 0;
+        File[] kids = f.listFiles();
+        if (kids != null) for (File k : kids) total += sizeOf(k);
+        return total;
+    }
+
     public static List<Entry> list() {
+        return listIn(dir());
+    }
+
+    /** 列出指定回收站目录下的条目（v1.82.0：纯 Java，可桌面单测） */
+    public static List<Entry> listIn(File trashDir) {
         List<Entry> out = new ArrayList<Entry>();
-        File md = metaDir();
+        File md = new File(trashDir, "meta");
+        File storeDir = new File(trashDir, "store");
         File[] metas = md.listFiles();
         if (metas == null) return out;
         for (File m : metas) {
@@ -113,7 +134,7 @@ public class Trash {
                 e.isDir = Boolean.parseBoolean(r.readLine());
                 r.close();
                 if (e.name == null || e.origPath == null) continue;
-                e.store = new File(storeDir(), e.id);
+                e.store = new File(storeDir, e.id);
                 out.add(e);
             } catch (Exception ignored) {
             }

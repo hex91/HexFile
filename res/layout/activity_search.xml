@@ -49,6 +49,36 @@
             android:textSize="13sp"/>
     </LinearLayout>
 
+    <!-- v1.81.0：内容搜索行（grep 文件内容），与名称关键词叠加生效 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingLeft="8dp"
+        android:paddingRight="8dp"
+        android:paddingBottom="6dp">
+
+        <EditText
+            android:id="@+id/et_content"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:hint="文件内容包含…（只扫文本，≤4MB）"
+            android:textSize="13sp"
+            android:background="?attr/hfSurface"
+            android:paddingLeft="8dp"
+            android:inputType="text"/>
+
+        <CheckBox
+            android:id="@+id/cb_ignore"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="忽略大小写"
+            android:textSize="12sp"
+            android:checked="true"/>
+    </LinearLayout>
+
     <!-- 高级筛选面板（默认折叠） -->
     <LinearLayout
         android:id="@+id/panel_adv"

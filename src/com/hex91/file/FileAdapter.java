@@ -86,6 +86,7 @@ public class FileAdapter extends BaseAdapter {
                 FileItem it = new FileItem(f);
                 if (rootDirNames != null && rootDirNames.contains(f.getName()))
                     it.forceDir = true;
+                fillLink(it);      // v1.81.0：符号链接标记（列表显示 → 目标，点击仍跟随）
                 items.add(it);
             }
         }
@@ -106,6 +107,23 @@ public class FileAdapter extends BaseAdapter {
         items.clear();
         items.addAll(list);
         notifyDataSetChanged();
+    }
+
+    /**
+     * v1.81.0：填充符号链接信息。
+     * <p>lstat 一次判类型（有缓存），确认是链接再 readlink。悬空链接 {@code f.exists()}
+     * 为 false，单独标记，列表显示「(失效)」。</p>
+     */
+    private static void fillLink(FileItem it) {
+        if (it.file == null || it.upEntry) return;
+        int k = LinkUtil.kind(it.file);
+        if (k == LinkUtil.NONE) return;
+        String t = LinkUtil.target(it.file);
+        it.linkTarget = t == null ? "" : t;
+        it.linkBroken = (k == LinkUtil.BROKEN);
+        // 指向目录 → 按目录处理：部分 FUSE 实现 isDirectory() 不跟随链接，
+        // 这里用 lstat 的结论兜底，保证点进去能当目录打开
+        if (k == LinkUtil.DIR) it.forceDir = true;
     }
 
     // ---------- 网格视图联动（v1.80.0）----------
@@ -252,10 +270,32 @@ public class FileAdapter extends BaseAdapter {
         if (isImg || isApk) thumb.setVisibility(View.VISIBLE);
 
         boolean sel = selectionMode && it.selected;
-        name.setText((sel ? "✓ " : "") + it.name());
+        name.setText(styledName(it, sel));
         detail.setText((sel ? "已选中 · " : "") + detailWithPerm(it));
         convert.setBackgroundColor(sel ? ThemeManager.selected(ctx) : 0x00000000);
         return convert;
+    }
+
+    /**
+     * v1.81.0：名称 + 符号链接目标。
+     * 链接后缀用小一号的次要色，悬空链接用错误色，和文件名区分开但又不抢主信息。
+     */
+    private CharSequence styledName(FileItem it, boolean sel) {
+        String suffix = it.linkSuffix();
+        if (suffix == null) return (sel ? "✓ " : "") + it.name();
+        // 超长目标截断，避免把文件名挤出屏幕（TextView 是单行尾部省略）
+        if (suffix.length() > 48) suffix = suffix.substring(0, 46) + "…";
+        android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder();
+        if (sel) sb.append("✓ ");
+        sb.append(it.name());
+        int st = sb.length();
+        sb.append(suffix);
+        int color = it.linkBroken ? ThemeManager.err(ctx) : ThemeManager.textSub(ctx);
+        sb.setSpan(new android.text.style.ForegroundColorSpan(color), st, sb.length(),
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        sb.setSpan(new android.text.style.RelativeSizeSpan(0.78f), st, sb.length(),
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return sb;
     }
 
     /**

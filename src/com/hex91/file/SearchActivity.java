@@ -60,11 +60,27 @@ public class SearchActivity extends BaseActivity {
     private ResultAdapter adapter;
     private TextView status;
     private volatile boolean searching;
+    /** 主线程回调（进度/收尾），避免每次都 new Handler */
+    private Handler ui;
 
     private EditText etKw, etSizeMin, etSizeMax, etDaysMin, etDaysMax;
+    private EditText etContent;          // v1.81.0 内容搜索
+    private android.widget.CheckBox cbIgnore;
+    private Button btnSearch;
     private Spinner spType;
     private android.widget.CheckBox cbRegex;
     private View panelAdv;
+
+    /** v1.81.0：内容命中片段（key = 绝对路径），结果列表第二行显示 */
+    private final java.util.HashMap<String, String> snippets =
+            new java.util.HashMap<String, String>();
+    /** 内容搜索可随时停止 */
+    private volatile boolean cancel;
+    private volatile int scannedFiles;
+    /** 内容搜索单文件上限 */
+    private static final long CONTENT_MAX_BYTES = 4L * 1024 * 1024;
+    /** 内容搜索最多扫多少个文件（防止误点根目录扫一天） */
+    private static final int MAX_SCAN_FILES = 50000;
 
     /** 一次搜索的过滤条件（后台线程只读） */
     private static class Filter {
@@ -73,12 +89,15 @@ public class SearchActivity extends BaseActivity {
         int type;           // 0=全部
         long sizeMin = -1, sizeMax = -1;   // 字节
         long dayMin = -1, dayMax = -1;     // 距今天数
+        String content;     // v1.81.0：文件内容包含；null = 不搜内容
+        boolean ignoreCase;
     }
 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         setContentView(R.layout.activity_search);
+        ui = new Handler(Looper.getMainLooper());
 
         etKw = (EditText) findViewById(R.id.et_keyword);
         status = (TextView) findViewById(R.id.tv_status);
@@ -87,6 +106,8 @@ public class SearchActivity extends BaseActivity {
         etSizeMax = (EditText) findViewById(R.id.et_size_max);
         etDaysMin = (EditText) findViewById(R.id.et_days_min);
         etDaysMax = (EditText) findViewById(R.id.et_days_max);
+        etContent = (EditText) findViewById(R.id.et_content);
+        cbIgnore = (android.widget.CheckBox) findViewById(R.id.cb_ignore);
         spType = (Spinner) findViewById(R.id.sp_type);
         cbRegex = (android.widget.CheckBox) findViewById(R.id.cb_regex);
         panelAdv = findViewById(R.id.panel_adv);
@@ -121,16 +142,31 @@ public class SearchActivity extends BaseActivity {
             }
         });
 
-        Button btn = (Button) findViewById(R.id.btn_search);
-        btn.setOnClickListener(new View.OnClickListener() {
+        // v1.81.0：长按结果 → 直接打开文件（内容搜索时常用：看一眼命中的文本）
+        lv.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+            public boolean onItemLongClick(AdapterView<?> av, View v, int i, long id) {
+                File f = results.get(i);
+                if (!f.isDirectory() && !OpenWith.open(SearchActivity.this, f))
+                    toast("没有可打开该文件的应用");
+                return true;
+            }
+        });
+
+        btnSearch = (Button) findViewById(R.id.btn_search);
+        btnSearch.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
+                if (searching) {          // 搜索中再点 = 停止
+                    cancel = true;
+                    btnSearch.setText("停止中…");
+                    return;
+                }
                 doSearch();
             }
         });
         // v1.76.0：筛选 / 搜索 从系统方角按钮改胶囊
         UiDecor.barButton(btnAdv, this, UiDecor.KIND_SOFT, 12.5f);
-        UiDecor.barButton(btn, this, UiDecor.KIND_PRIMARY, 12.5f);
-        UiDecor.gap(btn, this, 4f);
+        UiDecor.barButton(btnSearch, this, UiDecor.KIND_PRIMARY, 12.5f);
+        UiDecor.gap(btnSearch, this, 4f);
     }
 
     /** 读取界面条件；返回 null 表示输入非法（已提示） */
@@ -155,6 +191,11 @@ public class SearchActivity extends BaseActivity {
         f.sizeMax = parseLong(etSizeMax, -1);
         f.dayMin = parseLong(etDaysMin, -1);
         f.dayMax = parseLong(etDaysMax, -1);
+        // v1.81.0：内容关键词（超长截断，避免误粘一整段文本）
+        String c = etContent.getText().toString().trim();
+        if (c.length() > 200) c = c.substring(0, 200);
+        f.content = c.isEmpty() ? null : c;
+        f.ignoreCase = cbIgnore.isChecked();
         if (f.sizeMin >= 0) f.sizeMin *= 1024L * 1024L;
         if (f.sizeMax >= 0) f.sizeMax *= 1024L * 1024L;
         if (f.sizeMax >= 0 && f.sizeMin >= 0 && f.sizeMin > f.sizeMax) {
@@ -165,9 +206,9 @@ public class SearchActivity extends BaseActivity {
             toast("天数下限大于上限");
             return null;
         }
-        boolean any = f.namePat != null || f.type != 0
+        boolean any = f.namePat != null || f.content != null || f.type != 0
                 || f.sizeMin >= 0 || f.sizeMax >= 0 || f.dayMin >= 0 || f.dayMax >= 0;
-        if (!any) { toast("请输入关键词，或在筛选中设置条件"); return null; }
+        if (!any) { toast("请输入名称关键词、文件内容，或在筛选中设置条件"); return null; }
         return f;
     }
 
@@ -185,18 +226,24 @@ public class SearchActivity extends BaseActivity {
         if (ft == null) return;
         if (searching) { toast("正在搜索中，请稍候..."); return; }
         results.clear();
+        snippets.clear();
+        cancel = false;
+        scannedFiles = 0;
         adapter.notifyDataSetChanged();
         searching = true;
+        btnSearch.setText("停止");
         status.setText(filterSummary(ft));
         new Thread(new Runnable() {
             public void run() {
                 walk(startDir, ft, 0);
-                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                ui.post(new Runnable() {
                     public void run() {
                         searching = false;
-                        status.setText(filterSummary(ft) + " → 完成，共 "
-                                + results.size() + " 个结果"
-                                + (results.size() >= MAX ? "（已达上限）" : ""));
+                        btnSearch.setText("搜索");
+                        status.setText(filterSummary(ft) + (cancel ? " → 已停止" : " → 完成")
+                                + "，共 " + results.size() + " 个结果"
+                                + (results.size() >= MAX ? "（已达上限）" : "")
+                                + (ft.content != null ? "，扫描 " + scannedFiles + " 个文件" : ""));
                         adapter.notifyDataSetChanged();
                     }
                 });
@@ -204,9 +251,21 @@ public class SearchActivity extends BaseActivity {
         }).start();
     }
 
+    /** 内容搜索进度：每 256 个文件回主线程更新一次状态栏 */
+    private void postProgress(final Filter ft) {
+        ui.post(new Runnable() {
+            public void run() {
+                if (!searching) return;
+                status.setText(filterSummary(ft) + " · 已扫描 " + scannedFiles
+                        + " 个文件 · 命中 " + results.size());
+            }
+        });
+    }
+
     private static String filterSummary(Filter f) {
         StringBuilder sb = new StringBuilder("筛选: ");
         if (f.namePat != null) sb.append(f.regexFind ? "正则 " : "名称 ");
+        if (f.content != null) sb.append("内容 ");
         if (f.type != 0) sb.append(TYPES[f.type]).append(' ');
         if (f.sizeMin >= 0 || f.sizeMax >= 0) sb.append("大小 ");
         if (f.dayMin >= 0 || f.dayMax >= 0) sb.append("时间 ");
@@ -215,30 +274,61 @@ public class SearchActivity extends BaseActivity {
     }
 
     private void walk(File dir, Filter ft, int depth) {
-        if (dir == null || depth > MAX_DEPTH || results.size() >= MAX) return;
+        if (dir == null || depth > MAX_DEPTH || results.size() >= MAX || cancel) return;
+        if (ft.content != null && scannedFiles >= MAX_SCAN_FILES) return;
         File[] kids = dir.listFiles();
         if (kids == null) return;
         long now = System.currentTimeMillis();
         for (File f : kids) {
-            if (results.size() >= MAX) break;
+            if (results.size() >= MAX || cancel) break;
+            if (ft.content != null && scannedFiles >= MAX_SCAN_FILES) break;
             String n = f.getName();
-            if (n.equals(Trash.DIR_NAME)) continue;
-            if (accept(f, ft, now)) results.add(f);
-            if (f.isDirectory()) walk(f, ft, depth + 1);
+            // 回收站里的东西是被「删除」的，不该出现在搜索结果里（旧代码只比较了目录名，永远不命中）
+            if (f.isDirectory() && f.getAbsolutePath().equals(Trash.dir().getAbsolutePath())) continue;
+            if (f.isDirectory()) {
+                if (ft.content == null && accept(f, ft, now)) results.add(f);
+                walk(f, ft, depth + 1);
+                continue;
+            }
+            if (ft.content == null) {
+                if (accept(f, ft, now)) results.add(f);
+                continue;
+            }
+            // ---- v1.81.0：内容搜索 ----
+            scannedFiles++;
+            if ((scannedFiles & 0xFF) == 0) postProgress(ft);
+            if (!acceptFile(f, ft, now)) continue;
+            ContentGrep.Result gr = ContentGrep.grepFile(
+                    f, ft.content, false, ft.ignoreCase, 2, CONTENT_MAX_BYTES);
+            ContentGrep.Match m = gr.first();
+            if (m == null) continue;
+            snippets.put(f.getAbsolutePath(),
+                    "L" + m.line + ": " + ContentGrep.snippet(m.text, ft.content, 90));
+            results.add(f);
+            if ((scannedFiles & 0xFF) == 0) postProgress(ft);
         }
     }
 
     /** 条件判定：目录仅受名称过滤（且无类型/大小/时间条件时列出）；文件全条件叠加 */
     private boolean accept(File f, Filter ft, long now) {
-        if (ft.namePat != null) {
-            boolean m = ft.regexFind
-                    ? ft.namePat.matcher(f.getName()).find()
-                    : ft.namePat.matcher(f.getName()).matches();
-            if (!m) return false;
-        }
+        if (!matchName(f, ft)) return false;
         if (f.isDirectory()) {
-            return ft.type == 0 && ft.sizeMin < 0 && ft.sizeMax < 0 && ft.dayMin < 0 && ft.dayMax < 0;
+            return ft.type == 0 && ft.sizeMin < 0 && ft.sizeMax < 0
+                    && ft.dayMin < 0 && ft.dayMax < 0;
         }
+        return acceptFile(f, ft, now);
+    }
+
+    /** 文件名条件（内容搜索时同样先生效） */
+    private boolean matchName(File f, Filter ft) {
+        if (ft.namePat == null) return true;
+        return ft.regexFind
+                ? ft.namePat.matcher(f.getName()).find()
+                : ft.namePat.matcher(f.getName()).matches();
+    }
+
+    /** 文件级条件：类型 / 大小 / 时间（不含名称） */
+    private boolean acceptFile(File f, Filter ft, long now) {
         if (ft.type != 0 && !matchType(f.getName(), ft.type)) return false;
         long len = f.length();
         if (ft.sizeMin >= 0 && len < ft.sizeMin) return false;
@@ -300,10 +390,18 @@ public class SearchActivity extends BaseActivity {
             TextView name = (TextView) convert.findViewById(R.id.name);
             TextView detail = (TextView) convert.findViewById(R.id.detail);
             name.setText(f.getName());
-            String d = f.getParent()
-                    + "  ·  " + (f.isDirectory() ? "文件夹" : FileOps.formatSize(f.length()))
-                    + "  ·  " + FileOps.formatTime(f.lastModified());
-            detail.setText(d);
+            String sn = snippets.get(f.getAbsolutePath());
+            if (sn != null) {
+                // 内容命中：优先展示片段（前面的行号+文本最有用，尾部省略路径）
+                detail.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                detail.setText(sn + "  ·  " + f.getParent());
+            } else {
+                detail.setEllipsize(android.text.TextUtils.TruncateAt.START);
+                String d = f.getParent()
+                        + "  ·  " + (f.isDirectory() ? "文件夹" : FileOps.formatSize(f.length()))
+                        + "  ·  " + FileOps.formatTime(f.lastModified());
+                detail.setText(d);
+            }
             return convert;
         }
     }

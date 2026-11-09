@@ -18,6 +18,20 @@ public class FileItem implements Serializable {
     public boolean upEntry;
     /** v1.42.0：root 列取的条目，ls -p 已确认是目录（stat 可能被 SELinux 拒绝，以此为准） */
     public boolean forceDir;
+    /** v1.81.0：符号链接目标原文（null = 不是链接）；readlink 失败时为 "" */
+    public String linkTarget;
+    /** v1.81.0：悬空链接（目标不存在） */
+    public boolean linkBroken;
+
+    /** 是否符号链接 */
+    public boolean isLink() { return linkTarget != null; }
+
+    /** 供列表展示的链接后缀；非链接返回 null */
+    public String linkSuffix() {
+        if (linkTarget == null || upEntry || isArchEntry()) return null;
+        if (linkTarget.isEmpty()) return " → ?";
+        return " → " + linkTarget + (linkBroken ? "  (失效)" : "");
+    }
 
     // ---------- 压缩包条目模式（archFull 非空时生效，v1.14） ----------
     /** 完整条目名（目录以 / 结尾）；".. " 为返回上级虚拟项 */
@@ -155,12 +169,18 @@ public class FileItem implements Serializable {
             FileAttrs.Attr a = FileAttrs.get(file);
             if (a != null && a.mtime > 0) {
                 String t = TF.format(new java.util.Date(a.mtime));
-                return isDir() ? t : t + "  " + FileOps.formatSize(a.size);
+                return withLink(isDir() ? t : t + "  " + FileOps.formatSize(a.size));
             }
             return isDir() ? "" : "";
         }
         String t = TF.format(new java.util.Date(file.lastModified()));
-        if (isDir()) return t;
-        return t + "  " + FileOps.formatSize(file.length());
+        if (isDir()) return withLink(t);
+        return withLink(t + "  " + FileOps.formatSize(file.length()));
+    }
+
+    /** v1.81.0：详情行末尾补链接目标（悬空链接额外标注） */
+    private String withLink(String base) {
+        String s = linkSuffix();
+        return s == null ? base : base + "  " + s;
     }
 }
