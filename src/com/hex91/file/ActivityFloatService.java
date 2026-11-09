@@ -37,6 +37,15 @@ public class ActivityFloatService extends Service {
     public static final String ACTION_SHOW = "com.hex91.file.FLOAT_SHOW";
     public static final String ACTION_HIDE = "com.hex91.file.FLOAT_HIDE";
 
+    /**
+     * v1.73.0：与 Activity 一致地收敛系统字体缩放。
+     * 浮窗卡片高度按 dp 固定，系统字号调大后文字会溢出卡片，这里同样限制在 [0.9, 1.1]。
+     */
+    @Override
+    protected void attachBaseContext(Context base) {
+        super.attachBaseContext(UiKit.alignMetrics(base));
+    }
+
     private static final int NOTI_ID = 0x91AC;
     private static final String CHANNEL = "activity_trace";
 

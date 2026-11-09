@@ -1,6 +1,7 @@
 package com.hex91.file;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.res.Configuration;
 import android.os.Bundle;
 import android.util.Log;
@@ -24,6 +25,17 @@ public abstract class BaseActivity extends Activity {
 
     /** 本次创建时系统深浅色（uiMode night 位），用于判断系统深浅色是否真的发生翻转 */
     private int appliedNight;
+
+    /**
+     * v1.73.0：统一界面度量。系统字号被调大（国产 ROM 常见 1.15~1.30）时，
+     * 手写 UI 的固定 dp 容器装不下放大的 SP 文字，表现为「有的机器字特别大」。
+     * 这里把 fontScale 收敛到 [0.90, 1.10]，只改字体缩放、不改 density，
+     * dp 布局与屏幕密度的对应关系保持不变。
+     */
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(UiKit.alignMetrics(newBase));
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

@@ -10,6 +10,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 
 /**
  * 磁盘扫描（v1.59.0）：目录占用统计 / 大文件排行 / 重复文件三阶段查找 / 哈希校验。
@@ -32,6 +33,139 @@ public final class DiskScanUtil {
         public final File file;
         public final long size;
         public FileSize(File f, long s) { file = f; size = s; }
+    }
+
+    // ---------- v1.73.0：单遍统计（目录占用 + 大文件 + 真实进度） ----------
+
+    /** 一次扫描的全部结果 */
+    public static final class Result {
+        public long total;                      // 含子目录的总字节
+        public int fileCount;                   // 文件总数
+        public int dirCount;                    // 目录总数（不含 root 自身）
+        public final List<DirStat> subDirs = new ArrayList<DirStat>();  // root 直接子目录，按大小降序
+        public final List<FileSize> top = new ArrayList<FileSize>();    // 全局最大 topN，降序
+    }
+
+    /**
+     * 扫描进度回调。total 为预统计得到的文件数（阶段 1 未完成时为 -1），
+     * done 为已处理文件数，bytes 为已统计字节。回调在扫描线程，非 UI 线程。
+     */
+    public interface ScanProgress {
+        void onProgress(int done, int total, long bytes);
+        boolean isCancelled();
+    }
+
+    /** 内部取消信号：避免每层都返回标志位，递归里直接中断 */
+    private static final class Cancelled extends RuntimeException {
+        Cancelled() { super("scan cancelled"); }
+    }
+
+    /** 递归累加用的小载体，避免高频分配数组 */
+    private static final class Acc {
+        long size;
+        int files;
+    }
+
+    /**
+     * 单遍扫描：目录总大小 + 直接子目录占用 + 全局最大 topN 文件。
+     * 相比旧实现（scanSize 一遍 + topFiles 再一遍）少遍历一次元数据，
+     * 且通过 countEntries 预统计给出真实的百分比进度。
+     * 被取消时返回 null。
+     */
+    public static Result analyze(File root, int topN, ScanProgress p) {
+        Result r = new Result();
+        if (root == null || !root.exists()) return r;
+        int[] cnt = new int[2];                 // cnt[0]=文件数 cnt[1]=目录数
+        try {
+            countEntries(root, cnt, p);
+            int total = cnt[0];
+            if (p != null) p.onProgress(0, total, 0);
+            PriorityQueue<FileSize> pq = new PriorityQueue<FileSize>(Math.max(1, topN) + 1,
+                    new Comparator<FileSize>() {
+                        public int compare(FileSize a, FileSize b) {
+                            return Long.compare(a.size, b.size);
+                        }
+                    });
+            int[] done = new int[1];
+            long[] bytes = new long[1];
+            Acc acc = new Acc();
+            walk(root, true, r, pq, topN, total, done, bytes, p, acc);
+            r.total = acc.size;
+            r.top.addAll(pq);
+            java.util.Collections.sort(r.top, new Comparator<FileSize>() {
+                public int compare(FileSize a, FileSize b) { return Long.compare(b.size, a.size); }
+            });
+            java.util.Collections.sort(r.subDirs, new Comparator<DirStat>() {
+                public int compare(DirStat a, DirStat b) { return Long.compare(b.size, a.size); }
+            });
+            return r;
+        } catch (Cancelled c) {
+            return null;
+        }
+    }
+
+    /** 阶段 1：只数条目，不做 length() 统计，速度较快，用于给进度条一个真实分母 */
+    private static void countEntries(File dir, int[] out, ScanProgress p) {
+        File[] cs = dir.listFiles();
+        if (cs == null) return;
+        for (File c : cs) {
+            if (p != null && p.isCancelled()) throw new Cancelled();
+            if (c.isDirectory()) {
+                out[1]++;
+                countEntries(c, out, p);
+            } else {
+                out[0]++;
+                if (p != null && (out[0] & 1023) == 0) p.onProgress(-1, out[0], 0);
+            }
+        }
+    }
+
+    /** 阶段 2：一次遍历同时得到大小、子目录占用、Top N */
+    private static void walk(File dir, boolean isRoot, Result r, PriorityQueue<FileSize> pq,
+            int topN, int total, int[] done, long[] bytes, ScanProgress p, Acc out) {
+        File[] cs = dir.listFiles();
+        if (cs == null) { out.size = 0; out.files = 0; return; }
+        long size = 0;
+        int files = 0;
+        for (File c : cs) {
+            if (p != null && p.isCancelled()) throw new Cancelled();
+            if (c.isDirectory()) {
+                r.dirCount++;
+                Acc sub = new Acc();
+                walk(c, false, r, pq, topN, total, done, bytes, p, sub);
+                size += sub.size;
+                files += sub.files;
+                if (isRoot) {
+                    DirStat s = new DirStat();
+                    s.dir = c;
+                    s.size = sub.size;
+                    s.fileCount = sub.files;
+                    r.subDirs.add(s);
+                }
+            } else {
+                long len = c.length();
+                size += len;
+                files++;
+                r.fileCount++;
+                bytes[0] += len;
+                done[0]++;
+                pushTop(pq, c, len, topN);
+                if (p != null && (done[0] & 63) == 0) p.onProgress(done[0], total, bytes[0]);
+            }
+        }
+        out.size = size;
+        out.files = files;
+    }
+
+    /** 维护容量为 topN 的小顶堆（堆顶是当前第 N 大） */
+    private static void pushTop(PriorityQueue<FileSize> pq, File f, long len, int topN) {
+        if (topN <= 0) return;
+        if (pq.size() < topN) {
+            pq.add(new FileSize(f, len));
+        } else if (len > pq.peek().size) {
+            pq.poll();
+            pq.add(new FileSize(f, len));
+        }
     }
 
     /** 递归统计目录大小；onDir 每个子目录回调（构建占用树），可空 */

@@ -1,6 +1,7 @@
 package com.hex91.file;
 
 import android.app.Activity;
+import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -36,6 +37,12 @@ public class SignPromptActivity extends Activity {
     private Uri keystoreUri;
 
     private LinearLayout card;
+
+    /** 与 BaseActivity 一致：收敛系统字体缩放，避免卡片文字被撑破（v1.73.0） */
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(UiKit.alignMetrics(newBase));
+    }
 
     @Override
     protected void onCreate(Bundle b) {
