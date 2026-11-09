@@ -290,6 +290,19 @@
             android:textColor="?attr/hfTextSub"
             android:background="?android:attr/selectableItemBackground"/>
 
+        <!-- v1.78.0：粘贴剪贴板内容到当前目录（空时置灰，不用 GONE 以免整排跳动） -->
+        <TextView
+            android:id="@+id/btn_paste"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="📋"
+            android:textSize="17sp"
+            android:alpha="0.32"
+            android:textColor="?attr/hfTextSub"
+            android:background="?android:attr/selectableItemBackground"/>
+
         <TextView
             android:id="@+id/btn_swap"
             android:layout_width="0dp"

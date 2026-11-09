@@ -23,8 +23,11 @@ public class FileAdapter extends BaseAdapter {
     private final Context ctx;
     private final List<FileItem> items = new ArrayList<FileItem>();
 
-    /** 排序方式：0=名称 1=大小 2=修改时间 */
-    public int sortMode = 0;
+    /** 排序方式：名称 / 大小 / 修改时间 */
+    public static final int SORT_NAME = 0;
+    public static final int SORT_SIZE = 1;
+    public static final int SORT_TIME = 2;
+    public int sortMode = SORT_NAME;
     /** 是否显示隐藏文件（. 开头） */
     public boolean showHidden = false;
     /** 应用根目录（v1.40.0）：当前目录等于它时不显示 .. 返回项；null = 只要有上级就显示 */
@@ -66,10 +69,10 @@ public class FileAdapter extends BaseAdapter {
                     if (a.isDirectory() != b.isDirectory())
                         return a.isDirectory() ? -1 : 1;
                     int r;
-                    if (sortMode == 1) {
+                    if (sortMode == SORT_SIZE) {
                         r = Long.compare(a.length(), b.length());
                         if (r == 0) r = byName.compare(a, b);
-                    } else if (sortMode == 2) {
+                    } else if (sortMode == SORT_TIME) {
                         r = Long.compare(b.lastModified(), a.lastModified());
                         if (r == 0) r = byName.compare(a, b);
                     } else {

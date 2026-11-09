@@ -79,6 +79,19 @@ public class MainActivity extends BaseActivity {
     private Panel left = new Panel();
     private Panel right = new Panel();
 
+    /** v1.78.0：窗格显示偏好（排序方式 / 是否显示 . 文件），两栏共用 */
+    private static final String PREF_UI = "hf_view";
+    private static final String KEY_SORT = "sort_mode";
+    private static final String KEY_HIDDEN = "show_hidden";
+
+    private void saveSortMode(int mode) {
+        getSharedPreferences(PREF_UI, MODE_PRIVATE).edit().putInt(KEY_SORT, mode).apply();
+    }
+
+    private void saveShowHidden(boolean show) {
+        getSharedPreferences(PREF_UI, MODE_PRIVATE).edit().putBoolean(KEY_HIDDEN, show).apply();
+    }
+
     /** v1.46.0：旧版（bin.mtclone/MTClone 时代）遗留目录一次性迁移到 HexFile 体系 */
     private void migrateLegacyDirs() {
         new Thread(new Runnable() {
@@ -187,7 +200,58 @@ public class MainActivity extends BaseActivity {
 
         setupSelectionBar();
         setupTaskBar();
+        setupPasteButton();
         handleJump(getIntent());
+    }
+
+    // ============================================================ 剪贴板（v1.78.0）
+
+    private TextView btnPaste;
+
+    private void setupPasteButton() {
+        btnPaste = (TextView) findViewById(R.id.btn_paste);
+        if (btnPaste == null) return;
+        btnPaste.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { pasteClipboard(); }
+        });
+        updatePasteButton();
+    }
+
+    /** 剪贴板非空时按钮变强调色并显示数量；空时置灰（不 GONE，免得底部整排跳动） */
+    private void updatePasteButton() {
+        if (btnPaste == null) return;
+        FileClipboard cb = FileClipboard.get();
+        cb.prune();                       // 源文件被删掉的不再计入，避免显示过期数量
+        boolean has = !cb.isEmpty();
+        btnPaste.setText(has ? "📋 " + cb.size() : "📋");
+        btnPaste.setAlpha(has ? 1f : 0.32f);
+        btnPaste.setTextColor(has ? ThemeManager.accent(this) : ThemeManager.textSub(this));
+    }
+
+    /** 粘贴到活动窗格当前目录；复用任务队列，所以照样有进度、可取消 */
+    private void pasteClipboard() {
+        final Panel p = active();
+        FileClipboard cb = FileClipboard.get();
+        cb.prune();
+        if (cb.isEmpty()) {
+            toast("剪贴板是空的：长按文件选「复制(剪贴板)」或「剪切(剪贴板)」");
+            updatePasteButton();
+            return;
+        }
+        if (p.archiveFile != null) { toast("正在浏览压缩包，先返回到目录再粘贴"); return; }
+        if (p.dir == null || !p.dir.isDirectory()) { toast("当前没有可写入的目录"); return; }
+        final List<File> srcs = cb.alive();
+        if (srcs.isEmpty()) {
+            cb.clear();
+            updatePasteButton();
+            toast("剪贴板里的文件已不存在");
+            return;
+        }
+        final boolean move = cb.isMove();
+        FileTaskEngine.get().submit(move ? FileTask.MOVE : FileTask.COPY, srcs, p.dir);
+        cb.clearIfMove();                 // 剪切是一次性的；复制可以连着粘多处
+        updatePasteButton();
+        toast((move ? "开始移动 " : "开始复制 ") + srcs.size() + " 项 → " + p.dir.getName());
     }
 
     // ============================================================ 文件任务条（v1.77.0）
@@ -741,6 +805,10 @@ public class MainActivity extends BaseActivity {
         menu.add(Menu.NONE, 5, 5, "书签");
         menu.add(Menu.NONE, 6, 6, "回收站");
         menu.add(Menu.NONE, 7, 7, "交换窗口");
+        // v1.78.0：剪贴板非空时把粘贴放到显眼位置，并带上「复制 3 项」这样的摘要
+        menu.add(Menu.NONE, 9, 0, FileClipboard.get().isEmpty()
+                ? "粘贴（剪贴板为空）"
+                : "粘贴：" + FileClipboard.get().label());
         menu.add(Menu.NONE, 8, 8, "最近打开");
         // 让菜单右边缘与锚点（右上角 ⋮ 按钮）对齐，呈现“吸附右上角”效果
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -770,15 +838,18 @@ public class MainActivity extends BaseActivity {
                         break;
                     case 3: askSortMode(); break;
                     case 4:
-                        p.adapter.showHidden = !p.adapter.showHidden;
-                        if (p.archiveFile != null) showArchiveDir(p);
-                        else loadDir(p, p.dir);
+                        // v1.78.0：两栏共用这套显示设置，改完存盘并同步刷新
+                        boolean nh = !p.adapter.showHidden;
+                        saveShowHidden(nh);
+                        for (Panel q : new Panel[]{left, right}) q.adapter.showHidden = nh;
+                        refreshAll();
                         break;
                     case 5: showBookmarks(); break;
                     case 6:
                         startActivity(new Intent(MainActivity.this, TrashActivity.class));
                         break;
                     case 7: swapPanes(); break;
+                    case 9: pasteClipboard(); break;   // v1.78.0
                     case 8: showRecent(); break;
                 }
                 return true;
@@ -787,7 +858,7 @@ public class MainActivity extends BaseActivity {
         popup.show();
     }
 
-    /** 排序方式：名称 / 大小 / 修改时间（仅活动栏生效；压缩包浏览中只重列） */
+    /** 排序方式：名称 / 大小 / 修改时间（两栏共用，会记住选择） */
     private void askSortMode() {
         final Panel p = active();
         new HfDialogBuilder(this)
@@ -796,9 +867,9 @@ public class MainActivity extends BaseActivity {
                         new String[]{"按名称", "按大小", "按修改时间"}, p.adapter.sortMode,
                         new android.content.DialogInterface.OnClickListener() {
                             public void onClick(android.content.DialogInterface d, int which) {
-                                p.adapter.sortMode = which;
-                                if (p.archiveFile != null) showArchiveDir(p);
-                                else loadDir(p, p.dir);
+                                saveSortMode(which);
+                                for (Panel q : new Panel[]{left, right}) q.adapter.sortMode = which;
+                                refreshAll();
                                 d.dismiss();
                             }
                         })
@@ -897,6 +968,12 @@ public class MainActivity extends BaseActivity {
     private void setupPanel(final Panel p) {
         p.adapter = new FileAdapter(this);
         p.adapter.rootDir = Environment.getExternalStorageDirectory();
+        // v1.78.0：排序方式与「显示 . 文件」原来是内存态，重启就回到默认值。
+        // 现在存 SharedPreferences；两栏共用一套设置，切换目录也不会被重置。
+        android.content.SharedPreferences sp =
+                getSharedPreferences(PREF_UI, MODE_PRIVATE);
+        p.adapter.sortMode = sp.getInt(KEY_SORT, FileAdapter.SORT_NAME);
+        p.adapter.showHidden = sp.getBoolean(KEY_HIDDEN, false);
         p.list.setAdapter(p.adapter);
 
         // 手势（旁听模式，返回 false，事件照常给 ListView，滚动/点击零干扰）：
@@ -3777,7 +3854,8 @@ public class MainActivity extends BaseActivity {
                 A_REN = 5, A_ZIP = 6, A_DEL = 7, A_PROP = 8, A_ASSEMBLE = 9, A_DEXPP = 14,
                 A_TOZIP_C = 18, A_TOZIP_M = 19, A_COMPARE = 21,
                 A_ENCRYPT = 24, A_DECRYPT = 25, A_SPLIT = 27, A_MERGE = 28,
-                A_ZSTDC = 29, A_ZSTDD = 30, A_STRINGS = 31, A_SHARE = 45, A_LAN = 46, A_OPEN = 47;
+                A_ZSTDC = 29, A_ZSTDD = 30, A_STRINGS = 31, A_SHARE = 45, A_LAN = 46, A_OPEN = 47,
+                A_CLIP_C = 48, A_CLIP_M = 49;
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
         if (isSmaliDir) { ops.add("编译为 dex"); acts.add(A_ASSEMBLE); }
@@ -3804,6 +3882,9 @@ public class MainActivity extends BaseActivity {
         if (isFile) { ops.add("局域网快传"); acts.add(A_LAN); }   // v1.74.0
         ops.add("复制到对面"); acts.add(A_COPY);
         ops.add("移动到对面"); acts.add(A_MOVE);
+        // v1.78.0：剪贴板——先复制/剪切，再翻到任意目录点底部 📋 粘贴
+        ops.add("复制(剪贴板)"); acts.add(A_CLIP_C);
+        ops.add("剪切(剪贴板)"); acts.add(A_CLIP_M);
         // 对面窗格打开了压缩包 → 增加写入压缩包动作（文件/目录均可；只读格式点击时给说明）
         final boolean archDst = dst.archiveFile != null;
         if (archDst) { ops.add("复制到对面压缩包"); acts.add(A_TOZIP_C); }
@@ -3835,7 +3916,8 @@ public class MainActivity extends BaseActivity {
                 A_SIGN = 13, A_COPY = 3, A_REN = 5, A_PROP = 8, A_DEXPP = 15, A_ARSCPP = 16, A_MFPP = 17,
                 A_TOZIP_C = 18, A_TOZIP_M = 19, A_SIGN_APK = 20, A_APK_COMPARE = 22, A_APK_CLONE = 23,
                 A_SIGKILL = 26, A_INFO = 32, A_UNPACK = 33, A_SIGN_CUSTOM = 34, A_RM_SIGN = 35,
-                A_DEL = 7, A_IMGBATCH = 37, A_ARSCPP2 = 40, A_SHARE = 45, A_LAN = 46, A_OPEN = 47;
+                A_DEL = 7, A_IMGBATCH = 37, A_ARSCPP2 = 40, A_SHARE = 45, A_LAN = 46, A_OPEN = 47,
+                A_CLIP_C = 48, A_CLIP_M = 49;
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
         ops.add("Dex 编辑器++"); acts.add(A_DEXPP);
@@ -3857,6 +3939,9 @@ public class MainActivity extends BaseActivity {
         ops.add("自定义密钥签名"); acts.add(A_SIGN_CUSTOM);
         ops.add("去除签名"); acts.add(A_RM_SIGN);
         ops.add("删除"); acts.add(A_DEL);        ops.add("复制到对面"); acts.add(A_COPY);
+        // v1.78.0：剪贴板（APK 也走同一套，翻到别的目录再粘贴）
+        ops.add("复制(剪贴板)"); acts.add(A_CLIP_C);
+        ops.add("剪切(剪贴板)"); acts.add(A_CLIP_M);
         // 对面窗格打开了压缩包 → 增加写入压缩包动作（只读格式点击时给说明）
         final boolean archDst = dst.archiveFile != null;
         if (archDst) { ops.add("复制到对面压缩包"); acts.add(A_TOZIP_C); }
@@ -4033,6 +4118,16 @@ public class MainActivity extends BaseActivity {
                 break;
             case 47:                              // 打开方式（v1.77.0）
                 if (!OpenWith.open(this, f)) toast("没有可打开该类型的应用");
+                break;
+            case 48:                              // 复制到剪贴板（v1.78.0）
+                FileClipboard.get().put(java.util.Collections.singletonList(f), false);
+                updatePasteButton();
+                toast("已复制 " + f.getName() + "，翻到目标目录点底部 📋 粘贴");
+                break;
+            case 49:                              // 剪切到剪贴板
+                FileClipboard.get().put(java.util.Collections.singletonList(f), true);
+                updatePasteButton();
+                toast("已剪切 " + f.getName() + "，粘贴后原位置的文件会消失");
                 break;
         }
     }
@@ -5407,6 +5502,7 @@ public class MainActivity extends BaseActivity {
         // v1.77.0：任务可能在后台继续，回到前台先接上进度回调再补一次刷新
         FileTaskEngine.get().setListener(taskListener);
         renderTaskBar();
+        updatePasteButton();      // 剪贴板里的文件可能在本应用外被删了
         for (Panel p : new Panel[]{left, right}) {
             if (p.archiveFile != null) showArchiveDir(p);
             else if (p.dir != null) loadDir(p, p.dir);
