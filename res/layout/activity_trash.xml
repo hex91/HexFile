@@ -27,7 +27,7 @@
             android:id="@+id/btn_policy"
             android:layout_width="wrap_content"
             android:layout_height="34dp"
-            android:text="策略"
+            android:text="⚙ 保留策略"
             android:textSize="12sp"/>
 
         <Button

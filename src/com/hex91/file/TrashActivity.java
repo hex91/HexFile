@@ -14,8 +14,11 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 回收站管理：恢复 / 彻底删除 / 清空 */
+/** 回收站管理：恢复 / 彻底删除 / 清空 / 保留策略 */
 public class TrashActivity extends BaseActivity {
+
+    /** v1.82.1：主界面 ⋮ 的「回收站设置」用这个 extra 直接弹策略框 */
+    public static final String EXTRA_POLICY = "open_policy";
 
     private final List<Trash.Entry> data = new ArrayList<Trash.Entry>();
     private TrashAdapter adapter;
@@ -39,6 +42,7 @@ public class TrashActivity extends BaseActivity {
         });
 
         // v1.82.0：保留策略（天数 / 容量 / 自动清理开关）
+        // v1.82.1：「策略」太抽象，用户找不到 → 改成「⚙ 保留策略」，并支持被主界面菜单直呼
         android.widget.Button btnPolicy = (android.widget.Button) findViewById(R.id.btn_policy);
         UiDecor.barButton(btnPolicy, this, UiDecor.KIND_SOFT, 11.5f);
         btnPolicy.setOnClickListener(new View.OnClickListener() {
@@ -66,6 +70,13 @@ public class TrashActivity extends BaseActivity {
         });
 
         reload();
+
+        // v1.82.1：从主界面 ⋮「回收站设置」进来时直接弹策略框，省一次点击
+        if (getIntent() != null && getIntent().getBooleanExtra(EXTRA_POLICY, false)) {
+            findViewById(R.id.btn_policy).post(new Runnable() {
+                public void run() { showPolicy(); }
+            });
+        }
     }
 
     private void reload() {
@@ -73,8 +84,21 @@ public class TrashActivity extends BaseActivity {
         data.addAll(Trash.list());
         adapter.notifyDataSetChanged();
         empty.setVisibility(data.isEmpty() ? View.VISIBLE : View.GONE);
+        if (data.isEmpty()) empty.setText("回收站为空\n\n" + policyLine());
         title.setText("回收站 · " + data.size() + " 项");
         updateTotalSize();
+    }
+
+    /** v1.82.1：空状态直接摊开当前规则，避免「功能做了但找不到」 */
+    private String policyLine() {
+        TrashPolicy p = TrashPolicy.load(Trash.dir());
+        if (!p.enabled) return "自动清理：关闭（点右上角「⚙ 保留策略」设置）";
+        StringBuilder sb = new StringBuilder("自动清理：开启");
+        sb.append(p.maxDays > 0 ? " · 保留 " + p.maxDays + " 天" : " · 不限天数");
+        sb.append(p.maxBytes > 0
+                ? " · 上限 " + (p.maxBytes / (1024 * 1024)) + " MB"
+                : " · 不限容量");
+        return sb.append("\n（点右上角「⚙ 保留策略」修改）").toString();
     }
 
     /** 目录条目的占用要递归算，放后台，避免回收站里有个大文件夹时进页面卡一下 */
