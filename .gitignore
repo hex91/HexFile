@@ -42,5 +42,14 @@ test/axml_tmp/
 test/sign_*.apk
 test/sign_back.arsc
 
+# ===== 测试运行时产物（每次跑测试都会变，不入库）=====
+test/*.log
+test/*_tmp/
+test/*Probe*.java
+test/*.jks
+test/*.txt
+test/sign_edited.arsc
+
 # 构建日志
 build*.log
+test_*.log
