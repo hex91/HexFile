@@ -206,6 +206,11 @@ public final class ThemeManager {
         return attrColor(c, R.attr.hfTopBarText, 0xFFFFFFFF);
     }
 
+    /** 顶栏副标题色（v1.75.0，与布局里的 hfTopBarTextSub 同一语义） */
+    public static int topBarTextSub(Context c) {
+        return attrColor(c, R.attr.hfTopBarTextSub, 0xB3FFFFFF);
+    }
+
     public static int accent(Context c) {
         return attrColor(c, R.attr.hfAccent, 0xFF1E88E5);
     }

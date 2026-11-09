@@ -168,47 +168,54 @@ public class SignKeyManagerActivity extends BaseActivity {
         super.onCreate(savedInstanceState);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(ThemeManager.bg(this));
         setContentView(root);
 
-        TextView title = new TextView(this);
-        title.setText("签名管理");
-        title.setTextSize(20);
-        title.setTypeface(null, android.graphics.Typeface.BOLD);
-        int pad = (int) (16 * getResources().getDisplayMetrics().density);
-        title.setPadding(pad, pad, pad, pad / 2);
-        root.addView(title);
+        root.addView(topBar());
 
-        TextView imp = new TextView(this);
-        imp.setText("＋ 导入签名文件（.p12 / .pfx / .jks / .keystore / .bks）");
-        imp.setTextSize(15);
-        imp.setTextColor(ThemeManager.accent(this));
-        imp.setPadding(pad, pad / 2, pad, pad / 4);
-        imp.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { startPick(); }
-        });
-        root.addView(imp);
+        // v1.75.0：两个主要动作从「一行可点击的蓝字」改成图标卡片，可点范围与视觉都明确
+        LinearLayout acts = new LinearLayout(this);
+        acts.setOrientation(LinearLayout.HORIZONTAL);
+        acts.setPadding(dp(12), dp(12), dp(12), dp(2));
+        root.addView(acts);
 
-        // v1.68.0：内置创建签名（自签 RSA，无需外部 keytool）
-        TextView create = new TextView(this);
-        create.setText("✨ 创建签名（自签 RSA，自动生成证书）");
-        create.setTextSize(15);
-        create.setTextColor(ThemeManager.accent(this));
-        create.setPadding(pad, pad / 4, pad, pad / 2);
-        create.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { askCreate(); }
-        });
-        root.addView(create);
+        View impCard = actionCard("📥", "导入签名", ".p12 / .jks / .keystore", ThemeManager.accent(this),
+                new View.OnClickListener() {
+                    public void onClick(View v) { startPick(); }
+                });
+        View createCard = actionCard("✨", "创建签名", "自签 RSA 证书", ThemeManager.ok(this),
+                new View.OnClickListener() {
+                    public void onClick(View v) { askCreate(); }
+                });
+        LinearLayout.LayoutParams lp1 = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        lp1.rightMargin = dp(6);
+        LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        lp2.leftMargin = dp(6);
+        acts.addView(impCard, lp1);
+        acts.addView(createCard, lp2);
+
+        TextView section = UiDecor.sectionTitle(this, "已导入的签名");
+        section.setPadding(dp(16), dp(12), dp(16), dp(2));
+        root.addView(section);
 
         listView = new ListView(this);
+        listView.setDivider(null);
+        listView.setDividerHeight(0);
+        listView.setPadding(dp(12), dp(4), dp(12), dp(8));
+        listView.setClipToPadding(false);
+        listView.setBackgroundColor(ThemeManager.bg(this));
+
         emptyView = new TextView(this);
         emptyView.setText("还没有导入签名。\n\n"
-                + "· 点上面「导入」把已有 keystore 收进应用\n"
+                + "· 点上面「导入签名」把已有 keystore 收进应用\n"
                 + "· 或点「创建签名」直接生成一个新的\n\n"
                 + "导入后签名时会直接从列表选择，\n不再需要每次从文件加载。");
         emptyView.setTextSize(14);
         emptyView.setTextColor(ThemeManager.textSub(this));
         emptyView.setGravity(Gravity.CENTER);
-        emptyView.setPadding(pad, pad * 3, pad, pad);
+        emptyView.setPadding(dp(16), dp(28), dp(16), dp(16));
         root.addView(emptyView);
         root.addView(listView, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
@@ -227,6 +234,120 @@ public class SignKeyManagerActivity extends BaseActivity {
                 return true;
             }
         });
+    }
+
+    // ---------------- 视觉组件（v1.75.0） ----------------
+
+    private int dp(float v) {
+        return Math.round(v * getResources().getDisplayMetrics().density);
+    }
+
+    /** 顶栏：返回 + 标题 + 副标题（当前签名数量） */
+    private View topBar() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setBackgroundColor(ThemeManager.topBar(this));
+        bar.setPadding(dp(6), 0, dp(12), 0);
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
+        bar.setLayoutParams(blp);
+
+        TextView back = new TextView(this);
+        back.setText("←");
+        back.setTextSize(20);
+        back.setGravity(Gravity.CENTER);
+        back.setTextColor(ThemeManager.topBarText(this));
+        back.setLayoutParams(new LinearLayout.LayoutParams(dp(44), ViewGroup.LayoutParams.MATCH_PARENT));
+        back.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { finish(); }
+        });
+        bar.addView(back);
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        texts.setPadding(dp(4), 0, 0, 0);
+
+        TextView title = new TextView(this);
+        title.setText("签名管理");
+        title.setTextSize(16);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        title.setTextColor(ThemeManager.topBarText(this));
+        texts.addView(title);
+
+        TextView sub = new TextView(this);
+        sub.setText("导入一次即可反复签名，密码用系统 Keystore 加密保存");
+        sub.setTextSize(11);
+        sub.setTextColor(ThemeManager.topBarTextSub(this));
+        texts.addView(sub);
+        bar.addView(texts, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        return bar;
+    }
+
+    /** 图标操作卡片：左侧图标 + 标题 + 说明，整卡可点 */
+    private View actionCard(String icon, String title, String desc, int color,
+                            View.OnClickListener l) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(12), dp(12), dp(12), dp(12));
+        card.setBackground(UiDecor.pressable(
+                UiDecor.round(this, UiDecor.alpha(color, 0x1C), UiDecor.alpha(color, 0x55),
+                        0.8f, 12f), color));
+        card.setOnClickListener(l);
+
+        TextView ic = new TextView(this);
+        ic.setText(icon);
+        ic.setTextSize(19);
+        ic.setGravity(Gravity.CENTER);
+        card.addView(ic, new LinearLayout.LayoutParams(dp(30),
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        texts.setPadding(dp(8), 0, 0, 0);
+        TextView t1 = new TextView(this);
+        t1.setText(title);
+        t1.setTextSize(14);
+        t1.setTextColor(ThemeManager.text(this));
+        texts.addView(t1);
+        TextView t2 = new TextView(this);
+        t2.setText(desc);
+        t2.setTextSize(10.5f);
+        t2.setTextColor(ThemeManager.textSub(this));
+        texts.addView(t2);
+        card.addView(texts, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        return card;
+    }
+
+    /** 操作格：竖向「图标 + 文字」，圆角半透明底，用于长按面板的网格 */
+    private View actionCell(String icon, String label, int color, View.OnClickListener l) {
+        LinearLayout cell = new LinearLayout(this);
+        cell.setOrientation(LinearLayout.VERTICAL);
+        cell.setGravity(Gravity.CENTER);
+        cell.setPadding(dp(8), dp(12), dp(8), dp(12));
+        cell.setBackground(UiDecor.pressable(
+                UiDecor.round(this, UiDecor.alpha(color, 0x1A), UiDecor.alpha(color, 0x4D),
+                        0.8f, 12f), color));
+        cell.setOnClickListener(l);
+
+        TextView ic = new TextView(this);
+        ic.setText(icon);
+        ic.setTextSize(20);
+        ic.setGravity(Gravity.CENTER);
+        ic.setTextColor(color);
+        cell.addView(ic);
+
+        TextView tv = new TextView(this);
+        tv.setText(label);
+        tv.setTextSize(12);
+        tv.setGravity(Gravity.CENTER);
+        tv.setTextColor(ThemeManager.text(this));
+        tv.setPadding(0, dp(6), 0, 0);
+        cell.addView(tv);
+        return cell;
     }
 
     @Override
@@ -276,37 +397,78 @@ public class SignKeyManagerActivity extends BaseActivity {
         public int getCount() { return entries.size(); }
         public Object getItem(int position) { return entries.get(position); }
         public long getItemId(int position) { return position; }
+
+        /**
+         * v1.75.0：列表项从「两行裸文字」改成圆角卡片 + 右侧箭头，
+         * 默认密钥用强调色标题 + ★ 前缀区分，损坏条目用错误色提示。
+         * 结构固定为 shell[ card[ top[t1, ›], t2 ] ]，因此可以安全复用 convertView。
+         */
         public View getView(int position, View convertView, ViewGroup parent) {
-            LinearLayout row = (convertView instanceof LinearLayout)
-                    ? (LinearLayout) convertView : twoLineRow();
+            LinearLayout shell = (convertView instanceof LinearLayout)
+                    ? (LinearLayout) convertView : newRowShell();
             KeyEntry e = entries.get(position);
             String defId = signPrefs(SignKeyManagerActivity.this).getString("key_id", null);
-            TextView t1 = (TextView) row.getChildAt(0);
-            TextView t2 = (TextView) row.getChildAt(1);
-            t1.setText((e.id.equals(defId) ? "★ " : "") + e.name);
+            boolean isDefault = e.id.equals(defId);
+
+            LinearLayout card = (LinearLayout) shell.getChildAt(0);
+            LinearLayout top = (LinearLayout) card.getChildAt(0);
+            TextView t1 = (TextView) top.getChildAt(0);
+            TextView t2 = (TextView) card.getChildAt(1);
+
+            t1.setText((isDefault ? "★ " : "") + e.name);
+            t1.setTextColor(e.broken() ? ThemeManager.err(SignKeyManagerActivity.this)
+                    : (isDefault ? ThemeManager.accent(SignKeyManagerActivity.this)
+                    : ThemeManager.text(SignKeyManagerActivity.this)));
             t2.setText(e.broken()
                     ? "⚠ 密码已损坏（换机/清除数据导致），请删除后重新导入"
                     : (e.alias != null ? "别名 " + e.alias + " · " : "")
                         + e.keyCount + " 个私钥别名"
                         + (e.sha1 != null && e.sha1.length() >= 19
                             ? " · SHA1 " + e.sha1.substring(0, 19) + "…" : ""));
-            return row;
+            t2.setTextColor(e.broken() ? ThemeManager.err(SignKeyManagerActivity.this)
+                    : ThemeManager.textSub(SignKeyManagerActivity.this));
+            return shell;
         }
 
-        private LinearLayout twoLineRow() {
-            int pad = (int) (16 * getResources().getDisplayMetrics().density);
-            LinearLayout row = new LinearLayout(SignKeyManagerActivity.this);
-            row.setOrientation(LinearLayout.VERTICAL);
-            row.setPadding(pad, pad / 2, pad, pad / 2);
+        private LinearLayout newRowShell() {
+            LinearLayout shell = new LinearLayout(SignKeyManagerActivity.this);
+            shell.setOrientation(LinearLayout.VERTICAL);
+            shell.setPadding(0, 0, 0, dp(8));
+
+            LinearLayout card = new LinearLayout(SignKeyManagerActivity.this);
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setPadding(dp(12), dp(10), dp(12), dp(10));
+            card.setBackground(UiDecor.cardBg(SignKeyManagerActivity.this));
+
+            LinearLayout top = new LinearLayout(SignKeyManagerActivity.this);
+            top.setOrientation(LinearLayout.HORIZONTAL);
+            top.setGravity(Gravity.CENTER_VERTICAL);
+
             TextView t1 = new TextView(SignKeyManagerActivity.this);
-            t1.setTextSize(16);
-            t1.setTextColor(ThemeManager.text(SignKeyManagerActivity.this));
+            t1.setTextSize(15);
+            t1.setSingleLine(true);
+            t1.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            top.addView(t1, new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+            TextView chevron = new TextView(SignKeyManagerActivity.this);
+            chevron.setText("›");
+            chevron.setTextSize(20);
+            chevron.setTextColor(UiDecor.alpha(
+                    ThemeManager.textSub(SignKeyManagerActivity.this), 0xCC));
+            chevron.setPadding(dp(6), 0, 0, 0);
+            top.addView(chevron);
+
+            card.addView(top);
+
             TextView t2 = new TextView(SignKeyManagerActivity.this);
-            t2.setTextSize(13);
-            t2.setTextColor(ThemeManager.textSub(SignKeyManagerActivity.this));
-            row.addView(t1);
-            row.addView(t2);
-            return row;
+            t2.setTextSize(11.5f);
+            t2.setPadding(0, dp(3), 0, 0);
+            card.addView(t2);
+
+            shell.addView(card, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            return shell;
         }
     }
 
@@ -639,30 +801,117 @@ public class SignKeyManagerActivity extends BaseActivity {
         }}.start();
     }
 
-    /** 长按条目：查看 / 重命名 / 设为默认 / 删除（增删改查集中入口） */
+    /**
+     * 长按条目：查看 / 重命名 / 设为默认 / 删除。
+     *
+     * <p>v1.75.0 从 {@code AlertDialog.setItems} 的纯文字列表改成 2×2 图标网格：
+     * 原来四个操作挤在系统列表里，既看不出哪些是危险操作，也没有任何视觉锚点。</p>
+     */
     private void showItemActions(final KeyEntry e) {
         if (e.broken()) {
             showDetail(e);      // 密码损坏时只能删除重导
             return;
         }
         final String defId = signPrefs(this).getString("key_id", null);
-        String[] ops = {"查看签名信息", "重命名", "设为默认签名", "删除"};
-        new AlertDialog.Builder(this)
-                .setTitle(e.name)
-                .setItems(ops, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface d, int w) {
-                        if (w == 0) showDetail(e);
-                        else if (w == 1) askRename(e);
-                        else if (w == 2) {
-                            signPrefs(SignKeyManagerActivity.this).edit()
-                                    .putString("key_id", e.id).putInt("ks_mode", 1).apply();
-                            Toast.makeText(SignKeyManagerActivity.this,
-                                    "已设为默认签名密钥", Toast.LENGTH_SHORT).show();
-                            reload();
-                        } else confirmDelete(e);
+        final boolean isDefault = e.id.equals(defId);
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(16), dp(6), dp(16), dp(2));
+
+        TextView title = new TextView(this);
+        title.setText(e.name);
+        title.setTextSize(16);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        title.setTextColor(ThemeManager.text(this));
+        box.addView(title);
+
+        TextView sub = new TextView(this);
+        sub.setText((isDefault ? "当前默认签名" : "未设为默认")
+                + (e.alias != null ? " · 别名 " + e.alias : " · " + e.keyCount + " 个私钥别名")
+                + (e.sha1 != null && e.sha1.length() >= 19
+                    ? "\nSHA1 " + e.sha1.substring(0, 19) + "…" : ""));
+        sub.setTextSize(11);
+        sub.setTextColor(ThemeManager.textSub(this));
+        sub.setPadding(0, dp(4), 0, dp(12));
+        box.addView(sub);
+
+        LinearLayout row1 = new LinearLayout(this);
+        row1.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout row2 = new LinearLayout(this);
+        row2.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rlp.topMargin = dp(8);
+        row2.setLayoutParams(rlp);
+
+        final AlertDialog[] holder = new AlertDialog[1];
+
+        View viewCell = actionCell("🔍", "查看详情", ThemeManager.accent(this),
+                new View.OnClickListener() {
+                    public void onClick(View v) {
+                        if (holder[0] != null) holder[0].dismiss();
+                        showDetail(e);
                     }
-                })
-                .show();
+                });
+        View renameCell = actionCell("✏️", "重命名", ThemeManager.accent(this),
+                new View.OnClickListener() {
+                    public void onClick(View v) {
+                        if (holder[0] != null) holder[0].dismiss();
+                        askRename(e);
+                    }
+                });
+        View defCell = actionCell(isDefault ? "★" : "☆",
+                isDefault ? "已是默认" : "设为默认", ThemeManager.ok(this),
+                new View.OnClickListener() {
+                    public void onClick(View v) {
+                        if (holder[0] != null) holder[0].dismiss();
+                        if (isDefault) {
+                            Toast.makeText(SignKeyManagerActivity.this,
+                                    "它已经是默认签名了", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        signPrefs(SignKeyManagerActivity.this).edit()
+                                .putString("key_id", e.id).putInt("ks_mode", 1).apply();
+                        Toast.makeText(SignKeyManagerActivity.this,
+                                "已设为默认签名密钥", Toast.LENGTH_SHORT).show();
+                        reload();
+                    }
+                });
+        View delCell = actionCell("🗑", "删除", ThemeManager.err(this),
+                new View.OnClickListener() {
+                    public void onClick(View v) {
+                        if (holder[0] != null) holder[0].dismiss();
+                        confirmDelete(e);
+                    }
+                });
+
+        LinearLayout.LayoutParams half = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        LinearLayout.LayoutParams halfL = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        half.rightMargin = dp(5);
+        halfL.leftMargin = dp(5);
+        row1.addView(viewCell, half);
+        row1.addView(renameCell, halfL);
+        row2.addView(defCell, half);
+        row2.addView(delCell, halfL);
+        box.addView(row1);
+        box.addView(row2);
+
+        TextView tip = new TextView(this);
+        tip.setText("提示：默认签名用于 Dex 编辑器自动签名等入口");
+        tip.setTextSize(10.5f);
+        tip.setTextColor(ThemeManager.textSub(this));
+        tip.setGravity(Gravity.CENTER);
+        tip.setPadding(0, dp(12), 0, 0);
+        box.addView(tip);
+
+        holder[0] = new AlertDialog.Builder(this)
+                .setView(box)
+                .setNegativeButton("关闭", null)
+                .create();
+        holder[0].show();
     }
 
     private void askRename(final KeyEntry e) {

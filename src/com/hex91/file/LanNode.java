@@ -228,21 +228,35 @@ public final class LanNode {
                 .putBoolean(KEY_KEEP, keep).apply();
     }
 
-    /** 接收目录：优先 Downloads/HexFile/LanShare（用户能找到），不可用时回退私有目录 */
+    /**
+     * 接收目录：统一放外部存储根下的 {@code HexFile/LanShare}
+     * （即 {@code /sdcard/HexFile/LanShare}），与其他 HexFile 产物同处一棵树，方便统一管理。
+     * 取不到时逐级回退：外部根 → 应用外部私有目录 → 应用内部目录。
+     */
     public File saveDir() {
         try {
-            File dl = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-            if (dl != null) {
-                File dir = new File(new File(dl, "HexFile"), "LanShare");
+            File ext = Environment.getExternalStorageDirectory();
+            if (ext != null) {
+                File dir = new File(new File(ext, "HexFile"), "LanShare");
                 if (dir.isDirectory() || dir.mkdirs()) return dir;
             }
         } catch (Throwable ignored) {
         }
-        File ext = app.getExternalFilesDir("LanShare");
-        if (ext != null && (ext.isDirectory() || ext.mkdirs())) return ext;
+        File appExt = app.getExternalFilesDir("LanShare");
+        if (appExt != null && (appExt.isDirectory() || appExt.mkdirs())) return appExt;
         File in = new File(app.getFilesDir(), "LanShare");
         in.mkdirs();
         return in;
+    }
+
+    /** v1.75.0 之前的接收目录（Downloads/HexFile/LanShare），仅用于旧文件迁移提示 */
+    public File legacyDir() {
+        try {
+            File dl = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            if (dl != null) return new File(new File(dl, "HexFile"), "LanShare");
+        } catch (Throwable ignored) {
+        }
+        return null;
     }
 
     // ---------------------------------------------------------------- UDP

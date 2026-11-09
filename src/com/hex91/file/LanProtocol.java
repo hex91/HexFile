@@ -294,4 +294,42 @@ public final class LanProtocol {
         }
         return out;
     }
+
+    /**
+     * 接收目录里可以展示的文件（v1.75.0）。
+     *
+     * <p>几条规则都是为了「列表好看且不会误导」：</p>
+     * <ul>
+     *   <li>跳过 {@code .part}：那是正在写入的临时文件，半截数据出现在列表里会让人以为收到了坏文件；</li>
+     *   <li>跳过子目录：本目录只存收到的文件，出现目录说明是用户自己放的，不该混进接收列表；</li>
+     *   <li>按修改时间倒序：最近收到的排最前，符合「我要找刚传的那个」这一实际诉求。</li>
+     * </ul>
+     * 目录不可读时返回空表，不抛异常（权限被撤销是很常见的状态）。
+     */
+    public static java.util.List<java.io.File> receivedFiles(java.io.File dir) {
+        java.util.List<java.io.File> out = new java.util.ArrayList<java.io.File>();
+        if (dir == null) return out;
+        java.io.File[] fs;
+        try {
+            fs = dir.listFiles();
+        } catch (Throwable t) {
+            return out;
+        }
+        if (fs == null) return out;
+        for (int i = 0; i < fs.length; i++) {
+            java.io.File f = fs[i];
+            if (f == null || !f.isFile()) continue;
+            String n = f.getName();
+            if (n.endsWith(".part") || n.startsWith(".")) continue;
+            out.add(f);
+        }
+        java.util.Collections.sort(out, new java.util.Comparator<java.io.File>() {
+            public int compare(java.io.File a, java.io.File b) {
+                long byTime = b.lastModified() - a.lastModified();
+                if (byTime != 0) return byTime > 0 ? 1 : -1;
+                return b.getName().compareTo(a.getName());
+            }
+        });
+        return out;
+    }
 }

@@ -128,8 +128,54 @@ public class LanProtocolTest {
         eq("id123", LanProtocol.normalizeId("id|12 3"), "ID 去掉竖线与空格");
         eq("", LanProtocol.normalizeId(null), "null ID → 空串");
 
+        // ---------------- 接收列表（v1.75.0）
+        java.io.File tmp = new java.io.File("build/lanchek/rectest_" + System.nanoTime());
+        tmp.mkdirs();
+        try {
+            write(tmp, "old.apk", 10, 1000L);
+            write(tmp, "new.apk", 20, 5000L);
+            write(tmp, "mid.apk", 15, 3000L);
+            write(tmp, "downloading.zip.part", 5, 9000L);   // 半截临时文件，不该出现在列表
+            write(tmp, ".hidden", 1, 9999L);                 // 隐藏文件，同样跳过
+            new java.io.File(tmp, "subdir").mkdirs();        // 子目录不该混进来
+            java.util.List<java.io.File> got = LanProtocol.receivedFiles(tmp);
+            eq(3, got.size(), "接收列表：过滤 .part / 隐藏文件 / 子目录");
+            eq("new.apk", got.get(0).getName(), "接收列表按修改时间倒序（第一项最新）");
+            eq("old.apk", got.get(2).getName(), "接收列表按修改时间倒序（末项最旧）");
+            for (int i = 0; i < got.size(); i++)
+                isTrue(!got.get(i).getName().endsWith(".part"), "列表不含 .part：" + got.get(i).getName());
+        } finally {
+            deleteTree(tmp);
+        }
+        eq(0, LanProtocol.receivedFiles(null).size(), "null 目录返回空表");
+        eq(0, LanProtocol.receivedFiles(new java.io.File(tmp, "not-exist")).size(),
+                "不存在的目录返回空表");
+
         System.out.println("-----------------------------------------");
         System.out.println("pass=" + pass + " fail=" + fail);
         if (fail > 0) System.exit(1);
+    }
+
+    static void write(java.io.File dir, String name, int bytes, long mtime) {
+        java.io.File f = new java.io.File(dir, name);
+        try {
+            java.io.FileOutputStream os = new java.io.FileOutputStream(f);
+            try {
+                os.write(new byte[bytes]);
+            } finally {
+                os.close();
+            }
+            f.setLastModified(mtime);
+        } catch (Throwable t) {
+            System.out.println("FAIL  准备测试文件 " + name + ": " + t);
+            fail++;
+        }
+    }
+
+    static void deleteTree(java.io.File f) {
+        if (f == null || !f.exists()) return;
+        java.io.File[] fs = f.listFiles();
+        if (fs != null) for (java.io.File c : fs) deleteTree(c);
+        f.delete();
     }
 }

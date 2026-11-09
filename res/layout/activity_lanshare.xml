@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v1.74.0 局域网快传：雷达扫描 + 设备列表 + 文件发送 -->
+<!-- v1.75.0 局域网快传：雷达扫描 / 接收列表 双页 + 主题化胶囊按钮 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -63,106 +63,225 @@
             android:textColor="#5CFFC8"/>
     </LinearLayout>
 
-    <!-- 待发送文件卡片（从文件长按进入时显示） -->
+    <!-- 分页标签：雷达 / 接收列表（样式在代码里按主题绘制） -->
     <LinearLayout
-        android:id="@+id/lan_file"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingLeft="14dp"
-        android:paddingRight="14dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp"
-        android:background="?attr/hfSurface"
-        android:visibility="gone">
+        android:layout_height="46dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingLeft="8dp"
+        android:paddingRight="8dp"
+        android:background="?attr/hfSurface">
 
         <TextView
-            android:id="@+id/lan_file_name"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textSize="13sp"
-            android:maxLines="1"
-            android:ellipsize="middle"
-            android:textColor="?attr/hfText"/>
+            android:id="@+id/lan_tab_radar"
+            android:layout_width="0dp"
+            android:layout_height="34dp"
+            android:layout_weight="1"
+            android:layout_marginRight="4dp"
+            android:gravity="center"
+            android:text="📡  雷达扫描"
+            android:textSize="13sp"/>
 
         <TextView
-            android:id="@+id/lan_file_tip"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:textSize="11sp"
-            android:textColor="?attr/hfTextSub"/>
+            android:id="@+id/lan_tab_recv"
+            android:layout_width="0dp"
+            android:layout_height="34dp"
+            android:layout_weight="1"
+            android:layout_marginLeft="4dp"
+            android:gravity="center"
+            android:text="📥  接收列表"
+            android:textSize="13sp"/>
     </LinearLayout>
 
-    <!-- 雷达 -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="5"
-        android:minHeight="180dp"
-        android:padding="10dp">
+        android:layout_weight="1">
 
-        <com.hex91.file.RadarView
-            android:id="@+id/lan_radar"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"/>
-    </FrameLayout>
-
-    <TextView
-        android:id="@+id/lan_hint"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingLeft="14dp"
-        android:paddingRight="14dp"
-        android:paddingBottom="4dp"
-        android:text="正在搜索同网络下的设备…"
-        android:textSize="12sp"
-        android:textColor="?attr/hfTextSub"/>
-
-    <!-- 设备列表 -->
-    <ScrollView
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="4"
-        android:fillViewport="true">
-
+        <!-- ================= 雷达页 ================= -->
         <LinearLayout
-            android:id="@+id/lan_devices"
+            android:id="@+id/lan_page_radar"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"/>
-    </ScrollView>
+            android:layout_height="match_parent"
+            android:orientation="vertical">
 
-    <!-- 底部操作 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="8dp"
-        android:background="?attr/hfSurface">
+            <!-- 待发送文件卡片（从文件长按进入时显示） -->
+            <LinearLayout
+                android:id="@+id/lan_file"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingLeft="14dp"
+                android:paddingRight="14dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                android:background="?attr/hfSurface"
+                android:visibility="gone">
 
-        <Button
-            android:id="@+id/lan_pick"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="选择文件"
-            android:textSize="12sp"/>
+                <TextView
+                    android:id="@+id/lan_file_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="13sp"
+                    android:maxLines="1"
+                    android:ellipsize="middle"
+                    android:textColor="?attr/hfText"/>
 
-        <Button
-            android:id="@+id/lan_dir"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="接收记录"
-            android:textSize="12sp"/>
+                <TextView
+                    android:id="@+id/lan_file_tip"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textSize="11sp"
+                    android:textColor="?attr/hfTextSub"/>
+            </LinearLayout>
 
-        <Button
-            android:id="@+id/lan_keep"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="后台接收"
-            android:textSize="12sp"/>
-    </LinearLayout>
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="5"
+                android:minHeight="150dp"
+                android:padding="10dp">
+
+                <com.hex91.file.RadarView
+                    android:id="@+id/lan_radar"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"/>
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/lan_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingLeft="14dp"
+                android:paddingRight="14dp"
+                android:paddingBottom="4dp"
+                android:text="正在搜索同网络下的设备…"
+                android:textSize="12sp"
+                android:textColor="?attr/hfTextSub"/>
+
+            <!-- 设备列表 -->
+            <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="4"
+                android:fillViewport="true">
+
+                <LinearLayout
+                    android:id="@+id/lan_devices"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingLeft="10dp"
+                    android:paddingRight="10dp"
+                    android:paddingBottom="8dp"/>
+            </ScrollView>
+
+            <!-- 底部操作（代码里统一套胶囊样式） -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="10dp"
+                android:background="?attr/hfSurface">
+
+                <TextView
+                    android:id="@+id/lan_pick"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginRight="6dp"
+                    android:gravity="center"
+                    android:text="选择文件"/>
+
+                <TextView
+                    android:id="@+id/lan_keep"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginLeft="6dp"
+                    android:gravity="center"
+                    android:text="后台接收"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ================= 接收列表页 ================= -->
+        <LinearLayout
+            android:id="@+id/lan_page_recv"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <!-- 目录信息条 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingLeft="14dp"
+                android:paddingRight="10dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="6dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/lan_recv_count"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="接收列表"
+                        android:textSize="13sp"
+                        android:textColor="?attr/hfText"/>
+
+                    <TextView
+                        android:id="@+id/lan_recv_path"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="/sdcard/HexFile/LanShare"
+                        android:textSize="10.5sp"
+                        android:maxLines="1"
+                        android:ellipsize="middle"
+                        android:textColor="?attr/hfTextSub"/>
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/lan_recv_open"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="6dp"
+                    android:text="打开目录"/>
+
+                <TextView
+                    android:id="@+id/lan_recv_refresh"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="6dp"
+                    android:text="刷新"/>
+            </LinearLayout>
+
+            <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:fillViewport="true">
+
+                <LinearLayout
+                    android:id="@+id/lan_recv_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingLeft="10dp"
+                    android:paddingRight="10dp"
+                    android:paddingBottom="10dp"/>
+            </ScrollView>
+        </LinearLayout>
+    </FrameLayout>
 </LinearLayout>
