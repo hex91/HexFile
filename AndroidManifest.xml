@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hex91.file"
-    android:versionCode="143"
-    android:versionName="1.74.0">
+    android:versionCode="144"
+    android:versionName="1.74.1">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
 
@@ -25,6 +25,9 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
 
+    <!-- v1.74.1 明文 HTTP 放行：快传/WebDAV/网络工具的目标地址是运行时才知道的局域网 IP，
+         无法枚举成域名白名单，详见 res/xml/network_security_config.xml 的说明。
+         usesCleartextTraffic 供 API 23~27 兜底（这批系统还不读 networkSecurityConfig）。 -->
     <application
         android:label="HexFile"
         android:icon="@mipmap/ic_launcher"
@@ -32,6 +35,8 @@
         android:theme="@style/Theme_Hex_0"
         android:largeHeap="true"
         android:requestLegacyExternalStorage="true"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true">
 
         <!-- v1.66.0 统一签名弹窗（透明，退出 APK 浏览时弹出） -->

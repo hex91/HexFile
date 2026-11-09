@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  网络安全配置（v1.74.1）
+
+  背景：targetSdk 30（>=28）时，Android 9+ 默认禁止明文 HTTP 出站，
+  HttpURLConnection 会直接抛
+    "CLEARTEXT communication to x.x.x.x not permitted by network security policy"
+  报错发生在建立连接之前，与端口、服务端是否正常无关。
+
+  本应用有三处合法的明文场景，目标地址都是运行时才知道的局域网 / 自建服务：
+    1. 局域网快传   POST http://对端IP:随机端口/lan/send
+    2. WebDAV 存储  http://192.168.x.x:5005/dav/
+    3. 网络工具    用户手输的 http:// 地址（类 Postman）
+
+  这些地址无法写成域名白名单：network-security-config 的 domain 不支持
+  CIDR 网段，也不支持通配 IP，对端 IP 由 DHCP 决定，安装期不可知。
+  因此这里整体放开明文，同时 HTTPS 仍然按系统信任锚正常校验证书，
+  不会因为放开明文而降低 HTTPS 的安全性。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -1668,6 +1668,23 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.74.1 —— 修复明文 HTTP 被系统拦截（快传发不出去）
+
+- 现象：局域网快传点发送后立即失败，日志/提示里是
+  `CLEARTEXT communication to 192.168.x.x not permitted by network security policy`。
+- 原因：`targetSdk 30`（≥28）时 Android 9+ 默认禁止明文 HTTP 出站，`HttpURLConnection`
+  在**建连之前**就被平台拒绝——TCP 都没发出去，所以与对方是否在线、端口是否监听无关。
+- 影响面不止快传，凡是走 `http://` 的都中招：WebDAV 网络存储、工具箱的网络请求页。
+- 修法：新增 `res/xml/network_security_config.xml`，`base-config` 设
+  `cleartextTrafficPermitted="true"`，清单加 `android:networkSecurityConfig` 与
+  `android:usesCleartextTraffic="true"`（后者供 API 23~27 兜底，这批系统还不读安全配置）。
+- 为什么整体放开而不是白名单：快传/WebDAV 的对端 IP 由 DHCP 决定，安装期不可知；而安全配置的
+  `domain` 既不支持 CIDR 网段也不支持通配 IP，无法枚举。HTTPS 仍按系统信任锚校验证书，不受影响。
+- 附加：`LanSender` 把这类异常翻译成「系统拦截了明文 HTTP …」，不再让人误判成「对方没开服务」。
+- versionCode 144；两台设备都需要升到本版才能互传。
+
+---
+
 ## v1.74.0 —— 局域网快传（雷达扫描 + 点对点传文件）
 
 - 场景：两台手机都装了本应用，想把一个 APK / 照片 / 压缩包传到对面，不想经过微信压缩、

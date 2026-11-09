@@ -27,7 +27,9 @@ import java.util.Map;
  * <p>能做的事：选方法 + 填 URL + 自定义请求头（每行 {@code Key: Value}）+ 请求体，发送后显示
  * 状态码 / 耗时 / 大小 / 响应头 / 响应体；JSON 响应会自动缩进。
  *
- * <p>实现用 {@link HttpURLConnection}：不引第三方库，targetSdk 30 下不受明文流量限制影响。
+ * <p>实现用 {@link HttpURLConnection}：不引第三方库。明文 {@code http://} 依赖
+ * {@code res/xml/network_security_config.xml} 放行（targetSdk 28+ 默认禁止 CLEARTEXT），
+ * 否则会在建连阶段直接抛 "not permitted by network security policy"。
  * 请求跑在后台线程，主线程只刷 UI；响应体超过 512KB 会截断，避免大文件把内存吃光。
  */
 public class HttpToolActivity extends BaseActivity {

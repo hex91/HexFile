@@ -33,7 +33,8 @@ import java.util.Locale;
  * v1.56.0 网络存储：SMB / WebDAV 客户端，手机直连电脑共享。
  *
  * <p>SMB 走 {@link SmbFs}（smbj 0.14.0，SMB2/SMB3），WebDAV 走 {@link WebDavFs}
- * （HttpURLConnection + Basic 认证），FTP 走 {@link FtpFs}（纯 Socket 零依赖），
+ * （HttpURLConnection + Basic 认证，明文 http 需 network_security_config 放行），
+ * FTP 走 {@link FtpFs}（纯 Socket 零依赖），
  * SFTP 走 {@link SftpFs}（JSch SSH2）。服务器配置以 JSON 存于 SharedPreferences。</p>
  *
  * <p>功能：服务器增删改测、远程浏览、下载到本地（文件/目录递归）、

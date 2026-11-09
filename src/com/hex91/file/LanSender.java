@@ -170,13 +170,26 @@ public final class LanSender {
 
     private static void fail(final Cb cb, final Throwable e) {
         if (cb == null) return;
-        final String msg = e == null ? "未知错误"
-                : (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+        final String msg = friendly(e);
         main().post(new Runnable() {
             public void run() {
                 try { cb.onError(msg); } catch (Throwable ignored) { }
             }
         });
+    }
+
+    /**
+     * 把底层异常翻成人能看懂的话。{@code CLEARTEXT ...not permitted} 是系统的明文流量策略
+     * 在建连前就拒绝（连 TCP 都没发出去），跟对方是否在线无关，直接抛原文会让人误判成
+     * 「对方没开服务」，所以单独挑出来说明。
+     */
+    static String friendly(Throwable e) {
+        if (e == null) return "未知错误";
+        String m = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        if (m != null && m.contains("CLEARTEXT")) {
+            return "系统拦截了明文 HTTP（" + m + "）。请确认两台设备都是 1.74.1 及以上版本";
+        }
+        return m;
     }
 
     private static Handler main() {
