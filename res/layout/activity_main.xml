@@ -94,9 +94,26 @@
                 android:divider="?attr/hfDivider"
                 android:dividerHeight="1dp"
                 android:scrollbars="vertical"/>
+
+            <!-- v1.80.0：网格/大图视图（与列表共用同一份数据，同一时刻只显示一个） -->
+            <GridView
+                android:id="@+id/grid_left"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:numColumns="auto_fit"
+                android:columnWidth="96dp"
+                android:horizontalSpacing="2dp"
+                android:verticalSpacing="2dp"
+                android:paddingLeft="4dp"
+                android:paddingRight="4dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:scrollbars="vertical"
+                android:visibility="gone"/>
         </com.hex91.file.PullRefreshLayout>
 
         <View
+            android:id="@+id/pane_divider"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="?attr/hfDivider"/>
@@ -114,6 +131,21 @@
                 android:divider="?attr/hfDivider"
                 android:dividerHeight="1dp"
                 android:scrollbars="vertical"/>
+
+            <GridView
+                android:id="@+id/grid_right"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:numColumns="auto_fit"
+                android:columnWidth="96dp"
+                android:horizontalSpacing="2dp"
+                android:verticalSpacing="2dp"
+                android:paddingLeft="4dp"
+                android:paddingRight="4dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:scrollbars="vertical"
+                android:visibility="gone"/>
         </com.hex91.file.PullRefreshLayout>
     </LinearLayout>
 

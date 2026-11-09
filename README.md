@@ -1668,6 +1668,52 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.80.0 —— 网格/大图视图 + 权限与时间戳编辑（P1 前两项）
+
+### 网格 / 大图视图
+
+- ⋮ 菜单新增「网格视图（大图）」，偏好存进 `SharedPreferences("hf_view")` 的 `view_mode`，
+  重启保持；切回列表就恢复双栏。
+- **不复制数据**：`FileGridAdapter` 直接按下标读同一个 `FileAdapter`，排序、隐藏文件、
+  勾选状态天然一致，不需要双向同步；`FileAdapter.notifyDataSetChanged()` 通过
+  `setMirror()` 一并通知网格，改目录/改排序/勾选时两套视图不会各显示一半旧数据。
+- **网格模式只留一个窗格**：双栏各 180dp 时一行只放得下 1 个 96dp 的格子，大图就没意义了。
+  所以网格模式下非活动窗格整块收起，活动栏占满宽度；⇄ 交换仍然可用（Panel 自带视图引用）。
+  列表模式下两者都恢复。
+- 单元格 = 正方形缩略图区 + 单行文件名：图片/APK 走 `ThumbLoader`（复用列表那份 LRU，
+  同一张图不会解码两次），目录/文档显示 MT 式彩色类型角标；多选时右上角打勾 + 强调色描边。
+- 点击/长按行为与列表完全一致 —— 把原来两个匿名监听里的逻辑抽成
+  `handleItemClick()` / `handleItemHold()`，列表和网格共用同一份。
+- `PullRefreshLayout` 里现在同时挂着 ListView 与 GridView，它改为按「当前可见的那个子 View」
+  判断能否下拉（GONE 的控件 `canScrollVertically()` 恒为 false，会把「不可滚动」误当成「在顶部」）。
+
+### 权限编辑
+
+- **去掉「必须有 Root」的前置拦截**：没有 root 也能改本应用拥有的文件（应用私有目录、
+  自己创建的文件）—— 走 `android.system.Os.chmod()`；只有它抛 `ErrnoException` 时才报失败。
+  以前一进来就 toast「更改权限需要 Root」，等于把这条能力锁死。
+- 新增常用预设 `644 / 755 / 600 / 777`：9 个勾选框点起来太慢，日常就这几个值。
+- 目录增加「同时应用到子项（递归）」勾选框，走 `FileAttrs.chmodTree()`
+  （Java 递归而不是 `chmod -R`，这样无 root 时也能逐项走 `Os.chmod`；深度上限 64 层防链接环）。
+
+### 时间戳编辑
+
+- 属性页的「修改时间」原来是只读文本，现在带「更改」按钮：弹窗固定格式
+  `yyyy-MM-dd HH:mm:ss` + 一个「设为现在」快捷键。
+- 解析用 `SimpleDateFormat(lenient=false)`：写错日期会明确提示，而不是被宽松解析悄悄
+  改成另一个时间。
+- 写入先试 `File.setLastModified()`，失败再走 root 的 `touch -t`；
+  改完清 `FileAttrs` 缓存并重列当前目录，列表详情行不会留着旧时间。
+- 顺手把 `FileAttrs.chmod()` 的返回值语义统一（0=生效 / 1=命令成功但回读未变 / -1=失败），
+  FUSE 挂载（/sdcard）上会明确告诉你「权限未实际变更」，不再假装成功。
+
+### 回归
+
+- 新增 `test/FileAttrsTest`（8 项：时间写入落盘、缓存失效后 stat 拿到新值、
+  文件不存在返回 false 不抛异常、目录同样可改），与既有用例一起 **QUICK 21 项全 PASS**。
+
+---
+
 ## v1.79.0 —— 下拉刷新（adb 推送后不用退出目录）
 
 - **现象**：`adb push` 往 /sdcard 拷了文件，列表里看不到，必须退出目录再进一次。

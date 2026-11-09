@@ -133,7 +133,20 @@ public class PullRefreshLayout extends FrameLayout {
 
     /** 列表是否已经滚到最上面（含空列表）；能往上滚就说明这一下拉该给 ListView */
     private boolean atTop() {
-        return content == null || !content.canScrollVertically(-1);
+        View v = content();
+        return v == null || !v.canScrollVertically(-1);
+    }
+
+    /**
+     * 当前生效的内容视图。v1.80.0 起同一窗格里同时挂着 ListView 与 GridView，
+     * 同一时刻只有一个 VISIBLE —— 以可见的那个为准（GONE 的那个滚不动，会误判成「在顶部」）。
+     */
+    private View content() {
+        for (int i = 0; i < getChildCount(); i++) {
+            View v = getChildAt(i);
+            if (v.getVisibility() == VISIBLE) return v;
+        }
+        return content != null ? content : (getChildCount() > 0 ? getChildAt(0) : null);
     }
 
     @Override
@@ -201,7 +214,8 @@ public class PullRefreshLayout extends FrameLayout {
 
     private void applyOffset(float y) {
         offset = y;
-        if (content != null) content.setTranslationY(y);
+        View v = content();
+        if (v != null) v.setTranslationY(y);
         invalidate();
     }
 

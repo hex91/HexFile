@@ -138,15 +138,70 @@ public final class FileAttrs {
      * 无论结果如何都回读真实属性刷新缓存，保证 UI 与磁盘一致。
      */
     public static int chmod(File f, int octal) {
-        if (!RootUtil.isRootAvailable()) return -1;
+        int mode = octal & 07777;
+        if (!RootUtil.isRootAvailable()) {
+            // v1.80.0：没有 root 也能改「本应用拥有」的文件（应用私有目录、SAF 授权目录下的文件），
+            // 之前一律直接返回失败，等于把这条能力锁死了
+            try {
+                android.system.Os.chmod(f.getPath(), mode);
+            } catch (Throwable e) {
+                return -1;
+            }
+            CACHE.remove(key(f));
+            Attr fa = statFallback(f);
+            if (fa != null) CACHE.put(key(f), fa);
+            return 0;
+        }
         String quoted = "'" + f.getPath().replace("'", "'\\''") + "'";
-        boolean ok = RootUtil.run("chmod " + Integer.toOctalString(octal & 07777) + " " + quoted);
+        boolean ok = RootUtil.run("chmod " + Integer.toOctalString(mode) + " " + quoted);
         if (!ok) return -1;
         CACHE.remove(key(f));
         Attr a = statViaSu(f.getPath());   // 回读真实值（绕过缓存）
         if (a != null) CACHE.put(key(f), a);
         if (a == null || a.octal < 0) return 0;   // 无法回读时按成功处理
-        return ((a.octal & 07777) == (octal & 07777)) ? 0 : 1;
+        return ((a.octal & 07777) == mode) ? 0 : 1;
+    }
+
+    /**
+     * v1.80.0：递归 chmod（目录连同子项）。
+     * 用 Java 递归而不是 {@code chmod -R}，是为了无 root 时也能走 Os.chmod 这条路径；
+     * 深度上限 64 层，防止异常软链接环把主线程/工作线程拖死（调用方仍需放后台线程）。
+     */
+    public static int chmodTree(File f, int octal) {
+        return chmodTree(f, octal, 0);
+    }
+
+    private static int chmodTree(File f, int octal, int depth) {
+        int rc = chmod(f, octal);
+        if (depth >= 64 || !f.isDirectory()) return rc;
+        File[] kids = f.listFiles();
+        if (kids == null) return rc;
+        for (File k : kids) {
+            int r = chmodTree(k, octal, depth + 1);
+            if (r != 0) rc = r;          // 有失败就记下来（成功项已生效，不回滚）
+        }
+        return rc;
+    }
+
+    /**
+     * v1.80.0：修改时间。
+     * 先试 {@link File#setLastModified(long)}（应用自己的文件通常能成功），失败再走 root 的
+     * {@code touch -t}。注意 touch 用设备本地时区解释时间串，所以格式化也用默认时区。
+     */
+    public static boolean setMtime(File f, long ms) {
+        boolean ok = false;
+        try {
+            ok = f.setLastModified(ms);
+        } catch (Throwable ignore) {
+        }
+        if (!ok && RootUtil.isRootAvailable()) {
+            String t = new java.text.SimpleDateFormat("yyyyMMddHHmm.ss", java.util.Locale.US)
+                    .format(new java.util.Date(ms));
+            String quoted = "'" + f.getPath().replace("'", "'\\''") + "'";
+            ok = RootUtil.run("touch -t " + t + " " + quoted);
+        }
+        CACHE.remove(key(f));
+        return ok;
     }
 
     /**

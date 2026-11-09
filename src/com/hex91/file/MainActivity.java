@@ -30,6 +30,7 @@ import android.widget.PopupMenu;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.GridView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -65,6 +66,9 @@ public class MainActivity extends BaseActivity {
     /** 单侧面板状态（对标 MT 的左右窗口） */
     private class Panel {
         ListView list;
+        /** v1.80.0：网格/大图视图（与 list 共用同一份数据，同一时刻只有一个可见） */
+        GridView grid;
+        FileGridAdapter gridAdapter;
         /** v1.79.0：列表外层的下拉刷新容器 */
         PullRefreshLayout pull;
         FileAdapter adapter;
@@ -81,10 +85,19 @@ public class MainActivity extends BaseActivity {
     private Panel left = new Panel();
     private Panel right = new Panel();
 
-    /** v1.78.0：窗格显示偏好（排序方式 / 是否显示 . 文件），两栏共用 */
+    /** v1.78.0：窗格显示偏好（排序方式 / 是否显示 . 文件 / 列表or网格），两栏共用 */
     private static final String PREF_UI = "hf_view";
     private static final String KEY_SORT = "sort_mode";
     private static final String KEY_HIDDEN = "show_hidden";
+    /** v1.80.0：视图模式（0=列表 1=网格/大图） */
+    private static final String KEY_VIEW = "view_mode";
+    private static final int VIEW_LIST = 0;
+    private static final int VIEW_GRID = 1;
+    private int viewMode = VIEW_LIST;
+
+    private void saveViewMode(int mode) {
+        getSharedPreferences(PREF_UI, MODE_PRIVATE).edit().putInt(KEY_VIEW, mode).apply();
+    }
 
     private void saveSortMode(int mode) {
         getSharedPreferences(PREF_UI, MODE_PRIVATE).edit().putInt(KEY_SORT, mode).apply();
@@ -155,6 +168,8 @@ public class MainActivity extends BaseActivity {
         right.list = listRight;
         left.pull = (PullRefreshLayout) findViewById(R.id.pull_left);
         right.pull = (PullRefreshLayout) findViewById(R.id.pull_right);
+        left.grid = (GridView) findViewById(R.id.grid_left);
+        right.grid = (GridView) findViewById(R.id.grid_right);
 
         if (Build.VERSION.SDK_INT >= 30 && !hasAllFilesAccess()) {
             // Android 11+：文件管理器必须「所有文件访问」权限（对标 MT Manager 做法）
@@ -171,6 +186,9 @@ public class MainActivity extends BaseActivity {
         loadDir(left, Environment.getExternalStorageDirectory());
         loadDir(right, Environment.getExternalStorageDirectory());
         left.active = true;
+        // v1.80.0：视图模式也持久化（和排序/隐藏文件同一份偏好），重启保持
+        viewMode = getSharedPreferences(PREF_UI, MODE_PRIVATE).getInt(KEY_VIEW, VIEW_LIST);
+        applyViewMode();
 
         // 底部 MT 工具栏：‹ 历史 › ＋ 新建 ⇄ 交换 ↑ 上级
         findViewById(R.id.btn_up).setOnClickListener(new View.OnClickListener() {
@@ -805,6 +823,8 @@ public class MainActivity extends BaseActivity {
         menu.add(Menu.NONE, 1, 1, "搜索");
         menu.add(Menu.NONE, 2, 2, "全选");
         menu.add(Menu.NONE, 3, 3, "排序方式");
+        // v1.80.0：列表 ⇄ 网格（大图）切换，偏好持久化
+        menu.add(Menu.NONE, 10, 3, viewMode == VIEW_GRID ? "列表视图（双栏）" : "网格视图（大图）");
         menu.add(Menu.NONE, 4, 4, p.adapter.showHidden ? "隐藏 .文件" : "显示 .文件");
         menu.add(Menu.NONE, 5, 5, "书签");
         menu.add(Menu.NONE, 6, 6, "回收站");
@@ -841,6 +861,14 @@ public class MainActivity extends BaseActivity {
                         updateSelDone();
                         break;
                     case 3: askSortMode(); break;
+                    case 10:                       // v1.80.0 网格/列表切换
+                        viewMode = viewMode == VIEW_GRID ? VIEW_LIST : VIEW_GRID;
+                        saveViewMode(viewMode);
+                        applyViewMode();
+                        updateHeader();
+                        // 从列表切到网格时当前滚动位置不再对应，回到顶部更符合预期
+                        if (viewMode == VIEW_GRID && p.grid != null) p.grid.setSelection(0);
+                        break;
                     case 4:
                         // v1.78.0：两栏共用这套显示设置，改完存盘并同步刷新
                         boolean nh = !p.adapter.showHidden;
@@ -1059,53 +1087,100 @@ public class MainActivity extends BaseActivity {
 
         p.list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             public void onItemClick(AdapterView<?> av, View v, int i, long id) {
-                setActive(p);
-                FileItem it = p.adapter.get(i);
-                // v1.40.0：列表顶部 .. 返回项（多选中点击 = 退出多选并返回，loadDir 内处理）
-                if (it.upEntry) {
-                    File up = p.dir.getParentFile();
-                    if (up != null && (up.canRead() || RootUtil.isRootAvailable()))
-                        loadDir(p, up);
-                    return;
-                }
-                if (p.adapter.selectionMode) {
-                    p.adapter.toggle(i);
-                    updateSelDone();
-                    return;
-                }
-                if (it.isArchUp()) { archGoUp(p); return; }
-                if (it.isArchEntry()) { onArchItemClick(p, it); return; }
-                if (it.isDir()) {
-                    loadDir(p, it.file);
-                } else {
-                    onFileClick(it.file);
-                }
+                handleItemClick(p, i);
             }
         });
         p.list.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
             public boolean onItemLongClick(AdapterView<?> av, View v, int i, long id) {
-                setActive(p);
-                FileItem it = p.adapter.get(i);
-                if (it.upEntry) return true;    // .. 返回项无操作菜单
-                if (p.adapter.selectionMode) {
-                    p.adapter.toggle(i);
-                    updateSelDone();
-                    return true;
-                }
-                if (it.isArchEntry()) {
-                    if (!it.isArchUp()) showArchOpsMenu(p, it);
-                    return true;
-                }
-                showOpsMenu(p.adapter.get(i).file);
-                return true;
+                return handleItemHold(p, i);
             }
         });
+
+        // v1.80.0：网格视图与列表共用同一份数据、同一套点击处理（下标含义相同）
+        p.gridAdapter = new FileGridAdapter(this, p.adapter);
+        p.adapter.setMirror(p.gridAdapter);
+        if (p.grid != null) {
+            p.grid.setAdapter(p.gridAdapter);
+            p.grid.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                public void onItemClick(AdapterView<?> av, View v, int i, long id) {
+                    handleItemClick(p, i);
+                }
+            });
+            p.grid.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+                public boolean onItemLongClick(AdapterView<?> av, View v, int i, long id) {
+                    return handleItemHold(p, i);
+                }
+            });
+        }
+    }
+
+    /** 点击条目：列表与网格共用（两侧下标都指向同一个 FileAdapter） */
+    private void handleItemClick(Panel p, int i) {
+        setActive(p);
+        FileItem it = p.adapter.get(i);
+        // v1.40.0：列表顶部 .. 返回项（多选中点击 = 退出多选并返回，loadDir 内处理）
+        if (it.upEntry) {
+            File up = p.dir.getParentFile();
+            if (up != null && (up.canRead() || RootUtil.isRootAvailable()))
+                loadDir(p, up);
+            return;
+        }
+        if (p.adapter.selectionMode) {
+            p.adapter.toggle(i);
+            updateSelDone();
+            return;
+        }
+        if (it.isArchUp()) { archGoUp(p); return; }
+        if (it.isArchEntry()) { onArchItemClick(p, it); return; }
+        if (it.isDir()) {
+            loadDir(p, it.file);
+        } else {
+            onFileClick(it.file);
+        }
+    }
+
+    /** 长按条目：列表与网格共用 */
+    private boolean handleItemHold(Panel p, int i) {
+        setActive(p);
+        FileItem it = p.adapter.get(i);
+        if (it.upEntry) return true;    // .. 返回项无操作菜单
+        if (p.adapter.selectionMode) {
+            p.adapter.toggle(i);
+            updateSelDone();
+            return true;
+        }
+        if (it.isArchEntry()) {
+            if (!it.isArchUp()) showArchOpsMenu(p, it);
+            return true;
+        }
+        showOpsMenu(p.adapter.get(i).file);
+        return true;
     }
 
     private void setActive(Panel p) {
         left.active = (p == left);
         right.active = (p == right);
+        applyViewMode();
         updateHeader();
+    }
+
+    /**
+     * v1.80.0：列表 / 网格视图切换。
+     *
+     * 网格模式下把非活动窗格整块收起来，让活动栏占满宽度 —— 双栏各 180dp 时，
+     * 一行只放得下 1 个 96dp 的格子，大图浏览就没意义了；列表模式下恢复双栏。
+     * 交换窗格（⇄）仍然可用：Panel 自带视图引用，交换后活动栏照样占满。
+     */
+    private void applyViewMode() {
+        boolean grid = viewMode == VIEW_GRID;
+        Panel a = active();
+        for (Panel p : new Panel[]{left, right}) {
+            if (p.list != null) p.list.setVisibility(grid ? View.GONE : View.VISIBLE);
+            if (p.grid != null) p.grid.setVisibility(grid ? View.VISIBLE : View.GONE);
+            if (p.pull != null) p.pull.setVisibility(grid && p != a ? View.GONE : View.VISIBLE);
+        }
+        View div = findViewById(R.id.pane_divider);
+        if (div != null) div.setVisibility(grid ? View.GONE : View.VISIBLE);
     }
 
     private void loadDir(Panel p, File dir) {
@@ -1128,6 +1203,8 @@ public class MainActivity extends BaseActivity {
             p.hIndex = p.history.size() - 1;
         }
         p.adapter.setDir(dir);
+        // 换目录后网格要回到顶部：数据换了一批，保留旧滚动位置会落在中间
+        if (p.grid != null) p.grid.setSelection(0);
         updateHeader();
     }
 
@@ -3398,9 +3475,15 @@ public class MainActivity extends BaseActivity {
         propRow(root, "类型", isDir ? "文件夹" : "文件");
         propRow(root, "大小", isDir ? "—"
                 : FileOps.formatSize(f.length()) + " (" + f.length() + ")");
-        propRow(root, "修改时间", FileOps.formatTime(f.lastModified()));
 
         final FileAttrs.Attr cached = FileAttrs.get(f);
+        // v1.80.0：修改时间可编辑（root 区 File API 拿不到时用 stat 回读的 mtime）
+        final long shownMtime = cached != null && cached.mtime > 0 ? cached.mtime : f.lastModified();
+        propRowBtn(root, "修改时间", FileOps.formatTime(shownMtime), "更改",
+                new View.OnClickListener() {
+                    public void onClick(View v) { showTimeEditor(f, shownMtime); }
+                });
+
         final TextView tvPerm = propRowBtn(root, "权限",
                 cached != null ? permText(cached) : "…",
                 "更改", new View.OnClickListener() {
@@ -3526,11 +3609,12 @@ public class MainActivity extends BaseActivity {
      *          成功后先关旧属性弹窗再重开，消除双层弹窗。
      */
     private void showPermEditor(final File f) {
-        if (!RootUtil.isRootAvailable()) { toast("更改权限需要 Root"); return; }
         FileAttrs.Attr a = FileAttrs.stat(f);
-        if (a == null || a.octal < 0) { toast("无法获取当前权限（需要 Root）"); return; }
+        // v1.80.0：没有 root 也允许尝试 —— 应用私有目录里的文件本应用就能 chmod，
+        // 以前一上来就 toast「需要 Root」把入口堵死了
+        final boolean hasRoot = RootUtil.isRootAvailable();
         final float d = getResources().getDisplayMetrics().density;
-        int o = a.octal;
+        int o = (a != null && a.octal >= 0) ? a.octal : 0644;
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -3592,6 +3676,50 @@ public class MainActivity extends BaseActivity {
         }
         oct.setText("八进制: " + Integer.toOctalString(o));   // 初值（v1.43.0 八进制修复）
 
+        if (!hasRoot) {
+            TextView tip = new TextView(this);
+            tip.setText("未 Root：只能改本应用拥有的文件；/sdcard 这类 FUSE 挂载通常改不动。");
+            tip.setTextSize(11.5f);
+            tip.setTextColor(ThemeManager.textSub(this));
+            tip.setPadding(0, (int) (8 * d), 0, 0);
+            root.addView(tip);
+        }
+
+        // v1.80.0：常用权限预设 —— 644/755 这些天天用，9 个勾选框点起来太慢
+        LinearLayout presets = new LinearLayout(this);
+        presets.setOrientation(LinearLayout.HORIZONTAL);
+        presets.setPadding(0, (int) (12 * d), 0, 0);
+        TextView pLabel = new TextView(this);
+        pLabel.setText("常用");
+        pLabel.setTextSize(12);
+        pLabel.setTextColor(ThemeManager.textSub(this));
+        pLabel.setWidth((int) (60 * d));
+        pLabel.setGravity(Gravity.CENTER_VERTICAL);
+        presets.addView(pLabel);
+        final int[] PRESET = {0644, 0755, 0600, 0777};
+        for (final int pv : PRESET) {
+            TextView chip = UiDecor.pill(this, null, Integer.toOctalString(pv), false);
+            chip.setTextSize(11.5f);
+            chip.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { applyOctalToBoxes(cbs, pv); }
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.rightMargin = (int) (6 * d);
+            presets.addView(chip, lp);
+        }
+        root.addView(presets);
+
+        // 目录才有「递归」的意义
+        final CheckBox rec = new CheckBox(this);
+        rec.setText("同时应用到子项（递归）");
+        rec.setTextSize(12);
+        if (f.isDirectory()) {
+            rec.setPadding(0, (int) (4 * d), 0, 0);
+            root.addView(rec);
+        }
+
         new HfDialogBuilder(this)
                 .setTitle("更改权限 — " + f.getName())
                 .setView(root)
@@ -3602,18 +3730,23 @@ public class MainActivity extends BaseActivity {
                             for (int p = 0; p < 3; p++)
                                 if (cbs[w2][p].isChecked()) v |= 1 << (8 - w2 * 3 - p);
                         final int fv = v;
+                        final boolean deep = rec.isChecked() && f.isDirectory();
                         new Thread(new Runnable() {
                             public void run() {
-                                final int rc = FileAttrs.chmod(f, fv);
+                                final int rc = deep ? FileAttrs.chmodTree(f, fv)
+                                        : FileAttrs.chmod(f, fv);
                                 runOnUiThread(new Runnable() {
                                     public void run() {
                                         if (rc == 0) {
-                                            toast("权限已更改为 " + Integer.toOctalString(fv));
+                                            toast("权限已更改为 " + Integer.toOctalString(fv)
+                                                    + (deep ? "（含子项）" : ""));
                                             reopenProps(f);   // v1.43.1：关旧开新，不再叠层
                                         } else if (rc == 1) {
                                             toast("该存储区不支持 chmod（FUSE 挂载），权限未实际变更");
                                             reopenProps(f);
-                                        } else toast("chmod 失败（需要 Root 授权）");
+                                        } else toast(hasRoot
+                                                ? "chmod 失败，请检查路径是否可写"
+                                                : "chmod 失败：没有 Root，只能改本应用拥有的文件");
                                     }
                                 });
                             }
@@ -3631,6 +3764,77 @@ public class MainActivity extends BaseActivity {
             mPropsDialog = null;
         }
         showProps(f);
+    }
+
+    /** 把八进制权限位灌进 9 个勾选框（勾选监听会自己刷新「八进制」显示） */
+    private void applyOctalToBoxes(CheckBox[][] cbs, int v) {
+        for (int w = 0; w < 3; w++)
+            for (int p = 0; p < 3; p++)
+                cbs[w][p].setChecked(((v >> (8 - w * 3 - p)) & 1) == 1);
+    }
+
+    /**
+     * v1.80.0：修改时间编辑器。
+     * 只提供一个固定格式的输入框 + 「设为现在」；解析用 lenient=false，
+     * 写错会明确报错，而不是被「宽松解析」悄悄改成别的日期。
+     */
+    private void showTimeEditor(final File f, long cur) {
+        final float d = getResources().getDisplayMetrics().density;
+        final java.text.SimpleDateFormat fmt =
+                new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.CHINA);
+        fmt.setLenient(false);
+
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding((int) (22 * d), (int) (12 * d), (int) (22 * d), 0);
+
+        TextView hint = new TextView(this);
+        hint.setText("格式：yyyy-MM-dd HH:mm:ss（本机时区）");
+        hint.setTextSize(11.5f);
+        hint.setTextColor(ThemeManager.textSub(this));
+        root.addView(hint);
+
+        final EditText et = new EditText(this);
+        et.setSingleLine(true);
+        et.setText(fmt.format(new java.util.Date(cur)));
+        et.setSelection(et.getText().length());
+        root.addView(et);
+
+        new HfDialogBuilder(this)
+                .setTitle("修改时间 — " + f.getName())
+                .setView(root)
+                .setNeutralButton("设为现在", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface di, int w) {
+                        applyMtime(f, System.currentTimeMillis());
+                    }
+                })
+                .setPositiveButton("确定", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface di, int w) {
+                        try {
+                            long ms = fmt.parse(et.getText().toString().trim()).getTime();
+                            applyMtime(f, ms);
+                        } catch (Exception e) {
+                            toast("时间格式不正确，应为 2026-11-09 16:30:00");
+                        }
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void applyMtime(final File f, final long ms) {
+        new Thread(new Runnable() {
+            public void run() {
+                final boolean ok = FileAttrs.setMtime(f, ms);
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        toast(ok ? "修改时间已更新" : "修改失败：无权限（root 区需要 Root）");
+                        reopenProps(f);
+                        if (ok) refreshAll();
+                    }
+                });
+            }
+        }, "touch").start();
     }
 
     /** v1.43.0：更改所有者/用户组——su chown */

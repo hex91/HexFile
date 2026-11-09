@@ -108,6 +108,21 @@ public class FileAdapter extends BaseAdapter {
         notifyDataSetChanged();
     }
 
+    // ---------- 网格视图联动（v1.80.0）----------
+
+    /** 同一个目录可能同时挂着列表与网格两套 Adapter，数据变更要一起通知 */
+    private BaseAdapter mirror;
+
+    public void setMirror(BaseAdapter m) {
+        mirror = m;
+    }
+
+    @Override
+    public void notifyDataSetChanged() {
+        super.notifyDataSetChanged();
+        if (mirror != null) mirror.notifyDataSetChanged();
+    }
+
     // ---------- 多选模式 ----------
 
     /** 是否处于多选模式（点击 = 勾选/取消） */
