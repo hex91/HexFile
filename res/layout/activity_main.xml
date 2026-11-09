@@ -552,6 +552,18 @@
             android:textColor="?attr/hfText"
             android:background="?android:attr/selectableItemBackground"/>
 
+        <!-- v1.74.0：局域网快传（雷达扫描 + 点对点传文件） -->
+        <TextView
+            android:id="@+id/drawer_lan"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:gravity="center_vertical"
+            android:paddingLeft="16dp"
+            android:text="📡  局域网快传"
+            android:textSize="15sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+
         <TextView
             android:id="@+id/drawer_theme"
             android:layout_width="match_parent"

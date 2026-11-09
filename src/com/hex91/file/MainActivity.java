@@ -267,6 +267,13 @@ public class MainActivity extends BaseActivity {
                 startActivity(new Intent(MainActivity.this, ToolboxActivity.class));
             }
         });
+        // v1.74.0：局域网快传（雷达扫描同网设备，点光点传文件）
+        findViewById(R.id.drawer_lan).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                closeDrawer();
+                startActivity(new Intent(MainActivity.this, LanShareActivity.class));
+            }
+        });
         findViewById(R.id.drawer_theme).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 closeDrawer();
@@ -3506,7 +3513,7 @@ public class MainActivity extends BaseActivity {
                 A_REN = 5, A_ZIP = 6, A_DEL = 7, A_PROP = 8, A_ASSEMBLE = 9, A_DEXPP = 14,
                 A_TOZIP_C = 18, A_TOZIP_M = 19, A_COMPARE = 21,
                 A_ENCRYPT = 24, A_DECRYPT = 25, A_SPLIT = 27, A_MERGE = 28,
-                A_ZSTDC = 29, A_ZSTDD = 30, A_STRINGS = 31, A_SHARE = 45;
+                A_ZSTDC = 29, A_ZSTDD = 30, A_STRINGS = 31, A_SHARE = 45, A_LAN = 46;
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
         if (isSmaliDir) { ops.add("编译为 dex"); acts.add(A_ASSEMBLE); }
@@ -3529,6 +3536,7 @@ public class MainActivity extends BaseActivity {
         if (!isFile) { ops.add("查找重复文件"); acts.add(39); }   // v1.59：内容级查重
         if (isFile) { ops.add("HEX 查看"); acts.add(A_HEX); }
         if (isFile) { ops.add("分享"); acts.add(A_SHARE); }
+        if (isFile) { ops.add("局域网快传"); acts.add(A_LAN); }   // v1.74.0
         ops.add("复制到对面"); acts.add(A_COPY);
         ops.add("移动到对面"); acts.add(A_MOVE);
         // 对面窗格打开了压缩包 → 增加写入压缩包动作（文件/目录均可；只读格式点击时给说明）
@@ -3562,7 +3570,7 @@ public class MainActivity extends BaseActivity {
                 A_SIGN = 13, A_COPY = 3, A_REN = 5, A_PROP = 8, A_DEXPP = 15, A_ARSCPP = 16, A_MFPP = 17,
                 A_TOZIP_C = 18, A_TOZIP_M = 19, A_SIGN_APK = 20, A_APK_COMPARE = 22, A_APK_CLONE = 23,
                 A_SIGKILL = 26, A_INFO = 32, A_UNPACK = 33, A_SIGN_CUSTOM = 34, A_RM_SIGN = 35,
-                A_DEL = 7, A_IMGBATCH = 37, A_ARSCPP2 = 40, A_SHARE = 45;
+                A_DEL = 7, A_IMGBATCH = 37, A_ARSCPP2 = 40, A_SHARE = 45, A_LAN = 46;
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
         ops.add("Dex 编辑器++"); acts.add(A_DEXPP);
@@ -3572,6 +3580,7 @@ public class MainActivity extends BaseActivity {
         ops.add("反编译 dex→smali"); acts.add(A_DEX2SMALI);
         ops.add("提取 dex"); acts.add(A_EXTRACT_DEX);
         ops.add("分享"); acts.add(A_SHARE);
+        ops.add("局域网快传"); acts.add(A_LAN);   // v1.74.0
         ops.add("签名信息"); acts.add(A_SIGN);
         ops.add("APK 签名"); acts.add(A_SIGN_APK);
         ops.add("APK 对比"); acts.add(A_APK_COMPARE);
@@ -3751,6 +3760,24 @@ public class MainActivity extends BaseActivity {
             case 45:                              // 分享（v1.72.0，APK 与普通文件共用）
                 shareFile(f);
                 break;
+            case 46:                              // 局域网快传（v1.74.0）
+                openLanShare(f);
+                break;
+        }
+    }
+
+    /** 带着文件进入局域网快传页：对方设备在雷达上点一下就发 */
+    private void openLanShare(File f) {
+        if (f == null || !f.isFile()) {
+            toast("只能传文件（文件夹请先打包）");
+            return;
+        }
+        try {
+            Intent i = new Intent(this, LanShareActivity.class);
+            i.putExtra(LanShareActivity.EXTRA_PATH, f.getAbsolutePath());
+            startActivity(i);
+        } catch (Throwable t) {
+            toast("打开失败: " + t.getMessage());
         }
     }
 
