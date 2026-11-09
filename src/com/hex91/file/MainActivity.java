@@ -421,6 +421,10 @@ public class MainActivity extends BaseActivity {
             public void run() {
                 drawer.setTranslationX(-drawer.getWidth() - 20);
                 drawer.animate().translationX(0).setDuration(220).start();
+                // v1.73.1：每次打开回到菜单顶部。此前滚到中间再关掉，
+                // 下次打开会停在半截位置，看不到「本地」区和前几个入口。
+                View scroll = findViewById(R.id.drawer_scroll);
+                if (scroll != null) scroll.scrollTo(0, 0);
             }
         });
     }

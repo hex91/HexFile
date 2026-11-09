@@ -326,6 +326,27 @@
             </LinearLayout>
         </LinearLayout>
 
+        <!-- v1.73.1：菜单区可滚动。
+             此前所有入口直接铺在 280dp 宽的抽屉 LinearLayout 里，条目超过一屏后
+             超出的部分既看不见也滑不动（抽屉是自定义 translationX 面板，不是 DrawerLayout）。
+             这里改成「头部固定 + 菜单区滚动」：头部只占 ~108dp，剩余高度全部给菜单。 -->
+        <ScrollView
+            android:id="@+id/drawer_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:fillViewport="true"
+            android:scrollbars="none"
+            android:overScrollMode="ifContentScrolls"
+            android:requiresFadingEdge="vertical"
+            android:fadingEdgeLength="24dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingBottom="8dp">
+
         <!-- v1.42.0：本地存储区（对标 MT 抽屉「本地」） -->
         <TextView
             android:layout_width="wrap_content"
@@ -598,5 +619,7 @@
             android:textSize="15sp"
             android:textColor="?attr/hfText"
             android:background="?android:attr/selectableItemBackground"/>
+            </LinearLayout>
+        </ScrollView>
     </LinearLayout>
 </FrameLayout>
