@@ -65,6 +65,8 @@ public class MainActivity extends BaseActivity {
     /** 单侧面板状态（对标 MT 的左右窗口） */
     private class Panel {
         ListView list;
+        /** v1.79.0：列表外层的下拉刷新容器 */
+        PullRefreshLayout pull;
         FileAdapter adapter;
         File dir;
         boolean active;
@@ -151,6 +153,8 @@ public class MainActivity extends BaseActivity {
 
         left.list = listLeft;
         right.list = listRight;
+        left.pull = (PullRefreshLayout) findViewById(R.id.pull_left);
+        right.pull = (PullRefreshLayout) findViewById(R.id.pull_right);
 
         if (Build.VERSION.SDK_INT >= 30 && !hasAllFilesAccess()) {
             // Android 11+：文件管理器必须「所有文件访问」权限（对标 MT Manager 做法）
@@ -823,8 +827,8 @@ public class MainActivity extends BaseActivity {
                         break;
                     case 0:
                         // 刷新：压缩包浏览中 = 重列压缩包（不再退出压缩包）
-                        if (p.archiveFile != null) showArchiveDir(p);
-                        else loadDir(p, p.dir);
+                        // v1.79.0：走和下拉刷新同一条路径（转圈 + 不写历史栈）
+                        refreshPanel(p);
                         break;
                     case 1:
                         Intent i = new Intent(MainActivity.this, SearchActivity.class);
@@ -975,6 +979,16 @@ public class MainActivity extends BaseActivity {
         p.adapter.sortMode = sp.getInt(KEY_SORT, FileAdapter.SORT_NAME);
         p.adapter.showHidden = sp.getBoolean(KEY_HIDDEN, false);
         p.list.setAdapter(p.adapter);
+
+        // v1.79.0：下拉刷新。adb push / 其他应用写入文件后，目录列表不会收到任何通知，
+        // 以前只能退出再进一次目录；现在下拉一下就重读（两栏各管自己）。
+        if (p.pull != null) {
+            p.pull.setOnRefreshListener(new PullRefreshLayout.OnRefreshListener() {
+                public void onRefresh() {
+                    refreshPanel(p);
+                }
+            });
+        }
 
         // 手势（旁听模式，返回 false，事件照常给 ListView，滚动/点击零干扰）：
         //  - 左滑（快速甩动 或 慢速拖动）→ 选中手指起点处的条目并进入多选
@@ -1692,6 +1706,8 @@ public class MainActivity extends BaseActivity {
                         }
                         p.adapter.setItems(list);
                         updateHeader();
+                        // v1.79.0：下拉刷新走的是这条异步路径，列表真正拿到数据后收起转圈
+                        if (p.pull != null && p.pull.isRefreshing()) p.pull.finishRefresh();
                         if (ferr != null && fe == null) toast("读取压缩包失败: " + ferr);
                     }
                 });
@@ -5182,12 +5198,15 @@ public class MainActivity extends BaseActivity {
         if (right.adapter.selectionMode) exitSelection(right);
         p.adapter.setSelectionMode(true);
         selPanel = p;
+        // v1.79.0：多选中的竖直拖动是连续刷选，关掉下拉刷新避免抢事件
+        if (p.pull != null) p.pull.setPullEnabled(false);
         findViewById(R.id.selection_bar).setVisibility(View.VISIBLE);
         updateSelDone();
     }
 
     private void exitSelection(Panel p) {
         p.adapter.setSelectionMode(false);
+        if (p.pull != null) p.pull.setPullEnabled(true);
         if (selPanel == p) {
             selPanel = null;
             findViewById(R.id.selection_bar).setVisibility(View.GONE);
@@ -5672,8 +5691,36 @@ public class MainActivity extends BaseActivity {
     private void refreshAll() {
         for (Panel p : new Panel[]{left, right}) {
             if (p.archiveFile != null) showArchiveDir(p);
-            else if (p.dir != null) loadDir(p, p.dir);
+            // v1.79.0：push=false —— 刷新不是「进入新目录」，否则每刷一次就往历史栈里塞一条重复路径，
+            // ‹ › 要按很多下才退得出去
+            else if (p.dir != null) loadDir(p, p.dir, false);
         }
+        updateHeader();
+    }
+
+    /**
+     * v1.79.0 下拉刷新：重读当前目录（压缩包浏览中则重列压缩包当前层）。
+     *
+     * 读目录是同步的（大目录、root 回退的 ls 可能要几十毫秒到几秒），所以先让转圈画出来
+     * 再干活；结束时再停留 200ms，避免一闪而过让人以为没刷。刷新不写历史栈。
+     */
+    private void refreshPanel(final Panel p) {
+        if (p == null || p.pull == null || p.adapter == null) return;
+        p.pull.setRefreshing(true);
+        p.list.postDelayed(new Runnable() {
+            public void run() {
+                if (p.adapter.selectionMode) exitSelection(p);
+                if (p.archiveFile != null) showArchiveDir(p);
+                else if (p.dir != null) loadDir(p, p.dir, false);
+                updateHeader();
+                updatePasteButton();      // 目录内容变了，剪贴板里失效的源要重新剔除
+                p.pull.postDelayed(new Runnable() {
+                    public void run() {
+                        p.pull.finishRefresh();
+                    }
+                }, 220);
+            }
+        }, 90);
     }
 
     private void toast(String s) {

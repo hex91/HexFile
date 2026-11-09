@@ -80,28 +80,41 @@
         android:layout_weight="1"
         android:orientation="horizontal">
 
-        <ListView
-            android:id="@+id/list_left"
+        <!-- v1.79.0：外包一层下拉刷新容器（adb 推送/其他应用写入后不必再退出重进目录） -->
+        <com.hex91.file.PullRefreshLayout
+            android:id="@+id/pull_left"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="match_parent"
-            android:divider="?attr/hfDivider"
-            android:dividerHeight="1dp"
-            android:scrollbars="vertical"/>
+            android:layout_height="match_parent">
+
+            <ListView
+                android:id="@+id/list_left"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:divider="?attr/hfDivider"
+                android:dividerHeight="1dp"
+                android:scrollbars="vertical"/>
+        </com.hex91.file.PullRefreshLayout>
 
         <View
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="?attr/hfDivider"/>
 
-        <ListView
-            android:id="@+id/list_right"
+        <com.hex91.file.PullRefreshLayout
+            android:id="@+id/pull_right"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="match_parent"
-            android:divider="?attr/hfDivider"
-            android:dividerHeight="1dp"
-            android:scrollbars="vertical"/>
+            android:layout_height="match_parent">
+
+            <ListView
+                android:id="@+id/list_right"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:divider="?attr/hfDivider"
+                android:dividerHeight="1dp"
+                android:scrollbars="vertical"/>
+        </com.hex91.file.PullRefreshLayout>
     </LinearLayout>
 
     <!-- 多选批量操作栏（手势触发时显示） -->
