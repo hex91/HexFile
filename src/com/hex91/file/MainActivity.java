@@ -838,8 +838,6 @@ public class MainActivity extends BaseActivity {
         menu.add(Menu.NONE, 4, 4, p.adapter.showHidden ? "隐藏 .文件" : "显示 .文件");
         menu.add(Menu.NONE, 5, 5, "书签");
         menu.add(Menu.NONE, 6, 6, "回收站");
-        // v1.82.1：保留策略直达（原来要点进回收站再找顶栏按钮，太深）
-        menu.add(Menu.NONE, 11, 6, "回收站保留策略…");
         menu.add(Menu.NONE, 7, 7, "交换窗口");
         // v1.78.0：剪贴板非空时把粘贴放到显眼位置，并带上「复制 3 项」这样的摘要
         menu.add(Menu.NONE, 9, 0, FileClipboard.get().isEmpty()
@@ -894,13 +892,6 @@ public class MainActivity extends BaseActivity {
                     case 6:
                         startActivity(new Intent(MainActivity.this, TrashActivity.class));
                         break;
-                    case 11: {
-                        // v1.82.1：直接打开回收站并把保留策略弹窗带出来
-                        Intent t = new Intent(MainActivity.this, TrashActivity.class);
-                        t.putExtra(TrashActivity.EXTRA_POLICY, true);
-                        startActivity(t);
-                        break;
-                    }
                     case 7: swapPanes(); break;
                     case 9: pasteClipboard(); break;   // v1.78.0
                     case 8: showRecent(); break;

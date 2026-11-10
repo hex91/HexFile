@@ -98,6 +98,24 @@ public class SettingsActivity extends BaseActivity {
                 });
         infoRow(perm, "当前状态", rootStatus());
 
+        // ---- 系统集成（v1.84.0） ----
+        LinearLayout sys = section("系统集成");
+        switchRow(sys, "在系统文件选择器中显示",
+                "开启后，系统「文件」应用侧边栏会多出本应用；微信 / 邮件等点「打开文件」时也能直接选这里。",
+                HfDocumentsProvider.isVisible(this),
+                new CompoundButton.OnCheckedChangeListener() {
+                    public void onCheckedChanged(CompoundButton cb, boolean on) {
+                        getSharedPreferences(HfDocumentsProvider.PREF, MODE_PRIVATE)
+                                .edit().putBoolean(HfDocumentsProvider.KEY_VISIBLE, on).apply();
+                        HfDocumentsProvider.notifyRootsChanged(SettingsActivity.this);
+                        toast(on ? "已对系统文件选择器开放" : "已隐藏，系统文件选择器不再显示本应用");
+                    }
+                });
+        row(sys, "在系统选择器中试一下", "调用系统的「打开文件」界面，确认能看到 HexFile 入口", "",
+                new View.OnClickListener() {
+                    public void onClick(View v) { openSystemPicker(); }
+                });
+
         // ---- 回收站 ----
         LinearLayout trash = section("回收站");
         row(trash, "保留策略", TrashPolicyDialog.summary(), "", new View.OnClickListener() {
@@ -267,6 +285,18 @@ public class SettingsActivity extends BaseActivity {
     }
 
     // ---------------------------------------------------------------- 动作
+
+    /** v1.84.0：拉起系统的「打开文件」界面，验证 SAF 入口是否生效 */
+    private void openSystemPicker() {
+        try {
+            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            i.addCategory(Intent.CATEGORY_OPENABLE);
+            i.setType("*/*");
+            startActivity(i);
+        } catch (Throwable t) {
+            toast("当前系统没有文件选择器：" + t.getClass().getSimpleName());
+        }
+    }
 
     private void pickWorkDir() {
         DirPickerDialog.show(this, new File(WorkDir.path()), new DirPickerDialog.OnPick() {

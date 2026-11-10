@@ -17,9 +17,6 @@ import java.util.List;
 /** 回收站管理：恢复 / 彻底删除 / 清空 / 保留策略 */
 public class TrashActivity extends BaseActivity {
 
-    /** v1.82.1：主界面 ⋮ 的「回收站设置」用这个 extra 直接弹策略框 */
-    public static final String EXTRA_POLICY = "open_policy";
-
     private final List<Trash.Entry> data = new ArrayList<Trash.Entry>();
     private TrashAdapter adapter;
     private TextView empty;
@@ -71,13 +68,6 @@ public class TrashActivity extends BaseActivity {
         });
 
         reload();
-
-        // v1.82.1：从主界面 ⋮「回收站设置」进来时直接弹策略框，省一次点击
-        if (getIntent() != null && getIntent().getBooleanExtra(EXTRA_POLICY, false)) {
-            findViewById(R.id.btn_policy).post(new Runnable() {
-                public void run() { showPolicy(); }
-            });
-        }
     }
 
     private void reload() {

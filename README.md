@@ -1668,6 +1668,49 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.84.0 —— 系统级文件提供者（SAF）：让别的应用直接浏览本机
+
+P2 第一项。装好之后，系统「文件」应用侧边栏多出 HexFile；微信、邮件、编辑器点
+「打开文件 / 选择位置」时，能直接浏览 `/sdcard` 与工作目录，不必先把文件导出来。
+
+### 实现要点
+
+- 新增 `HfDocumentsProvider`（继承 `DocumentsProvider`），authorities
+  `com.hex91.file.documents`，带 `DOCUMENTS_PROVIDER` intent-filter 与
+  `MANAGE_DOCUMENTS` 系统权限。
+- **documentId 直接用绝对路径**：不维护 id→文件 映射表，进程被杀后 id 依然有效。
+- 代价是**必须校验**——docId 完全由外部应用提供，可伪造 `/data/data/...`。
+  新增 `DocPath`（纯 Java）：`normalize` 折叠重复斜杠、**拒绝 `..` 与 `\0`**；
+  `withinAny` 限定在允许根内（内部存储 / `/sdcard` / `/storage/self/primary` / 工作目录）。
+- 完整实现 `queryRoots / queryDocument / queryChildDocuments / querySearchDocuments /
+  openDocument / openDocumentThumbnail / createDocument / deleteDocument / renameDocument /
+  copyDocument / moveDocument / isChildDocument / getDocumentType`。
+- 目录排在文件前、名称不区分大小写——系统 UI 只按返回顺序渲染，排序必须自己做。
+- 缩略图只处理图片且 < 24MB，全部 `try/catch` 兜住，失败返回 `null`（协议允许），
+  不让一张坏图把整个选择器拖垮。
+- 新建同名文件自动追加 `(1)`；`deleteDocument` 拒绝删非空目录与根目录。
+- `openDocument` 的 mode 解析抽到 `DocPath.modeOf` 做单测：**`w` 与 `wt` 都带 truncate**
+  （否则写短内容会留旧尾巴），**`wa` 不能带 truncate**（否则追加变覆盖）。
+
+### 开关与入口
+
+- 设置 → 系统集成：「在系统文件选择器中显示」（默认开）。关掉后 `queryRoots` 返回空，
+  并 `notifyChange` 让系统丢掉缓存；系统里已授予的旧 URI 仍可用，属预期。
+- 同一分区还有「在系统选择器中试一下」，直接拉起 `ACTION_OPEN_DOCUMENT` 验证。
+
+### 顺带清理
+
+- 删除主界面 `⋮` 菜单里 v1.82.1 加的「回收站保留策略…」——已由设置页接管，
+  同时移除随之变成死代码的 `TrashActivity.EXTRA_POLICY` 分支。
+
+### 测试
+
+- 新增 `DocPathTest` **59 项**：路径规范化边界、前缀陷阱（`/sdcard2` 不算在 `/sdcard` 内）、
+  目录穿越拒绝、文件名按 UTF-8 字节截断、排序、`modeOf` 全部六种模式。
+- `QUICK=1 ./test/run_core.sh` **28 项全 PASS**；versionCode 156。
+
+---
+
 ## v1.83.0 —— 顶栏按钮隐形修复 + 统一设置页
 
 ### 修 bug：回收站顶栏按钮「不显示」
