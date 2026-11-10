@@ -224,8 +224,44 @@ public final class WebDavFs implements NetFs {
 
     @Override
     public InputStream openRead(String path) throws IOException {
+        return get(path, 0);
+    }
+
+    /**
+     * v1.88.0 断点续传：带 Range 头请求剩余区间。
+     *
+     * <p>必须校验 206 + Content-Range 起点：部分 WebDAV 实现（含某些网盘的兼容层）
+     * 会忽略 Range 直接回 200 全量，这时若当成续传写进 .part 会把文件拼错——
+     * 所以 200 一律视为「服务器不支持续传」抛错，由上层退化为从头下载。</p>
+     */
+    @Override
+    public InputStream openReadFrom(String path, long offset) throws IOException {
+        if (offset <= 0) return get(path, 0);
+        return get(path, offset);
+    }
+
+    @Override
+    public boolean supportsResume() {
+        return true;
+    }
+
+    private InputStream get(String path, long offset) throws IOException {
         HttpURLConnection c = conn("GET", path);
+        if (offset > 0) c.setRequestProperty("Range", "bytes=" + offset + "-");
         int code = c.getResponseCode();
+        if (offset > 0) {
+            if (code == 200) {
+                consume(c);
+                throw new IOException("WebDAV 服务器忽略了 Range（回 200），无法续传");
+            }
+            if (code != 206) { consume(c); throw httpErr("续传 " + path, c); }
+            String cr = c.getHeaderField("Content-Range");
+            if (cr != null && !cr.startsWith("bytes " + offset + "-")) {
+                consume(c);
+                throw new IOException("WebDAV 返回的区间不符: " + cr);
+            }
+            return c.getInputStream();
+        }
         if (code != 200) { consume(c); throw httpErr("读取 " + path, c); }
         return c.getInputStream(); // close 时断开连接
     }

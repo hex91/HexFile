@@ -34,6 +34,43 @@ public interface NetFs {
     /** 断开连接并释放资源（可安全重复调用）。 */
     void close();
 
+    // ----------------------------------------------------------------
+    // 断点续传（v1.88.0）
+    //
+    // 设计：默认「不支持」，由各协议自行覆盖成真续传（server-side seek），
+    // 而不是在 openRead 之上 skip()——后者仍会把已下载的字节从网络重读一遍，
+    // 对大文件等于没续传。调用方统一走 ResumePlan 判断能否续，
+    // 不支持时退化为从头下载（见 NetStorageActivity.downloadFile）。
+    // ----------------------------------------------------------------
+
+    /** 是否支持从指定偏移续读（真续传：不重读已下载字节）。 */
+    default boolean supportsResume() {
+        return false;
+    }
+
+    /**
+     * 从 {@code offset} 开始读远程文件；offset==0 等价于 {@link #openRead}。
+     * 不支持续传的协议抛 {@link UnsupportedOperationException}。
+     */
+    default InputStream openReadFrom(String path, long offset) throws IOException {
+        throw new UnsupportedOperationException("该协议不支持断点续传");
+    }
+
+    /**
+     * 是否支持从指定偏移续写。
+     *
+     * <p>注意：FTP（APPE）与 SFTP（APPEND）只能追加到远端文件末尾，
+     * 协议本身不接受任意偏移，因此调用方必须先把远端已有长度当作 offset 传进来。</p>
+     */
+    default boolean supportsAppend() {
+        return false;
+    }
+
+    /** 从 {@code offset} 开始续写远程文件（通常等于远端已有长度）。 */
+    default OutputStream openWriteFrom(String path, long offset) throws IOException {
+        throw new UnsupportedOperationException("该协议不支持上传续传");
+    }
+
     /** 目录项元数据。 */
     final class NetEntry {
         public String name;

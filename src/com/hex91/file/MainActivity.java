@@ -1119,6 +1119,9 @@ public class MainActivity extends BaseActivity {
         // v1.80.0：网格视图与列表共用同一份数据、同一套点击处理（下标含义相同）
         p.gridAdapter = new FileGridAdapter(this, p.adapter);
         p.adapter.setMirror(p.gridAdapter);
+
+        // v1.88.0：拖放目标（列表与网格共用一个外层容器，两种视图都能接住）
+        setupDropTarget(p);
         if (p.grid != null) {
             p.grid.setAdapter(p.gridAdapter);
             p.grid.setOnItemClickListener(new AdapterView.OnItemClickListener() {
@@ -1134,9 +1137,177 @@ public class MainActivity extends BaseActivity {
         }
     }
 
+    // ============================================================ 双栏拖拽（v1.88.0）
+
+    /**
+     * 长按条目 → 抬起手指即可拖到另一栏放下（复制/移动）。
+     *
+     * <p>为什么用系统 drag 而不是自己跟 MotionEvent：ListView 自己要吃滚动、
+     * 我们又在同一条 touch 流上挂了手势检测器（左右滑选中等）。系统 drag 会
+     * 给原视图发 ACTION_CANCEL 并接管后续事件，等于把这两套逻辑天然隔开，
+     * 不用在 onScroll 里到处判断「现在到底是在拖还是在滑」。</p>
+     */
+    private final List<File> mDragSrcs = new ArrayList<File>();
+    /** 拖拽发起窗格（只有它会负责在拖拽结束时收尾） */
+    private Panel mDragFrom;
+    /** 拖拽发起条目（未投放时用它弹出原来的长按菜单） */
+    private FileItem mDragItem;
+    /** 这一次拖拽是否已成功投放 */
+    private boolean mDropped;
+
+    /** 给一个窗格挂上「可接收拖放」的监听（列表/网格外层容器整体作为目标） */
+    private void setupDropTarget(final Panel p) {
+        if (p.pull == null) return;
+        p.pull.setOnDragListener(new View.OnDragListener() {
+            public boolean onDrag(View v, android.view.DragEvent ev) {
+                switch (ev.getAction()) {
+                    case android.view.DragEvent.ACTION_DRAG_STARTED:
+                        // 只接本界面发起的拖拽：别的应用拖进来的文本/文件在这里没有意义
+                        return !mDragSrcs.isEmpty();
+                    case android.view.DragEvent.ACTION_DRAG_ENTERED:
+                        paintDropTarget(p, true);
+                        return true;
+                    case android.view.DragEvent.ACTION_DRAG_EXITED:
+                        paintDropTarget(p, false);
+                        return true;
+                    case android.view.DragEvent.ACTION_DROP: {
+                        paintDropTarget(p, false);
+                        boolean accepted = handleDrop(p);
+                        if (accepted) mDropped = true;
+                        return accepted;
+                    }
+                    case android.view.DragEvent.ACTION_DRAG_ENDED:
+                        paintDropTarget(p, false);
+                        if (p == mDragFrom) finishDrag();
+                        return true;
+                    default:
+                        return true;
+                }
+            }
+        });
+    }
+
+    /** 拖拽收尾：清了状态，未投放时补弹长按菜单（拖拽是从长按发起的，不能让它白按） */
+    private void finishDrag() {
+        final File f = (mDragItem != null && !mDragItem.isArchEntry() && !mDragItem.upEntry)
+                ? mDragItem.file : null;
+        final boolean dropped = mDropped;
+        mDragSrcs.clear();
+        mDragFrom = null;
+        mDragItem = null;
+        mDropped = false;
+        if (dropped || f == null) return;
+        // 延后一点：ACTION_DRAG_ENDED 之后系统还要收尾，立刻弹窗会被紧接着的触摸事件点掉
+        taskUi.postDelayed(new Runnable() {
+            public void run() { showOpsMenu(f); }
+        }, 80);
+    }
+
+    /** 拖拽经过时高亮目标栏：能放=强调色，不能放=错误色（13% 透明，不遮内容） */
+    private void paintDropTarget(Panel p, boolean on) {
+        if (p.pull == null) return;
+        if (!on) {
+            p.pull.setBackgroundColor(0x00000000);
+            return;
+        }
+        DragPlan.Check ck = DragPlan.check(mDragSrcs, p.archiveFile == null ? p.dir : null);
+        int c = ck.ok() ? ThemeManager.accent(this) : ThemeManager.err(this);
+        p.pull.setBackgroundColor((c & 0x00FFFFFF) | 0x22000000);
+    }
+
+    /** 落到某个窗格：先判定，再让用户选复制还是移动 */
+    private boolean handleDrop(final Panel dst) {
+        if (dst.archiveFile != null) {
+            toast("暂不支持拖进压缩包，请用长按菜单里的「复制到对面压缩包」");
+            return false;
+        }
+        final DragPlan.Check ck = DragPlan.check(new ArrayList<File>(mDragSrcs), dst.dir);
+        if (!ck.ok()) {
+            // 拖回自己这一栏（长按后没动就松手）不算失败：接着会弹长按菜单，
+            // 这时再弹一句「已经在目标目录里了」纯属噪音
+            boolean backHome = dst == mDragFrom && ck.skippedSame > 0 && ck.skippedSelf == 0;
+            if (!backHome && !ck.reason.isEmpty()) toast(ck.reason);
+            return false;
+        }
+        final File dir = dst.dir;
+        String extra = "";
+        if (ck.skippedSame > 0) extra = "\n（" + ck.skippedSame + " 项已在目标目录，已跳过）";
+        new HfDialogBuilder(this)
+                .setTitle("拖放 " + DragPlan.title(ck, dir))
+                .setMessage("目标：" + dir.getPath() + extra)
+                .setPositiveButton("复制到此处", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        submitDrop(ck.items, dir, false);
+                    }
+                })
+                .setNeutralButton("移动到此处", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        submitDrop(ck.items, dir, true);
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+        return true;
+    }
+
+    /** 拖放落地：走任务队列，所以有进度条、可取消、失败不连带 */
+    private void submitDrop(List<File> items, File dir, boolean move) {
+        if (items.isEmpty()) return;
+        FileTaskEngine.get().submit(move ? FileTask.MOVE : FileTask.COPY, items, dir);
+        toast("已加入" + (move ? "移动" : "复制") + "队列 " + items.size() + " 项 →\n" + dir.getPath());
+        if (selPanel != null) exitSelection(selPanel);
+    }
+
+    /** 发起拖拽；系统拒绝时（极少）退回直接弹菜单，不让长按失灵 */
+    private void startItemDrag(final Panel p, int pos, final List<File> srcs) {
+        if (srcs.isEmpty()) {
+            FileItem it = p.adapter.get(pos);
+            if (!it.isArchEntry() && !it.upEntry) showOpsMenu(it.file);
+            return;
+        }
+        mDragSrcs.clear();
+        mDragSrcs.addAll(srcs);
+        mDragFrom = p;
+        mDragItem = p.adapter.get(pos);
+        mDropped = false;
+
+        View anchor = fileView(p);
+        View itemView = itemViewAt(p, pos);
+        View.DragShadowBuilder shadow = new View.DragShadowBuilder(itemView != null ? itemView : anchor);
+        ClipData clip = ClipData.newPlainText("HexFile", srcs.get(0).getAbsolutePath());
+        boolean started;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            started = anchor.startDragAndDrop(clip, shadow, null, 0);
+        } else {
+            started = anchor.startDrag(clip, shadow, null, 0);
+        }
+        if (!started) {
+            FileItem it = mDragItem;
+            mDragSrcs.clear();
+            mDragFrom = null;
+            mDragItem = null;
+            if (it != null && !it.isArchEntry() && !it.upEntry) showOpsMenu(it.file);
+        }
+    }
+
+    /** 当前视图模式下真正在显示的列表控件（网格模式下 list 是 GONE，不能作为拖拽发起者） */
+    private View fileView(Panel p) {
+        if (viewMode == VIEW_GRID && p.grid != null) return p.grid;
+        return p.list;
+    }
+
+    /** 取某个下标的行视图（拖拽影子用）；不可见时返回 null */
+    private View itemViewAt(Panel p, int pos) {
+        android.widget.AdapterView<?> av = (viewMode == VIEW_GRID && p.grid != null)
+                ? p.grid : (android.widget.AdapterView<?>) p.list;
+        int first = av.getFirstVisiblePosition();
+        int idx = pos - first;
+        if (idx < 0) return null;
+        return av.getChildAt(idx);
+    }
+
     /** 点击条目：列表与网格共用（两侧下标都指向同一个 FileAdapter） */
-    private void handleItemClick(Panel p, int i) {
-        setActive(p);
+    private void handleItemClick(Panel p, int i) {        setActive(p);
         FileItem it = p.adapter.get(i);
         // v1.40.0：列表顶部 .. 返回项（多选中点击 = 退出多选并返回，loadDir 内处理）
         if (it.upEntry) {
@@ -1165,6 +1336,16 @@ public class MainActivity extends BaseActivity {
         FileItem it = p.adapter.get(i);
         if (it.upEntry) return true;    // .. 返回项无操作菜单
         if (p.adapter.selectionMode) {
+            // v1.88.0：多选态下长按**已选中**的条目 = 把整批拖到另一栏（长按未选中的仍然只做勾选，
+            // 免得刷选时误拖）；单独想拖一项就退出多选再长按
+            if (it.selected && !it.isArchEntry()) {
+                List<File> sel = new ArrayList<File>();
+                for (FileItem s : p.adapter.getSelectedItems()) {
+                    if (!s.isArchEntry() && s.file != null) sel.add(s.file);
+                }
+                startItemDrag(p, i, sel);
+                return true;
+            }
             p.adapter.toggle(i);
             updateSelDone();
             return true;
@@ -1173,7 +1354,10 @@ public class MainActivity extends BaseActivity {
             if (!it.isArchUp()) showArchOpsMenu(p, it);
             return true;
         }
-        showOpsMenu(p.adapter.get(i).file);
+        // 长按即进入拖拽：拖到对面栏放下 = 复制/移动；原地松手照旧弹出功能菜单
+        List<File> one = new ArrayList<File>(1);
+        one.add(it.file);
+        startItemDrag(p, i, one);
         return true;
     }
 

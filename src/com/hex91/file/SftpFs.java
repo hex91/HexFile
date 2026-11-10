@@ -94,8 +94,28 @@ public final class SftpFs implements NetFs {
 
     @Override
     public InputStream openRead(String path) throws IOException {
+        return get(path, 0);
+    }
+
+    /** v1.88.0 续传：SFTP 的 READ 包自带偏移，JSch 的 get(...,skip) 走的就是它。 */
+    @Override
+    public InputStream openReadFrom(String path, long offset) throws IOException {
+        return get(path, offset);
+    }
+
+    @Override
+    public boolean supportsResume() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsAppend() {
+        return true;
+    }
+
+    private InputStream get(String path, long offset) throws IOException {
         try {
-            return ch.get(path);
+            return offset > 0 ? ch.get(path, null, offset) : ch.get(path);
         } catch (SftpException e) {
             throw err("读取 " + path, e);
         }
@@ -103,9 +123,25 @@ public final class SftpFs implements NetFs {
 
     @Override
     public OutputStream openWrite(String path) throws IOException {
+        return put(path, ChannelSftp.OVERWRITE);
+    }
+
+    /**
+     * v1.88.0 上传续传。
+     *
+     * <p>JSch 的 put(dst, monitor, mode, offset) 在 mode==RESUME/APPEND 时会**忽略**入参 offset，
+     * 改用远端文件的实际大小（见其字节码：先 _stat 再 getSize）；所以这里传 APPEND，
+     * offset 仅作为语义声明。</p>
+     */
+    @Override
+    public OutputStream openWriteFrom(String path, long offset) throws IOException {
+        return put(path, ChannelSftp.APPEND);
+    }
+
+    private OutputStream put(String path, int mode) throws IOException {
         try {
             ensureParents(path);
-            return ch.put(path, ChannelSftp.OVERWRITE); // close 时由 JSch 完成传输确认
+            return ch.put(path, null, mode, 0L); // close 时由 JSch 完成传输确认
         } catch (SftpException e) {
             throw err("写入 " + path, e);
         }

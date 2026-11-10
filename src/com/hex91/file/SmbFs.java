@@ -109,10 +109,69 @@ public final class SmbFs implements NetFs {
 
     @Override
     public InputStream openRead(String path) throws IOException {
-        com.hierynomus.smbj.share.File f = share.openFile(path,
-                EnumSet.of(AccessMask.GENERIC_READ), null,
+        return new SmbRangeIn(openFile(path, AccessMask.GENERIC_READ), 0);
+    }
+
+    /** v1.88.0 续传：SMB2 READ 带偏移，直接在远端定位，不重读已下载字节。 */
+    @Override
+    public InputStream openReadFrom(String path, long offset) throws IOException {
+        return new SmbRangeIn(openFile(path, AccessMask.GENERIC_READ), offset <= 0 ? 0 : offset);
+    }
+
+    @Override
+    public boolean supportsResume() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsAppend() {
+        return true;
+    }
+
+    private com.hierynomus.smbj.share.File openFile(String path, AccessMask mask) throws IOException {
+        return share.openFile(path, EnumSet.of(mask), null,
                 SMB2ShareAccess.ALL, SMB2CreateDisposition.FILE_OPEN, null);
-        return f.getInputStream(); // smbj：流关闭时释放远端句柄
+    }
+
+    /**
+     * v1.88.0：按偏移读取的 InputStream。
+     *
+     * <p>smbj 的 File.read(buf, offset, bufOff, len) 在 EOF 返回 -1、其余返回实际字节数，
+     * 正好能直接映射成 InputStream 的语义（返回 0 会造成调用方死循环，统一折成 -1）。</p>
+     */
+    private static final class SmbRangeIn extends InputStream {
+        private final com.hierynomus.smbj.share.File f;
+        private long pos;
+        private boolean closed;
+
+        SmbRangeIn(com.hierynomus.smbj.share.File f, long start) {
+            this.f = f;
+            this.pos = start;
+        }
+
+        @Override
+        public int read() throws IOException {
+            byte[] one = new byte[1];
+            int n = read(one, 0, 1);
+            return n <= 0 ? -1 : (one[0] & 0xFF);
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            if (closed) throw new IOException("流已关闭");
+            if (len == 0) return 0;
+            int n = f.read(b, pos, off, len);
+            if (n <= 0) return -1;
+            pos += n;
+            return n;
+        }
+
+        @Override
+        public void close() {
+            if (closed) return;
+            closed = true;
+            try { f.close(); } catch (Exception ignore) {} // 底层句柄由 smbj 释放
+        }
     }
 
     @Override
@@ -123,6 +182,22 @@ public final class SmbFs implements NetFs {
                 EnumSet.of(FileAttributes.FILE_ATTRIBUTE_NORMAL),
                 SMB2ShareAccess.ALL, SMB2CreateDisposition.FILE_OVERWRITE_IF, null);
         return f.getOutputStream();
+    }
+
+    /**
+     * v1.88.0 上传续传：FILE_OPEN_IF（保留已有内容）+ append 流。
+     *
+     * <p>用 FILE_OPEN_IF 而不是 FILE_OVERWRITE_IF——后者会先把文件截断成 0，
+     * 追加就成了「从 0 开始再写一遍」。</p>
+     */
+    @Override
+    public OutputStream openWriteFrom(String path, long offset) throws IOException {
+        ensureParents(path);
+        com.hierynomus.smbj.share.File f = share.openFile(path,
+                EnumSet.of(AccessMask.GENERIC_WRITE),
+                EnumSet.of(FileAttributes.FILE_ATTRIBUTE_NORMAL),
+                SMB2ShareAccess.ALL, SMB2CreateDisposition.FILE_OPEN_IF, null);
+        return f.getOutputStream(true); // append=true
     }
 
     /** 逐级补齐父目录（SMB openFile 不会自动创建父目录）。 */

@@ -17,6 +17,8 @@ public final class NetFsFactory {
     public static final String TYPE_FTP = "ftp";
     public static final String TYPE_SFTP = "sftp";
     public static final String TYPE_SMB = "smb";
+    /** v1.88.0：S3 兼容对象存储 */
+    public static final String TYPE_S3 = "s3";
 
     private NetFsFactory() {}
 
@@ -38,6 +40,11 @@ public final class NetFsFactory {
             return SftpFs.connect(s.optString("host"), s.optInt("port", 22),
                     s.optString("user"), pw);
         }
+        if (TYPE_S3.equals(t)) {
+            return S3Fs.connect(s.optString("host"), s.optString("share"),
+                    s.optString("domain"), s.optString("user"), pw,
+                    new java.io.File(c.getCacheDir(), "s3up"));
+        }
         return SmbFs.connect(s.optString("host"), s.optInt("port", 445),
                 s.optString("share"), s.optString("domain"),
                 s.optString("user"), pw);
@@ -51,7 +58,7 @@ public final class NetFsFactory {
         String target;
         if (TYPE_WEBDAV.equals(t)) {
             target = s.optString("url").isEmpty() ? s.optString("host") : s.optString("url");
-        } else if (TYPE_SMB.equals(t)) {
+        } else if (TYPE_SMB.equals(t) || TYPE_S3.equals(t)) {
             target = s.optString("host") + "/" + s.optString("share");
         } else {
             target = s.optString("host");

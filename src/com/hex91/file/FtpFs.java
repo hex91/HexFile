@@ -248,7 +248,39 @@ public final class FtpFs implements NetFs {
 
     @Override
     public InputStream openRead(String path) throws IOException {
+        return retr(path, 0);
+    }
+
+    /**
+     * v1.88.0 断点续传：REST 让服务器把读指针挪到 offset，再 RETR。
+     * 服务器不支持 REST（回 5xx）时抛错，由上层退化为从头下载。
+     */
+    @Override
+    public InputStream openReadFrom(String path, long offset) throws IOException {
+        if (offset <= 0) return retr(path, 0);
+        return retr(path, offset);
+    }
+
+    @Override
+    public boolean supportsResume() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsAppend() {
+        return true;
+    }
+
+    /** PASV → (REST offset) → RETR。offset>0 时要求服务器接受 REST。 */
+    private InputStream retr(String path, long offset) throws IOException {
         Socket d = dataSocket();
+        if (offset > 0) {
+            int r = send("REST " + offset);
+            if (r != 350) {
+                try { d.close(); } catch (IOException ignore) {}
+                throw new IOException("FTP 续传失败: 服务器不接受 REST（" + lastReply + "）");
+            }
+        }
         int code = send("RETR " + path);
         if (code != 150 && code != 125) {
             try { d.close(); } catch (IOException ignore) {}
@@ -282,8 +314,19 @@ public final class FtpFs implements NetFs {
 
     @Override
     public OutputStream openWrite(String path) throws IOException {
+        return stor(path, false);
+    }
+
+    /** v1.88.0 上传续传：APPE（追加）而不是 STOR（覆盖）。 */
+    @Override
+    public OutputStream openWriteFrom(String path, long offset) throws IOException {
+        return stor(path, offset > 0);
+    }
+
+    /** PASV → STOR/APPE。append=true 时保留远端已有内容，从末尾续写。 */
+    private OutputStream stor(String path, boolean append) throws IOException {
         Socket d = dataSocket();
-        int code = send("STOR " + path);
+        int code = send((append ? "APPE " : "STOR ") + path);
         if (code != 150 && code != 125) {
             try { d.close(); } catch (IOException ignore) {}
             throw new IOException("FTP 写入失败: " + lastReply + "（父目录不存在或无权限）");

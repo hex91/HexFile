@@ -37,8 +37,12 @@ import java.util.Locale;
  * FTP 走 {@link FtpFs}（纯 Socket 零依赖），
  * SFTP 走 {@link SftpFs}（JSch SSH2）。服务器配置以 JSON 存于 SharedPreferences。</p>
  *
- * <p>功能：服务器增删改测、远程浏览、下载到本地（文件/目录递归）、
- * 上传本地文件（系统选择器）、新建目录、重命名、删除。</p>
+ * <p>v1.88.0 新增 S3 兼容对象存储（{@link S3Fs}，覆盖 OSS / COS / MinIO / AWS S3），
+ * 并给下载/上传加上断点续传：文件先写 {@code .hpart}，按 {@link ResumePlan}
+ * 校验远端 size/mtime 后从断点继续，传完校验长度再改名为正式文件。</p>
+ *
+ * <p>功能：服务器增删改测、远程浏览、下载到本地（文件/目录递归，支持续传）、
+ * 上传本地文件（系统选择器，FTP/SFTP/SMB 支持断点追加）、新建目录、重命名、删除。</p>
  */
 public final class NetStorageActivity extends BaseActivity {
 
@@ -51,6 +55,7 @@ public final class NetStorageActivity extends BaseActivity {
     private static final String TYPE_WEBDAV = "webdav";
     private static final String TYPE_FTP = "ftp";        // v1.60.0
     private static final String TYPE_SFTP = "sftp";      // v1.60.0
+    private static final String TYPE_S3 = "s3";          // v1.88.0 对象存储（OSS/COS/MinIO）
 
     // ---- UI ----
     private View mServersPanel, mBrowsePanel;
@@ -207,6 +212,7 @@ public final class NetStorageActivity extends BaseActivity {
                     + (s.optInt("port", 21) == 21 ? "" : ":" + s.optInt("port"));
             if (TYPE_SFTP.equals(t)) return "SFTP · " + s.optString("host")
                     + (s.optInt("port", 22) == 22 ? "" : ":" + s.optInt("port"));
+            if (TYPE_S3.equals(t)) return "S3 · " + stripScheme(s.optString("host")) + "/" + s.optString("share");
             return "SMB · " + s.optString("host") + (s.optInt("port", 445) == 445 ? "" : ":" + s.optInt("port")) + "/" + s.optString("share");
         } catch (Exception e) {
             return "（配置损坏）";
@@ -282,7 +288,8 @@ public final class NetStorageActivity extends BaseActivity {
         box.setPadding(pad, dp(8), pad, 0);
 
         final Spinner type = addSpinnerRow(box, "类型",
-                new String[]{"SMB (Windows 共享/NAS)", "WebDAV", "FTP", "SFTP (SSH)"});
+                new String[]{"SMB (Windows 共享/NAS)", "WebDAV", "FTP", "SFTP (SSH)",
+                        "S3 / 对象存储（OSS·COS·MinIO）"});
         final EditText host = addEditRow(box, "地址（SMB/FTP/SFTP: IP或主机名 / WebDAV: 完整URL）", "");
         final EditText port = addEditRow(box, "端口", "445");
         final EditText share = addEditRow(box, "共享名（SMB，如 public）", "");
@@ -294,23 +301,31 @@ public final class NetStorageActivity extends BaseActivity {
 
         type.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             public void onItemSelected(android.widget.AdapterView<?> p, View v, int pos, long id) {
-                // 0=SMB 1=WebDAV 2=FTP 3=SFTP
+                // 0=SMB 1=WebDAV 2=FTP 3=SFTP 4=S3
                 boolean smb = pos == 0;
                 boolean http = pos == 1;
-                setRowVisible(port, !http);
-                setRowVisible(share, smb);
-                setRowVisible(domain, smb);
+                boolean s3 = pos == 4;
+                setRowVisible(port, !http && !s3);
+                setRowVisible(share, smb || s3);
+                setRowVisible(domain, smb || s3);
                 host.setHint(smb ? "192.168.1.100"
                         : http ? "http://192.168.1.100:5005/dav/"
+                        : s3 ? "https://oss-cn-hangzhou.aliyuncs.com"
                         : "192.168.1.100");
-                port.setText(smb ? "445" : http ? "" : pos == 2 ? "21" : "22");
+                if (!http && !s3) port.setText(smb ? "445" : pos == 2 ? "21" : "22");
+                // 同一组输入框在不同类型下含义不同，标签要跟着换，否则「共享名」下面填 bucket 很容易填错
+                setRowLabel(share, smb ? "共享名（SMB，如 public）" : "存储桶 / bucket（S3）");
+                setRowLabel(domain, smb ? "域 / 工作组（SMB，可留空）" : "区域 / region（S3，如 cn-hangzhou）");
+                setRowLabel(user, s3 ? "AccessKey（S3）" : "用户名（FTP/SFTP 匿名/留空视协议而定）");
+                setRowLabel(pass, s3 ? "SecretKey（S3）" : "密码");
             }
             public void onNothingSelected(android.widget.AdapterView<?> p) {}
         });
 
         if (editing != null) {
             String et = editing.optString("type");
-            type.setSelection(TYPE_WEBDAV.equals(et) ? 1 : TYPE_FTP.equals(et) ? 2 : TYPE_SFTP.equals(et) ? 3 : 0);
+            type.setSelection(TYPE_WEBDAV.equals(et) ? 1 : TYPE_FTP.equals(et) ? 2
+                    : TYPE_SFTP.equals(et) ? 3 : TYPE_S3.equals(et) ? 4 : 0);
             host.setText(editing.optString("host"));
             port.setText(String.valueOf(editing.optInt("port",
                     TYPE_FTP.equals(et) ? 21 : TYPE_SFTP.equals(et) ? 22 : 445)));
@@ -327,15 +342,17 @@ public final class NetStorageActivity extends BaseActivity {
                 .setPositiveButton("保存", new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         try {
-                            int pos = type.getSelectedItemPosition(); // 0=SMB 1=WebDAV 2=FTP 3=SFTP
-                            boolean smb = pos == 0, http = pos == 1;
+                            int pos = type.getSelectedItemPosition(); // 0=SMB 1=WebDAV 2=FTP 3=SFTP 4=S3
+                            boolean smb = pos == 0, http = pos == 1, s3 = pos == 4;
                             String h = host.getText().toString().trim();
                             if (smb && h.isEmpty()) { toast("地址不能为空"); return; }
                             if (http && !h.startsWith("http")) { toast("WebDAV 地址需以 http(s):// 开头"); return; }
                             if (!http && h.isEmpty()) { toast("地址不能为空"); return; }
-                            int defPort = smb ? 445 : pos == 2 ? 21 : pos == 3 ? 22 : 80;
+                            if (s3 && share.getText().toString().trim().isEmpty()) { toast("存储桶不能为空"); return; }
+                            int defPort = smb ? 445 : pos == 2 ? 21 : pos == 3 ? 22 : 0;
                             org.json.JSONObject o = editing == null ? new org.json.JSONObject() : editing;
-                            o.put("type", smb ? TYPE_SMB : http ? TYPE_WEBDAV : pos == 2 ? TYPE_FTP : TYPE_SFTP);
+                            o.put("type", smb ? TYPE_SMB : http ? TYPE_WEBDAV
+                                    : pos == 2 ? TYPE_FTP : pos == 3 ? TYPE_SFTP : TYPE_S3);
                             o.put("host", h);
                             o.put("port", parseInt(port.getText().toString(), defPort));
                             o.put("share", share.getText().toString().trim());
@@ -400,6 +417,37 @@ public final class NetStorageActivity extends BaseActivity {
         target.setVisibility(visible ? View.VISIBLE : View.GONE);
     }
 
+    /**
+     * 改一行的标签文字（v1.88.0）。
+     *
+     * <p>打字机式的表单：同一批输入框在 SMB 下是「共享名/域」，在 S3 下是「bucket/region」，
+     * 标签不跟着变的话，用户会在「共享名」下面填 bucket 名——虽然也是同一个字段，
+     * 但没人能确定自己填对没有。</p>
+     */
+    private void setRowLabel(EditText e, String text) {
+        Object tag = e.getTag();
+        if (!(tag instanceof LinearLayout)) return;
+        LinearLayout row = (LinearLayout) tag;
+        if (row.getChildCount() == 0) return;
+        View first = row.getChildAt(0);
+        if (first instanceof TextView) ((TextView) first).setText(text);
+    }
+
+    /** 去掉 URL 的协议前缀，服务器列表里显示短一点 */
+    private static String stripScheme(String url) {
+        if (url == null) return "";
+        if (url.startsWith("https://")) return url.substring(8);
+        if (url.startsWith("http://")) return url.substring(7);
+        return url;
+    }
+
+    /** S3 上传缓冲目录（SigV4 需要先知道长度与哈希，所以先落盘再 PUT） */
+    private File s3TempDir() {
+        File d = new File(getCacheDir(), "s3up");
+        d.mkdirs();
+        return d;
+    }
+
     private Spinner addSpinnerRow(LinearLayout box, String label, String[] items) {
         addLabel(box, label);
         Spinner sp = new Spinner(this);
@@ -430,6 +478,9 @@ public final class NetStorageActivity extends BaseActivity {
                     } else if (TYPE_SFTP.equals(t)) {
                         fs = SftpFs.connect(s.optString("host"), s.optInt("port", 22),
                                 s.optString("user"), pw);
+                    } else if (TYPE_S3.equals(t)) {
+                        fs = S3Fs.connect(s.optString("host"), s.optString("share"),
+                                s.optString("domain"), s.optString("user"), pw, s3TempDir());
                     } else {
                         fs = SmbFs.connect(s.optString("host"), s.optInt("port", 445),
                                 s.optString("share"), s.optString("domain"),
@@ -504,8 +555,13 @@ public final class NetStorageActivity extends BaseActivity {
     }
 
     private void entryMenu(final NetFs.NetEntry e) {
+        // v1.88.0：本地有未完成的 .hpart 时，菜单直接写成「继续下载（已有 x）」，让续传可见
+        File probe = new File(new File(WorkDir.base(), "NetStorage"), e.name);
+        File partProbe = ResumePlan.partOf(probe);
+        boolean canResume = !e.dir && partProbe.exists() && partProbe.length() > 0 && !probe.exists();
+
         List<String> ops = new ArrayList<>();
-        ops.add("下载到本地");
+        ops.add(canResume ? "继续下载（已有 " + FileOps.formatSize(partProbe.length()) + "）" : "下载到本地");
         ops.add("重命名");
         ops.add("删除");
         new HfDialogBuilder(this)
@@ -542,8 +598,8 @@ public final class NetStorageActivity extends BaseActivity {
                         doneOnUiThread("目录已下载到 " + baseDir.getAbsolutePath());
                     } else {
                         baseDir.getParentFile().mkdirs();
-                        final File dest = uniqueLocal(baseDir.getParentFile(), baseDir.getName());
-                        copyRemote(mFs.openRead(path), dest, e.name, e.size);
+                        final File dest = pickDest(baseDir.getParentFile(), baseDir.getName());
+                        downloadFile(path, dest, e.name, e.size, e.mtime);
                         doneOnUiThread("已下载到 " + dest.getAbsolutePath());
                     }
                 } catch (final Exception ex) {
@@ -567,47 +623,183 @@ public final class NetStorageActivity extends BaseActivity {
             if (c.dir) downloadDir(NetFs.join(remote, c.name), child);
             else {
                 child.getParentFile().mkdirs();
-                copyRemote(mFs.openRead(NetFs.join(remote, c.name)), uniqueLocal(child.getParentFile(), child.getName()),
-                        c.name, c.size);
+                downloadFile(NetFs.join(remote, c.name), pickDest(child.getParentFile(), child.getName()),
+                        c.name, c.size, c.mtime);
             }
         }
     }
 
-    /** 远程流 → 本地文件，带进度回调（已知 total 时用水平进度条）。 */
-    private void copyRemote(InputStream in, File dest, final String name, long total) throws IOException {
-        final ProgressDialog pd = mProgress;
-        OutputStream out = new FileOutputStream(dest);
-        long done = 0;
+    /**
+     * 选目标文件：有未完成临时文件就沿用它的名字（才能续传），否则目标已存在就换名。
+     *
+     * <p>这里的分支顺序很关键：{@code .hpart} 存在但同名目标文件也存在时，
+     * 说明临时文件已经和现有文件「撞名」了（用户自己拷了个同名的进来）。
+     * 这时若还沿用这个名字续传，完成时的改名会把用户那个文件覆盖掉，
+     * 所以先把残留临时文件清掉，改用新名字从头下载。</p>
+     */
+    private static File pickDest(File dir, String name) {
+        File dest = new File(dir, name);
+        File part = ResumePlan.partOf(dest);
+        if (part.exists()) {
+            if (!dest.exists()) return dest;
+            deleteQuiet(part);
+            deleteQuiet(ResumePlan.metaOf(dest));
+        }
+        return uniqueLocal(dir, name);
+    }
+
+    /**
+     * v1.88.0 单文件下载：写入 {@code dest.hpart}，按 {@link ResumePlan} 自动续传，
+     * 校验大小后原子改名为 {@code dest}。
+     *
+     * <p>三处保护：</p>
+     * <ol>
+     *   <li>只往 .hpart 写——中途断网/取消不会留下「看起来正常、其实缺半截」的目标文件；</li>
+     *   <li>续传前比对 sidecar 里的 size/mtime，远端变过就丢弃重传（见 ResumePlan）；</li>
+     *   <li>完成前校验长度，最后一步才 rename，失败也不污染原目标。</li>
+     * </ol>
+     */
+    private void downloadFile(String remotePath, File dest, final String name,
+                              long remoteSize, long remoteMtime) throws IOException {
+        File part = ResumePlan.partOf(dest);
+        File meta = ResumePlan.metaOf(dest);
+        long metaSize = 0, metaMtime = 0;
+        long[] m = ResumePlan.parseMeta(readSmall(meta));
+        if (m != null) { metaSize = m[0]; metaMtime = m[1]; }
+
+        ResumePlan.Plan plan = ResumePlan.decide(part.exists(), part.length(), remoteSize,
+                metaSize, metaMtime, remoteMtime);
+
+        if (plan.isComplete()) {                        // 上次已传完，只差改名
+            finishPart(part, meta, dest, remoteSize);
+            return;
+        }
+        if (!plan.isResume()) {                        // 从头来：清掉残留，重写校验信息
+            deleteQuiet(part);
+            writeSmall(meta, ResumePlan.metaText(remoteSize, remoteMtime));
+        }
+
+        long offset = plan.isResume() ? plan.offset : 0;
+        if (offset > 0) setMsgOnUiThread("续传 " + name + "（已有 " + FileOps.formatSize(offset) + "）");
+
+        InputStream in = null;
         try {
-            if (pd != null && total > 0) {
-                runOnUiThread(new Runnable() {
-                    public void run() {
-                        if (mProgress != null && !isFinishing()) {
-                            mProgress.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
-                            mProgress.setMax((int) Math.min(total, Integer.MAX_VALUE));
-                            mProgress.setProgress(0);
-                        }
-                    }
-                });
-            }
-            byte[] buf = new byte[64 * 1024];
-            int n;
-            while ((n = in.read(buf)) > 0) {
-                out.write(buf, 0, n);
-                done += n;
-                final long d = done;
-                if (pd != null && total > 0) {
-                    runOnUiThread(new Runnable() {
-                        public void run() {
-                            if (mProgress != null && !isFinishing())
-                                mProgress.setProgress((int) Math.min(d, Integer.MAX_VALUE));
-                        }
-                    });
-                }
-            }
+            in = offset > 0 ? mFs.openReadFrom(remotePath, offset) : mFs.openRead(remotePath);
+        } catch (IOException first) {
+            // 协议层拒绝续传（服务器不支持 REST/Range、远端被替换等）→ 退回从头下载，不当失败处理
+            if (offset == 0) throw first;
+            deleteQuiet(part);
+            writeSmall(meta, ResumePlan.metaText(remoteSize, remoteMtime));
+            offset = 0;
+            setMsgOnUiThread("服务器不支持续传，改为从头下载 " + name);
+            in = mFs.openRead(remotePath);
+        }
+
+        OutputStream out = new FileOutputStream(part, offset > 0);   // append = 续传
+        try {
+            copyStream(in, out, name, offset, remoteSize);
         } finally {
             try { in.close(); } catch (IOException ignore) {}
             try { out.close(); } catch (IOException ignore) {}
+        }
+
+        long got = part.length();
+        if (remoteSize > 0 && got != remoteSize)
+            throw new IOException("下载不完整：" + name + " 只收到 " + FileOps.formatSize(got)
+                    + " / " + FileOps.formatSize(remoteSize) + "（临时文件已保留，下次自动续传）");
+        finishPart(part, meta, dest, remoteSize);
+    }
+
+    /** 校验通过：.hpart → 目标文件，并清掉校验文件。 */
+    private void finishPart(File part, File meta, File dest, long size) throws IOException {
+        if (size > 0 && part.length() != size)
+            throw new IOException("临时文件大小不符: " + part.length() + " != " + size);
+        if (dest.exists() && !dest.delete())
+            throw new IOException("目标文件已存在且无法覆盖: " + dest.getAbsolutePath());
+        if (!part.renameTo(dest)) {
+            // 极端情况（跨挂载点/FUSE 不支持 rename）退化为复制
+            InputStream in = new java.io.FileInputStream(part);
+            OutputStream out = new FileOutputStream(dest);
+            try {
+                copyStream(in, out, dest.getName(), 0, size);
+            } finally {
+                try { in.close(); } catch (IOException ignore) {}
+                try { out.close(); } catch (IOException ignore) {}
+            }
+            deleteQuiet(part);
+        }
+        deleteQuiet(meta);
+    }
+
+    /**
+     * 复制流 + 进度回调。
+     *
+     * @param base  已完成的字节数（续传起点），进度条从 base 开始
+     * @param total 总字节数（<=0 表示未知，用不确定进度条）
+     */
+    private void copyStream(InputStream in, OutputStream out, String name, long base, long total) throws IOException {
+        final ProgressDialog pd = mProgress;
+        if (total > 0) {
+            final int max = (int) Math.min(total, Integer.MAX_VALUE);
+            final int start = (int) Math.min(base, max);
+            runOnUiThread(new Runnable() {
+                public void run() {
+                    if (mProgress != null && !isFinishing()) {
+                        mProgress.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+                        mProgress.setMax(max);
+                        mProgress.setProgress(start);
+                    }
+                }
+            });
+        }
+        byte[] buf = new byte[64 * 1024];
+        long done = base;
+        int n;
+        while ((n = in.read(buf)) > 0) {
+            out.write(buf, 0, n);
+            done += n;
+            final long d = done;
+            if (pd != null && total > 0) {
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        if (mProgress != null && !isFinishing())
+                            mProgress.setProgress((int) Math.min(d, Integer.MAX_VALUE));
+                    }
+                });
+            }
+        }
+    }
+
+    private static void deleteQuiet(File f) {
+        try { if (f != null && f.exists()) f.delete(); } catch (Throwable ignore) {}
+    }
+
+    /** 读小文本文件（sidecar 只有几个字节）；不存在/失败返回 null。 */
+    private static String readSmall(File f) {
+        if (f == null || !f.isFile() || f.length() > 4096) return null;
+        InputStream in = null;
+        try {
+            in = new java.io.FileInputStream(f);
+            byte[] b = new byte[(int) f.length()];
+            int off = 0, n;
+            while (off < b.length && (n = in.read(b, off, b.length - off)) > 0) off += n;
+            return new String(b, 0, off, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return null;
+        } finally {
+            try { if (in != null) in.close(); } catch (IOException ignore) {}
+        }
+    }
+
+    private static void writeSmall(File f, String text) {
+        OutputStream out = null;
+        try {
+            out = new FileOutputStream(f);
+            out.write(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception ignore) {
+            // 写不进去只影响「下次能不能续传」，不该让本次下载失败
+        } finally {
+            try { if (out != null) out.close(); } catch (IOException ignore) {}
         }
     }
 
@@ -647,16 +839,32 @@ public final class NetStorageActivity extends BaseActivity {
         mUploadUri = data.getData();
         mUploadName = queryDisplayName(mUploadUri);
         if (mUploadName == null || mUploadName.isEmpty()) mUploadName = "upload_" + System.currentTimeMillis() + ".bin";
-        String dest = NetFs.join(mCur, mUploadName);
-        showSpin("上传 " + mUploadName + " …");
+
+        // v1.88.0 上传续传：远端已有同名文件且比本地短 → 从断点追加（仅 FTP/SFTP/SMB 支持 APPE/APPEND）
+        long localSize = querySize(mUploadUri);
+        long remoteSize = -1;
+        for (NetFs.NetEntry en : mEntries) {
+            if (!en.dir && en.name.equals(mUploadName)) { remoteSize = en.size; break; }
+        }
+        final long resumeFrom = (remoteSize > 0 && localSize > 0 && remoteSize < localSize
+                && mFs != null && mFs.supportsAppend()) ? remoteSize : 0;
+        final long total = localSize;
+
+        showSpin(resumeFrom > 0
+                ? "续传 " + mUploadName + "（已有 " + FileOps.formatSize(resumeFrom) + "）…"
+                : "上传 " + mUploadName + " …");
         bg(new Runnable() {
             public void run() {
                 InputStream in = null;
                 try {
                     in = getContentResolver().openInputStream(mUploadUri);
-                    OutputStream out = mFs.openWrite(NetFs.join(mCur, mUploadName));
-                    copyPlain(in, out, 64 * 1024);
-                    doneOnUiThread("已上传到 " + NetFs.join(mCur, mUploadName));
+                    if (resumeFrom > 0) skipFully(in, resumeFrom);
+                    String destPath = NetFs.join(mCur, mUploadName);
+                    OutputStream out = resumeFrom > 0
+                            ? mFs.openWriteFrom(destPath, resumeFrom)
+                            : mFs.openWrite(destPath);
+                    copyStream(in, out, mUploadName, resumeFrom, total);
+                    doneOnUiThread("已上传到 " + destPath);
                 } catch (final Exception e) {
                     runOnUiThread(new Runnable() {
                         public void run() {
@@ -669,6 +877,36 @@ public final class NetStorageActivity extends BaseActivity {
                 }
             }
         });
+    }
+
+    /** 跳过 n 字节（InputStream.skip 对部分 content:// 流会提前返回，这里循环补齐）。 */
+    private static void skipFully(InputStream in, long n) throws IOException {
+        long left = n;
+        byte[] waste = null;
+        while (left > 0) {
+            long s = in.skip(left);
+            if (s > 0) { left -= s; continue; }
+            if (waste == null) waste = new byte[64 * 1024];
+            int r = in.read(waste, 0, (int) Math.min(waste.length, left));
+            if (r <= 0) throw new IOException("上传源不足：还差 " + left + " 字节");
+            left -= r;
+        }
+    }
+
+    /** 查询 content:// 的大小；未知返回 -1。 */
+    private long querySize(Uri uri) {
+        Cursor c = null;
+        try {
+            c = getContentResolver().query(uri, null, null, null, null);
+            if (c != null && c.moveToFirst()) {
+                int i = c.getColumnIndex(OpenableColumns.SIZE);
+                if (i >= 0 && !c.isNull(i)) return c.getLong(i);
+            }
+        } catch (Exception ignore) {
+        } finally {
+            if (c != null) c.close();
+        }
+        return -1;
     }
 
     private String queryDisplayName(Uri uri) {
@@ -874,15 +1112,6 @@ public final class NetStorageActivity extends BaseActivity {
 
     private static int parseInt(String s, int def) {
         try { return Integer.parseInt(s.trim()); } catch (Exception e) { return def; }
-    }
-
-    private static long copyPlain(InputStream in, OutputStream out, int bufSize) throws IOException {
-        byte[] buf = new byte[bufSize];
-        long total = 0;
-        int n;
-        while ((n = in.read(buf)) > 0) { out.write(buf, 0, n); total += n; }
-        out.close();
-        return total;
     }
 
     private int dp(int v) {
