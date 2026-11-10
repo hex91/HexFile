@@ -205,7 +205,9 @@ final class CloudAuthDialog {
     private static void showAliyun(final Activity act, final String currentRefresh, final Callback cb) {
         final LinearLayout box = column(act);
 
-        box.addView(tip(act, "阿里云盘没有对个人开放的 OAuth 注册入口，只能用浏览器里的登录凭证：\n"
+        box.addView(tip(act, "手动粘贴方式（一般用不到）：表单里的「登录 / 授权」会直接打开"
+                + "阿里云盘登录页，登录完自动取回凭证，不需要下面这些步骤。\n"
+                + "只有在那个页面登录不了（例如站点改版、企业网络拦截）时才用这里：\n"
                 + "1. 电脑浏览器打开 alipan.com 并登录\n"
                 + "2. F12 → Application（应用）→ Local Storage → https://www.alipan.com\n"
                 + "3. 找到键 token，复制它的值（一整段 JSON 也行）\n"

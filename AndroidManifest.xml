@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hex91.file"
-    android:versionCode="161"
-    android:versionName="1.89.0">
+    android:versionCode="162"
+    android:versionName="1.90.0">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
 
@@ -231,6 +231,13 @@
             android:name="com.hex91.file.NetStorageActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <!-- v1.90.0：云盘网页登录（内嵌官方登录页，登录完自动取回凭证） -->
+        <activity
+            android:name="com.hex91.file.CloudLoginActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize"/>
 
         <!-- v1.62.0：Java → Smali 转换（ECJ + dx + baksmali） -->
         <activity

@@ -56,6 +56,7 @@ public final class NetStorageActivity extends BaseActivity {
     private static final String PREFS = "netstorage";
     private static final String KEY_SERVERS = "servers";
     private static final int REQ_PICK_UPLOAD = 5001;
+    private static final int REQ_CLOUD_LOGIN = 5002;   // v1.90.0 云盘网页登录
 
     private static final String TYPE_SMB = "smb";
     private static final String TYPE_WEBDAV = "webdav";
@@ -81,6 +82,8 @@ public final class NetStorageActivity extends BaseActivity {
     private org.json.JSONObject mCurServer;       // 当前连接的服务器配置
     private Uri mUploadUri;                       // 待上传文件（onActivityResult → 线程）
     private String mUploadName;
+    /** v1.90.0：网页登录回来后把凭证交还给打开登录页的那次表单 */
+    private CloudAuthDialog.Callback mAuthCb;
 
     private ProgressDialog mProgress;
     /** v1.83.0：不支持加密的设备只提示一次，避免每次保存都弹 */
@@ -325,23 +328,31 @@ public final class NetStorageActivity extends BaseActivity {
         box.addView(auth);
         auth.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                int pos = type.getSelectedItemPosition();
+                final int pos = type.getSelectedItemPosition();
                 if (pos != 5 && pos != 6) return;
-                CloudAuthDialog.show(NetStorageActivity.this,
-                        pos == 5 ? TYPE_ONEDRIVE : TYPE_ALIYUN,
-                        user.getText().toString().trim(),
-                        token[0],
-                        new CloudAuthDialog.Callback() {
-                            public void onAuthorized(final String rt) {
-                                // 回调可能在后台线程（设备码轮询/网络验证），回到主线程再改 UI
-                                runOnUiThread(new Runnable() {
-                                    public void run() {
-                                        token[0] = rt;
-                                        toast("授权成功，点「保存」生效");
-                                    }
-                                });
+                // 两条路都收敛到同一个回调：把 token 写进数组，等用户点保存
+                final CloudAuthDialog.Callback cb = new CloudAuthDialog.Callback() {
+                    public void onAuthorized(final String rt) {
+                        // 回调可能在后台线程（设备码轮询/网络验证），回到主线程再改 UI
+                        runOnUiThread(new Runnable() {
+                            public void run() {
+                                token[0] = rt;
+                                toast("授权成功，点「保存」生效");
                             }
                         });
+                    }
+                };
+                if (pos == 5) {
+                    // OneDrive：设备码，用户在系统浏览器里登录
+                    CloudAuthDialog.show(NetStorageActivity.this, TYPE_ONEDRIVE,
+                            user.getText().toString().trim(), token[0], cb);
+                } else {
+                    // 阿里云盘：直接在应用内弹官方登录页，登录完自动取回凭证
+                    mAuthCb = cb;
+                    startActivityForResult(CloudLoginActivity.intent(
+                            NetStorageActivity.this, CloudLoginActivity.SITE_ALIYUN),
+                            REQ_CLOUD_LOGIN);
+                }
             }
         });
 
@@ -361,6 +372,7 @@ public final class NetStorageActivity extends BaseActivity {
                 setRowVisible(user, !ali);
                 setRowVisible(pass, !cloud);
                 auth.setVisibility(cloud ? View.VISIBLE : View.GONE);
+                auth.setText(ali ? "登录阿里云盘（弹出登录页）" : "登录 OneDrive（设备码）");
                 host.setHint(smb ? "192.168.1.100"
                         : http ? "http://192.168.1.100:5005/dav/"
                         : s3 ? "https://oss-cn-hangzhou.aliyuncs.com"
@@ -924,9 +936,38 @@ public final class NetStorageActivity extends BaseActivity {
         }
     }
 
+    /**
+     * v1.90.0 网页登录回来。
+     *
+     * <p>这里<b>故意不做「先 refresh 验证再保存」</b>。阿里云盘的 refresh_token 是一次性轮换的：
+     * 验证一次就把旧的作废了，如果用户验证完没点「保存」就退出，凭证已经废掉而配置里还是旧的 ——
+     * 下次连接必然失败，且用户完全看不出原因。网页登录刚拿到的 token 本身就是刚签发的，
+     * 没有「可能是坏 token」的问题，直接采纳、等用户点保存即可。</p>
+     */
+    private void onCloudLogin(int resultCode, Intent data) {
+        if (resultCode == RESULT_FIRST_USER) {
+            // 用户点了顶栏「粘贴方式」：回到原来那套手动流程
+            if (mAuthCb != null) CloudAuthDialog.show(this, TYPE_ALIYUN, "", "", mAuthCb);
+            return;
+        }
+        if (resultCode != RESULT_OK || data == null) return;
+        final String rt = OAuthToken.extractRefresh(data.getStringExtra(CloudLoginActivity.EXTRA_REFRESH));
+        if (rt.isEmpty()) {
+            errorDialog("没有取到登录凭证", "可能是网盘登录页改版了。可以再试一次，"
+                    + "或改用登录页顶栏的「粘贴方式」。");
+            return;
+        }
+        toast("阿里云盘已登录，点「保存」生效");
+        if (mAuthCb != null) mAuthCb.onAuthorized(rt);
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_CLOUD_LOGIN) {
+            onCloudLogin(resultCode, data);
+            return;
+        }
         if (requestCode != REQ_PICK_UPLOAD || resultCode != RESULT_OK || data == null || data.getData() == null) return;
         mUploadUri = data.getData();
         mUploadName = queryDisplayName(mUploadUri);
