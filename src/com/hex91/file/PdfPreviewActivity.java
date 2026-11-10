@@ -188,8 +188,7 @@ public class PdfPreviewActivity extends BaseActivity {
                 String err = null;
                 File out = null;
                 try {
-                    File dir = new File(android.os.Environment.getExternalStorageDirectory(),
-                            "HexFile/PDF导出");
+                    File dir = new File(WorkDir.base(), "PDF导出");
                     dir.mkdirs();
                     String base = pdf.getName();
                     if (base.toLowerCase().endsWith(".pdf")) base = base.substring(0, base.length() - 4);

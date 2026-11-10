@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  设置页（v1.83.0）。骨架固定为「顶栏 + 可滚动容器」，具体条目全部由
+  SettingsActivity 用 section()/row()/switchRow() 动态构建 —— 后续加设置项
+  只需在 Activity 里追加一行调用，不用改布局、不用加 id。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/hfBg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:background="?attr/hfTopBar"
+        android:gravity="center_vertical"
+        android:paddingLeft="4dp"
+        android:paddingRight="10dp">
+
+        <TextView
+            android:id="@+id/btn_back"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:minWidth="48dp"
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp"
+            android:text="‹"
+            android:textColor="?attr/hfTopBarText"
+            android:textSize="26sp"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingLeft="2dp"
+            android:text="设置"
+            android:textColor="?attr/hfTopBarText"
+            android:textSize="16sp"
+            android:textStyle="bold"/>
+
+        <TextView
+            android:id="@+id/tv_ver_top"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="?attr/hfTopBarTextSub"
+            android:textSize="11sp"/>
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scrollbars="vertical">
+
+        <LinearLayout
+            android:id="@+id/settings_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingLeft="12dp"
+            android:paddingRight="12dp"
+            android:paddingBottom="24dp"/>
+    </ScrollView>
+</LinearLayout>

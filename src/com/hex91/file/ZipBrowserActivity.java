@@ -237,9 +237,7 @@ public class ZipBrowserActivity extends BaseActivity {
         String dexName = e.name;
         dot = dexName.lastIndexOf('.');
         if (dot > 0) dexName = dexName.substring(0, dot);
-        final File outDir = new File(
-                android.os.Environment.getExternalStorageDirectory(),
-                "HexFile/Smali/" + apkName + "/" + dexName);
+        final File outDir = new File(WorkDir.base(), "Smali/" + apkName + "/" + dexName);
 
         toast("反编译中…（大型 dex 可能需要较长时间）");
         new Thread(new Runnable() {

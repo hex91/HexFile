@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hex91.file"
-    android:versionCode="154"
-    android:versionName="1.82.1">
+    android:versionCode="155"
+    android:versionName="1.83.0">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
 
@@ -63,6 +63,12 @@
 
         <activity
             android:name="com.hex91.file.TrashActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <!-- v1.83.0：统一设置页（主题 / 工作目录 / Root / 回收站策略 / 版本） -->
+        <activity
+            android:name="com.hex91.file.SettingsActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 

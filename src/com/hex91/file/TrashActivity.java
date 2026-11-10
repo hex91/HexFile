@@ -43,15 +43,16 @@ public class TrashActivity extends BaseActivity {
 
         // v1.82.0：保留策略（天数 / 容量 / 自动清理开关）
         // v1.82.1：「策略」太抽象，用户找不到 → 改成「⚙ 保留策略」，并支持被主界面菜单直呼
+        // v1.83.0：改用顶栏专用配色——SOFT 胶囊的 accent 文字在 accent 同色顶栏上会隐形
         android.widget.Button btnPolicy = (android.widget.Button) findViewById(R.id.btn_policy);
-        UiDecor.barButton(btnPolicy, this, UiDecor.KIND_SOFT, 11.5f);
+        UiDecor.barButtonOnBar(btnPolicy, this, UiDecor.KIND_SOFT, 11.5f);
         btnPolicy.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { showPolicy(); }
         });
         UiDecor.gap(btnPolicy, this, 4f);
 
         // v1.76.0：顶栏「清空」按钮 → 危险色小胶囊
-        UiDecor.barButton((android.widget.Button) findViewById(R.id.btn_clear),
+        UiDecor.barButtonOnBar((android.widget.Button) findViewById(R.id.btn_clear),
                 this, UiDecor.KIND_DANGER, 11.5f);
         findViewById(R.id.btn_clear).setOnClickListener(new View.OnClickListener() {            public void onClick(View v) {
                 if (data.isEmpty()) { toast("回收站已为空"); return; }
@@ -116,70 +117,11 @@ public class TrashActivity extends BaseActivity {
         }).start();
     }
 
-    /** v1.82.0：保留策略设置 */
+    /** v1.82.0：保留策略设置（v1.83.0 起实现抽到 TrashPolicyDialog，与设置页共用） */
     private void showPolicy() {
-        final TrashPolicy p = TrashPolicy.load(Trash.dir());
-
-        android.widget.LinearLayout box = new android.widget.LinearLayout(this);
-        box.setOrientation(android.widget.LinearLayout.VERTICAL);
-        int pad = (int) (20 * getResources().getDisplayMetrics().density);
-        box.setPadding(pad, 8, pad, 0);
-
-        final android.widget.CheckBox cb = new android.widget.CheckBox(this);
-        cb.setText("启用自动清理");
-        cb.setTextSize(14);
-        cb.setChecked(p.enabled);
-        box.addView(cb);
-
-        android.widget.TextView hint = new android.widget.TextView(this);
-        hint.setText("超过保留天数或容量上限时，自动彻底删除最旧的条目。目录占用按递归计算。");
-        hint.setTextSize(11);
-        hint.setTextColor(ThemeManager.textSub(this));
-        hint.setPadding(0, 2, 0, 8);
-        box.addView(hint);
-
-        android.widget.EditText etDays = new android.widget.EditText(this);
-        etDays.setHint("保留天数（0 = 不限）");
-        etDays.setTextSize(14);
-        etDays.setSingleLine(true);
-        etDays.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-        etDays.setText(String.valueOf(p.maxDays));
-        box.addView(etDays);
-
-        android.widget.EditText etMb = new android.widget.EditText(this);
-        etMb.setHint("容量上限 MB（0 = 不限）");
-        etMb.setTextSize(14);
-        etMb.setSingleLine(true);
-        etMb.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-        etMb.setText(String.valueOf(p.maxBytes / (1024 * 1024)));
-        box.addView(etMb);
-
-        new HfDialogBuilder(this)
-                .setTitle("回收站保留策略")
-                .setView(box)
-                .setPositiveButton("保存并清理", new android.content.DialogInterface.OnClickListener() {
-                    public void onClick(android.content.DialogInterface d, int w) {
-                        p.enabled = cb.isChecked();
-                        p.maxDays = parseInt(etDays.getText().toString(), TrashPolicy.DEFAULT_DAYS);
-                        long mb = parseInt(etMb.getText().toString(),
-                                (int) (TrashPolicy.DEFAULT_BYTES / (1024 * 1024)));
-                        p.maxBytes = mb <= 0 ? 0 : mb * 1024L * 1024L;
-                        if (!p.save(Trash.dir())) { toast("策略保存失败"); return; }
-                        final TrashPolicy.Report rep = p.apply(Trash.dir(), System.currentTimeMillis());
-                        toast(rep.summary());
-                        reload();
-                    }
-                })
-                .setNegativeButton("取消", null)
-                .show();
-    }
-
-    private static int parseInt(String s, int def) {
-        try {
-            return Integer.parseInt(s.trim());
-        } catch (Exception e) {
-            return def;
-        }
+        TrashPolicyDialog.show(this, new Runnable() {
+            public void run() { reload(); }
+        });
     }
 
     private void showEntryOps(final Trash.Entry e) {

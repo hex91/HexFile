@@ -31,7 +31,8 @@ public class Trash {
     }
 
     public static File dir() {
-        return new File(Environment.getExternalStorageDirectory(), DIR_NAME);
+        // v1.83.0：跟随可配置工作目录（默认 /sdcard/HexFile/Trash）
+        return new File(WorkDir.base(), "Trash");
     }
 
     private static File metaDir() { return new File(dir(), "meta"); }

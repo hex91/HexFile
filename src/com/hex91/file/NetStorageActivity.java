@@ -532,8 +532,7 @@ public final class NetStorageActivity extends BaseActivity {
             public void run() {
                 try {
                     // 统一落在 NetStorage/<条目名>：目录为递归根，文件为完整目标路径
-                    File destDir = new File(android.os.Environment.getExternalStorageDirectory(),
-                            "HexFile/NetStorage/" + e.name);
+                    File destDir = new File(WorkDir.base(), "NetStorage/" + e.name);
                     final File baseDir = destDir;
                     runOnUiThread(new Runnable() {
                         public void run() { mProgress.setMessage("下载中…"); }

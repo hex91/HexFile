@@ -630,6 +630,13 @@ public class MainActivity extends BaseActivity {
                 startActivity(new Intent(MainActivity.this, LanShareActivity.class));
             }
         });
+        // v1.83.0：统一设置页入口（抽屉 + ⋮ 菜单各一处）
+        findViewById(R.id.drawer_settings).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                closeDrawer();
+                startActivity(new Intent(MainActivity.this, SettingsActivity.class));
+            }
+        });
         findViewById(R.id.drawer_theme).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 closeDrawer();
@@ -839,6 +846,8 @@ public class MainActivity extends BaseActivity {
                 ? "粘贴（剪贴板为空）"
                 : "粘贴：" + FileClipboard.get().label());
         menu.add(Menu.NONE, 8, 8, "最近打开");
+        // v1.83.0：设置页（主题 / 工作目录 / Root / 回收站策略 / 版本）
+        menu.add(Menu.NONE, 12, 9, "设置");
         // 让菜单右边缘与锚点（右上角 ⋮ 按钮）对齐，呈现“吸附右上角”效果
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             popup.setGravity(Gravity.END);
@@ -895,6 +904,9 @@ public class MainActivity extends BaseActivity {
                     case 7: swapPanes(); break;
                     case 9: pasteClipboard(); break;   // v1.78.0
                     case 8: showRecent(); break;
+                    case 12:
+                        startActivity(new Intent(MainActivity.this, SettingsActivity.class));
+                        break;
                 }
                 return true;
             }
@@ -1484,8 +1496,7 @@ public class MainActivity extends BaseActivity {
         String name = dexFile.getName();
         int dot = name.lastIndexOf('.');
         if (dot > 0) name = name.substring(0, dot);
-        final File outDir = new File(Environment.getExternalStorageDirectory(),
-                "HexFile/Smali/" + name);
+        final File outDir = new File(WorkDir.base(), "Smali/" + name);
         toast("反编译中…（大型 dex 可能需要较长时间）");
         new Thread(new Runnable() {
             public void run() {
@@ -2169,8 +2180,8 @@ public class MainActivity extends BaseActivity {
         final File apk = p.archiveFile;
         final File cacheTmp = new File(getCacheDir(), "arch_dex_tmp");
         final String base = stripExt(new File(it.archPath()).getName());
-        final File outRoot = new File(Environment.getExternalStorageDirectory(),
-                "HexFile/Smali/" + stripExt(apk.getName()) + "/" + base);
+        final File outRoot = new File(WorkDir.base(),
+                "Smali/" + stripExt(apk.getName()) + "/" + base);
         toast("反编译中…（大型 dex 可能需要较长时间）");
         new Thread(new Runnable() {
             public void run() {
@@ -5052,8 +5063,7 @@ public class MainActivity extends BaseActivity {
     private void extractApkDexes(final File apk, final boolean decompile) {
         final File cacheTmp = new File(getCacheDir(), "apk_dex_tmp");
         final File outRoot = decompile
-                ? new File(Environment.getExternalStorageDirectory(),
-                        "HexFile/Smali/" + stripExt(apk.getName()))
+                ? new File(WorkDir.base(), "Smali/" + stripExt(apk.getName()))
                 : new File(other().dir, stripExt(apk.getName()) + "_dex");
         toast(decompile ? "反编译中…（APK 内 dex 越多耗时越长）" : "提取中…");
         new Thread(new Runnable() {

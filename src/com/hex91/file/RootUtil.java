@@ -20,6 +20,12 @@ import java.util.concurrent.TimeUnit;
 public final class RootUtil {
 
     private static volatile Boolean cached;      // null=未检测
+
+    /**
+     * v1.83.0：用户总开关。关闭后所有 root 能力（检测/执行/读写）一律走失败分支，
+     * 调用方无需逐处判断——66 个调用点自动遵守，降低「想纯普通权限跑」时的心智负担。
+     */
+    private static volatile boolean enabled = true;
     private static final ExecutorService POOL =
             Executors.newSingleThreadExecutor(new ThreadFactory() {
                 public Thread newThread(Runnable r) {
@@ -31,10 +37,51 @@ public final class RootUtil {
 
     private RootUtil() {}
 
-    /** 是否已 root 且 su 可用（带缓存；从未检测则现场探测） */
+    /** 是否已 root 且 su 可用（带缓存；从未检测则现场探测）。用户关闭 Root 时恒为 false */
     public static boolean isRootAvailable() {
+        if (!enabled) return false;
         Boolean c = cached;
         return c != null && c;
+    }
+
+    /** 用户是否允许使用 Root（设置页开关；默认允许，实际有无 root 由 isRootAvailable 决定） */
+    public static boolean isEnabled() {
+        return enabled;
+    }
+
+    /** 设置偏好：与工作目录共用 hf_settings */
+    public static final String PREF = "hf_settings";
+
+    /** 偏好键：true/false，默认 true */
+    public static final String KEY_ENABLED = "root_enabled";
+
+    /** 启动时按用户偏好恢复开关（BaseActivity 每次创建都会调，幂等） */
+    public static void init(android.content.Context c) {
+        if (c == null) return;
+        try {
+            setEnabled(c.getSharedPreferences(PREF, android.content.Context.MODE_PRIVATE)
+                    .getBoolean(KEY_ENABLED, true));
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** 保存用户选择并立即生效 */
+    public static void saveEnabled(android.content.Context c, boolean on) {
+        setEnabled(on);
+        try {
+            c.getSharedPreferences(PREF, android.content.Context.MODE_PRIVATE).edit()
+                    .putBoolean(KEY_ENABLED, on).apply();
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /**
+     * 打开/关闭 Root 能力。关闭时清掉探测缓存并强制置 false，
+     * 之后 {@link #isRootAvailable()} 与所有执行方法都返回失败，等同「无 root 设备」。
+     */
+    public static void setEnabled(boolean on) {
+        enabled = on;
+        if (!on) cached = Boolean.FALSE;
     }
 
     /** 强制探测（阻塞，超时 4s）。返回是否已 root。 */
@@ -44,6 +91,7 @@ public final class RootUtil {
 
     /** 可注入命令名的探测（测试用）。 */
     public static boolean detect(String suCommand) {
+        if (!enabled) return false;
         Boolean c = cached;
         if (c != null) return c;
         boolean ok;
@@ -62,6 +110,7 @@ public final class RootUtil {
      * stdout 被丢弃；需要输出用 {@link #submitOutput}。
      */
     public static boolean run(final String shellCmd) {
+        if (!enabled) return false;
         try {
             Future<Boolean> f = POOL.submit(new Callable<Boolean>() {
                 public Boolean call() throws Exception {
@@ -86,6 +135,7 @@ public final class RootUtil {
      * 失败（非零退出/超时）返回 null。
      */
     public static Future<String> submitOutput(final String shellCmd) {
+        if (!enabled) return done(null);
         return POOL.submit(new Callable<String>() {
             public String call() throws Exception {
                 Process p = null;
@@ -112,6 +162,7 @@ public final class RootUtil {
      * 阻塞 ≤15s。返回退出码是否为 0。
      */
     public static boolean runWithInput(final String shellCmd, final byte[] data) {
+        if (!enabled) return false;
         try {
             Future<Boolean> f = POOL.submit(new Callable<Boolean>() {
                 public Boolean call() throws Exception {
@@ -139,6 +190,7 @@ public final class RootUtil {
      * 超过 maxBytes / 失败 / 超时（10s）返回 null。
      */
     public static byte[] captureOutput(final String shellCmd, final long maxBytes) {
+        if (!enabled) return null;
         try {
             Future<byte[]> f = POOL.submit(new Callable<byte[]>() {
                 public byte[] call() throws Exception {
@@ -172,9 +224,20 @@ public final class RootUtil {
      * 读完自行 waitFor + destroy。启动失败抛异常。
      */
     public static Process catProcess(String shellCmd) throws Exception {
+        if (!enabled) throw new IllegalStateException("Root 已被用户关闭");
         Process p = new ProcessBuilder("su", "-c", shellCmd).start();
         drain(p);
         return p;
+    }
+
+    /** 已完成、值为 v 的 Future（Root 关闭时给 {@link #submitOutput} 兜底） */
+    private static <T> Future<T> done(final T v) {
+        java.util.concurrent.FutureTask<T> t = new java.util.concurrent.FutureTask<T>(
+                new Callable<T>() {
+                    public T call() { return v; }
+                });
+        t.run();
+        return t;
     }
 
     /** stderr 排水（防管道塞满死锁） */

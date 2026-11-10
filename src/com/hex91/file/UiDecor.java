@@ -209,6 +209,44 @@ public final class UiDecor {
         tv.setTextColor(kind == KIND_PRIMARY ? ThemeManager.onAccent(c) : kindColor(c, kind));
     }
 
+    /**
+     * 有色条（顶栏）上的胶囊按钮。
+     *
+     * <p>不能直接复用 {@link #barButton}：SOFT 胶囊是「accent 14% 填充 + accent 文字」，
+     * 而部分色板把 {@code hfTopBar} 与 {@code hfAccent} 设成同一色值（蓝/绿/琥珀三套），
+     * 于是按钮底色≈顶栏底色、文字色=顶栏底色，视觉上就是「按钮根本没画出来」。</p>
+     *
+     * <p>这里改用顶栏的前景色 {@code hfTopBarText} 作为按钮主色——它本身就是为该背景
+     * 挑选的高对比色；危险操作仍取 err，但会先算对比度，不足时自动向黑/白方向调整。
+     * 实心（PRIMARY）反过来：用前景色做底、反色做字，保证色块边界在顶栏上也能分辨。</p>
+     */
+    static void barButtonOnBar(TextView tv, Context c, int kind, float textSp) {
+        tv.setAllCaps(false);
+        tv.setSingleLine(true);
+        tv.setTextSize(textSp);
+        tv.setMinWidth(0);
+        tv.setMinimumWidth(0);
+        tv.setMinHeight(0);
+        tv.setMinimumHeight(0);
+        tv.setPadding(dp(c, 6), dp(c, 8), dp(c, 6), dp(c, 8));
+        tv.setStateListAnimator(null);
+        tv.setElevation(0f);
+
+        int bar = ThemeManager.topBar(c);
+        if (kind == KIND_PRIMARY) {
+            int solid = Contrast.ensure(bar, ThemeManager.topBarText(c), Contrast.MIN_TEXT);
+            tv.setBackground(pressable(round(c, alpha(solid, 0xE6), 0, 0f, 10f), solid));
+            tv.setTextColor(Contrast.readableOn(solid));
+            return;
+        }
+        int base = kind == KIND_DANGER
+                ? Contrast.ensure(bar, ThemeManager.err(c), Contrast.MIN_TEXT)
+                : ThemeManager.topBarText(c);
+        tv.setBackground(pressable(
+                round(c, alpha(base, 0x1A), alpha(base, 0x5C), 0.8f, 10f), base));
+        tv.setTextColor(base);
+    }
+
     /** 给按钮加左右间距（LinearLayout 才有 margin） */
     static void gap(TextView tv, Context c, float lrDp) {
         ViewGroup.LayoutParams lp = tv.getLayoutParams();

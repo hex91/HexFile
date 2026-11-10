@@ -24,9 +24,9 @@ public final class BackupRestore {
 
     private BackupRestore() {}
 
-    /** 备份根目录：/sdcard/HexFile/Backups */
+    /** 备份根目录：<工作目录>/Backups（默认 /sdcard/HexFile/Backups） */
     public static File backupsRoot() {
-        return new File(Environment.getExternalStorageDirectory(), "HexFile/Backups");
+        return new File(WorkDir.base(), "Backups");
     }
 
     /** 单个备份条目 */

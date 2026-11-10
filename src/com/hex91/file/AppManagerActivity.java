@@ -423,13 +423,13 @@ public class AppManagerActivity extends BaseActivity {
                 final String dstPath;
                 boolean ok;
                 if (!split) {
-                    File dstDir = new File(Environment.getExternalStorageDirectory(), "HexFile/Apps");
+                    File dstDir = new File(WorkDir.base(), "Apps");
                     File dst = new File(dstDir, exportFileName(r.label, r.version));
                     ok = FileOps.copyOverwrite(new File(r.sourceDir), dst);
                     dstPath = dst.getPath();
                 } else {
-                    File dstDir = new File(Environment.getExternalStorageDirectory(),
-                            "HexFile/Apps/" + AppRow.exportBaseName(r.label, r.version));
+                    File dstDir = new File(WorkDir.base(),
+                            "Apps/" + AppRow.exportBaseName(r.label, r.version));
                     ok = dstDir.mkdirs() || dstDir.isDirectory();
                     if (ok) {
                         File base = new File(r.sourceDir);
@@ -586,8 +586,7 @@ public class AppManagerActivity extends BaseActivity {
     /** 备份应用：APK（含 split 分包）复制到 HexFile/Backups/<pkg>/；Root 下额外打包数据目录。 */
     private void backupApp(final AppRow r) {
         if (r.sourceDir == null) { toast("无法获取 APK 路径"); return; }
-        final File dir = new File(Environment.getExternalStorageDirectory(),
-                "HexFile/Backups/" + r.pkg);
+        final File dir = new File(WorkDir.base(), "Backups/" + r.pkg);
         final ProgressDialog pd = new ProgressDialog(this);
         pd.setMessage("正在备份 " + r.label + " …");
         pd.setCanceledOnTouchOutside(false);
@@ -671,8 +670,7 @@ public class AppManagerActivity extends BaseActivity {
 
     /** 还原应用：从 HexFile/Backups/<pkg>/ 重装 APK（含 split），Root 下恢复数据目录。 */
     private void restoreApp(final AppRow r) {
-        final File dir = new File(Environment.getExternalStorageDirectory(),
-                "HexFile/Backups/" + r.pkg);
+        final File dir = new File(WorkDir.base(), "Backups/" + r.pkg);
         if (!dir.isDirectory()) { toast("未找到 " + r.label + " 的备份"); return; }
         File[] apks = dir.listFiles(new FileFilter() {
             public boolean accept(File f) { return f.isFile() && f.getName().endsWith(".apk"); }

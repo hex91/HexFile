@@ -235,11 +235,8 @@ public final class LanNode {
      */
     public File saveDir() {
         try {
-            File ext = Environment.getExternalStorageDirectory();
-            if (ext != null) {
-                File dir = new File(new File(ext, "HexFile"), "LanShare");
-                if (dir.isDirectory() || dir.mkdirs()) return dir;
-            }
+            File dir = new File(WorkDir.base(), "LanShare");
+            if (dir.isDirectory() || dir.mkdirs()) return dir;
         } catch (Throwable ignored) {
         }
         File appExt = app.getExternalFilesDir("LanShare");

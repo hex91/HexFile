@@ -173,8 +173,7 @@ public class ApkInfoActivity extends BaseActivity {
     private void exportTxt() {
         if (info == null) return;
         try {
-            File dir = new File(android.os.Environment
-                    .getExternalStorageDirectory(), "HexFile/APK信息");
+            File dir = new File(WorkDir.base(), "APK信息");
             dir.mkdirs();
             String base = apk.getName();
             if (base.toLowerCase().endsWith(".apk")) base = base.substring(0, base.length() - 4);

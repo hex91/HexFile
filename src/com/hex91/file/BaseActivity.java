@@ -42,6 +42,10 @@ public abstract class BaseActivity extends Activity {
         // 主题必须在 setContentView 之前设定
         appliedStyle = ThemeManager.apply(this);
         appliedNight = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        // v1.83.0：工作目录与 Root 开关都是全局偏好，每个页面创建时收敛一次，
+        // 保证用户从任意入口（通知、其他 App 跳转）直接进二级页也读到最新设置。
+        WorkDir.init(this);
+        RootUtil.init(this);
         super.onCreate(savedInstanceState);
     }
 

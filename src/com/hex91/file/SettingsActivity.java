@@ -1,0 +1,363 @@
+package com.hex91.file;
+
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.graphics.drawable.Drawable;
+import android.os.Build;
+import android.os.Bundle;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.CompoundButton;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.Switch;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import java.io.File;
+
+/**
+ * 设置页（v1.83.0）。
+ *
+ * <p>结构刻意做成「分组卡片 + 行」的构建器，而不是固定 XML：
+ * 每个分区由 {@link #section(String)} 开卡，条目由 {@link #row}/{@link #switchRow}/
+ * {@link #infoRow} 往里加。以后要加设置项，只在 {@link #build()} 里多写一行调用，
+ * 不用改布局、不用加控件 id。</p>
+ *
+ * <p>为什么要这个页面：主题入口原来只在侧抽屉，Root 开关没有，工作目录写死在代码里，
+ * 回收站策略藏在二级页顶栏 —— 四件事分散在四个地方，用户很难找。</p>
+ */
+public class SettingsActivity extends BaseActivity {
+
+    private LinearLayout container;
+    private float den;
+    /** 首次 onResume 不重建（onCreate 已建过一次），之后每次返回都刷新摘要 */
+    private boolean resumedOnce;
+
+    @Override
+    protected void onCreate(Bundle b) {
+        super.onCreate(b);
+        setContentView(R.layout.activity_settings);
+        den = getResources().getDisplayMetrics().density;
+        container = (LinearLayout) findViewById(R.id.settings_container);
+
+        findViewById(R.id.btn_back).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { finish(); }
+        });
+        ((TextView) findViewById(R.id.tv_ver_top)).setText("v" + versionName());
+
+        build();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // 从主题页/回收站返回后摘要可能已变；主题变化时 BaseActivity 会 recreate，这里只兜底文字
+        if (resumedOnce) build();
+        resumedOnce = true;
+    }
+
+    // ---------------------------------------------------------------- 页面构建
+
+    private void build() {
+        container.removeAllViews();
+
+        // ---- 外观 ----
+        LinearLayout look = section("外观");
+        row(look, "主题与配色", themeSummary(), "", new View.OnClickListener() {
+            public void onClick(View v) {
+                startActivity(new Intent(SettingsActivity.this, ThemeActivity.class));
+            }
+        });
+
+        // ---- 文件与目录 ----
+        LinearLayout files = section("文件与目录");
+        row(files, "工作目录", "回收站、备份、Smali 输出、网络下载都放这里。切换后旧目录内容不会自动迁移。",
+                WorkDir.path(), new View.OnClickListener() {
+                    public void onClick(View v) { pickWorkDir(); }
+                });
+        if (WorkDir.isCustom()) {
+            row(files, "恢复默认目录", WorkDir.defaultPath(), "", new View.OnClickListener() {
+                public void onClick(View v) { resetWorkDir(); }
+            });
+        }
+
+        // ---- 权限 ----
+        LinearLayout perm = section("权限");
+        switchRow(perm, "使用 Root 权限",
+                RootUtil.isRootAvailable()
+                        ? "当前设备已获取 Root。关闭后一切操作改走普通文件 API。"
+                        : "当前设备未检测到 Root；打开开关只表示「允许尝试」，无 su 时仍走普通 API。",
+                RootUtil.isEnabled(), new CompoundButton.OnCheckedChangeListener() {
+                    public void onCheckedChanged(CompoundButton cb, boolean on) {
+                        RootUtil.saveEnabled(SettingsActivity.this, on);
+                        toast(on ? "已允许使用 Root" : "已停用 Root，/data 等目录将不可访问");
+                    }
+                });
+        infoRow(perm, "当前状态", rootStatus());
+
+        // ---- 回收站 ----
+        LinearLayout trash = section("回收站");
+        row(trash, "保留策略", TrashPolicyDialog.summary(), "", new View.OnClickListener() {
+            public void onClick(View v) {
+                TrashPolicyDialog.show(SettingsActivity.this, new Runnable() {
+                    public void run() { build(); }
+                });
+            }
+        });
+        row(trash, "打开回收站", Trash.dir().getAbsolutePath(), "", new View.OnClickListener() {
+            public void onClick(View v) {
+                startActivity(new Intent(SettingsActivity.this, TrashActivity.class));
+            }
+        });
+
+        // ---- 关于（版本号固定在最下） ----
+        LinearLayout about = section("关于");
+        infoRow(about, "版本", versionName() + "（" + versionCode() + "）");
+        infoRow(about, "工作目录", WorkDir.path());
+
+        TextView foot = new TextView(this);
+        foot.setText("HexFile · 双栏文件管理器");
+        foot.setTextSize(11);
+        foot.setTextColor(ThemeManager.textSub(this));
+        foot.setGravity(Gravity.CENTER);
+        foot.setPadding(0, dp(18), 0, 0);
+        container.addView(foot);
+    }
+
+    /** 分区标题 + 一张圆角卡片；返回的卡片供 row/switchRow/infoRow 追加条目 */
+    private LinearLayout section(String title) {
+        TextView h = new TextView(this);
+        h.setText(title);
+        h.setTextSize(11.5f);
+        h.setTextColor(ThemeManager.textSub(this));
+        h.setPadding(dp(6), dp(18), 0, dp(6));
+        container.addView(h);
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackground(UiDecor.cardBg(this));
+        // 行的高亮是矩形水波纹，不裁剪会从卡片圆角外露出直角
+        card.setClipToOutline(true);
+        container.addView(card, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return card;
+    }
+
+    /** 可点击行：标题 + 副标题 + 右侧当前值 + `›` */
+    private void row(LinearLayout card, String title, String sub, String value,
+                     View.OnClickListener click) {
+        LinearLayout r = newRow(card, click);
+        r.addView(labelBox(title, sub), weight1());
+
+        if (value != null && value.length() > 0) {
+            TextView v = new TextView(this);
+            v.setText(value);
+            v.setTextSize(12);
+            v.setTextColor(ThemeManager.textSub(this));
+            v.setSingleLine(true);
+            v.setEllipsize(android.text.TextUtils.TruncateAt.START);   // 长路径保留尾部
+            v.setGravity(Gravity.END);
+            v.setMaxWidth((int) (160 * den));
+            r.addView(v);
+        }
+        TextView arrow = new TextView(this);
+        arrow.setText("›");
+        arrow.setTextSize(18);
+        arrow.setTextColor(ThemeManager.textSub(this));
+        arrow.setPadding(dp(6), 0, 0, 0);
+        r.addView(arrow);
+    }
+
+    /** 只读行（版本号等） */
+    private void infoRow(LinearLayout card, String title, String value) {
+        LinearLayout r = newRow(card, null);
+        r.addView(labelBox(title, null), weight1());
+        TextView v = new TextView(this);
+        v.setText(value);
+        v.setTextSize(12.5f);
+        v.setTextColor(ThemeManager.textSub(this));
+        v.setGravity(Gravity.END);
+        r.addView(v);
+    }
+
+    /** 开关行：标题 + 副标题 + 右侧 Switch */
+    private void switchRow(LinearLayout card, String title, String sub, boolean on,
+                           CompoundButton.OnCheckedChangeListener l) {
+        LinearLayout r = newRow(card, null);
+        r.addView(labelBox(title, sub), weight1());
+        Switch sw = new Switch(this);
+        sw.setChecked(on);
+        sw.setOnCheckedChangeListener(l);
+        r.addView(sw);
+    }
+
+    /** 行容器：可选分隔线 + 水波纹背景 */
+    private LinearLayout newRow(LinearLayout card, View.OnClickListener click) {
+        if (card.getChildCount() > 0) card.addView(divider());
+        LinearLayout r = new LinearLayout(this);
+        r.setOrientation(LinearLayout.HORIZONTAL);
+        r.setGravity(Gravity.CENTER_VERTICAL);
+        r.setPadding(dp(14), dp(12), dp(12), dp(12));
+        if (click != null) {
+            r.setClickable(true);
+            r.setFocusable(true);
+            Drawable bg = selectableBg();
+            if (bg != null) r.setBackground(bg);
+            r.setOnClickListener(click);
+        }
+        card.addView(r, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return r;
+    }
+
+    /** 左侧文字块（标题 + 可选副标题） */
+    private View labelBox(String title, String sub) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+
+        TextView t = new TextView(this);
+        t.setText(title);
+        t.setTextSize(14.5f);
+        t.setTextColor(ThemeManager.text(this));
+        box.addView(t);
+
+        if (sub != null && sub.length() > 0) {
+            TextView s = new TextView(this);
+            s.setText(sub);
+            s.setTextSize(11.5f);
+            s.setTextColor(ThemeManager.textSub(this));
+            s.setPadding(0, dp(3), dp(8), 0);
+            box.addView(s);
+        }
+        return box;
+    }
+
+    private View divider() {
+        View v = new View(this);
+        v.setBackgroundColor(ThemeManager.divider(this));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(0.7f)));
+        lp.leftMargin = dp(14);
+        lp.rightMargin = dp(14);
+        v.setLayoutParams(lp);
+        return v;
+    }
+
+    private LinearLayout.LayoutParams weight1() {
+        return new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+    }
+
+    private Drawable selectableBg() {
+        try {
+            TypedValue tv = new TypedValue();
+            if (getTheme().resolveAttribute(android.R.attr.selectableItemBackground, tv, true)
+                    && tv.resourceId != 0) {
+                return getDrawable(tv.resourceId);
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private int dp(float v) {
+        return Math.round(v * den);
+    }
+
+    // ---------------------------------------------------------------- 动作
+
+    private void pickWorkDir() {
+        DirPickerDialog.show(this, new File(WorkDir.path()), new DirPickerDialog.OnPick() {
+            public void onPick(File dir) {
+                if (dir == null) return;
+                final String p = dir.getAbsolutePath();
+                if (!dir.isDirectory()) {
+                    new HfDialogBuilder(SettingsActivity.this)
+                            .setTitle("目录不存在")
+                            .setMessage(p + "\n\n是否创建该目录并设为工作目录？")
+                            .setPositiveButton("创建并使用", new DialogInterface.OnClickListener() {
+                                public void onClick(DialogInterface d, int w) {
+                                    if (!dir.mkdirs() && !dir.isDirectory()) {
+                                        toast("创建失败，请检查存储权限或换个位置");
+                                        return;
+                                    }
+                                    applyWorkDir(p);
+                                }
+                            })
+                            .setNegativeButton("取消", null)
+                            .show();
+                    return;
+                }
+                applyWorkDir(p);
+            }
+        });
+    }
+
+    private void applyWorkDir(String p) {
+        if (!WorkDir.set(this, p)) {
+            toast("保存失败，请检查存储权限");
+            return;
+        }
+        toast("工作目录已切换");
+        build();
+    }
+
+    private void resetWorkDir() {
+        new HfDialogBuilder(this)
+                .setTitle("恢复默认工作目录")
+                .setMessage("将改回 " + WorkDir.defaultPath()
+                        + "\n\n当前目录里的回收站、备份不会被移动，仍留在原处。")
+                .setPositiveButton("恢复默认", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        WorkDir.reset(SettingsActivity.this);
+                        toast("已恢复默认");
+                        build();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    // ---------------------------------------------------------------- 杂项
+
+    /** Root 当前可用性的人类可读描述（只读缓存，不触发新的探测） */
+    private String rootStatus() {
+        if (!RootUtil.isEnabled()) return "已停用";
+        return RootUtil.isRootAvailable() ? "已获取 root" : "未获取 root（或尚未检测）";
+    }
+
+    private String themeSummary() {
+        int scheme = ThemeManager.scheme(this);
+        String name = (scheme >= 0 && scheme < ThemeSchemes.NAMES.length)
+                ? ThemeSchemes.NAMES[scheme] : "默认";
+        int mode = ThemeManager.mode(this);
+        String modeName = mode == ThemeManager.MODE_FOLLOW_SYSTEM
+                ? "跟随系统" : (ThemeManager.isDark(this) ? "深色" : "浅色");
+        return name + " · " + modeName;
+    }
+
+    private String versionName() {
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Throwable t) {
+            return "?";
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private long versionCode() {
+        try {
+            android.content.pm.PackageInfo pi =
+                    getPackageManager().getPackageInfo(getPackageName(), 0);
+            return Build.VERSION.SDK_INT >= 28 ? pi.getLongVersionCode() : pi.versionCode;
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    private void toast(String s) {
+        Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
+    }
+}
