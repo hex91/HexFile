@@ -1668,6 +1668,47 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.85.0 —— 桌面小组件（P2 第二项）
+
+4×1 卡片，桌面上一眼看到存储余量，四个常用入口一键直达。
+
+### 卡片内容
+
+```
+HexFile                    剩 12.3G / 128G  ⟳
+███████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░
+  📁        ⬇        🖼        ♻
+工作目录    下载      图片     回收站
+```
+
+- 顶行：应用名 + 紧凑容量摘要 + 刷新按钮；中间一条已用占比进度条。
+- 整卡点击 → 打开主界面；四个入口分别跳到工作目录、Download、Pictures、回收站。
+- 目录不存在时**自动退回工作目录**，不会点了没反应。
+
+### 三个必须踩过的坑
+
+1. **RemoteViews 是在 launcher 进程里 inflate 的**，本应用的 `?attr/hfAccent` 在那里不存在。
+   所以卡片固定用深色半透明 + 白字（`widget_card.xml`），不跟应用主题走。
+2. 按钮背景不能写 `?android:attr/selectableItemBackground` —— 它由 launcher 的 theme 解析，
+   部分第三方桌面缺这个 attr 会直接 inflate 失败。改用自带 `widget_tap.xml`（ripple）。
+3. `appwidget-provider` 的 `android:description` 是**资源引用**，写中文字面量会
+   `aapt2 link` 报 "incompatible with attribute description" —— 必须 `@string/widget_desc`。
+
+### 刷新策略
+
+系统 `updatePeriodMillis` 最小 30 分钟，等不起。应用回到前台时调
+`WidgetProvider.refreshIfExists()` 主动刷新（没有卡片时 `getAppWidgetIds` 为空直接跳过，
+不白跑 binder）；卡片上的 ⟳ 走同一个方法。
+
+### 其它
+
+- 设置页新增「桌面小组件」分区：如何添加（长按桌面 → 小组件 → HexFile）+ 立即刷新。
+- `WidgetTextTest` **23 项**：紧凑容量四档进位、`12.3G` 保一位、`≥100G` 取整省宽度、
+  容量未知/已满/负可用量等边界。
+- `QUICK=1 ./test/run_core.sh` **29 项全 PASS**；versionCode 157。
+
+---
+
 ## v1.84.0 —— 系统级文件提供者（SAF）：让别的应用直接浏览本机
 
 P2 第一项。装好之后，系统「文件」应用侧边栏多出 HexFile；微信、邮件、编辑器点

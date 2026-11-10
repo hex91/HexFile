@@ -5735,6 +5735,8 @@ public class MainActivity extends BaseActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // v1.85.0：回前台时顺手刷一下桌面小组件的存储数字（没有卡片会直接跳过）
+        WidgetProvider.refreshIfExists(this);
         // v1.77.0：任务可能在后台继续，回到前台先接上进度回调再补一次刷新
         FileTaskEngine.get().setListener(taskListener);
         renderTaskBar();

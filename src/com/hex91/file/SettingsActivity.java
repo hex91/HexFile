@@ -116,6 +116,19 @@ public class SettingsActivity extends BaseActivity {
                     public void onClick(View v) { openSystemPicker(); }
                 });
 
+        // ---- 桌面小组件（v1.85.0） ----
+        LinearLayout widget = section("桌面小组件");
+        row(widget, "添加到桌面",
+                "在桌面长按空白处 → 小组件 → 找到 HexFile，把卡片拖到桌面。卡片内含工作目录、下载、图片、回收站四个入口。",
+                "", null);
+        row(widget, "立即刷新卡片", "重新读取存储占用（没有添加过卡片时不会有变化）", "",
+                new View.OnClickListener() {
+                    public void onClick(View v) {
+                        WidgetProvider.refreshIfExists(SettingsActivity.this);
+                        toast("已刷新小组件");
+                    }
+                });
+
         // ---- 回收站 ----
         LinearLayout trash = section("回收站");
         row(trash, "保留策略", TrashPolicyDialog.summary(), "", new View.OnClickListener() {

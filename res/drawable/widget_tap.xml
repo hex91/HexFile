@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小组件按钮的按压反馈。不用 ?android:attr/selectableItemBackground：
+     它由 launcher 的 theme 解析，某些第三方桌面缺这个 attr 会 inflate 失败。 -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#33FFFFFF">
+    <item android:drawable="@android:color/transparent"/>
+</ripple>
