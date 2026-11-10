@@ -23,12 +23,12 @@ public class RootUtilTest {
 
     public static void main(String[] args) throws Exception {
         // 1. Windows 上 su 不存在 → false（IO 异常分支）
-        boolean su = RootUtil.detect("su-definitely-missing-xyz");
+        boolean su = RootUtil.detectSu("su-definitely-missing-xyz");
         eq(su, false, "不存在的命令 → false");
 
         // 2. 缓存生效：再次调用同结果且不再执行进程
         eq(RootUtil.isRootAvailable(), false, "缓存后 isRootAvailable=false");
-        eq(RootUtil.detect("su-definitely-missing-xyz"), false, "缓存后 detect 直接返回");
+        eq(RootUtil.detectSu("su-definitely-missing-xyz"), false, "缓存后 detect 直接返回");
 
         // 3. 存在但输出不含 uid=0( → false（用 where 命令模拟，必定退出）
         //    注：detect 有缓存，缓存已置 false，这里直接验证 Probe 过滤逻辑
@@ -45,7 +45,7 @@ public class RootUtilTest {
             eq("throw", "throw", "Probe 命令不存在 → 抛异常(detect 层兜底)");
         }
         // 补验：detect 层确实兜底
-        boolean viaDetect = RootUtil.detect("su");  // 缓存已 false，不会再走进程
+        boolean viaDetect = RootUtil.detectSu("su");  // 缓存已 false，不会再走进程
         eq(viaDetect, false, "detect 缓存兜底 false");
 
         // 5. suList：无 su 环境 → null（异常路径兜底）

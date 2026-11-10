@@ -49,6 +49,7 @@ public class SettingsActivity extends BaseActivity {
         ((TextView) findViewById(R.id.tv_ver_top)).setText("v" + versionName());
 
         build();
+        registerShizukuResult();
     }
 
     @Override
@@ -57,6 +58,41 @@ public class SettingsActivity extends BaseActivity {
         // 从主题页/回收站返回后摘要可能已变；主题变化时 BaseActivity 会 recreate，这里只兜底文字
         if (resumedOnce) build();
         resumedOnce = true;
+    }
+
+    /** Shizuku 的授权结果监听（用 Object 持有，避免低版本设备加载该接口失败） */
+    private Object shizukuListener;
+
+    private void registerShizukuResult() {
+        if (!ShizukuBridge.supported()) return;
+        try {
+            shizukuListener = new rikka.shizuku.Shizuku.OnRequestPermissionResultListener() {
+                @Override
+                public void onRequestPermissionResult(int requestCode, int grantResult) {
+                    if (requestCode != ShizukuBridge.REQ_CODE) return;
+                    ShizukuBridge.invalidate();
+                    build();
+                    toast(grantResult == android.content.pm.PackageManager.PERMISSION_GRANTED
+                            ? "Shizuku 授权成功，命令已可走 shell 权限"
+                            : "Shizuku 授权被拒绝");
+                }
+            };
+            rikka.shizuku.Shizuku.addRequestPermissionResultListener(
+                    (rikka.shizuku.Shizuku.OnRequestPermissionResultListener) shizukuListener);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (shizukuListener == null) return;
+        try {
+            rikka.shizuku.Shizuku.removeRequestPermissionResultListener(
+                    (rikka.shizuku.Shizuku.OnRequestPermissionResultListener) shizukuListener);
+        } catch (Throwable ignored) {
+        }
+        shizukuListener = null;
     }
 
     // ---------------------------------------------------------------- 页面构建
@@ -97,6 +133,25 @@ public class SettingsActivity extends BaseActivity {
                     }
                 });
         infoRow(perm, "当前状态", rootStatus());
+
+        // v1.86.0：Shizuku —— 无 root 设备上的 shell 权限
+        switchRow(perm, "使用 Shizuku（免 Root）",
+                "装好 Shizuku 并授权后，用 shell 身份执行命令。注意：它不是 root，"
+                        + "/data/data 下别的应用私有目录（700）仍读不到。",
+                ShizukuBridge.isEnabled(this), new CompoundButton.OnCheckedChangeListener() {
+                    public void onCheckedChanged(CompoundButton cb, boolean on) {
+                        ShizukuBridge.setEnabled(SettingsActivity.this, on);
+                        build();
+                        toast(on ? "已允许使用 Shizuku" : "已停用 Shizuku，命令改走普通 API");
+                    }
+                });
+        infoRow(perm, "Shizuku 状态", ShizukuBridge.statusText(this));
+        if (ShizukuBridge.supported() && ShizukuBridge.alive() && !ShizukuBridge.granted()) {
+            row(perm, "申请 Shizuku 授权", "会弹出 Shizuku 的确认框，选择「允许」即可", "",
+                    new View.OnClickListener() {
+                        public void onClick(View v) { ShizukuBridge.request(SettingsActivity.this); }
+                    });
+        }
 
         // ---- 系统集成（v1.84.0） ----
         LinearLayout sys = section("系统集成");
@@ -368,7 +423,9 @@ public class SettingsActivity extends BaseActivity {
     /** Root 当前可用性的人类可读描述（只读缓存，不触发新的探测） */
     private String rootStatus() {
         if (!RootUtil.isEnabled()) return "已停用";
-        return RootUtil.isRootAvailable() ? "已获取 root" : "未获取 root（或尚未检测）";
+        if (RootUtil.isRealRoot()) return "已获取 root（uid 0）";
+        if (ShizukuBridge.usable()) return "无 root，当前用 Shizuku（shell）";
+        return "未获取 root（或尚未检测）";
     }
 
     private String themeSummary() {

@@ -37,11 +37,28 @@ public final class RootUtil {
 
     private RootUtil() {}
 
-    /** 是否已 root 且 su 可用（带缓存；从未检测则现场探测）。用户关闭 Root 时恒为 false */
+    /**
+     * 是否有「特权 shell」可用：真 root，或者 Shizuku 已连接且已授权。
+     *
+     * <p>v1.86.0 起语义扩展（原来只表示 su）。保留方法名是为了让 60+ 个调用点
+     * 「有特权就放开 /data 等受限目录」的判断继续成立；需要区分真正的 uid 0 用
+     * {@link #isRealRoot()}。</p>
+     */
     public static boolean isRootAvailable() {
         if (!enabled) return false;
+        if (isRealRoot()) return true;
+        return ShizukuBridge.usable();
+    }
+
+    /** 真的 root（su 可用且拿到 uid=0），不含 Shizuku */
+    public static boolean isRealRoot() {
         Boolean c = cached;
         return c != null && c;
+    }
+
+    /** 当前实际使用的后端：Root / Shizuku / 无（状态展示用） */
+    public static String backendName() {
+        return Shell.name(Shell.backend(enabled));
     }
 
     /** 用户是否允许使用 Root（设置页开关；默认允许，实际有无 root 由 isRootAvailable 决定） */
@@ -84,13 +101,19 @@ public final class RootUtil {
         if (!on) cached = Boolean.FALSE;
     }
 
-    /** 强制探测（阻塞，超时 4s）。返回是否已 root。 */
+    /**
+     * 强制探测（阻塞，超时 4s）。返回是否可用特权 shell——
+     * su 探测失败时会再看 Shizuku，二者任一可用即为 true。
+     */
     public static boolean detect() {
-        return detect("su");
+        if (!enabled) return false;
+        Boolean c = cached;
+        boolean su = (c != null) ? c : detectSu("su");
+        return su || ShizukuBridge.usable();
     }
 
-    /** 可注入命令名的探测（测试用）。 */
-    public static boolean detect(String suCommand) {
+    /** 只探测 su（可注入命令名，测试用）；不叠加 Shizuku */
+    public static boolean detectSu(String suCommand) {
         if (!enabled) return false;
         Boolean c = cached;
         if (c != null) return c;
@@ -110,13 +133,13 @@ public final class RootUtil {
      * stdout 被丢弃；需要输出用 {@link #submitOutput}。
      */
     public static boolean run(final String shellCmd) {
-        if (!enabled) return false;
+        if (!isRootAvailable()) return false;
         try {
             Future<Boolean> f = POOL.submit(new Callable<Boolean>() {
                 public Boolean call() throws Exception {
                     Process p = null;
                     try {
-                        p = new ProcessBuilder("su", "-c", shellCmd).start();
+                        p = Shell.start(shellCmd, enabled);
                         drain(p);
                         return p.waitFor() == 0;
                     } finally {
@@ -135,12 +158,12 @@ public final class RootUtil {
      * 失败（非零退出/超时）返回 null。
      */
     public static Future<String> submitOutput(final String shellCmd) {
-        if (!enabled) return done(null);
+        if (!isRootAvailable()) return done(null);
         return POOL.submit(new Callable<String>() {
             public String call() throws Exception {
                 Process p = null;
                 try {
-                    p = new ProcessBuilder("su", "-c", shellCmd).start();
+                    p = Shell.start(shellCmd, enabled);
                     drain(p);
                     BufferedReader r = new BufferedReader(
                             new InputStreamReader(p.getInputStream()));
@@ -162,13 +185,13 @@ public final class RootUtil {
      * 阻塞 ≤15s。返回退出码是否为 0。
      */
     public static boolean runWithInput(final String shellCmd, final byte[] data) {
-        if (!enabled) return false;
+        if (!isRootAvailable()) return false;
         try {
             Future<Boolean> f = POOL.submit(new Callable<Boolean>() {
                 public Boolean call() throws Exception {
                     Process p = null;
                     try {
-                        p = new ProcessBuilder("su", "-c", shellCmd).start();
+                        p = Shell.start(shellCmd, enabled);
                         drain(p);
                         java.io.OutputStream os = p.getOutputStream();
                         os.write(data);
@@ -190,13 +213,13 @@ public final class RootUtil {
      * 超过 maxBytes / 失败 / 超时（10s）返回 null。
      */
     public static byte[] captureOutput(final String shellCmd, final long maxBytes) {
-        if (!enabled) return null;
+        if (!isRootAvailable()) return null;
         try {
             Future<byte[]> f = POOL.submit(new Callable<byte[]>() {
                 public byte[] call() throws Exception {
                     Process p = null;
                     try {
-                        p = new ProcessBuilder("su", "-c", shellCmd).start();
+                        p = Shell.start(shellCmd, enabled);
                         drain(p);
                         java.io.InputStream is = p.getInputStream();
                         java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
@@ -224,8 +247,8 @@ public final class RootUtil {
      * 读完自行 waitFor + destroy。启动失败抛异常。
      */
     public static Process catProcess(String shellCmd) throws Exception {
-        if (!enabled) throw new IllegalStateException("Root 已被用户关闭");
-        Process p = new ProcessBuilder("su", "-c", shellCmd).start();
+        if (!isRootAvailable()) throw new IllegalStateException("没有可用的提权后端");
+        Process p = Shell.start(shellCmd, enabled);
         drain(p);
         return p;
     }
@@ -303,7 +326,7 @@ public final class RootUtil {
             Process p = null;
             try {
                 String quoted = "'" + path.replace("'", "'\\''") + "'";
-                p = new ProcessBuilder("su", "-c", "ls -1ap " + quoted).start();
+                p = Shell.start("ls -1ap " + quoted, enabled);
                 final Process fp = p;
                 Thread errDrain = new Thread(new Runnable() {
                     public void run() {
@@ -354,8 +377,7 @@ public final class RootUtil {
                 public RunResult call() throws Exception {
                     Process p = null;
                     try {
-                        p = new ProcessBuilder("su", "-c", shellCmd)
-                                .redirectErrorStream(true).start();
+                        p = Shell.start(shellCmd + " 2>&1", enabled);
                         BufferedReader r = new BufferedReader(
                                 new InputStreamReader(p.getInputStream()));
                         StringBuilder sb = new StringBuilder();

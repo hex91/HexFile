@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hex91.file"
-    android:versionCode="157"
-    android:versionName="1.85.0">
+    android:versionCode="158"
+    android:versionName="1.86.0">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
 
@@ -24,6 +24,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
+    <!-- v1.86.0 Shizuku：向 Shizuku 声明需要它授予 shell 权限（由 Shizuku app 在授权时校验） -->
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23"/>
 
     <!-- v1.74.1 明文 HTTP 放行：快传/WebDAV/网络工具的目标地址是运行时才知道的局域网 IP，
          无法枚举成域名白名单，详见 res/xml/network_security_config.xml 的说明。
@@ -38,6 +40,24 @@
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true">
+
+        <!-- v1.86.0 Shizuku 客户端标记：告诉 Shizuku app 本应用支持 V3 协议。
+             缺了它 Shizuku 会按旧协议处理，newProcess 等能力拿不到。 -->
+        <meta-data
+            android:name="moe.shizuku.client.V3_SUPPORT"
+            android:value="true"/>
+
+        <!-- v1.86.0 Shizuku 的 binder 不走 Service，而是由客户端自己声明这个
+             provider（authorities 必须是「包名 + .shizuku」）由它把 binder 交过来。
+             少了它 pingBinder() 恒为 false，而且没有任何报错——最常见的踩坑点。
+             permission 是 signature|privileged 级，普通应用无法直接查询。 -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="com.hex91.file.shizuku"
+            android:enabled="@bool/shizuku_provider_enabled"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"/>
 
         <!-- v1.66.0 统一签名弹窗（透明，退出 APK 浏览时弹出） -->
         <activity

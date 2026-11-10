@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.86.0：Shizuku 的客户端 provider 在 Android 5.x 上会被系统实例化，
+     而它的 classes 是按 minSdk 23 编译的，直接启用会在 21/22 上抛 NoSuchMethodError。
+     用资源限定符只在 23+ 打开，老设备完全看不到这个 provider。 -->
+<resources>
+    <bool name="shizuku_provider_enabled">false</bool>
+</resources>

@@ -1668,6 +1668,71 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.86.0 —— Shizuku 接入（P2 第三项）：无 Root 也能用 shell 权限
+
+装好 Shizuku 并授权后，本应用以 **adb shell（uid 2000）** 身份执行命令：
+进 `/data/local/tmp`、`/data/app`、执行 `pm`、`cp`、`chmod`……全都不用 root。
+没装 Shizuku 的设备行为与之前完全一致。
+
+### 一个后端选择器，60+ 调用点零改动
+
+原来所有提权命令都写死 `su -c`。新增 `Shell` 只做一件事：挑后端。
+
+| 后端 | 身份 | 何时使用 |
+|---|---|---|
+| ROOT | uid 0 | 有 su 且「使用 Root 权限」开着 |
+| SHIZUKU | uid 2000（shell） | 无 su，但 Shizuku 已连接并授权 |
+| NONE | — | 都没有，走旧失败分支 |
+
+`RootUtil` 的 7 个执行入口（`run` / `submitOutput` / `runWithInput` / `captureOutput` /
+`catProcess` / `runCapture` / `suList`）全部改走 `Shell.start()`，上层业务一行没改。
+`isRootAvailable()` 语义扩展为「**有特权 shell**」（root 或 Shizuku），
+需要区分真正的 uid 0 时用新增的 `isRealRoot()`；`backendName()` 给状态展示用。
+
+### 依赖为什么是 12.2.0 而不是 13.x
+
+Shizuku 13.x 从**公开 API 移除了 `newProcess`**（改用 UserService 架构，要写 AIDL 服务端代码）。
+服务端的 `newProcess` 一直保留到 API 14，所以用 12.2.0 的客户端库能连 13 的 Shizuku 服务，
+且 12.2.0 已经支持 V3 协议（它的 provider 清单里就带 `V3_SUPPORT`）。
+
+四个 jar 手动解包 AAR 放入 `libs/`（共约 54KB），保持零 Gradle：
+
+| jar | 作用 |
+|---|---|
+| `shizuku-api-12.2.0.jar` | `Shizuku` / `ShizukuRemoteProcess` |
+| `shizuku-provider-12.2.0.jar` | `ShizukuProvider`（交 binder 的通道） |
+| `shizuku-aidl-12.2.0.jar` | `IShizukuService` / `IRemoteProcess` stub（**容易漏**） |
+| `shizuku-shared-12.2.0.jar` | `ShizukuApiConstants` |
+
+漏掉 `aidl` 那个 jar 时编译能过，运行必崩 `NoClassDefFoundError: moe.shizuku.server.IShizukuService`。
+
+### 三个坑
+
+1. **必须在 manifest 声明 provider**：`rikka.shizuku.ShizukuProvider`，
+   authorities 是「包名 + `.shizuku`」。少了它 `pingBinder()` 恒为 false 且没有任何报错。
+2. **`newProcess` 不能在主线程调用**（内部走 binder 事务）。所有调用点都在
+   `RootUtil` 的单线程池里，天然满足；`catProcess` 也是从后台线程调的。
+3. **provider 在老设备上会崩**：AAR 按 minSdk 23 编译，而本应用 minSdk 21，
+   系统会在 5.x 上实例化它。用 `res/values{,-v23}/bools.xml` +
+   `android:enabled="@bool/shizuku_provider_enabled"` 只在 23+ 启用。
+
+### 界面
+
+设置 → 权限新增：「使用 Shizuku（免 Root）」开关、实时状态、
+「申请 Shizuku 授权」（仅在服务已运行但未授权时出现，点击弹 Shizuku 确认框，
+结果通过 `OnRequestPermissionResultListener` 回传并刷新页面）。
+
+**文案明确写了「它不是 root」**——`/data/data/<别的应用>` 是 700，
+shell 身份照样读不到，不写清楚用户会以为开了就能看全盘。
+
+### 测试
+
+- `QUICK=1 ./test/run_core.sh` **29 项全 PASS**（`RootUtilTest` 适配 `detect` → `detectSu` 拆分）。
+- versionCode 158。桌面单测环境 `Build.VERSION.SDK_INT = 0`，`ShizukuBridge.supported()`
+  直接返回 false，所有 Shizuku 分支被跳过，不影响原有 29 项。
+
+---
+
 ## v1.85.0 —— 桌面小组件（P2 第二项）
 
 4×1 卡片，桌面上一眼看到存储余量，四个常用入口一键直达。
