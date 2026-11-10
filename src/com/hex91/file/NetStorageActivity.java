@@ -10,6 +10,7 @@ import android.provider.OpenableColumns;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -41,6 +42,11 @@ import java.util.Locale;
  * 并给下载/上传加上断点续传：文件先写 {@code .hpart}，按 {@link ResumePlan}
  * 校验远端 size/mtime 后从断点继续，传完校验长度再改名为正式文件。</p>
  *
+ * <p>v1.89.0 新增两种云盘：OneDrive（{@link OneDriveFs}，Graph + 设备码授权）与
+ * 阿里云盘（{@link AliyunDriveFs}，refresh_token）。两者都用 OAuth 凭据而不是
+ * 账号密码，凭据经 {@link CredentialVault} 加密后与服务器配置一起保存，
+ * 运行中刷新出的新令牌会回写（见 {@link #tokenSink}）。</p>
+ *
  * <p>功能：服务器增删改测、远程浏览、下载到本地（文件/目录递归，支持续传）、
  * 上传本地文件（系统选择器，FTP/SFTP/SMB 支持断点追加）、新建目录、重命名、删除。</p>
  */
@@ -56,6 +62,8 @@ public final class NetStorageActivity extends BaseActivity {
     private static final String TYPE_FTP = "ftp";        // v1.60.0
     private static final String TYPE_SFTP = "sftp";      // v1.60.0
     private static final String TYPE_S3 = "s3";          // v1.88.0 对象存储（OSS/COS/MinIO）
+    private static final String TYPE_ONEDRIVE = "onedrive";  // v1.89.0 微软云盘（Graph + 设备码）
+    private static final String TYPE_ALIYUN = "aliyun";      // v1.89.0 阿里云盘（refresh_token）
 
     // ---- UI ----
     private View mServersPanel, mBrowsePanel;
@@ -213,6 +221,8 @@ public final class NetStorageActivity extends BaseActivity {
             if (TYPE_SFTP.equals(t)) return "SFTP · " + s.optString("host")
                     + (s.optInt("port", 22) == 22 ? "" : ":" + s.optInt("port"));
             if (TYPE_S3.equals(t)) return "S3 · " + stripScheme(s.optString("host")) + "/" + s.optString("share");
+            if (TYPE_ONEDRIVE.equals(t)) return "OneDrive · " + (hasToken(s) ? "已授权" : "未授权");
+            if (TYPE_ALIYUN.equals(t)) return "阿里云盘 · " + (hasToken(s) ? "已授权" : "未授权");
             return "SMB · " + s.optString("host") + (s.optInt("port", 445) == 445 ? "" : ":" + s.optInt("port")) + "/" + s.optString("share");
         } catch (Exception e) {
             return "（配置损坏）";
@@ -220,6 +230,13 @@ public final class NetStorageActivity extends BaseActivity {
     }
 
     private String serverSub(org.json.JSONObject s) {
+        String t = s.optString("type");
+        if (TYPE_ONEDRIVE.equals(t) || TYPE_ALIYUN.equals(t)) {
+            // 云盘没有「用户名/密码」，副标题用来显示授权状态，否则会显示成「访客登录」误导人
+            String tok = s.optString("token");
+            if (tok.isEmpty()) return "未授权（编辑 → 登录 / 授权）";
+            return "授权已保存" + (CredentialVault.isEncrypted(tok) ? "  \uD83D\uDD12" : "");
+        }
         String u = s.optString("user");
         String p = s.optString("pass");
         String lock = CredentialVault.isEncrypted(p) ? "  \uD83D\uDD12" : "";   // 🔒 密码已加密存储
@@ -289,7 +306,7 @@ public final class NetStorageActivity extends BaseActivity {
 
         final Spinner type = addSpinnerRow(box, "类型",
                 new String[]{"SMB (Windows 共享/NAS)", "WebDAV", "FTP", "SFTP (SSH)",
-                        "S3 / 对象存储（OSS·COS·MinIO）"});
+                        "S3 / 对象存储（OSS·COS·MinIO）", "OneDrive（微软）", "阿里云盘"});
         final EditText host = addEditRow(box, "地址（SMB/FTP/SFTP: IP或主机名 / WebDAV: 完整URL）", "");
         final EditText port = addEditRow(box, "端口", "445");
         final EditText share = addEditRow(box, "共享名（SMB，如 public）", "");
@@ -299,24 +316,62 @@ public final class NetStorageActivity extends BaseActivity {
         pass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
                 | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
 
+        // v1.89.0：云盘用 OAuth，密码框在这里无意义；凭据（refresh_token）单独存，
+        // 用 final 数组跨「授权回调 → 保存」传递（回调可能来自后台线程）
+        final String[] token = {editing == null ? "" : CredentialVault.decrypt(editing.optString("token"))};
+        final Button auth = new Button(this);
+        auth.setText("登录 / 授权");
+        auth.setVisibility(View.GONE);
+        box.addView(auth);
+        auth.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                int pos = type.getSelectedItemPosition();
+                if (pos != 5 && pos != 6) return;
+                CloudAuthDialog.show(NetStorageActivity.this,
+                        pos == 5 ? TYPE_ONEDRIVE : TYPE_ALIYUN,
+                        user.getText().toString().trim(),
+                        token[0],
+                        new CloudAuthDialog.Callback() {
+                            public void onAuthorized(final String rt) {
+                                // 回调可能在后台线程（设备码轮询/网络验证），回到主线程再改 UI
+                                runOnUiThread(new Runnable() {
+                                    public void run() {
+                                        token[0] = rt;
+                                        toast("授权成功，点「保存」生效");
+                                    }
+                                });
+                            }
+                        });
+            }
+        });
+
         type.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             public void onItemSelected(android.widget.AdapterView<?> p, View v, int pos, long id) {
-                // 0=SMB 1=WebDAV 2=FTP 3=SFTP 4=S3
+                // 0=SMB 1=WebDAV 2=FTP 3=SFTP 4=S3 5=OneDrive 6=阿里云盘
                 boolean smb = pos == 0;
                 boolean http = pos == 1;
                 boolean s3 = pos == 4;
-                setRowVisible(port, !http && !s3);
+                boolean od = pos == 5;          // OneDrive：只要 Client ID + 授权
+                boolean ali = pos == 6;         // 阿里云盘：只要授权（没有可填的账号密码）
+                boolean cloud = od || ali;
+                setRowVisible(host, !cloud);
+                setRowVisible(port, !http && !s3 && !cloud);
                 setRowVisible(share, smb || s3);
                 setRowVisible(domain, smb || s3);
+                setRowVisible(user, !ali);
+                setRowVisible(pass, !cloud);
+                auth.setVisibility(cloud ? View.VISIBLE : View.GONE);
                 host.setHint(smb ? "192.168.1.100"
                         : http ? "http://192.168.1.100:5005/dav/"
                         : s3 ? "https://oss-cn-hangzhou.aliyuncs.com"
-                        : "192.168.1.100");
-                if (!http && !s3) port.setText(smb ? "445" : pos == 2 ? "21" : "22");
+                        : "（云盘无需填写）");
+                if (!http && !s3 && !cloud) port.setText(smb ? "445" : pos == 2 ? "21" : "22");
                 // 同一组输入框在不同类型下含义不同，标签要跟着换，否则「共享名」下面填 bucket 很容易填错
                 setRowLabel(share, smb ? "共享名（SMB，如 public）" : "存储桶 / bucket（S3）");
                 setRowLabel(domain, smb ? "域 / 工作组（SMB，可留空）" : "区域 / region（S3，如 cn-hangzhou）");
-                setRowLabel(user, s3 ? "AccessKey（S3）" : "用户名（FTP/SFTP 匿名/留空视协议而定）");
+                setRowLabel(user, s3 ? "AccessKey（S3）"
+                        : od ? "Client ID（Azure 应用的客户端 ID）"
+                        : "用户名（FTP/SFTP 匿名/留空视协议而定）");
                 setRowLabel(pass, s3 ? "SecretKey（S3）" : "密码");
             }
             public void onNothingSelected(android.widget.AdapterView<?> p) {}
@@ -325,7 +380,8 @@ public final class NetStorageActivity extends BaseActivity {
         if (editing != null) {
             String et = editing.optString("type");
             type.setSelection(TYPE_WEBDAV.equals(et) ? 1 : TYPE_FTP.equals(et) ? 2
-                    : TYPE_SFTP.equals(et) ? 3 : TYPE_S3.equals(et) ? 4 : 0);
+                    : TYPE_SFTP.equals(et) ? 3 : TYPE_S3.equals(et) ? 4
+                    : TYPE_ONEDRIVE.equals(et) ? 5 : TYPE_ALIYUN.equals(et) ? 6 : 0);
             host.setText(editing.optString("host"));
             port.setText(String.valueOf(editing.optInt("port",
                     TYPE_FTP.equals(et) ? 21 : TYPE_SFTP.equals(et) ? 22 : 445)));
@@ -342,17 +398,23 @@ public final class NetStorageActivity extends BaseActivity {
                 .setPositiveButton("保存", new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         try {
-                            int pos = type.getSelectedItemPosition(); // 0=SMB 1=WebDAV 2=FTP 3=SFTP 4=S3
+                            int pos = type.getSelectedItemPosition(); // 0=SMB 1=WebDAV 2=FTP 3=SFTP 4=S3 5=OneDrive 6=阿里云盘
                             boolean smb = pos == 0, http = pos == 1, s3 = pos == 4;
+                            boolean od = pos == 5, ali = pos == 6, cloud = od || ali;
                             String h = host.getText().toString().trim();
                             if (smb && h.isEmpty()) { toast("地址不能为空"); return; }
                             if (http && !h.startsWith("http")) { toast("WebDAV 地址需以 http(s):// 开头"); return; }
-                            if (!http && h.isEmpty()) { toast("地址不能为空"); return; }
+                            if (!http && !s3 && !cloud && h.isEmpty()) { toast("地址不能为空"); return; }
                             if (s3 && share.getText().toString().trim().isEmpty()) { toast("存储桶不能为空"); return; }
+                            if (od && user.getText().toString().trim().isEmpty()) {
+                                toast("OneDrive 需要 Client ID（Azure 应用的客户端 ID）"); return;
+                            }
+                            if (cloud && token[0].isEmpty()) { toast("还没有授权：请点「登录 / 授权」"); return; }
                             int defPort = smb ? 445 : pos == 2 ? 21 : pos == 3 ? 22 : 0;
                             org.json.JSONObject o = editing == null ? new org.json.JSONObject() : editing;
                             o.put("type", smb ? TYPE_SMB : http ? TYPE_WEBDAV
-                                    : pos == 2 ? TYPE_FTP : pos == 3 ? TYPE_SFTP : TYPE_S3);
+                                    : pos == 2 ? TYPE_FTP : pos == 3 ? TYPE_SFTP
+                                    : s3 ? TYPE_S3 : od ? TYPE_ONEDRIVE : TYPE_ALIYUN);
                             o.put("host", h);
                             o.put("port", parseInt(port.getText().toString(), defPort));
                             o.put("share", share.getText().toString().trim());
@@ -361,6 +423,7 @@ public final class NetStorageActivity extends BaseActivity {
                             // v1.83.0：密码加密后落盘；设备不支持时退回明文并提示一次
                             String rawPass = pass.getText().toString();
                             o.put("pass", CredentialVault.encrypt(rawPass));
+                            o.put("token", CredentialVault.encrypt(cloud ? token[0] : ""));
                             if (!rawPass.isEmpty() && !CredentialVault.available()
                                     && !warnedPlaintext) {
                                 warnedPlaintext = true;
@@ -433,6 +496,12 @@ public final class NetStorageActivity extends BaseActivity {
         if (first instanceof TextView) ((TextView) first).setText(text);
     }
 
+    /** 配置里是否已存有云盘凭据（加密后非空即算） */
+    private static boolean hasToken(org.json.JSONObject s) {
+        String t = s.optString("token");
+        return t != null && !t.isEmpty();
+    }
+
     /** 去掉 URL 的协议前缀，服务器列表里显示短一点 */
     private static String stripScheme(String url) {
         if (url == null) return "";
@@ -446,6 +515,22 @@ public final class NetStorageActivity extends BaseActivity {
         File d = new File(getCacheDir(), "s3up");
         d.mkdirs();
         return d;
+    }
+
+    /**
+     * v1.89.0 令牌回写：云盘在运行中会刷新 token，阿里云盘的 refresh_token 还会轮换
+     * （旧的用一次就作废）。不回写的话「今天能用、明天失效」，且用户完全不知道为什么。
+     */
+    private OAuthClient.TokenSink tokenSink(final org.json.JSONObject s) {
+        return new OAuthClient.TokenSink() {
+            public void onToken(OAuthToken t) {
+                if (t == null || !t.hasRefresh()) return;
+                try {
+                    s.put("token", CredentialVault.encrypt(t.refresh));
+                    saveServers();
+                } catch (Exception ignore) {}
+            }
+        };
     }
 
     private Spinner addSpinnerRow(LinearLayout box, String label, String[] items) {
@@ -481,6 +566,13 @@ public final class NetStorageActivity extends BaseActivity {
                     } else if (TYPE_S3.equals(t)) {
                         fs = S3Fs.connect(s.optString("host"), s.optString("share"),
                                 s.optString("domain"), s.optString("user"), pw, s3TempDir());
+                    } else if (TYPE_ONEDRIVE.equals(t)) {
+                        fs = OneDriveFs.connect(s.optString("user"),
+                                CredentialVault.decrypt(s.optString("token")),
+                                tokenSink(s), s3TempDir());
+                    } else if (TYPE_ALIYUN.equals(t)) {
+                        fs = AliyunDriveFs.connect(CredentialVault.decrypt(s.optString("token")),
+                                tokenSink(s), s3TempDir());
                     } else {
                         fs = SmbFs.connect(s.optString("host"), s.optInt("port", 445),
                                 s.optString("share"), s.optString("domain"),

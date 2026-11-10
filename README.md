@@ -1668,6 +1668,82 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.89.0 —— 云盘直连：OneDrive 与阿里云盘
+
+上一版我用「要注册应用、过审核」的理由跳过了这两家，改做 S3。这一版把它们补上，
+但两条路的门槛性质不同，得如实说清：
+
+| | OneDrive | 阿里云盘 |
+|---|---|---|
+| 用什么 API | Microsoft Graph（公开、长期稳定） | 开放平台不对个人开放，只能用客户端接口 |
+| 怎么认证 | 设备码（OAuth 2.0 device flow） | 浏览器登录后的 refresh_token |
+| 用户要做什么 | 免费注册一个 Azure 应用，填 Client ID | 从浏览器 Local Storage 复制 token |
+
+### 一、OneDrive：设备码，全程不碰密码
+
+没用「授权码 + redirect_uri」的原因不是实现麻烦，而是安全边界：应用里没有可被外部回调的
+地址，而授权页会要求用户**在 WebView 里输微软账号密码** —— 一个文件管理器没有理由经手这个。
+设备码让用户在**系统浏览器**里登录，App 只拿一个一次性 8 位码，从头到尾碰不到密码，
+也不用注册 redirect URI。
+
+流程：类型选 OneDrive → 填 Client ID → 点「登录 / 授权」→ 自动打开浏览器并显示 8 位码 →
+在浏览器里输入、同意 → App 轮询到令牌后自动关闭。
+
+注册应用（只做一次）：portal.azure.com → Microsoft Entra ID → 应用注册 → 新注册，
+账户类型选「个人 Microsoft 账户」→ 复制「应用程序(客户端) ID」→ 该应用 → 身份验证 →
+打开「允许公共客户端流」→ API 权限里加 Graph 的 `Files.ReadWrite.All`（委托）。
+
+实现上四个 Graph 特有的坑：
+
+- 轮询期间 `authorization_pending` 是**正常中间态**不是错误；`slow_down` 要把间隔 +5 秒；
+- **下载不能直接打 `/content`**：它 302 到预签名地址，而 `HttpURLConnection` 跨主机重定向
+  会把 `Authorization` 一起带过去，目标存储因此拒绝。正确做法是先取
+  `@microsoft.graph.downloadUrl`，再对那个地址**不带 Authorization** 地 GET（Range 续传也在这里）；
+- simple upload 上限 250MB，且必须先知道 `Content-Length`，所以上传先落临时文件；
+- 改名与删除**只认 item id**，路径寻址不支持 DELETE/PATCH，得先查一次 id。
+
+### 二、阿里云盘：只能走 refresh_token
+
+阿里云盘开放平台需要企业开发者资质与应用审核，个人拿不到；能用的只有
+`auth.aliyundrive.com` + `api.aliyundrive.com/adrive/v2` 这套客户端接口。它接受
+refresh_token，功能完整（列目录 / 下载 / 上传 / 改名 / 删除 / 移动）。
+
+取 token：电脑浏览器登录 alipan.com → F12 → Application → Local Storage →
+键 `token` → 复制整段值 → 粘进授权框（**粘整段 JSON 也行**，会自动抠出 refresh_token）。
+
+三个必须处理的问题：
+
+1. **refresh_token 一次性轮换**：每刷新一次都给新的，旧的立刻作废。所以刷新成功后
+   必须回写配置，否则「今天能用、明天失效」，而且用户完全看不出原因；
+2. **file_id 模型**：接口认 id 不认路径，每次操作要把 `a/b/c` 逐级换成 id ——
+   用路径→id 缓存，改名/删除后把相关前缀整段失效（否则拿旧 id 去操作报 NotFound）；
+3. **分片数由服务端在 create 时给出**：按 part_number 顺序、每片 4MB 切片 PUT，
+   最后必须调 complete，否则文件一直停在「上传中」。
+
+### 三、顺带补齐的三块基础件
+
+- `Json`：极简 JSON 解析器（纯 Java）。`org.json` 只在 android.jar 里，桌面单测拿不到，
+  于是「解析 OAuth 响应」这种最该测的代码反而测不了。自己写递归下降解析器，
+  区分 `null` 与「没有这个键」，数字按有无小数点分成 `Long`/`Double`（文件大小不能丢精度）。
+- `Iso8601`：Graph 给 `Z`、阿里云盘给 `.000Z` 与 `+08:00`、有的网关给 7 位小数
+  （`SimpleDateFormat` 直接抛）。顺手把 `S3Fs` 里那份私有实现也换过来，少一份重复。
+- `CloudPath`：Graph 的路径寻址是 `root:/a/b:` 的形式，路径里的空格、中文、`#`、`%`
+  必须**逐段**编码 —— `#` 不编码会被当 fragment，表现就是「文件夹能进、里面的文件列不出来」；
+  `%` 不编码会被当已编码；空格必须 `%20` 而不是 `URLEncoder` 给的 `+`。
+
+云同步（`NetFsFactory`）同样支持两种云盘，等于可以「手机目录 ↔ 云盘」双向对齐；
+令牌刷新后的回写也在这一层统一做（按 type/host/user 定位同一条配置）。
+
+### 测试
+
+- `JsonTest` 46 项、`OAuthTokenTest` 53 项、`CloudPathTest` 67 项、`Iso8601Test` 21 项。
+  重点钉住的是「刷新响应不带 refresh_token 时必须沿用旧的」「阿里云盘轮换必须用新的」
+  「粘贴整段 JSON 能自动提取」「`#` 与 `%` 必须编码」这几条 —— 错了就表现为
+  「授权明明成功却说没有令牌」或「文件列不出来」；
+- `QUICK=1 ./test/run_core.sh` **37 项全 PASS**；versionCode 161。
+
+---
+
 ## v1.88.0 —— 收尾三项：断点续传 / 双栏拖拽 / 对象存储直连
 
 这一版把前面「还能再往前一步」的三件事一次做完，都不改主界面骨架，

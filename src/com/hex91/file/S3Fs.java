@@ -13,15 +13,10 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.MessageDigest;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.TreeMap;
 
 /**
@@ -243,7 +238,7 @@ public final class S3Fs implements NetFs {
                             if (!name.isEmpty() && !name.endsWith("/") && name.indexOf('/') < 0) {
                                 long sz = 0, mt = 0;
                                 try { if (curSize != null) sz = Long.parseLong(curSize.trim()); } catch (Exception ignore) {}
-                                if (curLm != null) mt = parseIso(curLm.trim());
+                                if (curLm != null) mt = Iso8601.parse(curLm.trim());
                                 files.add(new NetEntry(name, false, sz, mt));
                             }
                             curKey = null; curSize = null; curLm = null;
@@ -281,28 +276,6 @@ public final class S3Fs implements NetFs {
         Collections.sort(l, new java.util.Comparator<NetEntry>() {
             public int compare(NetEntry a, NetEntry b) { return a.name.compareToIgnoreCase(b.name); }
         });
-    }
-
-    /** ISO8601（2013-05-24T00:00:00.000Z）→ epoch millis；失败返回 0 */
-    private static long parseIso(String s) {
-        if (s == null || s.isEmpty()) return 0;
-        String v = s.replace("Z", "+0000");
-        int dot = v.indexOf('.');
-        if (dot > 0) {
-            int end = dot;
-            while (end < v.length() && Character.isDigit(v.charAt(end))) end++;
-            if (end > dot) v = v.substring(0, dot);   // 丢掉毫秒，剩下 ...T00:00:00+0000
-        }
-        String[] pats = {"yyyy-MM-dd'T'HH:mm:ssZ", "yyyy-MM-dd'T'HH:mm:ss"};
-        for (String pat : pats) {
-            try {
-                SimpleDateFormat f = new SimpleDateFormat(pat, Locale.US);
-                f.setTimeZone(TimeZone.getTimeZone("UTC"));
-                Date d = f.parse(v);
-                if (d != null) return d.getTime();
-            } catch (ParseException ignore) {}
-        }
-        return 0;
     }
 
     // ----------------------------------------------------------------

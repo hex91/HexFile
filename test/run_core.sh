@@ -22,13 +22,13 @@ SRCS=$(ls test/*.java | grep -vE "RarProbe|ArscDbgB")
 "$JH/javac.exe" -J-Dfile.encoding=UTF-8 -encoding UTF-8 -nowarn -cp "$CP" -d "$OUT" $SRCS \
   || { echo "COMPILE FAIL"; exit 2; }
 
-ALL="DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest SessionTest SignPromptFlowTest CustomSignE2ETest ArscPreviewTest HexLayoutTest FileInspectTest KeystoreCreateTest ActivityLogTest ToolboxCoreTest TestDataCoreTest MimeUtilTest DiskScanTest UiKitTest ScanCacheTest LanProtocolTest UiDecorTest FileTaskTest FileClipboardTest FileAttrsTest ContentGrepTest LinkUtilTest TrashPolicyTest CredentialCodecTest ContrastTest WorkDirTest DocPathTest WidgetTextTest SyncPlanTest ResumePlanTest DragPlanTest S3SignerTest"
+ALL="DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest SessionTest SignPromptFlowTest CustomSignE2ETest ArscPreviewTest HexLayoutTest FileInspectTest KeystoreCreateTest ActivityLogTest ToolboxCoreTest TestDataCoreTest MimeUtilTest DiskScanTest UiKitTest ScanCacheTest LanProtocolTest UiDecorTest FileTaskTest FileClipboardTest FileAttrsTest ContentGrepTest LinkUtilTest TrashPolicyTest CredentialCodecTest ContrastTest WorkDirTest DocPathTest WidgetTextTest SyncPlanTest ResumePlanTest DragPlanTest S3SignerTest JsonTest OAuthTokenTest CloudPathTest Iso8601Test"
 
 if [ $# -gt 0 ]; then
   TESTS="$*"
 elif [ "${QUICK:-0}" = "1" ]; then
   # 重签/会话类用例要真跑 apksig 打包，几十秒起，改 UI 时没必要每次都等
-  TESTS="DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest ArscPreviewTest HexLayoutTest FileInspectTest KeystoreCreateTest ActivityLogTest ToolboxCoreTest TestDataCoreTest MimeUtilTest DiskScanTest UiKitTest ScanCacheTest LanProtocolTest UiDecorTest FileTaskTest FileClipboardTest FileAttrsTest ContentGrepTest LinkUtilTest TrashPolicyTest CredentialCodecTest ContrastTest WorkDirTest DocPathTest WidgetTextTest SyncPlanTest ResumePlanTest DragPlanTest S3SignerTest"
+  TESTS="DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest ArscPreviewTest HexLayoutTest FileInspectTest KeystoreCreateTest ActivityLogTest ToolboxCoreTest TestDataCoreTest MimeUtilTest DiskScanTest UiKitTest ScanCacheTest LanProtocolTest UiDecorTest FileTaskTest FileClipboardTest FileAttrsTest ContentGrepTest LinkUtilTest TrashPolicyTest CredentialCodecTest ContrastTest WorkDirTest DocPathTest WidgetTextTest SyncPlanTest ResumePlanTest DragPlanTest S3SignerTest JsonTest OAuthTokenTest CloudPathTest Iso8601Test"
 else
   TESTS="$ALL"
 fi
