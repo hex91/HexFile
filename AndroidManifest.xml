@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hex91.file"
-    android:versionCode="158"
-    android:versionName="1.86.0">
+    android:versionCode="159"
+    android:versionName="1.87.0">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
 
@@ -78,6 +78,12 @@
 
         <activity
             android:name="com.hex91.file.SearchActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <!-- v1.87.0 云同步（WebDAV 双向） -->
+        <activity
+            android:name="com.hex91.file.SyncActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 

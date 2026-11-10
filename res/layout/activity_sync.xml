@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.87.0 云同步：表单 + 预览结果 + 底部执行条。
+     行式布局与设置页一致（标题 + 右侧值），点行弹选择，避免 Spinner 在本主题下的黑底问题。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/hfBg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:background="?attr/hfTopBar"
+        android:gravity="center_vertical"
+        android:paddingLeft="4dp"
+        android:paddingRight="10dp">
+
+        <TextView
+            android:id="@+id/btn_back"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:minWidth="48dp"
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp"
+            android:text="‹"
+            android:textColor="?attr/hfTopBarText"
+            android:textSize="26sp"
+            android:background="?android:attr/selectableItemBackground"/>
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingLeft="2dp"
+            android:text="云同步"
+            android:textColor="?attr/hfTopBarText"
+            android:textSize="16sp"
+            android:textStyle="bold"/>
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingLeft="16dp"
+            android:paddingRight="16dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="把本地目录与 WebDAV 上的目录对齐。不会自动删除任何一边的文件；两边都改过的文件会把本地版本另存为 .conflict-时间戳。"
+                android:textSize="11.5sp"
+                android:textColor="?attr/hfTextSub"
+                android:paddingBottom="6dp"/>
+
+            <TextView
+                android:id="@+id/row_server"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:textSize="14sp"
+                android:textColor="?attr/hfText"
+                android:background="?android:attr/selectableItemBackground"
+                android:text="服务器"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="远端目录"
+                android:textSize="11.5sp"
+                android:textColor="?attr/hfTextSub"/>
+
+            <EditText
+                android:id="@+id/et_remote"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="/"
+                android:hint="远端路径，例如 /backup/photo"
+                android:singleLine="true"
+                android:textSize="14sp"
+                android:inputType="text"/>
+
+            <TextView
+                android:id="@+id/row_local"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:textSize="14sp"
+                android:textColor="?attr/hfText"
+                android:background="?android:attr/selectableItemBackground"
+                android:text="本地目录"/>
+
+            <TextView
+                android:id="@+id/row_mode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:textSize="14sp"
+                android:textColor="?attr/hfText"
+                android:background="?android:attr/selectableItemBackground"
+                android:text="同步方向"/>
+
+            <Button
+                android:id="@+id/btn_preview"
+                android:layout_width="match_parent"
+                android:layout_height="42dp"
+                android:layout_marginTop="8dp"
+                android:text="预览差异"/>
+
+            <TextView
+                android:id="@+id/tv_plan"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="10dp"
+                android:textSize="13sp"
+                android:textColor="?attr/hfText"
+                android:text=""/>
+
+            <TextView
+                android:id="@+id/tv_log"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="8dp"
+                android:textSize="11.5sp"
+                android:textColor="?attr/hfTextSub"
+                android:text=""/>
+        </LinearLayout>
+    </ScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="?attr/hfBg"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="10dp">
+
+        <ProgressBar
+            android:id="@+id/progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:max="100"
+            android:progress="0"
+            android:visibility="gone"/>
+
+        <TextView
+            android:id="@+id/tv_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="6dp"
+            android:textSize="12sp"
+            android:textColor="?attr/hfTextSub"
+            android:text=""/>
+
+        <Button
+            android:id="@+id/btn_start"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="6dp"
+            android:text="开始同步"/>
+    </LinearLayout>
+</LinearLayout>

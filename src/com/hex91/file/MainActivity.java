@@ -844,6 +844,8 @@ public class MainActivity extends BaseActivity {
                 ? "粘贴（剪贴板为空）"
                 : "粘贴：" + FileClipboard.get().label());
         menu.add(Menu.NONE, 8, 8, "最近打开");
+        // v1.87.0：云同步（WebDAV 双向）
+        menu.add(Menu.NONE, 13, 9, "云同步…");
         // v1.83.0：设置页（主题 / 工作目录 / Root / 回收站策略 / 版本）
         menu.add(Menu.NONE, 12, 9, "设置");
         // 让菜单右边缘与锚点（右上角 ⋮ 按钮）对齐，呈现“吸附右上角”效果
@@ -897,6 +899,9 @@ public class MainActivity extends BaseActivity {
                     case 8: showRecent(); break;
                     case 12:
                         startActivity(new Intent(MainActivity.this, SettingsActivity.class));
+                        break;
+                    case 13:
+                        startActivity(new Intent(MainActivity.this, SyncActivity.class));
                         break;
                 }
                 return true;
