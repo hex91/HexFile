@@ -308,6 +308,10 @@ public class MainActivity extends BaseActivity {
 
     private final FileTaskEngine.Listener taskListener = new FileTaskEngine.Listener() {
         public void onTasksChanged() {
+            // v1.98.0：有活动任务就进前台服务 —— 用户切到别的应用后进程会被冻结/回收，
+            // 大文件复制、压缩会在后台静默失败；前台服务同时给通知栏进度（可取消）。
+            // start() 内部有 running 判断，进度回调再频繁也只启动一次。
+            if (FileTaskEngine.get().hasActive()) TaskService.start(MainActivity.this);
             taskUi.post(new Runnable() {
                 public void run() { renderTaskBar(); }
             });
@@ -1411,6 +1415,10 @@ public class MainActivity extends BaseActivity {
             Toast.makeText(this, "无法访问: " + dir, Toast.LENGTH_SHORT).show();
             return;
         }
+        // v1.98.0：同一目录、上一次还在读 → 直接忽略。
+        // 双击/连点会让同一个目录读两遍，两遍结果都会回主线程（代次只保住最新那份，白白多读一次）；
+        // 大目录或 su 回退时这一次多读就是几百毫秒到几秒的额外占用。
+        if (p.dir != null && p.dir.equals(dir) && p.adapter.isLoading()) return;
         if (p.adapter != null && p.adapter.selectionMode) exitSelection(p);
         closeArchiveQuiet(p);
         p.dir = dir;
@@ -1490,6 +1498,13 @@ public class MainActivity extends BaseActivity {
         p.dirCount = r.dirs;
         p.fileCount = r.files;
         updateHeader();
+        // v1.98.0：空目录给一句提示。读取中显示的是「读取中…」占位行，读完变空白，
+        // 用户分不清是「空目录」还是「还没读出来」—— 尤其在慢目录上刚看过转圈之后。
+        boolean onlyUp = true;
+        for (FileItem it : r.items) {
+            if (!it.upEntry) { onlyUp = false; break; }
+        }
+        if (onlyUp) toast("此文件夹为空");
     }
 
     /** 顶部深色栏：显示活动栏路径 + 统计（文件夹/文件/储存），对标 MT */

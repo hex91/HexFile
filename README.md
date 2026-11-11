@@ -1668,6 +1668,42 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.98.0（versionCode 177）—— 文件任务进前台服务（F-07）
+
+复制/移动/压缩原来跑在进程内的普通线程上。用户切到微信回两条消息，进程进入 cached 状态，
+系统随时可以冻结甚至杀掉它 —— 任务静默失败，回到应用只看到没拷完的 `.part`，没有任何解释。
+这是「大文件后台必丢」的真正原因，不是拷贝逻辑的问题。
+
+### 做法：TaskService + 进度通知
+
+- 任务一提交就 `startForegroundService`，通知栏常驻一条进度：`复制 3 项 47%` +
+  `已传输 120 MB / 1.2 GB · 8/21 个文件 · 还有 2 项排队`，带「取消」按钮，点通知回主界面；
+- 全部任务结束自动 `stopForeground + stopSelf`，不留僵尸通知；
+- 服务结束时**先撤通知再退出**，通知不会残留在状态栏。
+
+几处必须守住的细节：
+
+| 风险 | 处理 |
+|---|---|
+| `startForegroundService` 后 5 秒内没 `startForeground` 会崩 | onCreate 第一件事就是建通道 + `startForeground`，连引擎监听都排在后面；失败则 `stopSelf` 而不是让系统抛 `ForegroundServiceDidNotStartInTimeException` |
+| 界面 `onPause` 会 `setListener(null)`，正好在「最需要通知」的时刻 | 引擎增加**独立附加监听**（`addListener/removeListener`），界面单槽与服务订阅互不影响 |
+| 进度回调很密，反复启动服务 | `TaskService.running` 静态标志 + 通知用同一个 id `notify`，不重复弹、不打断前台状态 |
+| API 34 要按类型授权 | Manifest 提前声明 `foregroundServiceType="dataSync"` 与 `FOREGROUND_SERVICE_DATA_SYNC` / `POST_NOTIFICATIONS`（targetSdk 30 时系统忽略，升 targetSdk 时不用再改） |
+
+任务中心本身（任务条 + 任务面板）v1.77.0 就有，这版补的是「离开界面之后还活着」。
+
+### 异步读目录再补两条
+
+- **同一目录不重复读**：双击/连点会让同一目录读两遍（代次只保住最新那份，白白多读一次）。
+  现在「同目录 + 仍在读」直接忽略。
+- **空目录给提示**：读取中显示「读取中…」占位行，读完变空白，用户分不清是空目录还是没读出来。
+  现在读完发现只有 `..` 时提示「此文件夹为空」。
+
+### 新增测试
+
+`test/TaskListenerTest`（5 项）：界面与服务两个监听同时收到进度；`setListener(null)` 后界面断开、
+服务仍继续；`removeListener` 后不再回调（无泄漏）。`QUICK=1` → **48/48 PASS**。
+
 ## v1.97.0（versionCode 175）—— 软链接、压缩包写回、读目录失败路径
 
 第三轮审查只提了三条，但三条都是「真机上才复现、复现即丢数据」的类型。

@@ -82,12 +82,27 @@ public final class FileTaskEngine {
 
     private int seq = 1;
     private Thread worker;
+    /** 主界面任务条（单槽，onPause 时会被置空） */
     private volatile Listener listener;
+    /**
+     * v1.98.0：附加监听者（前台服务用它刷通知）。
+     *
+     * <p>为什么不合进 {@code listener}：界面在 onPause 里会 {@code setListener(null)} 主动断开
+     * 引用，但那正是「切到后台、最需要通知栏进度」的时刻 —— 服务必须有独立的一份订阅。</p>
+     */
+    private final java.util.concurrent.CopyOnWriteArrayList<Listener> extra =
+            new java.util.concurrent.CopyOnWriteArrayList<Listener>();
     private volatile RootFallback root;
 
     private FileTaskEngine() {}
 
     public void setListener(Listener l) { listener = l; }
+
+    public void addListener(Listener l) {
+        if (l != null && !extra.contains(l)) extra.add(l);
+    }
+
+    public void removeListener(Listener l) { extra.remove(l); }
 
     public void setRootFallback(RootFallback r) { root = r; }
 
@@ -295,11 +310,19 @@ public final class FileTaskEngine {
 
     private void fire() {
         Listener l = listener;
-        if (l == null) return;
-        try {
-            l.onTasksChanged();
-        } catch (Throwable ignored) {
-            // 列表刷新失败不该反过来影响拷贝
+        if (l != null) {
+            try {
+                l.onTasksChanged();
+            } catch (Throwable ignored) {
+                // 列表刷新失败不该反过来影响拷贝
+            }
+        }
+        for (Listener e : extra) {
+            try {
+                e.onTasksChanged();
+            } catch (Throwable ignored) {
+                // 通知刷新失败同理：不能影响正在跑的任务
+            }
         }
     }
 

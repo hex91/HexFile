@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hex91.file"
-    android:versionCode="176"
-    android:versionName="1.97.1">
+    android:versionCode="177"
+    android:versionName="1.98.0">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
 
@@ -20,6 +20,11 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <!-- v1.69.0 浮窗必须跑在前台服务里（Android 8+ 后台限制） -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <!-- v1.98.0：文件任务前台服务（复制/移动/压缩跑在后台）。API 34 起按类型授权，
+         这里提前声明 dataSync 类型与对应权限，targetSdk 还是 30 时系统会忽略 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <!-- v1.98.0：任务进度通知。targetSdk 30 时安装即授予；提前声明便于日后升 targetSdk -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- v1.74.0 局域网快传：UDP 广播发现 + 本机 HTTP 接收 -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
@@ -394,6 +399,14 @@
             android:label="局域网快传"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <!-- v1.98.0：文件任务前台服务。复制/移动大文件时把进程钉在前台，
+             否则切到别的应用后进程被冻结/回收，任务静默失败；同时承载进度通知 -->
+        <service
+            android:name="com.hex91.file.TaskService"
+            android:label="文件任务"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"/>
 
         <!-- v1.74.0：后台接收（前台服务，锁屏/切后台仍可收文件） -->
         <service
