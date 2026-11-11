@@ -84,6 +84,12 @@ jobs:
           name: HexFile-APK
           path: out/HexFile-[0-9]*.apk
 
+      # v1.96.0：以前 CI 只 build 不测试，仓库里 94 个桌面用例等于没有护栏。
+      # 这里跑 QUICK 子集（跳过几十秒级的真重签 E2E），失败即整条流水线失败；
+      # 放在上传产物之后，测试挂了也能拿到 APK 排查。
+      - name: Core tests (desktop JVM, no device)
+        run: QUICK=1 bash test/run_core.sh
+
       - name: Read version name
         id: ver
         run: |

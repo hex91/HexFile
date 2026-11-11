@@ -50,7 +50,8 @@ import java.util.zip.ZipInputStream;
 
 /**
  * 双栏主界面 —— 对标 bin.mt.plus.Main 的架构：
- * BaseActivity 职责由本类直接承担，FeatureActivity 的注册表模式见 FeatureRegistry。
+ * BaseActivity 职责由本类直接承担（不再有 FeatureRegistry 那层注册表——v1.96.0 删除，
+ * 它从未被任何代码引用，留着只会误导后来人）。
  */
 public class MainActivity extends BaseActivity {
 
@@ -82,6 +83,14 @@ public class MainActivity extends BaseActivity {
         /** 目录历史栈（‹ › 前进后退用） */
         final java.util.List<String> history = new java.util.ArrayList<String>();
         int hIndex = -1;
+        /**
+         * v1.96.0：目录读取代次。读目录移到后台线程后，用户可能在结果回来之前
+         * 又切了别的目录，回来时才发现手里这份是上一个目录的 —— 每次发起读取 +1，
+         * 结果回来时代次对不上就整份丢掉。
+         */
+        int dirGen;
+        /** v1.96.0：最近一次读取统计（顶栏用，避免每次 O(n) 遍历适配器） */
+        int dirCount, fileCount;
     }
     private Panel left = new Panel();
     private Panel right = new Panel();
@@ -187,9 +196,7 @@ public class MainActivity extends BaseActivity {
 
         setupPanel(left);
         setupPanel(right);
-        loadDir(left, Environment.getExternalStorageDirectory());
-        loadDir(right, Environment.getExternalStorageDirectory());
-        left.active = true;
+        restorePanesOrLoad(b);
         // v1.80.0：视图模式也持久化（和排序/隐藏文件同一份偏好），重启保持
         viewMode = getSharedPreferences(PREF_UI, MODE_PRIVATE).getInt(KEY_VIEW, VIEW_LIST);
         applyViewMode();
@@ -805,15 +812,6 @@ public class MainActivity extends BaseActivity {
         drawerMask.animate().alpha(0f).setDuration(180).start();
     }
 
-    /** 未完成功能占位弹窗（主题设置/远程管理/终端模拟器） */
-    private void showComingSoon(String title, String desc) {
-        new HfDialogBuilder(this)
-                .setTitle(title)
-                .setMessage(desc)
-                .setPositiveButton("知道了", null)
-                .show();
-    }
-
     /** ⋮ 主菜单（对标 MT 溢出菜单，锚定在右上角 ⋮ 按钮往下弹出） */
     private void showMoreMenu() {
         final Panel p = active();
@@ -1312,7 +1310,10 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 点击条目：列表与网格共用（两侧下标都指向同一个 FileAdapter） */
-    private void handleItemClick(Panel p, int i) {        setActive(p);
+    private void handleItemClick(Panel p, int i) {
+        setActive(p);
+        // v1.96.0：读目录期间列表里可能还是上一个目录的条目，此时点击会打开错文件
+        if (p.adapter.isLoading()) return;
         FileItem it = p.adapter.get(i);
         // v1.40.0：列表顶部 .. 返回项（多选中点击 = 退出多选并返回，loadDir 内处理）
         if (it.upEntry) {
@@ -1338,6 +1339,7 @@ public class MainActivity extends BaseActivity {
     /** 长按条目：列表与网格共用 */
     private boolean handleItemHold(Panel p, int i) {
         setActive(p);
+        if (p.adapter.isLoading()) return true;   // v1.96.0：同上，读取中不响应长按
         FileItem it = p.adapter.get(i);
         if (it.upEntry) return true;    // .. 返回项无操作菜单
         if (p.adapter.selectionMode) {
@@ -1398,7 +1400,7 @@ public class MainActivity extends BaseActivity {
 
     /** push=false 用于历史导航（不写入历史栈） */
     private void loadDir(Panel p, File dir, boolean push) {
-        // v1.42.0：root 设备上 stat 可能被拒（ls 才需要 su），放行交给 setDir 的 root 回退
+        // v1.42.0：root 设备上 stat 可能被拒（ls 才需要 su），放行交给 DirReader 的 root 回退
         if (dir == null || (!dir.isDirectory() && !RootUtil.isRootAvailable())) {
             Toast.makeText(this, "无法访问: " + dir, Toast.LENGTH_SHORT).show();
             return;
@@ -1411,10 +1413,30 @@ public class MainActivity extends BaseActivity {
             p.history.add(dir.getPath());
             p.hIndex = p.history.size() - 1;
         }
-        p.adapter.setDir(dir);
+        // v1.96.0：路径立刻切（用户马上看到自己在哪），条目在后台读完后一次性替换。
+        // 原来 listFiles + 排序 + 逐项 lstat 都在主线程，几千项的目录或 su ls 回退会卡住甚至 ANR。
+        final int gen = ++p.dirGen;
+        p.adapter.setLoading(true);
         // 换目录后网格要回到顶部：数据换了一批，保留旧滚动位置会落在中间
         if (p.grid != null) p.grid.setSelection(0);
-        updateHeader();
+        final int sort = p.adapter.sortMode;
+        final boolean hidden = p.adapter.showHidden;
+        final File root = p.adapter.rootDir;
+        Bg.io(new Runnable() {
+            public void run() {
+                final DirReader.Result r = DirReader.read(dir, sort, hidden, root);
+                Bg.ui(new Runnable() {
+                    public void run() {
+                        // 期间又切了目录 / 界面已销毁：这份结果作废（否则会把旧目录的内容盖上去）
+                        if (gen != p.dirGen || isFinishing() || isDestroyed()) return;
+                        p.adapter.setResult(r);
+                        p.dirCount = r.dirs;
+                        p.fileCount = r.files;
+                        updateHeader();
+                    }
+                });
+            }
+        });
     }
 
     /** 顶部深色栏：显示活动栏路径 + 统计（文件夹/文件/储存），对标 MT */
@@ -1437,13 +1459,9 @@ public class MainActivity extends BaseActivity {
         }
         if (p.dir == null) return;
         headerPath.setText(p.dir.getPath());
-        // v1.42.0：从 adapter 统计（root 列取的条目也在其中；listFiles 在受保护目录会拿不到）
-        int dirs = 0, files = 0;
-        for (int i = 0; i < p.adapter.getCount(); i++) {
-            FileItem it = p.adapter.get(i);
-            if (it.upEntry) continue;
-            if (it.isDir()) dirs++; else files++;
-        }
+        // v1.96.0：计数由 DirReader 读目录时顺带算好（原来这里每次再遍历一遍适配器，
+        // 几千项时和读目录叠加成双份开销，而且读目录已经不在主线程了，这里也不能留 O(n)）
+        int dirs = p.dirCount, files = p.fileCount;
         String store = "";
         // v1.72.0：根目录/系统分区统一按 /data 统计，避免顶层显示「987M/987M」
         long[] u = usageOf(p.dir.getAbsolutePath());
@@ -6123,6 +6141,69 @@ public class MainActivity extends BaseActivity {
         // 不持有 Activity 引用，避免任务线程把已销毁的界面拖住
         FileTaskEngine.get().setListener(null);
         taskUi.removeCallbacks(hideTaskBar);
+    }
+
+    /**
+     * v1.96.0：进程被系统回收后重建时，回到用户原来所在的两个目录。
+     *
+     * <p>以前 onCreate 一律 {@code loadDir(内部存储根)}，表现是「切出去几分钟再回来，
+     * 发现回到了起点」。这里不是转屏重建（那条路被 configChanges 接管了），只有进程真被杀才会走到。</p>
+     *
+     * <p>压缩包内浏览不恢复：重开一次归档要解目录、可能几秒，恢复个「上次在看 zip」不如让人重进。</p>
+     */
+    private void restorePanesOrLoad(Bundle b) {
+        File def = Environment.getExternalStorageDirectory();
+        Panel[] ps = new Panel[]{left, right};
+        String[] dk = {"left_dir", "right_dir"};
+        String[] hk = {"left_hist", "right_hist"};
+        String[] ik = {"left_hidx", "right_hidx"};
+        for (int i = 0; i < 2; i++) {
+            File dir = def;
+            if (b != null) {
+                String saved = b.getString(dk[i]);
+                if (saved != null) {
+                    File f = new File(saved);
+                    // 目录可能在这期间没了（U 盘拔出 / 被别的应用清掉），退回默认根
+                    if (f.isDirectory()) dir = f;
+                }
+            }
+            loadDir(ps[i], dir);
+            if (b == null) continue;
+            java.util.ArrayList<String> hist = b.getStringArrayList(hk[i]);
+            if (hist != null && !hist.isEmpty()) {
+                // loadDir 已经写了一条「当前目录」，这里用存下来的历史整段覆盖
+                ps[i].history.clear();
+                ps[i].history.addAll(hist);
+                int hi = b.getInt(ik[i], hist.size() - 1);
+                ps[i].hIndex = Math.max(0, Math.min(hi, hist.size() - 1));
+            }
+        }
+        if (b != null && b.getBoolean("right_active", false)) setActive(right);
+        else left.active = true;
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle out) {
+        super.onSaveInstanceState(out);
+        // 只存「位置」这种几十字节的状态（排序/隐藏/视图模式本来就在 SharedPreferences）
+        out.putString("left_dir", left.dir == null ? null : left.dir.getPath());
+        out.putString("right_dir", right.dir == null ? null : right.dir.getPath());
+        out.putStringArrayList("left_hist", new ArrayList<String>(left.history));
+        out.putStringArrayList("right_hist", new ArrayList<String>(right.history));
+        out.putInt("left_hidx", left.hIndex);
+        out.putInt("right_hidx", right.hIndex);
+        out.putBoolean("right_active", right.active);
+    }
+
+    @Override
+    protected void onDestroy() {
+        // v1.96.0：Bg 的线程池是进程级的，Activity 销毁后读目录任务仍会跑完 —— 把代次推走，
+        // 让回来的结果自己作废，别去碰已经拆掉的视图（也就是 1.5「生命周期没人收尾」那条）。
+        left.dirGen++;
+        right.dirGen++;
+        taskUi.removeCallbacksAndMessages(null);
+        FileTaskEngine.get().setListener(null);
+        super.onDestroy();
     }
 
     @Override

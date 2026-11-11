@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hex91.file"
-    android:versionCode="171"
-    android:versionName="1.95.4">
+    android:versionCode="173"
+    android:versionName="1.96.0">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
 
@@ -188,10 +188,13 @@
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
-        <!-- v1.49.0：终端模拟器（NDK PTY + 自研 VT100/xterm 仿真）。TEST-EXPORT 仅用于自动化冒烟测试，发布前会改回 false -->
+        <!-- v1.49.0：终端模拟器（NDK PTY + 自研 VT100/xterm 仿真）。
+             v1.96.0：exported 改回 false —— 它只从抽屉入口启动（MainActivity→startActivity），
+             之前留 true 是自动化冒烟测试图方便，等于任何应用都能拉起一个终端页面（命令虽以本应用
+             uid 执行，不等于提权，但没必要留这个口子）。需要再冒烟就用 debug 源集的 manifest 覆盖。 -->
         <activity
             android:name="com.hex91.file.TerminalActivity"
-            android:exported="true"
+            android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|keyboard|navigation|uiMode"
             android:windowSoftInputMode="adjustResize"/>
 

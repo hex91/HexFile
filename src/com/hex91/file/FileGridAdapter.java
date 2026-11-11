@@ -62,6 +62,23 @@ public class FileGridAdapter extends BaseAdapter {
         TextView check = (TextView) v.findViewById(R.id.grid_check);
         TextView name = (TextView) v.findViewById(R.id.grid_name);
 
+        if (it.loadingRow) {
+            // v1.96.0：目录读取中占位格（列表侧同一状态见 FileAdapter.getView）
+            thumb.setVisibility(View.GONE);
+            thumb.setTag(null);
+            thumb.setImageDrawable(null);
+            check.setVisibility(View.GONE);
+            icon.setVisibility(View.VISIBLE);
+            icon.setText("\u2026");
+            icon.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15f);
+            icon.setTextColor(ThemeManager.textSub(ctx));
+            icon.setBackground(roundBg(ThemeManager.surfaceAlt(ctx), 10f));
+            frame.setBackground(null);
+            name.setText("读取中\u2026");
+            name.setTextColor(ThemeManager.textSub(ctx));
+            return v;
+        }
+
         String low = it.name().toLowerCase(Locale.CHINA);
         boolean real = !it.isArchEntry() && !it.isDir() && it.file != null && it.file.isFile();
         boolean isImg = real && (low.endsWith(".jpg") || low.endsWith(".jpeg")

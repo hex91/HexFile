@@ -170,6 +170,23 @@ else
 fi
 
 echo "[4/7] javac..."
+# v1.96.0：先清掉「源码已不存在」的 class。javac -d 只覆盖不清理，删掉的类会一直留在
+# build/obj 里被打进 dex —— 删 FeatureRegistry 时才发现：源码删了，APK 里还查得到它。
+if [ -d "$BUILD/obj/com/hex91/file" ]; then
+  for cf in "$BUILD/obj/com/hex91/file"/*.class; do
+    [ -e "$cf" ] || continue
+    # 纯 shell 字符串操作：这里不要用 basename，1800+ 次 fork 在 Windows 上要等好几分钟
+    base=${cf##*/}
+    base=${base%.class}
+    outer=${base%%\$*}
+    # R.java 不在 src 里（aapt2 link 生成到 build/gen），别把它当成孤儿删掉
+    if [ ! -f "$ROOT/src/com/hex91/file/$outer.java" ] \
+       && [ ! -f "$BUILD/gen/com/hex91/file/$outer.java" ]; then
+      rm -f "$cf"
+      echo "      清理残留 class: $base"
+    fi
+  done
+fi
 # libs = apksigner.jar + baksmali/dexlib2 等（smali 反编译引擎），供编译期引用
 # classpath 分隔符：Windows 为 ;，其它(Unix/Linux)为 :
 SEP=":"

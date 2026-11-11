@@ -1668,6 +1668,104 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.96.0（versionCode 173）—— 结构审查里能立刻兑现的那几项
+
+第二轮审查（结构 / 性能 / 稳定性）给的清单比上一轮长得多，但它分成两类：
+**「改一处、收益立刻可感」**和**「拆包分层，只对后来人有利、对现在的功能零收益」**。
+这一版只做第一类，第二类在文末列了理由和顺序。
+
+### 1 目录读取搬离 UI 线程（原来的 P1 第一条）
+
+`FileAdapter.setDir` 里一串同步 IO：`listFiles()` → `Arrays.sort` → 逐项 `new FileItem`
+→ `fillLink`（lstat，可能再 readlink），root 回退还要起一个 `su ls` 进程。
+这些全在**主线程**跑，调用点包括 onCreate、点进目录、返回上级、下拉刷新 ——
+几千个文件的下载目录或 `/data` 这种受保护目录，卡顿是必然，ANR 是概率问题。
+
+拆成两半：
+
+| 位置 | 职责 |
+|---|---|
+| `DirReader.read(dir, sort, hidden, rootDir, privileged)` | 纯同步：列取 / root 回退 / 排序 / 过滤 / 符号链接 / 计数 |
+| `Bg.io(...)` + `FileAdapter.setResult(...)` | 后台读完，回主线程一次性换数据 |
+
+顺带解决三件同源的小事：
+
+- **代次校验**：每次 `loadDir` 让 `Panel.dirGen++`，结果回来时代次对不上就整份丢掉。
+  没有它，用户在慢目录里连点两下，先发的结果可能后到，把后发的盖掉（串目录）。
+- **计数不再二次遍历**：`updateHeader` 以前在 loadDir 之后又 O(n) 数一遍文件夹/文件数，
+  现在由 `DirReader` 读的时候顺手算（`Result.dirs/files`）。
+- **排序键先取一遍**：原来 comparator 里直接 `a.length()/lastModified()/isDirectory()`，
+  每次比较都 stat 两个文件 = n log n 次系统调用；现在每个条目一次，n 次。
+
+读取期间的行为：列表非空就保留旧内容（不闪白），空列表显示一行「读取中…」；
+**这期间点击/长按被忽略** —— 否则点的还是上一个目录的条目，会打开错文件。
+
+`Bg` 是新增的 40 行工具（固定 3 条 IO 线程 + `Throwable` 兜底日志 + `ui()`），
+本版只让新路径走它；那 130 处裸线程**没有**一次性替换（见文末）。
+
+### 2 生命周期收尾（原来完全没有 `onDestroy`）
+
+`MainActivity` 生命周期里只有 `onPause`，而它启动了大量线程、缩略图加载器、任务回调。
+新增 `onDestroy`：把两侧 `dirGen` 推走（让在途的读目录结果自己作废）、清掉任务栏的
+延时消息、断开 `FileTaskEngine` 回调。
+
+### 3 进程被回收后回到原目录
+
+`onSaveInstanceState` 原来全仓库只有文本编辑器在用，主界面一律 `loadDir(内部存储根)`——
+表现是「切出去一会儿回来发现回到起点」。现在存两个窗格的路径、历史栈与活动窗格，
+重建时复原（目录没了就退回默认根）。压缩包内浏览不恢复：重开一次归档要解目录，不值。
+
+### 4 删死代码 / 死依赖
+
+| 项 | 证据 | 处理 |
+|---|---|---|
+| `FeatureRegistry` | 只有自身定义 + 一句注释提到；注释却说「UI 菜单由注册表驱动」 | 删除，注释改写 |
+| `MainActivity.showComingSoon` | 只有定义，0 调用 | 删除 |
+| `libs/bcprov-jdk18on-1.79.jar` | 8.18MB；源码 0 个 `org.bouncycastle` import，其余 jar 的 class 也没有引用 | 删除 |
+| `libs/exifinterface-1.3.6.jar` | 全仓库 0 个 Exif 命中 | 删除 |
+
+APK 从 **14.9MB → 13.1MB**（dex 里确实有它：删除后 `classes.dex` 里再也搜不到 bcprov 的类）。
+
+> 顺手挖出一个构建脚本的坑：`javac -d build/obj` **只覆盖不清理**，
+> 源码删了、`build/obj` 里的 class 还在，于是被 d8 打进 APK。
+> 第一次删完 `FeatureRegistry` 后 dex 里仍能搜到它，就是这原因。
+> `build.sh` 的 `[4/7]` 之前加了一步「清掉源码已不存在的 class」（R 类在 `build/gen`，放行）。
+
+### 5 CI 开始跑单元测试
+
+`test/run_core.sh` 原来把 `JH`/`BT`/`ANDJ` 写死成 `D:/…`、`E:/…`，
+等于把 94 个测试锁在开发机上，CI 根本跑不起来。现在：环境变量优先 → 常见位置探测 →
+都没有就明确报错；类路径分隔符按 `uname` 选 `;` 或 `:`；`javac.exe` / `javac` 自动判断。
+
+流水线在**上传产物之后**加了一步 `QUICK=1 bash test/run_core.sh`：
+以前 CI 只 build 不测试，这些用例等于没有护栏；放在上传之后，测试挂了也能先拿到 APK 排查。
+
+### 6 终端页关闭导出
+
+`TerminalActivity` 的 `android:exported="true"` 是当年做冒烟测试留的（注释自己写着
+「发布前会改回 false」）。它只从抽屉入口启动，改回 `false`；外部应用再也拉不起这个页面。
+
+### 新增测试
+
+`test/DirReaderTest`（18 项）：目录在前、大小写不敏感、隐藏文件、顶部 `..`、
+应用根目录无 `..`、按大小/时间排序的并列规则、计数不含 `..`、读不到时的降级。
+`DirReader` 刻意不碰 Android API（`privileged` 由调用方注入），所以这些规则能在桌面 JVM 上直接测。
+
+`QUICK=1 ./test/run_core.sh` → **49/49 PASS**（含本版新增的 DirReaderTest）。
+
+### 这一版**没做**的，以及为什么
+
+| 审查项 | 结论 |
+|---|---|
+| 1.1 按包拆（core/fs/apk/ui/net） | 194 个类同包 = 现在零 import；拆包要改几百处 import + 单测，收益是「看着清楚」，风险是本版无法用真机覆盖所有分支。等下一轮专门做，一次性、单独提交。 |
+| 1.2 拆 MainActivity（6039 行 god class） | 同上。本版已经先把「目录加载」这块抽成 `DirReader`，是拆 `DirectoryController` 的第一步。 |
+| 1.3 本地文件抽象 `LocalFs implements Fs` | 会动到 `MainActivity` 里所有 `File` 分支，等于重写文件操作层，必须有真机回归。 |
+| 1.4 把 130 处裸线程换成 `Bg` | 本版只让新路径走 `Bg`。机械替换 50 处 `new Thread` 风险在于每处的取消/回调语义都不同，属于「必须一类一类换」的活。 |
+| 1.6 230 处空 catch 分批处理 | 需要逐处判断「关流可忽略」还是「用户点了没反应」，不能批量改。 |
+| 1.7 资源化 / i18n（3676 处中文字面量） | 唯一「越晚越贵」的债，但一次动 3676 处不可能在本版验证完；建议按页面抽，先从顶栏/对话框标题开始。 |
+| 2.3 ListView → RecyclerView + DiffUtil | 工作量大（ListView 90 处、`notifyDataSetChanged` 51 处、双栏 mirror），留到阶段 2。 |
+| 2.4 文件任务前台服务 | 本版**故意没做**：`startForegroundService` 必须 5 秒内 `startForeground`，API 34 还要 `foregroundServiceType="dataSync"` + 权限，改错就是「复制大文件时崩」。要配着真机跑一遍复制/压缩/加密全流程再上，值得单独一版。 |
+
 ## v1.95.4 —— 一轮代码审查的 13 项修复（含两个下载器 P0）
 
 外部审查报了一批问题，逐条核对代码后**全部属实**，按严重度修完并补了能复现的测试。

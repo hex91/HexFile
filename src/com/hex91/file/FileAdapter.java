@@ -30,6 +30,8 @@ public class FileAdapter extends BaseAdapter {
     public int sortMode = SORT_NAME;
     /** 是否显示隐藏文件（. 开头） */
     public boolean showHidden = false;
+    /** v1.96.0：目录读取中（见 setLoading） */
+    private boolean loading;
     /** 应用根目录（v1.40.0）：当前目录等于它时不显示 .. 返回项；null = 只要有上级就显示 */
     public File rootDir = null;
 
@@ -37,69 +39,32 @@ public class FileAdapter extends BaseAdapter {
         this.ctx = ctx;
     }
 
-    public void setDir(File dir) {
+    /**
+     * v1.96.0：换取目录结果（在后台线程读完后回主线程调用）。
+     *
+     * <p>原来这里是 {@code setDir}，把 listFiles/排序/逐项 lstat 全在主线程做完；
+     * 现在 IO 部分搬进 {@link DirReader}，这里只做「换数据 + 通知」。</p>
+     */
+    public void setResult(DirReader.Result r) {
+        loading = false;
         items.clear();
-        File[] files = dir.listFiles();
-        // v1.42.0：listFiles 被 SELinux 拒绝（/data 等）且已 root → su ls 列取回退
-        java.util.Set<String> rootDirNames = null;
-        if (files == null && RootUtil.isRootAvailable()) {
-            java.util.List<String> lines = RootUtil.suList(dir.getPath());
-            if (lines != null) {
-                java.util.ArrayList<File> fs = new java.util.ArrayList<>();
-                rootDirNames = new java.util.HashSet<>();
-                for (String line : lines) {
-                    if (line.length() < 2) continue;
-                    boolean d = line.endsWith("/");
-                    String n = d ? line.substring(0, line.length() - 1) : line;
-                    if (n.equals(".") || n.equals("..") || n.isEmpty()) continue;
-                    fs.add(new File(dir, n));
-                    if (d) rootDirNames.add(n);
-                }
-                files = fs.toArray(new File[0]);
-            }
-        }
-        if (files != null) {
-            final Comparator<File> byName = new Comparator<File>() {
-                public int compare(File a, File b) {
-                    return a.getName().compareToIgnoreCase(b.getName());
-                }
-            };
-            Arrays.sort(files, new Comparator<File>() {
-                public int compare(File a, File b) {
-                    if (a.isDirectory() != b.isDirectory())
-                        return a.isDirectory() ? -1 : 1;
-                    int r;
-                    if (sortMode == SORT_SIZE) {
-                        r = Long.compare(a.length(), b.length());
-                        if (r == 0) r = byName.compare(a, b);
-                    } else if (sortMode == SORT_TIME) {
-                        r = Long.compare(b.lastModified(), a.lastModified());
-                        if (r == 0) r = byName.compare(a, b);
-                    } else {
-                        r = byName.compare(a, b);
-                    }
-                    return r;
-                }
-            });
-            for (File f : files) {
-                if (!showHidden && f.getName().startsWith(".")) continue;
-                FileItem it = new FileItem(f);
-                if (rootDirNames != null && rootDirNames.contains(f.getName()))
-                    it.forceDir = true;
-                fillLink(it);      // v1.81.0：符号链接标记（列表显示 → 目标，点击仍跟随）
-                items.add(it);
-            }
-        }
-        // v1.40.0：非顶层目录 → 顶部插 .. 返回项（file 指向上级，点击即返回）
-        // v1.42.0：root 设备上级目录即便不可读（/data）也允许返回
-        File up = dir.getParentFile();
-        boolean atRoot = rootDir != null
-                && dir.getAbsolutePath().equals(rootDir.getAbsolutePath());
-        if (up != null && (up.canRead() || RootUtil.isRootAvailable()) && !atRoot) {
-            items.add(0, FileItem.up(up));
-        }
+        if (r != null) items.addAll(r.items);
         notifyDataSetChanged();
-        Log.d("HexFile", "setDir=" + dir.getPath() + " items=" + items.size());
+    }
+
+    /**
+     * v1.96.0：标记「正在读取」。
+     * <p>列表非空时保留旧内容（切目录瞬间不闪白，读完整体替换）；
+     * 列表为空时显示一行「读取中…」。读取期间点击被
+     * {@code MainActivity} 忽略，避免操作到上一个目录的条目。</p>
+     */
+    public void setLoading(boolean b) {
+        loading = b;
+        notifyDataSetChanged();
+    }
+
+    public boolean isLoading() {
+        return loading;
     }
 
     /** 直接展示给定条目（压缩包内浏览用；调用方已排好序，首项可为 .. 返回项） */
@@ -186,13 +151,16 @@ public class FileAdapter extends BaseAdapter {
         for (FileItem it : items) it.selected = false;
     }
 
-    public FileItem get(int i) { return items.get(i); }
+    public FileItem get(int i) {
+        if (loading && items.isEmpty()) return FileItem.loading();
+        return items.get(i);
+    }
 
     public int size() { return items.size(); }
 
-    public int getCount() { return items.size(); }
+    public int getCount() { return (loading && items.isEmpty()) ? 1 : items.size(); }
 
-    public Object getItem(int i) { return items.get(i); }
+    public Object getItem(int i) { return get(i); }
 
     public long getItemId(int i) { return i; }
 
@@ -200,8 +168,22 @@ public class FileAdapter extends BaseAdapter {
         if (convert == null) {
             convert = LayoutInflater.from(ctx).inflate(R.layout.item_file, parent, false);
         }
-        FileItem it = items.get(i);
+        FileItem it = get(i);
         TextView icon = (TextView) convert.findViewById(R.id.icon);
+        if (it.loadingRow) {
+            // 读取中占位行：复用条目布局，只留一行灰字，缩略图/角标全部隐藏
+            android.widget.ImageView tv =
+                    (android.widget.ImageView) convert.findViewById(R.id.thumb);
+            icon.setVisibility(View.GONE);
+            tv.setTag(null);
+            tv.setImageDrawable(null);
+            tv.setVisibility(View.GONE);
+            ((TextView) convert.findViewById(R.id.badge)).setVisibility(View.GONE);
+            ((TextView) convert.findViewById(R.id.name)).setText("读取中…");
+            ((TextView) convert.findViewById(R.id.detail)).setText("");
+            convert.setBackgroundColor(0);
+            return convert;
+        }
         android.widget.ImageView thumb = (android.widget.ImageView) convert.findViewById(R.id.thumb);
         TextView badge = (TextView) convert.findViewById(R.id.badge);
         TextView name = (TextView) convert.findViewById(R.id.name);

@@ -22,6 +22,12 @@ public class FileItem implements Serializable {
     public String linkTarget;
     /** v1.81.0：悬空链接（目标不存在） */
     public boolean linkBroken;
+    /**
+     * v1.96.0：目录读取中的占位行。
+     * <p>读目录移到后台线程后，列表在结果回来前会短暂空着；空列表看起来像目录是空的，
+     * 所以插一条「读取中…」。它不可点击、不计入统计、也没有真实文件。</p>
+     */
+    public boolean loadingRow;
 
     /** 是否符号链接 */
     public boolean isLink() { return linkTarget != null; }
@@ -68,13 +74,22 @@ public class FileItem implements Serializable {
     public boolean isArchEntry() { return archFull != null; }
     public boolean isArchUp() { return "..".equals(archFull); }
 
+    /** v1.96.0：目录读取中的占位行（见 {@link #loadingRow}） */
+    public static FileItem loading() {
+        FileItem it = new FileItem((File) null);
+        it.loadingRow = true;
+        return it;
+    }
+
     public String name() {
+        if (loadingRow) return "读取中…";
         if (upEntry) return "..";
         if (isArchEntry()) return archShort;
         return file.getName().isEmpty() ? file.getPath() : file.getName();
     }
 
     public boolean isDir() {
+        if (loadingRow) return false;
         if (isArchEntry()) return archDir;
         return forceDir || file.isDirectory();
     }
