@@ -1,7 +1,8 @@
 package com.hex91.file;
 
 import android.content.Intent;
-import android.graphics.Matrix;
+import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Bundle;
@@ -9,9 +10,11 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.provider.Settings;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -79,6 +82,7 @@ public class VideoPlayerActivity extends BaseActivity {
     public static final String EXTRA_START_MS = "start_ms";
 
     private static final int HIDE_DELAY_MS = 3600;
+    private static final String TAG = "HexPlayer";
     private static final int LONG_PRESS_MS = 460;
     private static final int DOUBLE_TAP_MS = 280;
     private static final long RESUME_MIN_MS = 5000;
@@ -89,9 +93,9 @@ public class VideoPlayerActivity extends BaseActivity {
     private TextureView texture;
 
     // ---------------- 界面
-    private View topBar, centerBar, bottomBar, gesture;
+    private View root, topBar, centerBar, bottomBar, gesture;
     private TextView titleView, playBtn, posView, durView, hintView, msgView;
-    private TextView speedChip, qualityChip, scaleChip, loopChip;
+    private TextView speedChip, qualityChip, scaleChip, loopChip, orientChip;
     private SeekBar seekBar;
     private ProgressBar bufferView;
     private volatile boolean controlsVisible = true;
@@ -107,6 +111,13 @@ public class VideoPlayerActivity extends BaseActivity {
     private float speed = 1f;
     private int repeatMode = Player.REPEAT_MODE_OFF;
     private int scaleMode = PlayerPrefs.SCALE_FIT;
+    /** 画面方向：自动（按视频比例）/ 竖屏锁定 / 横屏锁定 */
+    private int orientMode = ScreenPolicy.AUTO;
+    /** 本片的方向是否已决定过 —— 只让第一帧的 VideoSize 触发一次转屏 */
+    private boolean orientationDecided;
+    /** 按返回键临时转竖屏（不改用户偏好，只本片有效） */
+    private boolean backPortrait;
+    /** v1.94.0：VideoSize 是屏幕上「视频本身的宽×高」，不含像素宽高比校正 */
     private int videoW, videoH;
     private long durationMs;
     private boolean seekBarTouching;
@@ -141,6 +152,7 @@ public class VideoPlayerActivity extends BaseActivity {
     }
 
     private void bindViews() {
+        root = findViewById(R.id.vp_root);
         texture = (TextureView) findViewById(R.id.vp_texture);
         gesture = findViewById(R.id.vp_gesture);
         topBar = findViewById(R.id.vp_top);
@@ -156,8 +168,20 @@ public class VideoPlayerActivity extends BaseActivity {
         qualityChip = (TextView) findViewById(R.id.vp_quality);
         scaleChip = (TextView) findViewById(R.id.vp_scale);
         loopChip = (TextView) findViewById(R.id.vp_loop);
+        orientChip = (TextView) findViewById(R.id.vp_orient);
         seekBar = (SeekBar) findViewById(R.id.vp_seek);
         bufferView = (ProgressBar) findViewById(R.id.vp_buffer);
+
+        // 容器尺寸一变（转屏、分屏、挖孔/手势条变化）就必须重算画面盒子。
+        // v1.93.0 及以前只在 onVideoSizeChanged 里算一次，若那一刻还没 layout
+        // （getWidth()==0），函数直接 return，此后没人再算 —— 表现就是
+        // 「进播放器画面被拉满，比例全乱」，转到横屏反而好了。
+        root.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+            public void onLayoutChange(View v, int l, int t, int r, int b,
+                                       int ol, int ot, int or, int ob) {
+                if (r - l != or - ol || b - t != ob - ot) applyScale();
+            }
+        });
 
         findViewById(R.id.vp_back).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { finish(); }
@@ -174,8 +198,11 @@ public class VideoPlayerActivity extends BaseActivity {
         findViewById(R.id.vp_next).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { stepItem(1); }
         });
-        findViewById(R.id.vp_fullscreen).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { toggleOrientation(); }
+        findViewById(R.id.vp_orient).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                android.util.Log.i(TAG, "orient chip clicked, mode=" + orientMode);
+                cycleOrientation();
+            }
         });
 
         speedChip.setOnClickListener(new View.OnClickListener() {
@@ -347,6 +374,10 @@ public class VideoPlayerActivity extends BaseActivity {
         speed = PlayerPrefs.speed(this);
         repeatMode = PlayerPrefs.repeat(this);
         scaleMode = PlayerPrefs.scale(this);
+        // 拉伸档不记忆：它是「我就要看变形」的一次性选择，不该成为下次打开时的默认，
+        // 否则用户误点一次就永久得到一部变形的片子（v1.93.0 之前就是这样被投诉的）。
+        if (scaleMode == PlayerPrefs.SCALE_STRETCH) scaleMode = PlayerPrefs.SCALE_FIT;
+        orientMode = PlayerPrefs.orientation(this);
         player.setRepeatMode(repeatMode);
         player.setPlaybackParameters(new PlaybackParameters(speed));
 
@@ -376,7 +407,10 @@ public class VideoPlayerActivity extends BaseActivity {
                 if (size.pixelWidthHeightRatio > 0 && size.pixelWidthHeightRatio != 1f) {
                     videoW = Math.round(size.width * size.pixelWidthHeightRatio);
                 }
+                // 先按比例摆好画面盒子，再决定横竖屏：转屏会改变容器尺寸，
+                // 布局监听会再算一次，两次都算对人眼才看不到中间态
                 applyScale();
+                maybeAutoOrient();
             }
 
             public void onPlayerError(PlaybackException error) {
@@ -403,6 +437,9 @@ public class VideoPlayerActivity extends BaseActivity {
                 // 换了片子，画质列表必须重解析（不同片子档位不同）
                 qualities = null;
                 qualityLabel = "自动";
+                // 方向也重新判：横屏剧集切到竖屏短视频时该跟着回竖屏
+                orientationDecided = false;
+                backPortrait = false;
                 updateChips();
                 loadQualitiesAsync();
             }
@@ -412,7 +449,6 @@ public class VideoPlayerActivity extends BaseActivity {
         titleView.setText(displayTitle);
         speedChip.setText(PlaySpeed.label(speed));
         updateChips();
-        updateScaleChip();
         updateLoopChip();
     }
 
@@ -668,6 +704,7 @@ public class VideoPlayerActivity extends BaseActivity {
         updateQualityChip();
         updateScaleChip();
         updateLoopChip();
+        updateOrientChip();
         if (speedChip != null) speedChip.setText(PlaySpeed.label(speed));
     }
 
@@ -753,35 +790,149 @@ public class VideoPlayerActivity extends BaseActivity {
 
     private void cycleScale() {
         scaleMode = (scaleMode + 1) % 3;
-        PlayerPrefs.setScale(this, scaleMode);
+        // 只记住「适配 / 铺满」，拉伸不落盘 —— 见 setupPlayer 里的说明
+        PlayerPrefs.setScale(this, scaleMode == PlayerPrefs.SCALE_STRETCH
+                ? PlayerPrefs.SCALE_FIT : scaleMode);
         updateScaleChip();
         applyScale();
+        toast("画面：" + scaleText());
+    }
+
+    private String scaleText() {
+        return scaleMode == PlayerPrefs.SCALE_CROP ? "铺满（等比，裁掉边缘）"
+                : scaleMode == PlayerPrefs.SCALE_STRETCH ? "拉伸（比例会变形）" : "适配（等比、完整可见）";
     }
 
     private void updateScaleChip() {
-        scaleChip.setText(scaleMode == PlayerPrefs.SCALE_CROP ? "铺满裁切"
-                : scaleMode == PlayerPrefs.SCALE_STRETCH ? "拉伸" : "适配");
+        scaleChip.setText(scaleMode == PlayerPrefs.SCALE_CROP ? "铺满"
+                : scaleMode == PlayerPrefs.SCALE_STRETCH ? "拉伸·变形" : "适配");
     }
 
     /**
-     * 视频画面映射。默认 FIT：等比缩放到完整可见，四周留黑 —— 这是「不压缩、不变形」的唯一正确解。
-     * CROP 用 max 比例（会裁掉边缘），STRETCH 才让 x/y 各自缩放（会变形，仅特殊片源需要）。
+     * 按视频比例摆放画面盒子（v1.94.0 起不再用 TextureView 的 transform）。
+     *
+     * <p>transform 方案有两个硬伤：① 依赖调用时机 —— view 还没 layout 时
+     * {@code getWidth()==0} 只能跳过，之后没有任何地方会再算一次，画面就按
+     * TextureView 的默认行为被拉满整个窗口（横视频在竖屏里被压扁/拉长）；
+     * ② 渲染器自己也会写 transform 做像素宽高比校正，两边抢着设，
+     * 谁生效取决于回调顺序 —— 表现为「有时按比例、有时变形」。</p>
+     *
+     * <p>改走布局：TextureView 的宽高设成「视频比例 × 缩放系数」并居中。
+     * 适配留黑、铺满溢出被裁，只有拉伸档才满屏变形。布局天然跟着容器尺寸重算，
+     * 转屏/分屏/挖孔变化都不需要额外补偿。</p>
      */
     private void applyScale() {
-        if (texture == null || videoW <= 0 || videoH <= 0) return;
-        int vw = texture.getWidth();
-        int vh = texture.getHeight();
-        if (vw <= 0 || vh <= 0) return;
-        float sx = (float) vw / videoW;
-        float sy = (float) vh / videoH;
-        Matrix m = new Matrix();
-        if (scaleMode == PlayerPrefs.SCALE_STRETCH) {
-            m.setScale(sx, sy, vw / 2f, vh / 2f);
+        if (texture == null || root == null) return;
+        int cw = root.getWidth(), ch = root.getHeight();
+        if (cw <= 0 || ch <= 0) return;              // 还没 layout，等布局监听再来
+        int w, h;
+        float s = scaleMode == PlayerPrefs.SCALE_STRETCH ? 0f
+                : ScreenPolicy.scaleFor(scaleMode == PlayerPrefs.SCALE_CROP,
+                videoW, videoH, cw, ch);
+        if (s <= 0f) {
+            w = cw;
+            h = ch;                                   // 拉伸档，或视频尺寸还没解析出来
         } else {
-            float s = scaleMode == PlayerPrefs.SCALE_CROP ? Math.max(sx, sy) : Math.min(sx, sy);
-            m.setScale(s, s, vw / 2f, vh / 2f);
+            w = Math.max(1, Math.round(videoW * s));
+            h = Math.max(1, Math.round(videoH * s));
         }
-        texture.setTransform(m);
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) texture.getLayoutParams();
+        if (lp == null) {
+            lp = new FrameLayout.LayoutParams(w, h);
+        } else if (lp.width == w && lp.height == h && lp.gravity == Gravity.CENTER) {
+            return;                                   // 没变就不动，避免反复 requestLayout
+        }
+        lp.width = w;
+        lp.height = h;
+        lp.gravity = Gravity.CENTER;
+        texture.setLayoutParams(lp);
+    }
+
+    // ---------------------------------------------------------- 方向
+
+    private boolean isLandscapeNow() {
+        return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+    }
+
+    /**
+     * 按「档位 + 视频比例」请求屏幕方向。
+     *
+     * <p>用 SENSOR_* 而不是 LANDSCAPE/PORTRAIT：允许用户把手机上下颠倒继续看，
+     * 横屏时也能左右手互换握持方向。</p>
+     */
+    private void applyOrientation() {
+        boolean want = ScreenPolicy.wantLandscape(orientMode, videoW, videoH, isLandscapeNow());
+        if (backPortrait && orientMode == ScreenPolicy.AUTO) want = false;
+        int target = want ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                : ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT;
+        android.util.Log.i(TAG, "applyOrientation mode=" + orientMode + " video=" + videoW + "x" + videoH
+                + " land=" + isLandscapeNow() + " want=" + want + " target=" + target
+                + " cur=" + getRequestedOrientation());
+        if (getRequestedOrientation() != target) setRequestedOrientation(target);
+        scheduleReframe();
+    }
+
+    /** 转屏过程中容器尺寸会连续变化，多打几个时间点，保证最后一帧的比例是对的 */
+    private void scheduleReframe() {
+        final int[] delays = {60, 180, 360, 700};
+        for (int i = 0; i < delays.length; i++) {
+            ui.postDelayed(new Runnable() {
+                public void run() { applyScale(); }
+            }, delays[i]);
+        }
+    }
+
+    /** 第一帧的 VideoSize 到达后决定横竖屏；每换一片只判一次，不跟用户手动选择打架 */
+    private void maybeAutoOrient() {
+        if (orientationDecided) return;
+        if (videoW <= 0 || videoH <= 0) return;
+        orientationDecided = true;
+        android.util.Log.i(TAG, "maybeAutoOrient video=" + videoW + "x" + videoH + " mode=" + orientMode);
+        applyOrientation();
+    }
+
+    /** 底栏「方向」胶囊：自动 → 竖屏 → 横屏 → 自动 */
+    private void cycleOrientation() {
+        applyOrientMode(ScreenPolicy.next(orientMode));
+    }
+
+    /** 选定一个方向档位：持久化 + 立即生效 + 刷新胶囊文案 */
+    private void applyOrientMode(int mode) {
+        orientMode = ScreenPolicy.normalize(mode);
+        backPortrait = false;
+        PlayerPrefs.setOrientation(this, orientMode);
+        updateOrientChip();
+        applyOrientation();
+        toast("画面方向：" + ScreenPolicy.describe(orientMode));
+    }
+
+    /** 三选一对话框：比「连点胶囊三次」直观，尤其是只想锁定一个方向的时候 */
+    private void showOrientationDialog() {
+        final int[] modes = {ScreenPolicy.AUTO, ScreenPolicy.PORTRAIT, ScreenPolicy.LANDSCAPE};
+        String[] labels = {
+                "自动 —— 横视频横屏、竖视频竖屏",
+                "竖屏 —— 锁定，横视频等比缩小（上下留黑）",
+                "横屏 —— 锁定，竖视频等比缩小（左右留黑）"
+        };
+        int checked = 0;
+        for (int i = 0; i < modes.length; i++) {
+            if (modes[i] == orientMode) checked = i;
+        }
+        new HfDialogBuilder(this)
+                .setTitle("画面方向")
+                .setSingleChoiceItems(labels, checked, new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int which) {
+                        d.dismiss();
+                        applyOrientMode(modes[which]);
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+        showControls();
+    }
+
+    private void updateOrientChip() {
+        if (orientChip != null) orientChip.setText("方向 " + ScreenPolicy.label(orientMode));
     }
 
     private void cycleLoop() {
@@ -795,17 +946,6 @@ public class VideoPlayerActivity extends BaseActivity {
     private void updateLoopChip() {
         loopChip.setText(repeatMode == Player.REPEAT_MODE_ONE ? "循环 单个"
                 : repeatMode == Player.REPEAT_MODE_ALL ? "循环 列表" : "循环 关");
-    }
-
-    private void toggleOrientation() {
-        int cur = getResources().getConfiguration().orientation;
-        setRequestedOrientation(cur == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-                ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-        // 旋屏后 TextureView 尺寸会变，transform 必须按新尺寸重算
-        ui.postDelayed(new Runnable() {
-            public void run() { applyScale(); }
-        }, 350);
     }
 
     // ============================================================ 信息 / 错误
@@ -834,6 +974,12 @@ public class VideoPlayerActivity extends BaseActivity {
                 sb.append('\n');
             }
             sb.append("倍速：").append(PlaySpeed.label(speed)).append('\n');
+            if (videoW > 0 && videoH > 0) {
+                sb.append("画面：").append(videoW).append("×").append(videoH)
+                        .append("（").append(ratioText()).append("）\n");
+            }
+            sb.append("显示：").append(scaleText()).append('\n');
+            sb.append("方向：").append(ScreenPolicy.describe(orientMode)).append('\n');
             sb.append("解码：MediaCodec 硬件解码（失败自动回退软解）\n");
             sb.append("内核：Media3 ExoPlayer 1.4.1\n");
             if (qualities != null && qualities.hasChoice()) {
@@ -1090,10 +1236,10 @@ public class VideoPlayerActivity extends BaseActivity {
         List<String> ops = new ArrayList<String>();
         ops.add("播放速度");
         if (qualities != null && qualities.hasChoice()) ops.add("画质（" + qualities.variants().size() + " 档）");
-        ops.add("画面缩放：" + (scaleMode == PlayerPrefs.SCALE_CROP ? "铺满裁切"
-                : scaleMode == PlayerPrefs.SCALE_STRETCH ? "拉伸" : "适配"));
+        ops.add("画面缩放：" + (scaleMode == PlayerPrefs.SCALE_CROP ? "铺满"
+                : scaleMode == PlayerPrefs.SCALE_STRETCH ? "拉伸·变形" : "适配"));
         ops.add("播放信息");
-        ops.add("全屏 / 竖屏切换");
+        ops.add("画面方向：" + ScreenPolicy.label(orientMode));
         if (stream) ops.add("复制地址");
         else ops.add("用其他应用打开");
         ops.add("重新加载");
@@ -1119,7 +1265,7 @@ public class VideoPlayerActivity extends BaseActivity {
         }
         if (which == i++) { cycleScale(); return; }
         if (which == i++) { showInfo(); return; }
-        if (which == i++) { toggleOrientation(); return; }
+        if (which == i++) { showOrientationDialog(); return; }
         if (which == i++) {
             if (stream) copyUrl();
             else OpenWith.open(this, new File(sources.get(index)));
@@ -1165,6 +1311,24 @@ public class VideoPlayerActivity extends BaseActivity {
         long r = Math.round(v * 100);
         if (r % 100 == 0) return String.valueOf(r / 100);
         return String.valueOf(r / 100f);
+    }
+
+    /** 宽高比文案：能约成 16:9 这种常见写法就用它，约不出来就给 2.35:1 */
+    private String ratioText() {
+        if (videoW <= 0 || videoH <= 0) return "未知";
+        int g = gcd(videoW, videoH);
+        int a = videoW / g, b = videoH / g;
+        if (a <= 32 && b <= 32) return a + ":" + b;
+        return String.format(Locale.US, "%.2f:1", (float) videoW / videoH);
+    }
+
+    private static int gcd(int a, int b) {
+        while (b != 0) {
+            int t = a % b;
+            a = b;
+            b = t;
+        }
+        return a == 0 ? 1 : a;
     }
 
     private int dp(float v) {
@@ -1257,6 +1421,14 @@ public class VideoPlayerActivity extends BaseActivity {
     // ---------------- 系统栏
 
     private void hideSystemBars() {
+        // 挖孔屏：默认 cull 掉挖孔所在的短边（Pixel 竖屏时是顶部 128px），
+        // 表现是整页被内缩、顶栏悬浮在半空。播放器底色是纯黑，延伸进挖孔区没有副作用。
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            WindowManager.LayoutParams lp = getWindow().getAttributes();
+            lp.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            getWindow().setAttributes(lp);
+        }
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                         | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
@@ -1271,6 +1443,7 @@ public class VideoPlayerActivity extends BaseActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        hideSystemBars();          // 从后台回来时系统栏可能又被放回来了
         syncPlayUi();
         startTicking();
     }
@@ -1313,16 +1486,30 @@ public class VideoPlayerActivity extends BaseActivity {
         return false;
     }
 
+    /**
+     * 转屏不重建（清单里声明了 orientation|screenSize），这里只做两件事：
+     * 重新进沉浸模式（转屏后系统栏会自己冒出来），以及按新的容器尺寸重算画面盒子。
+     */
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // 转屏后系统会把状态栏/导航栏放回来（沉浸标志被重置），表现为整页被下推一个
+        // 状态栏高度、顶栏之上多一条黑。补两次：一次立即，一次等系统栏动画收尾。
+        hideSystemBars();
+        ui.postDelayed(new Runnable() {
+            public void run() { hideSystemBars(); }
+        }, 420);
+        scheduleReframe();
+    }
+
     @Override
     public void onBackPressed() {
-        // 全屏横屏时按返回先回到竖屏，再按一次才退出 —— 与主流播放器一致
-        if (getResources().getConfiguration().orientation
-                == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-                && getRequestedOrientation() == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) {
-            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-            ui.postDelayed(new Runnable() {
-                public void run() { applyScale(); }
-            }, 350);
+        // 横屏看片时按返回先回竖屏，再按一次才退出 —— 与主流播放器一致。
+        // backPortrait 只在本次生效：用户偏好（orientMode）不动，下次进来仍按「自动」走。
+        if (isLandscapeNow()) {
+            backPortrait = true;
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT);
+            scheduleReframe();
             return;
         }
         super.onBackPressed();

@@ -1668,6 +1668,110 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.94.0 —— 画面方向跟视频比例走，且永不变形
+
+### 症状
+
+真机上打开任何视频都是竖屏，横着拍的片子被塞进竖屏窗口拉满整屏，人脸变胖、
+文字变宽 —— 比例全乱。转到横屏反而正常。
+
+### 两个独立的原因，叠在一起才这么难看
+
+**一、Activity 没有声明方向**。`VideoPlayerActivity` 的清单里没写
+`android:screenOrientation`，于是它跟随系统方向：手机竖着拿就是竖屏窗口，
+不管里放的是一部 16:9 电影还是竖屏短视频。
+
+**二、`applyScale()` 用 TextureView 的 transform 做 letterbox，时机是错的**：
+
+```java
+// v1.93.0 及以前
+private void applyScale() {
+    if (texture == null || videoW <= 0 || videoH <= 0) return;
+    int vw = texture.getWidth();       // ← 还没 layout 时是 0
+    if (vw <= 0 || vh <= 0) return;    // ← 直接跳过，此后没人再算第二次
+    ...
+    texture.setTransform(m);
+}
+```
+
+`onVideoSizeChanged` 通常在首帧之前就到了，那一刻 TextureView 还没 measure/layout，
+`getWidth()` 返回 0，函数静默返回。**transform 保持单位矩阵，而 TextureView 的默认行为
+就是把 buffer 拉伸到 view 大小** —— 于是视频被拉满整个窗口，比例尽毁。转到横屏时
+容器尺寸变了会再触发一次 `onVideoSizeChanged`（部分机型），所以才出现「横屏反而好」的怪现象。
+
+附带一个问题：渲染器自己也会写这个 transform 做像素宽高比校正，两边抢着设，
+最终谁生效取决于回调顺序 —— 表现为「有时按比例、有时变形」，很难复现。
+
+### 改法
+
+**1. 新增 `ScreenPolicy.java`（纯 Java，58 项桌面单测）**
+
+把「该横还是该竖」和「画面占多大」从 Activity 里抽出来，变成可测的纯函数：
+
+| 方法 | 作用 |
+| --- | --- |
+| `next()` / `label()` / `describe()` | 三档循环：自动 → 竖屏 → 横屏 → 自动 |
+| `isWide(w,h)` | 宽 **严格**大于高才算横视频（1:1 方形视频竖着放更满） |
+| `wantLandscape(mode,w,h,current)` | 尺寸未知时保持现状，避免「先竖一下再横过去」的闪动 |
+| `scaleFor(crop,w,h,cw,ch)` | 只给等比比例：FIT 取 min、CROP 取 max，**拉伸永远不参与** |
+
+**2. 缩放从 transform 改成布局**
+
+TextureView 的宽高直接设成「视频比例 × 缩放系数」，`gravity=center` 摆中间：
+
+- 适配：画面完整可见，多出来的方向留黑边（用户要的「画面放小、按原比例」）；
+- 铺满：等比放大到填满，超出部分被 FrameLayout 裁掉；
+- 拉伸：满屏，比例失真 —— 明确标注为「拉伸·变形」，且**不再记忆**（见下）。
+
+布局方案的额外好处：尺寸变化天然由 View 系统驱动，转屏/分屏/挖孔 insets 变化
+都会自动重算，不需要任何延迟补偿。`vp_root` 上挂一个 `OnLayoutChangeListener`
+兜住「首帧早于 layout」这个时序坑。
+
+**3. 方向三档，默认自动**
+
+- 自动（默认）：`VideoSize` 到了以后判一次，横视频请求 `SENSOR_LANDSCAPE`、
+  竖视频请求 `SENSOR_PORTRAIT`。用 `SENSOR_*` 而不是 `LANDSCAPE/PORTRAIT`，
+  这样用户把手机上下颠倒也能继续看；
+- 竖屏 / 横屏：用户显式锁定，不随片源变，写入 `PlayerPrefs` 长期记住；
+- 每换一个视频只重判一次（`orientationDecided`），不会跟用户手动选择打架；
+- 返回键：横屏时先回竖屏（`backPortrait`，仅本次生效，不改偏好），再按一次才退出。
+
+**4. 顺手修掉的两个体验坑**
+
+- **「拉伸」不落盘**：以前点一次拉伸就永久变形，下次打开还是拉伸。现在拉伸档不写
+  SharedPreferences，启动时若读到旧值也会回落「适配」；
+- **转屏后沉浸失效**：`setRequestedOrientation` 会把状态栏放回来，表现是整页被下推
+  一个状态栏高度、顶栏上面多一条黑。`onConfigurationChanged` 里补两次
+  `hideSystemBars()`（立即 + 420ms），`onResume` 也补一次；
+- **挖孔屏内缩**：默认 cutout 模式会把整页挤出挖孔所在短边（Pixel 6 竖屏顶部 128px、
+  横屏左侧 128px），顶栏因此悬在半空。改成 `LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES`
+  （API 28+，播放器纯黑底，延伸进挖孔区没有副作用）。
+
+**5. 底栏胶囊改成可横向滚动**
+
+从 5 个胶囊变成 6 个（多了「方向」）。320dp 窄屏上原来最后一个会被屏幕边缘裁掉，
+现在套一层 `HorizontalScrollView`，控制条隐藏时整条不可点，不会抢手势。
+
+### 验证
+
+- 桌面单测 `ScreenPolicyTest`：58 项断言，覆盖三档循环、脏值收敛、1:1 方形、
+  尺寸未知、21:9 超宽片源、以及「FIT 输出比例恒等于源比例」的不变式；
+- QUICK 全套 **43 项通过**；
+- 真机 Pixel 6 / Android 15：
+  - 1150×640 的横屏片：进播放器自动转横屏，`vp_texture` 实测
+    `[229,0][2170,1080]`（1941×1080，居中，左右各留 229/230px 黑边）—— 正好是 1.80:1；
+  - 挖孔全屏后 `vp_root` 实测 `[0,0][2400,1080]`，顶栏贴着屏幕最上沿不再下坠 128px；
+  - 点「方向」切到竖屏：屏幕转回 1080×2400，`vp_texture` 变成
+    `[0,899][1080,1500]`（1080×601，正好 1.797:1，上下各留 899/900px 黑边，居中），画面不再被拉伸；
+  - `logcat -s HexPlayer`：`maybeAutoOrient video=1150x640 mode=0` →
+    `applyOrientation ... want=true target=6`；点胶囊后
+    `orient chip clicked, mode=0` → `applyOrientation mode=1 ... target=7`，
+    `dumpsys window displays` 的 `cur=` 从 `2400x1080` 变成 `1080x2400`。
+
+- 版本 **1.94.0（versionCode 166）**，APK 约 15MB。
+
+---
+
 ## v1.93.0 —— 修两个「只有真机才炸」的崩溃
 
 v1.91.0 / v1.92.0 在真机（Pixel 6 / Android 15）上点开 `/sdcard/123.mp4` 直接闪退。

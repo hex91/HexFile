@@ -206,48 +206,51 @@
                 android:textSize="12sp" />
         </LinearLayout>
 
-        <LinearLayout
+        <!-- 胶囊行：窄屏（320dp）上六个胶囊放不下，套一层横向滚动兜底，
+             而不是让最后一个被屏幕边缘裁掉。控制条隐藏时整条不可点，不会抢手势。 -->
+        <HorizontalScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginTop="2dp">
+            android:layout_marginTop="2dp"
+            android:scrollbars="none"
+            android:overScrollMode="never">
 
-            <TextView
-                android:id="@+id/vp_speed"
-                style="@style/VpChip"
-                android:text="1.0×" />
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
 
-            <TextView
-                android:id="@+id/vp_quality"
-                style="@style/VpChip"
-                android:text="画质 自动" />
+                <TextView
+                    android:id="@+id/vp_speed"
+                    style="@style/VpChip"
+                    android:text="1.0×" />
 
-            <TextView
-                android:id="@+id/vp_scale"
-                style="@style/VpChip"
-                android:text="适配" />
+                <TextView
+                    android:id="@+id/vp_quality"
+                    style="@style/VpChip"
+                    android:text="画质 自动" />
 
-            <TextView
-                android:id="@+id/vp_loop"
-                style="@style/VpChip"
-                android:text="循环 关" />
+                <TextView
+                    android:id="@+id/vp_scale"
+                    style="@style/VpChip"
+                    android:text="适配" />
 
-            <TextView
-                android:id="@+id/vp_info"
-                style="@style/VpChip"
-                android:text="信息" />
+                <TextView
+                    android:id="@+id/vp_orient"
+                    style="@style/VpChip"
+                    android:text="方向 自动" />
 
-            <TextView
-                android:id="@+id/vp_stretch_spacer"
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1" />
+                <TextView
+                    android:id="@+id/vp_loop"
+                    style="@style/VpChip"
+                    android:text="循环 关" />
 
-            <TextView
-                android:id="@+id/vp_fullscreen"
-                style="@style/VpChip"
-                android:text="全屏" />
-        </LinearLayout>
+                <TextView
+                    android:id="@+id/vp_info"
+                    style="@style/VpChip"
+                    android:text="信息" />
+            </LinearLayout>
+        </HorizontalScrollView>
     </LinearLayout>
 </FrameLayout>

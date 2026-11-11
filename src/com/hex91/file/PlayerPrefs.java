@@ -60,6 +60,19 @@ public final class PlayerPrefs {
         sp(c).edit().putInt("scale", mode).apply();
     }
 
+    /**
+     * 画面方向偏好，取值用 {@link ScreenPolicy#AUTO}/{@code PORTRAIT}/{@code LANDSCAPE}。
+     * 默认 AUTO：横视频自动横屏，竖视频自动竖屏 —— 用户第一次用就该是对的，
+     * 不该先去设置里翻一遍。
+     */
+    public static int orientation(Context c) {
+        return ScreenPolicy.normalize(sp(c).getInt("orient", ScreenPolicy.AUTO));
+    }
+
+    public static void setOrientation(Context c, int mode) {
+        sp(c).edit().putInt("orient", ScreenPolicy.normalize(mode)).apply();
+    }
+
     public static boolean thumbsEnabled(Context c) {
         return sp(c).getBoolean("thumbs", true);
     }
