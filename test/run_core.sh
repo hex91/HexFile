@@ -74,13 +74,32 @@ else
   TESTS="$ALL"
 fi
 
-pass=0; fail=0
+pass=0; fail=0; skipped=0
 for t in $TESTS; do
   case $t in
     KeyStoreUtilTest) ARG="";;
     SessionTest) ARG="test/huangguo.apk assets/hexfile.p12";;
     *) ARG="test/huangguo.apk";;
   esac
+  # v1.96.0：样本 APK 不入库（.gitignore 里 *.apk），CI 上必然没有 —— 缺文件就 SKIP，
+  # 不然整条流水线会因为「本机样本没上传」而变红，测试就白接了。
+  miss=""
+  for f in $ARG; do [ -f "$f" ] || miss="$miss $f"; done
+  if [ -n "$miss" ]; then
+    printf '[..] %-20s SKIP (缺%s)\n' "$t" "$miss"
+    skipped=$((skipped + 1))
+    continue
+  fi
+  # v1.96.0：样本 APK 不入库（.gitignore 里 *.apk），CI 上必然没有 —— 缺文件就 SKIP，
+  # 不然整条流水线会因为「本机样本没上传」而变红，测试就白接了。
+  miss=""
+  for f in $ARG; do [ -f "$f" ] || miss="$miss $f"; done
+  if [ -n "$miss" ]; then
+    printf '[..] %-20s SKIP (缺%s)
+' "$t" "$miss"
+    skipped=$((skipped + 1))
+    continue
+  fi
   printf '[..] %-20s ' "$t"
   start=$(date +%s)
   if timeout 420 "$JH/java$EXE" -Dfile.encoding=UTF-8 -cp "$OUT${SEP}$CP" "$t" $ARG \
@@ -94,5 +113,5 @@ for t in $TESTS; do
   fi
 done
 echo "-----------------------------------------"
-echo "pass=$pass fail=$fail"
+echo "pass=$pass fail=$fail skip=$skipped"
 [ "$fail" -eq 0 ] || exit 1
