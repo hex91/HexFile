@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.95.3 底栏「画质」图标：显示器（屏幕 + 底座），代表分辨率档位 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="16dp"
+    android:height="16dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M3.2,4.5 h17.6 v12.4 h-17.6 z"
+        android:strokeColor="#F2FFFFFF"
+        android:strokeLineJoin="round"
+        android:strokeWidth="1.7" />
+
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M8.6,20.2 h6.8"
+        android:strokeColor="#F2FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="1.8" />
+</vector>

@@ -52,31 +52,20 @@
     </style>
 
     <!-- v1.91.0：播放器底栏胶囊按钮（黑底白字，固定配色，不随主题变化） -->
-    <!-- v1.95.2：胶囊从「纯文字」改成「图标 + 极短状态词」。
-         图标 16dp 由 vector 的 intrinsic 尺寸决定，drawablePadding 4dp，
-         左右 padding 收到 9dp —— 六个胶囊在 320dp 窄屏上还能一屏放下。 -->
+    <!-- v1.95.2 起胶囊是「图标 + 短状态词」；v1.95.3 把所有胶囊（含倍速/画质/信息/
+         右下角全屏）统一成同一形态 —— 纯图标胶囊在空文本时 compound drawable 会贴左，
+         右边留一块很像「预留了文字却忘了写」的空白，反而更难看。 -->
     <style name="VpChip">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">32dp</item>
         <item name="android:layout_marginRight">6dp</item>
         <item name="android:paddingLeft">9dp</item>
-        <item name="android:paddingRight">9dp</item>
+        <item name="android:paddingRight">10dp</item>
         <item name="android:drawablePadding">4dp</item>
         <item name="android:gravity">center</item>
         <item name="android:textSize">12sp</item>
         <item name="android:textColor">#E6FFFFFF</item>
         <item name="android:maxLines">1</item>
-        <item name="android:background">@drawable/vp_chip</item>
-    </style>
-
-    <!-- 纯图标胶囊（信息 / 右下角全屏-竖屏）：没有文字，靠 40dp 宽度撑出手指可点面积 -->
-    <style name="VpChipIcon">
-        <item name="android:layout_width">40dp</item>
-        <item name="android:layout_height">32dp</item>
-        <item name="android:layout_marginRight">6dp</item>
-        <item name="android:paddingLeft">0dp</item>
-        <item name="android:paddingRight">0dp</item>
-        <item name="android:gravity">center</item>
         <item name="android:background">@drawable/vp_chip</item>
     </style>
     <!-- v1.91.0：播放器的「启动窗口」主题。

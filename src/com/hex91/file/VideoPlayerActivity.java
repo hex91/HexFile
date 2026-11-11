@@ -965,11 +965,13 @@ public class VideoPlayerActivity extends BaseActivity {
         if (orientChip != null) orientChip.setText(ScreenPolicy.label(orientMode));
     }
 
-    /** 右下角那颗固定按钮：竖屏时是「撑开」图标，横屏时是「竖屏手机」图标 */
+    /** 右下角那颗固定按钮：竖屏是「撑开 + 全屏」，横屏是「竖屏手机 + 竖屏」 */
     private void updateFsChip() {
         if (fsChip == null) return;
+        boolean land = isLandscapeNow();
+        fsChip.setText(land ? "竖屏" : "全屏");
         fsChip.setCompoundDrawablesWithIntrinsicBounds(
-                isLandscapeNow() ? R.drawable.ic_vp_portrait : R.drawable.ic_vp_expand, 0, 0, 0);
+                land ? R.drawable.ic_vp_portrait : R.drawable.ic_vp_expand, 0, 0, 0);
     }
 
     /**
