@@ -148,6 +148,8 @@ public final class M3u8Playlist {
 
         for (int i = 0; i < raw.length; i++) {
             String line = stripCr(raw[i]).trim();
+            // 带 BOM 的清单（Windows 上编辑过）首行是 \uFEFF#EXTM3U，trim 去不掉它
+            if (i == 0) line = HlsPlaylist.stripBom(line);
             if (line.isEmpty()) continue;
 
             if (line.charAt(0) == '#') {
@@ -174,7 +176,7 @@ public final class M3u8Playlist {
         if (master) return new M3u8Playlist(KIND_MASTER, out);
         if (media) return new M3u8Playlist(KIND_MEDIA, Collections.<Variant>emptyList());
         // 既没有 STREAM-INF 也没有 EXTINF：可能是被截断的列表，按 media 处理（交给播放器自己判断）
-        return new M3u8Playlist(text.trim().startsWith("#EXTM3U") ? KIND_MEDIA : KIND_UNKNOWN,
+        return new M3u8Playlist(HlsPlaylist.stripBom(text).trim().startsWith("#EXTM3U") ? KIND_MEDIA : KIND_UNKNOWN,
                 Collections.<Variant>emptyList());
     }
 
@@ -261,7 +263,15 @@ public final class M3u8Playlist {
         int q = b.indexOf('?');
         if (q >= 0) b = b.substring(0, q);
         int slash = b.lastIndexOf('/');
-        String dir = slash > 0 ? b.substring(0, slash + 1) : b;
+        int scheme = schemeEnd(b);
+        String dir;
+        if (slash < 0) {
+            dir = scheme > 0 ? b + "/" : "";       // 「https://host」没有路径；相对 base 视为同目录
+        } else if (scheme > 0 && slash <= scheme + 2) {
+            dir = b + "/";                          // https://host 的最后一个 / 就是 // 的第二个
+        } else {
+            dir = b.substring(0, slash + 1);
+        }
         return normalizePath(dir + u);
     }
 
@@ -296,9 +306,16 @@ public final class M3u8Playlist {
             }
             keep.add(s);
         }
+        // 保留「相对 / 绝对」：以前无条件补前导 /，相对 base（playlist.m3u8、dir/playlist.m3u8）
+        // 会被拼成 /playlist.m3u8seg.ts 这种既多斜杠又变成站点绝对路径的怪东西。
+        boolean absolutePath = head.startsWith("/");
         StringBuilder sb = new StringBuilder(prefix);
-        for (String s : keep) sb.append('/').append(s);
-        if (head.endsWith("/") && sb.length() > 0) sb.append('/');
+        if (absolutePath) sb.append('/');
+        for (String s : keep) {
+            if (sb.length() > 0 && sb.charAt(sb.length() - 1) != '/') sb.append('/');
+            sb.append(s);
+        }
+        if (head.endsWith("/") && sb.length() > 0 && sb.charAt(sb.length() - 1) != '/') sb.append('/');
         return sb + tail;
     }
 

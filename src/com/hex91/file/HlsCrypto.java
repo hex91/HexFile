@@ -39,8 +39,10 @@ public final class HlsCrypto {
         if (key == null || key.length != 16) throw new GeneralSecurityException("AES-128 密钥长度必须是 16 字节");
         if (iv == null || iv.length != 16) throw new GeneralSecurityException("AES IV 长度必须是 16 字节");
 
-        // 明文分片：不加密却带了 KEY 行，原样返回（否则一定解出乱码）
-        if (looksLikeTs(data)) return data;
+        // 明文分片：不加密却带了 KEY 行，原样返回（否则一定解出乱码）。
+        // fMP4 也要放行：styp/moof 开头的分片长度常常正好是 16 的倍数，
+        // 只认 TS 的话会把它当密文丢进 CBC，最后报「密钥或 IV 与清单不匹配」。
+        if (looksLikeTs(data) || looksLikeFmp4(data)) return data;
         if (data.length % 16 != 0) {
             // 不是 16 的倍数，绝不可能是 CBC 密文；当成明文交出去，让后面的转封装去报具体错误
             return data;

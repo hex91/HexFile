@@ -1668,6 +1668,107 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.95.4 —— 一轮代码审查的 13 项修复（含两个下载器 P0）
+
+外部审查报了一批问题，逐条核对代码后**全部属实**，按严重度修完并补了能复现的测试。
+
+### P0-1 续传时闸门提前归零，还在下载的分片被 shutdownNow 打断
+
+`new CountDownLatch(total - resumed)`，但 worker 遍历的是全部 0..total-1，
+遇到已存在的 `.seg` 又 `countDown()` 一次 —— 总扣数仍是 total，闸门提前落零，
+主线程 `shutdownNow()` 打断还在写盘的分片，合并时 `FileNotFoundException`，
+或者「看起来成功」但少几片。
+
+改成 `new CountDownLatch(total)`：每个索引恰好扣一次（已续传的走 isFile 分支，
+其余走 finally），三条路径（正常/失败/取消）都收敛。
+
+**复现验证**：把这一行临时改回旧写法，`HlsDownloaderTest` 立刻在
+`000002.seg` 上抛 `FileNotFoundException`；改回后 4 秒通过。
+
+### P0-2 任一分片失败，主线程永远等不到闸门（下载无限卡住）
+
+worker 失败后其余 worker 在 `if (fatal[0] != null) return;` 直接退出、不扣闸门；
+主循环只检查取消 → 每 300ms 空转，永远不结束，真实错误也到不了用户面前。
+
+```java
+while (!latch.await(300, TimeUnit.MILLISECONDS)) {
+    if (fatal[0] != null) break;      // 新增：有 worker 失败立即收尾
+    if (cancel.get() || esc != null && esc.cancelled()) { cancel.set(true); break; }
+}
+```
+
+### P1-1 S3 的 `<Message>` 永远丢失（403 只剩一个干巴巴的状态码）
+
+调用点先 `consume(c)`（读干 errorStream + disconnect），再进 `httpErr` 取
+`getErrorStream()` —— 已经是 null。改由 `httpErr` 自己读 body 再断开，
+6 个调用点去掉 `consume`。现在能看到 `SignatureDoesNotMatch` / `NoSuchBucket`。
+
+### P1-2 明文 fMP4 分片被当密文解密
+
+`decrypt` 只对 TS 做明文放行。明文 fMP4（`styp`/`moof` 开头）长度常是 16 的倍数，
+会走进 CBC 分支并报「密钥或 IV 与清单不匹配」。加 `looksLikeFmp4(data)` 放行。
+
+> 没有用 `looksLikeMedia` 代替：里面的 ADTS 判定只有 12 bit（`0xFFF`），
+> 密文有 1/4096 概率被误判成明文而原样放行；fMP4 的 4 字节定长签名误判率可忽略。
+
+### P2-1 AES 的 `hex:` IV 被当文本截断
+
+`fitIv` 用 `iv.getBytes()`，而 `fitKey` 走 `toKeyBytes`（支持 `hex:`）。
+用户按密钥的习惯填 `hex:000102…0f`，32 个 ASCII 字符被截成 16 个字符当 IV。
+改成 `byte[] src = toKeyBytes(iv)`，与密钥同一套规则；测试用 JCE 直接加密对了一遍。
+
+### P2-2 Punycode 用 UTF-16 长度当码点数
+
+`out.length()` 对 emoji 返回 2，而 RFC 3492 的 `out.length()` 是码点数。
+两个以上增补平面字符时 `i % len` 与插入位置全错。改用
+`codePointCount` + `offsetByCodePoints`。
+
+### P2-3 续传只按序号复用 `.seg`，没有清单指纹
+
+上次取消留下的 `.parts`，下次下另一个同名 base 的片子（`index`/`playlist`/`video`
+太常见）或同一片源清单更新，序号一一对得上 → 静默拼出混合内容。
+现在在 parts 目录写 `.manifest`（地址 + 总片数 + 首末片序号/地址），对不上就整目录清掉。
+
+### P3-1 `M3u8Playlist.resolve` 对无路径/相对 base 解析错误
+
+| base | 旧结果 | 新结果 |
+| --- | --- | --- |
+| `https://host` | `https://seg.ts`（主机丢了） | `https://host/seg.ts` |
+| `playlist.m3u8` | `/playlist.m3u8seg.ts` | `seg.ts` |
+| `dir/playlist.m3u8` | `/dir/seg.ts` | `dir/seg.ts` |
+
+`normalizePath` 不再无条件补前导 `/`，只在原始 head 以 `/` 开头时才补。
+
+### P3-2 S3 签名头名先按原大小写排序
+
+`new TreeMap<>(headers)` 排序后 `toLowerCase`：调用方传 `X-Amz-Date` 时
+`'X'(88) < 'h'(104)`，签出来是 `x-amz-date;host`，服务端算的是 `host;x-amz-date` → 403。
+新增 `normalized()`：先小写 + 折叠值内连续空格，再排序，`canonicalRequest` 与
+`joinSortedKeys` 共用。
+
+### P4 零散项
+
+- `FileTaskEngine.measure` 只写了半截 null 守卫（`t != null && ...` 之后又 `t.totalFiles++`）→ 开头 `if (t == null || f == null) return;`；
+- `Iso8601` 未关宽容模式，`2023-02-30` 被滚成 `03-02` → `cal.setLenient(false)`，非法日期返回 0；
+- `M3u8Playlist.parse` 不认 BOM（`\uFEFF#EXTM3U` → kind 退化成 UNKNOWN）→ 复用 `HlsPlaylist.stripBom`；
+- 解密失败会重试 3 次 → 新增 `DecryptError`，`fetchSegment` 里直接抛出不再重试。
+
+**唯一没改**：`Contrast.luminance` 忽略 alpha。WCAG 的相对亮度定义本身就是不透明色，
+当前所有调用方传的都是不透明主题色；要支持半透明前景得先定义「合成到哪个背景」，
+属于 API 设计问题而不是 bug，留待真需要时再做。
+
+### 验证
+
+| 用例 | 内容 |
+| --- | --- |
+| `HlsDownloaderTest`（新） | 本地 HTTP 服务复现两个 P0：续传少片、分片 404 无限等 |
+| `AuditFixTest`（新） | hex IV 对 JCE、明文 fMP4/TS 放行、emoji punycode 往返、指纹敏感性 |
+| `M3u8PlaylistTest` | +6 条 base 解析、+1 条 BOM |
+| `S3SignerTest` | +3 条大写头名排序 / 值空白折叠 |
+| `Iso8601Test` | +5 条非法日期 |
+
+---
+
 ## v1.95.3 —— 底栏胶囊统一成「图标 + 文字」
 
 v1.95.2 把「信息」和右下角「全屏/竖屏」做成了纯图标胶囊，真机上一眼看出问题：

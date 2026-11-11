@@ -137,10 +137,21 @@ public final class S3Fs implements NetFs {
         return "";
     }
 
-    /** 错误信息：S3 把原因放在 XML 的 <Message> 里，尽量提取出来 */
-    private static IOException httpErr(String op, HttpURLConnection c) throws IOException {
-        int code = c.getResponseCode();
+    /**
+     * 错误信息：S3 把原因放在 XML 的 {@code <Message>} 里，尽量提取出来。
+     *
+     * <p>读 body 与断开连接必须由本方法负责。v1.95.3 及以前是调用点先
+     * {@code consume(c)}（读干 errorStream 再 disconnect），然后才进来取
+     * {@code getErrorStream()} —— 这时已经是 null，{@code <Message>} 永远取不到，
+     * 用户只看到「HTTP 403」，看不到 SignatureDoesNotMatch / NoSuchBucket 这类真正的原因。
+     * disconnect() 之后再 getResponseCode() 也不可靠，所以一并前置。</p>
+     */
+    private static IOException httpErr(String op, HttpURLConnection c) {
+        int code = -1;
         String body = "";
+        try {
+            code = c.getResponseCode();
+        } catch (Exception ignore) {}
         try {
             InputStream es = c.getErrorStream();
             if (es != null) {
@@ -149,7 +160,10 @@ public final class S3Fs implements NetFs {
                 if (n > 0) body = new String(b, 0, n, java.nio.charset.StandardCharsets.UTF_8);
                 es.close();
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ignore) {
+        } finally {
+            try { c.disconnect(); } catch (Exception ignore) {}
+        }
         String msg = pick(body, "Message");
         if (msg.isEmpty()) msg = pick(body, "Code");
         return new IOException(op + " 失败: HTTP " + code + hintOf(code)
@@ -198,7 +212,7 @@ public final class S3Fs implements NetFs {
 
             HttpURLConnection c = conn("GET", keyOf(path), q.toString(), S3Signer.EMPTY_SHA256, null);
             int code = c.getResponseCode();
-            if (code != 200) { consume(c); throw httpErr("列目录 " + path, c); }
+            if (code != 200) { throw httpErr("列目录 " + path, c); }
 
             String next = null;
             boolean truncated = false;
@@ -304,10 +318,10 @@ public final class S3Fs implements NetFs {
         int code = c.getResponseCode();
         if (offset > 0) {
             if (code == 200) { consume(c); throw new IOException("服务端忽略了 Range，无法续传"); }
-            if (code != 206) { consume(c); throw httpErr("续传 " + path, c); }
+            if (code != 206) { throw httpErr("续传 " + path, c); }
             return c.getInputStream();
         }
-        if (code != 200) { consume(c); throw httpErr("读取 " + path, c); }
+        if (code != 200) { throw httpErr("读取 " + path, c); }
         return c.getInputStream();
     }
 
@@ -367,7 +381,7 @@ public final class S3Fs implements NetFs {
                     try { os.close(); } catch (IOException ignore) {}
                 }
                 int code = c.getResponseCode();
-                if (code < 200 || code >= 300) { consume(c); throw httpErr("上传 " + path, c); }
+                if (code < 200 || code >= 300) { throw httpErr("上传 " + path, c); }
                 consume(c);
             } finally {
                 if (!tmp.delete()) tmp.deleteOnExit();
@@ -406,7 +420,7 @@ public final class S3Fs implements NetFs {
         c.setFixedLengthStreamingMode(0);
         c.getOutputStream().close();
         int code = c.getResponseCode();
-        if (code < 200 || code >= 300) { consume(c); throw httpErr("创建目录 " + path, c); }
+        if (code < 200 || code >= 300) { throw httpErr("创建目录 " + path, c); }
         consume(c);
     }
 
@@ -425,7 +439,7 @@ public final class S3Fs implements NetFs {
         HttpURLConnection c = conn("DELETE", key, "", S3Signer.EMPTY_SHA256, null);
         int code = c.getResponseCode();
         if (code == 404) { consume(c); return; }        // 占位对象可能本来就不存在
-        if (code != 204 && code != 200) { consume(c); throw httpErr("删除 " + key, c); }
+        if (code != 204 && code != 200) { throw httpErr("删除 " + key, c); }
         consume(c);
     }
 

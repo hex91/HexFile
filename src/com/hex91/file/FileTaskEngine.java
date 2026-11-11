@@ -390,9 +390,12 @@ public final class FileTaskEngine {
 
     /** 递归量体积：字节进 totalBytes、文件进 totalFiles（目录本身不计） */
     static void measure(File f, FileTask t, int depth) {
+        // t 允许为 null（量体积可以不挂任务），所以必须在最前面挡住，
+        // 否则下面 t.totalFiles++ 会 NPE —— 前面只写了 t != null 的半截守卫。
+        if (t == null || f == null) return;
         // 量体积也要能取消：几十万文件的大目录量一遍要好几秒，
         // 期间点取消却毫无反应，用户会以为按钮坏了。
-        if (t != null && t.cancelRequested) throw new Cancel();
+        if (t.cancelRequested) throw new Cancel();
         if (depth > MAX_DEPTH) return;
         if (f.isDirectory()) {
             File[] kids = f.listFiles();

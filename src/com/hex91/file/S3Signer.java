@@ -140,9 +140,8 @@ public final class S3Signer {
         sb.append(method).append('\n')
           .append(canonicalUri == null ? "/" : canonicalUri).append('\n')
           .append(canonicalQuery == null ? "" : canonicalQuery).append('\n');
-        for (Map.Entry<String, String> e : new TreeMap<String, String>(headers).entrySet()) {
-            sb.append(e.getKey().toLowerCase(Locale.US)).append(':')
-              .append(e.getValue() == null ? "" : e.getValue().trim()).append('\n');
+        for (Map.Entry<String, String> e : normalized(headers).entrySet()) {
+            sb.append(e.getKey()).append(':').append(e.getValue()).append('\n');
         }
         sb.append('\n')                       // CanonicalHeaders 之后必须有这一空行
           .append(signedHeaders).append('\n')
@@ -192,11 +191,31 @@ public final class S3Signer {
     /** 参与签名的头名（小写、字典序、分号连接） */
     public static String joinSortedKeys(Map<String, String> headers) {
         StringBuilder sb = new StringBuilder();
-        for (String k : new TreeMap<String, String>(headers).keySet()) {
+        for (String k : normalized(headers).keySet()) {
             if (sb.length() > 0) sb.append(';');
-            sb.append(k.toLowerCase(Locale.US));
+            sb.append(k);
         }
         return sb.toString();
+    }
+
+    /**
+     * 签名用的头集合：先统一小写 + 折叠值内空白，再按字典序排。
+     *
+     * <p>SigV4 要求「头名小写后」参与排序。v1.95.3 及以前直接对原 map 建 TreeMap，
+     * 调用方传 {@code X-Amz-Date} 时按大写排（'X' &lt; 'h'），签出来是
+     * {@code x-amz-date;host}，而服务端算的是 {@code host;x-amz-date} —— 必然 403。
+     * 头值也要 trim 后把连续空格折成一个，否则多行/带缩进的头会签不过。</p>
+     */
+    private static Map<String, String> normalized(Map<String, String> headers) {
+        Map<String, String> m = new TreeMap<String, String>();
+        if (headers == null) return m;
+        for (Map.Entry<String, String> e : headers.entrySet()) {
+            String k = e.getKey();
+            if (k == null) continue;
+            String v = e.getValue() == null ? "" : e.getValue().trim().replaceAll(" +", " ");
+            m.put(k.toLowerCase(Locale.US), v);
+        }
+        return m;
     }
 
     /** 文本的 UTF-8 字节 */

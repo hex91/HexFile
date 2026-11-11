@@ -68,6 +68,11 @@ public final class Iso8601 {
 
             Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
             cal.clear();
+            // 关闭宽容模式：2/30、4/31 这类日期以前会被 Calendar 静默滚动成 3/2、5/1，
+            // 于是「根本不存在的日期」也能算出一个时间戳参与续传比较。
+            // 关掉之后 set() 仍是惰性的，getTimeInMillis() 会抛 IllegalArgumentException，
+            // 由外层 catch 转成 0（= 时间未知）。
+            cal.setLenient(false);
             cal.set(year, month - 1, day, hour, minute, second);
             cal.set(Calendar.MILLISECOND, millis);
             return cal.getTimeInMillis() - offsetMin * 60_000L;

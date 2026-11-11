@@ -128,6 +128,28 @@ public class S3SignerTest {
                 h, S3Signer.EMPTY_SHA256, T);
         ok(!auth.equals(a6), "region 参与签名");
 
+        // ---------------------------------------------------------- v1.95.4 回归：头名先小写再排序
+        // 以前拿原 map 建 TreeMap，'X' (88) < 'h' (104) → x-amz-date 排到 host 前面，
+        // 与服务端算出的 SignedHeaders 不同 → 必然 403。S3Fs 自己传的都是小写所以没暴露。
+        Map<String, String> hUp = new HashMap<String, String>();
+        hUp.put("X-Amz-Date", "20130524T000000Z");
+        hUp.put("host", "examplebucket.s3.amazonaws.com");
+        hUp.put("X-Amz-Content-SHA256", S3Signer.EMPTY_SHA256);
+        eqs("host;x-amz-content-sha256;x-amz-date", S3Signer.joinSortedKeys(hUp),
+                "大写头名先小写再排序");
+
+        // 头值里的连续空格与首尾空白都要折叠（SigV4 CanonicalHeaders 规则）
+        Map<String, String> hUpVal = new HashMap<String, String>();
+        hUpVal.put("Host", "  examplebucket.s3.amazonaws.com  ");
+        eqs("GET\n/\n\nhost:examplebucket.s3.amazonaws.com\n\nhost\n" + S3Signer.EMPTY_SHA256,
+                S3Signer.canonicalRequest("GET", "/", "", hUpVal, "host", S3Signer.EMPTY_SHA256),
+                "大写头名 + 值 trim");
+        Map<String, String> hFold = new HashMap<String, String>();
+        hFold.put("x-amz-meta-note", "a    b");
+        ok(S3Signer.canonicalRequest("GET", "/", "", hFold, "x-amz-meta-note", "")
+                        .contains("x-amz-meta-note:a b\n"),
+                "头值连续空格折叠成一个");
+
         System.out.println("-----------------------------------------");
         System.out.println("pass=" + pass + " fail=" + fail);
         if (fail > 0) System.exit(1);

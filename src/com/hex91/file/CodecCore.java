@@ -738,13 +738,16 @@ public final class CodecCore {
                 if (w > Integer.MAX_VALUE / (PUNY_BASE - t)) throw new IllegalArgumentException("Punycode 溢出：" + label);
                 w *= (PUNY_BASE - t);
             }
-            int len = out.length() + 1;
+            // RFC 3492 里的 out.length() 是「码点数」，不是 Java String 的 UTF-16 长度。
+            // 用 length() 时，标签里一旦有两个以上增补平面字符（emoji 等），
+            // len 偏大 → i % len 与插入位置全错，解出来的域名是乱的。
+            int len = out.codePointCount(0, out.length()) + 1;
             bias = punyAdapt(i - oldi, len, oldi == 0);
             if (i / len > Integer.MAX_VALUE - n) throw new IllegalArgumentException("Punycode 溢出：" + label);
             n += i / len;
             i %= len;
             if (n > 0x10FFFF) throw new IllegalArgumentException("Punycode 码点越界：" + label);
-            out.insert(i, new String(Character.toChars(n)));
+            out.insert(out.offsetByCodePoints(0, i), new String(Character.toChars(n)));
             i++;
         }
         return out.toString();

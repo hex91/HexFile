@@ -175,7 +175,20 @@ public final class HlsDownloader {
         if (todo.isEmpty()) throw new IOException("所有分片都被标记为缺失（EXT-X-GAP）");
 
         File parts = new File(outDir, "." + base + ".parts");
-        if (!parts.exists() && !parts.mkdirs()) throw new IOException("无法创建临时目录：" + parts);
+
+        // 断点续传必须绑定「这一次要下的清单」。
+        // 只按 000001.seg 这种序号复用很危险：上一次下到一半取消留下 .parts，
+        // 接着下另一个同名 base 的片子（index / playlist / video 这类名字太常见），
+        // 或同一片源的清单更新了、直播窗口前移了 —— 序号一一对得上，
+        // 于是把上一次的分片拼进来，得到「能播但内容是两段混在一起」的文件。
+        String stampWant = fingerprint(m3u8Url, segs);
+        File stamp = new File(parts, ".manifest");
+        String stampHave = parts.isDirectory() ? readTextFile(stamp) : null;
+        if (!stampWant.equals(stampHave)) {
+            deleteDir(parts);                       // 清单对不上，旧分片全部作废
+            if (!parts.exists() && !parts.mkdirs()) throw new IOException("无法创建临时目录：" + parts);
+            writeTextFile(stamp, stampWant);
+        }
 
         // 估算总量：各片 Content-Length 之和拿不到，先用 Range 声明的长度 + 「已下载」计数
         long declared = 0;
@@ -207,11 +220,9 @@ public final class HlsDownloader {
         final int total = todo.size();
 
         // 断点：上次已下好的分片（.seg）直接跳过
-        int resumed = 0;
         for (int i : todo) {
             File f = segFile(parts, i);
             if (f.isFile() && f.length() > 0) {
-                resumed++;
                 done.incrementAndGet();
                 bytes.addAndGet(f.length());
             }
@@ -222,7 +233,12 @@ public final class HlsDownloader {
             final Map<String, byte[]> keyMap = keys;
             final File partsDir = parts;
             ExecutorService pool = Executors.newFixedThreadPool(THREADS);
-            final CountDownLatch latch = new CountDownLatch(total - resumed);
+            // 闸门按「全部索引」计数：worker 遍历 0..total-1，每个索引恰好 countDown 一次
+            // （已续传的走上面的 isFile 分支，其余走 finally）。v1.95.3 及以前是
+            // total - resumed —— 但已续传的分片在遍历时又扣了一次，于是总扣数仍是 total，
+            // 闸门提前归零，主线程 shutdownNow() 打断还在跑的分片：合并时
+            // FileNotFoundException，或者「看起来成功」但内容缺片。
+            final CountDownLatch latch = new CountDownLatch(total);
             final IOException[] fatal = new IOException[1];
 
             for (int n = 0; n < THREADS; n++) {
@@ -261,8 +277,12 @@ public final class HlsDownloader {
             }
             pool.shutdown();
             try {
-                // 每 300ms 检查一次取消：用户点「取消」不该等到下一片下完才响应
+                // 每 300ms 检查一次取消：用户点「取消」不该等到下一片下完才响应。
+                // 同时必须看 fatal：worker 失败后其余 worker 会在取到索引时直接 return
+                // （不扣闸门），闸门永远到不了 0 —— 只盯取消就成了无限空转，
+                // 真实错误也永远到不了用户面前。
                 while (!latch.await(300, TimeUnit.MILLISECONDS)) {
+                    if (fatal[0] != null) break;
                     if (cancel.get() || esc != null && esc.cancelled()) {
                         cancel.set(true);
                         break;
@@ -369,7 +389,7 @@ public final class HlsDownloader {
                     try {
                         data = HlsCrypto.decrypt(data, key, s.key.ivFor(s.sequence));
                     } catch (java.security.GeneralSecurityException e) {
-                        throw new IOException("分片 " + (s.sequence + 1) + " 解密失败：" + e.getMessage());
+                        throw new DecryptError("分片 " + (s.sequence + 1) + " 解密失败：" + e.getMessage());
                     }
                 }
                 if (data.length == 0) throw new IOException("分片内容为空");
@@ -392,6 +412,8 @@ public final class HlsDownloader {
                 }
                 return data.length;
             } catch (IOException e) {
+                // 密钥/IV 与清单不匹配不是瞬态故障，重试三次只会让用户多等 2 秒半
+                if (e instanceof DecryptError) throw e;
                 last = e;
             }
         }
@@ -615,6 +637,59 @@ public final class HlsDownloader {
     private static String shortUrl(String u) {
         if (u == null) return "";
         return u.length() > 70 ? u.substring(0, 70) + "…" : u;
+    }
+
+    /**
+     * 清单指纹：地址 + 分片总数 + 首末分片的序号/地址。
+     *
+     * <p>任何一项变化都意味着「这不是同一份清单」，旧 .seg 不能复用。
+     * 带一次性 token 的地址会让指纹每次都不同（多下一次），方向是安全的。</p>
+     */
+    public static String fingerprint(String m3u8Url, List<HlsPlaylist.Segment> segs) {
+        StringBuilder sb = new StringBuilder(96);
+        sb.append(m3u8Url).append('|').append(segs.size());
+        if (!segs.isEmpty()) {
+            HlsPlaylist.Segment f = segs.get(0);
+            HlsPlaylist.Segment l = segs.get(segs.size() - 1);
+            sb.append('|').append(f.sequence).append('|').append(f.url);
+            sb.append('|').append(l.sequence).append('|').append(l.url);
+        }
+        return sb.toString();
+    }
+
+    static String readTextFile(File f) {
+        if (f == null || !f.isFile()) return null;
+        InputStream in = null;
+        try {
+            in = new java.io.FileInputStream(f);
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            byte[] b = new byte[512];
+            int n;
+            while ((n = in.read(b)) > 0) bo.write(b, 0, n);
+            return new String(bo.toByteArray(), "UTF-8");
+        } catch (IOException e) {
+            return null;
+        } finally {
+            if (in != null) try { in.close(); } catch (IOException ignore) {}
+        }
+    }
+
+    static void writeTextFile(File f, String s) {
+        FileOutputStream fo = null;
+        try {
+            fo = new FileOutputStream(f);
+            fo.write(s.getBytes("UTF-8"));
+            fo.flush();
+        } catch (IOException ignore) {
+            // 指纹写不进去不致命：下次会当作「指纹不匹配」从头下，只是多花流量
+        } finally {
+            if (fo != null) try { fo.close(); } catch (IOException ignore) {}
+        }
+    }
+
+    /** 解密失败：密钥或 IV 与清单不匹配，重试无意义，直接终止整次下载 */
+    static final class DecryptError extends IOException {
+        DecryptError(String msg) { super(msg); }
     }
 
     private static void deleteDir(File dir) {

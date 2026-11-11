@@ -196,7 +196,11 @@ public final class CryptoCore {
 
     private static byte[] fitIv(int alg, String iv) {
         int bs = blockSize(alg);
-        byte[] src = iv == null ? new byte[0] : iv.getBytes(utf8());
+        // 与密钥同一套规则：支持 hex:000102…，否则按 UTF-8 文本。
+        // 以前直接 getBytes()，用户按密钥的习惯填 hex: 时，32 个 ASCII 字符
+        // 会被截成 16 个字符当 IV —— 解密结果必然错，而 AES 有时碰巧通过填充校验，
+        // 于是静默输出一堆垃圾，比直接报错难查得多。
+        byte[] src = toKeyBytes(iv);
         byte[] out = new byte[bs];
         System.arraycopy(src, 0, out, 0, Math.min(src.length, bs));
         return out;

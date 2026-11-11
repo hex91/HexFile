@@ -137,6 +137,28 @@ public class M3u8PlaylistTest {
                 "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000\n\n# 注释\nv.m3u8\n", "https://h/m.m3u8");
         eql(1, p6.variants().size(), "地址行前的空行/注释被跳过");
 
+        // ---------------------------------------------------------- v1.95.4 回归：相对 / 无路径 base
+        // 「只填域名」的地址以前会拼成 https://seg.ts（主机丢了）
+        eqs("https://host/seg.ts", M3u8Playlist.resolve("https://host", "seg.ts"),
+                "base 无路径：https://host + seg.ts");
+        eqs("https://host:8080/seg.ts", M3u8Playlist.resolve("https://host:8080", "seg.ts"),
+                "带端口的 base 同理");
+        // 相对 base 不能被补成站点绝对路径
+        eqs("seg.ts", M3u8Playlist.resolve("playlist.m3u8", "seg.ts"),
+                "相对 base：同目录");
+        eqs("dir/seg.ts", M3u8Playlist.resolve("dir/playlist.m3u8", "seg.ts"),
+                "相对 base 带目录");
+        // 绝对 base 不能被破坏
+        eqs("https://h/a/b/seg.ts", M3u8Playlist.resolve("https://h/a/b/m.m3u8", "seg.ts"),
+                "绝对 base 正常");
+        eqs("https://h/a/seg.ts", M3u8Playlist.resolve("https://h/a/b/m.m3u8", "../seg.ts"),
+                "绝对 base 的 ../ 折叠");
+
+        // ---------------------------------------------------------- v1.95.4 回归：BOM
+        M3u8Playlist bom = M3u8Playlist.parse(
+                "\uFEFF#EXTM3U\n#EXTINF:4,\nseg1.ts\n", "https://h/m.m3u8");
+        eql(M3u8Playlist.KIND_MEDIA, bom.kind, "带 BOM 的清单仍识别为 media");
+
         System.out.println("-----------------------------------------");
         System.out.println("pass=" + pass + " fail=" + fail);
         if (fail > 0) System.exit(1);
