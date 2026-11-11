@@ -1398,6 +1398,9 @@ public class MainActivity extends BaseActivity {
         loadDir(p, dir, true);
     }
 
+    /** v1.97.0：单次读目录的超时上限（超过即按失败收尾，见 loadDir 里的看门狗） */
+    private static final long LOAD_TIMEOUT_MS = 20000L;
+
     /** push=false 用于历史导航（不写入历史栈） */
     private void loadDir(Panel p, File dir, boolean push) {
         // v1.42.0：root 设备上 stat 可能被拒（ls 才需要 su），放行交给 DirReader 的 root 回退
@@ -1427,21 +1430,55 @@ public class MainActivity extends BaseActivity {
         final File root = p.adapter.rootDir;
         Bg.io(new Runnable() {
             public void run() {
-                final DirReader.Result r = DirReader.read(dir, sort, hidden, root);
+                // v1.97.0：readSafe 不抛异常 —— 失败会带着 error 回来，走同一条收尾路径。
+                // 原来这里直接 read：任务体一抛，下面的 Bg.ui 就不执行了，
+                // loading 卡在 true，而读取期间点击是被拦的 → 该窗格永久点不动。
+                final DirReader.Result r = DirReader.readSafe(dir, sort, hidden, root);
                 Bg.ui(new Runnable() {
                     public void run() {
-                        // 期间又切了目录 / 界面已销毁：这份结果作废（否则会把旧目录的内容盖上去）
-                        if (gen != p.dirGen || isFinishing() || isDestroyed()) return;
-                        p.adapter.setResult(r);
-                        p.dirCount = r.dirs;
-                        p.fileCount = r.files;
-                        updateHeader();
-                        // 下拉刷新：转圈一直转到数据真回来为止（原来固定 220ms 后收，慢目录会「假结束」）
-                        if (p.pull != null) p.pull.finishRefresh();
+                        applyDirResult(p, gen, r);
                     }
                 });
             }
+        }, new Bg.Fail() {
+            public void onFail(Throwable t) {
+                // 兜底：连 readSafe 都没兜住的（OOM 等）也要把 loading 收掉
+                applyDirResult(p, gen, null);
+            }
         });
+        // v1.97.0：超时自愈。su ls 之类的外部进程可能挂住（RootUtil 自己 8s 超时，
+        // 但排队 + 多级回退叠加起来仍可能很久），一旦超过阈值就当作失败收尾，
+        // 让用户能重新点，而不是守着一个永远转圈、点不动的窗格。
+        taskUi.postDelayed(new Runnable() {
+            public void run() {
+                if (gen != p.dirGen || !p.adapter.isLoading()) return;
+                p.dirGen++;                  // 让在途结果作废，免得回来又把列表盖一次
+                p.adapter.setLoading(false);
+                if (p.pull != null) p.pull.finishRefresh();
+                if (!isFinishing() && !isDestroyed()) toast("读取超时: " + dir.getName());
+            }
+        }, LOAD_TIMEOUT_MS);
+    }
+
+    /** 读目录的收尾（成功/失败同一入口）：换数据、补计数、收下拉刷新、失败给可见提示 */
+    private void applyDirResult(Panel p, int gen, DirReader.Result r) {
+        // 期间又切了目录 / 界面已销毁：这份结果作废（否则会把旧目录的内容盖上去）
+        if (gen != p.dirGen || isFinishing() || isDestroyed()) return;
+        if (p.pull != null) p.pull.finishRefresh();
+        if (r == null || r.error != null) {
+            // 失败：清空列表并明确告知。留着上一个目录的条目更糟 —— 用户会以为读到了新目录，
+            // 接着在上面做删除/复制，操作的全是别的目录里的东西。
+            p.adapter.setResult(null);
+            p.dirCount = 0;
+            p.fileCount = 0;
+            updateHeader();
+            toast("读取失败: " + (r == null ? "未知错误" : r.error));
+            return;
+        }
+        p.adapter.setResult(r);
+        p.dirCount = r.dirs;
+        p.fileCount = r.files;
+        updateHeader();
     }
 
     /** 顶部深色栏：显示活动栏路径 + 统计（文件夹/文件/储存），对标 MT */
@@ -5203,11 +5240,14 @@ public class MainActivity extends BaseActivity {
         }, "zstd-extract").start();
     }
 
+    /**
+     * 递归求目录大小（压缩前估算用）。
+     *
+     * <p>v1.97.0：原来自己写的递归既有软链接跟进的问题，也没有深度上限 ——
+     * 遇到链接环会 StackOverflow 把整个进程带走。统一走 {@link TreeOps#size}。</p>
+     */
     private static long dirSize(File d) {
-        long s = 0;
-        File[] fs = d.listFiles();
-        if (fs != null) for (File c : fs) s += c.isDirectory() ? dirSize(c) : c.length();
-        return s;
+        return TreeOps.size(d);
     }
 
     // ============================================================ 对比（v1.17.0）

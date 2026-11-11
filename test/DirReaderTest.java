@@ -119,6 +119,23 @@ public class DirReaderTest {
         eqs("读取中…", loading.name(), "占位行文案");
         ok(!loading.isDir(), "占位行不是目录（避免被当成 DIR 统计）");
 
+        // ---------- 7) readSafe：失败也要有结果（O-02） ----------
+        // 读目录跑在 Bg 的后台线程里，任务体一抛异常，回主线程收尾那步就不执行 ——
+        // loading 恒为 true，而读取期间点击是被拦的，整个窗格从此点不动。
+        // readSafe 保证「要么正常结果、要么带 error 的空结果」，调用方一律能收尾。
+        File boom = new File(base, "boom") {
+            @Override
+            public File[] listFiles() {
+                throw new IllegalStateException("模拟 SELinux 拒绝 / su 进程挂掉");
+            }
+        };
+        DirReader.Result rf = DirReader.readSafe(boom, FileAdapter.SORT_NAME, true, null, false);
+        ok(rf != null, "readSafe 不抛异常，始终返回结果");
+        eqi(0, rf.items.size(), "失败结果条目为空");
+        ok(rf.error != null && rf.error.contains("模拟"), "失败原因带回给调用方: " + rf.error);
+        DirReader.Result rnull = DirReader.readSafe(null, FileAdapter.SORT_NAME, false, null, false);
+        ok(rnull != null && rnull.error == null, "传 null 目录仍按「空目录」处理，不算失败");
+
         // ---------- 收尾 ----------
         deleteTree(base);
 

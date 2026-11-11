@@ -550,12 +550,12 @@ public class HfDocumentsProvider extends DocumentsProvider {
         }
     }
 
+    /**
+     * v1.97.0：改为走 {@link TreeOps#delete}。SAF 是「别的应用能直接调」的入口，
+     * 原来跟进软链接意味着：任何应用只要拿到一个链接目录的 document id，
+     * 就能借本应用的权限把链接目标删掉（本应用多是 root/存储权限全开的状态）。
+     */
     private static void deleteRecursive(File f) {
-        if (f == null) return;
-        if (f.isDirectory()) {
-            File[] kids = f.listFiles();
-            if (kids != null) for (File k : kids) deleteRecursive(k);
-        }
-        f.delete();
+        TreeOps.delete(f);
     }
 }

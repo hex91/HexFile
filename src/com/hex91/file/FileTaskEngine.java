@@ -321,6 +321,15 @@ public final class FileTaskEngine {
             throws IOException {
         if (t != null && t.cancelRequested) throw new Cancel();
         if (depth > MAX_DEPTH) throw new IOException("目录层级过深: " + src.getPath());
+        // v1.97.0：软链接不能跟进。src.isDirectory()/listFiles() 会跟随链接，
+        // 于是「复制一个链接目录」会把目标整棵树复制一份（链接成环时还会递归到栈溢出）。
+        // 这里按原样复刻成链接；文件系统不支持（FAT32 等）就跳过该条，不判整单失败。
+        if (LinkUtil.isLink(src)) {
+            // 复刻失败（FAT32 不支持链接 / 目标不可写）就跳过该条：整单不该因为一个链接失败，
+            // 但也绝不能退回「跟进链接把目标复制过来」那种行为。
+            if (TreeOps.SYSTEM.copyLink(src, dst) && t != null) t.doneFiles++;
+            return;
+        }
         if (src.isDirectory()) {
             if (dst.isFile()) {                       // 同名文件挡路：目录优先，让位
                 if (!dst.delete()) throw new IOException("目标被占用: " + dst);
@@ -418,6 +427,8 @@ public final class FileTaskEngine {
 
     private static boolean deleteTree(File f, int depth) {
         if (depth > MAX_DEPTH) return false;
+        // v1.97.0：链接只删链本身，不进入目标（见 TreeOps 类注释）
+        if (LinkUtil.isLink(f)) return f.delete();
         if (f.isDirectory()) {
             File[] kids = f.listFiles();
             if (kids != null) for (File k : kids) deleteTree(k, depth + 1);

@@ -335,14 +335,14 @@ public class ZipUtil {
         }
     }
 
-    /** 临时文件替换原 zip（先删旧再改名，失败时尽力回滚） */
+    /**
+     * 临时文件替换原 zip。
+     *
+     * <p>v1.97.0：原来「先删旧再改名」，第二次 rename 再失败就把新文件也删掉 ——
+     * 原包与写好的新包一起消失。改为 {@link FileOps#replaceFile}：失败时原包一定还在。</p>
+     */
     private static boolean replaceOriginal(File zip, File tmp) {
-        if (!tmp.renameTo(zip)) {
-            if (zip.delete() && tmp.renameTo(zip)) return true;
-            tmp.delete();
-            return false;
-        }
-        return true;
+        return FileOps.replaceFile(tmp, zip);
     }
 
     /** 把 sources 中的文件/目录打包成 zip（相对路径基于各自父目录） */

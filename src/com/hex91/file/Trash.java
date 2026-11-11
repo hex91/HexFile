@@ -101,14 +101,16 @@ public class Trash {
         return FileOps.deleteRecursive(dir());
     }
 
-    /** 递归求大小（不跟随符号链接；失败按 0 计） */
+    /**
+     * 递归求大小（不跟随符号链接；失败按 0 计）。
+     *
+     * <p>v1.97.0：注释一直写着「不跟随符号链接」，代码却是自己写的递归 ——
+     * {@code f.isFile()} / {@code listFiles()} 都会跟随链接，注释与行为不符。
+     * 现在交给 {@link TreeOps#size}，链接按 0 计并断开环。</p>
+     */
     public static long sizeOf(File f) {
         if (f == null || !f.exists()) return 0;
-        if (f.isFile()) return f.length();
-        long total = 0;
-        File[] kids = f.listFiles();
-        if (kids != null) for (File k : kids) total += sizeOf(k);
-        return total;
+        return TreeOps.size(f);
     }
 
     public static List<Entry> list() {
@@ -161,8 +163,14 @@ public class Trash {
     }
 
     private static boolean moveFile(File src, File dst) {
+        // 同卷：rename 直接搬链接本身（正确语义，先试）
         if (src.renameTo(dst)) return true;
         try {
+            // v1.97.0：跨卷回退时不能跟进链接。原来下面按 isDirectory() 递归 → 目标整棵树被搬进回收站，
+            // 而链接本身反而留在原地。这里改成「复刻链接 + 删原链」。
+            if (LinkUtil.isLink(src)) {
+                return TreeOps.SYSTEM.copyLink(src, dst) && src.delete();
+            }
             if (src.isDirectory()) {
                 dst.mkdirs();
                 File[] kids = src.listFiles();

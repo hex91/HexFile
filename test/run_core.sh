@@ -63,13 +63,13 @@ SRCS=$(ls test/*.java | grep -vE "RarProbe|ArscDbgB")
 "$JH/javac$EXE" -J-Dfile.encoding=UTF-8 -encoding UTF-8 -nowarn -cp "$CP" -d "$OUT" $SRCS \
   || { echo "COMPILE FAIL"; exit 2; }
 
-ALL="DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest SessionTest SignPromptFlowTest CustomSignE2ETest ArscPreviewTest HexLayoutTest FileInspectTest KeystoreCreateTest ActivityLogTest ToolboxCoreTest TestDataCoreTest MimeUtilTest DiskScanTest UiKitTest ScanCacheTest LanProtocolTest UiDecorTest FileTaskTest FileClipboardTest FileAttrsTest ContentGrepTest LinkUtilTest TrashPolicyTest CredentialCodecTest ContrastTest WorkDirTest DocPathTest WidgetTextTest SyncPlanTest ResumePlanTest DragPlanTest S3SignerTest JsonTest OAuthTokenTest CloudPathTest Iso8601Test TokenHarvestTest M3u8PlaylistTest StreamUrlTest PlaySpeedTest HlsPlaylistTest ScreenPolicyTest AuditFixTest HlsDownloaderTest DirReaderTest"
+ALL="DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest SessionTest SignPromptFlowTest CustomSignE2ETest ArscPreviewTest HexLayoutTest FileInspectTest KeystoreCreateTest ActivityLogTest ToolboxCoreTest TestDataCoreTest MimeUtilTest DiskScanTest UiKitTest ScanCacheTest LanProtocolTest UiDecorTest FileTaskTest FileClipboardTest FileAttrsTest ContentGrepTest LinkUtilTest TrashPolicyTest CredentialCodecTest ContrastTest WorkDirTest DocPathTest WidgetTextTest SyncPlanTest ResumePlanTest DragPlanTest S3SignerTest JsonTest OAuthTokenTest CloudPathTest Iso8601Test TokenHarvestTest M3u8PlaylistTest StreamUrlTest PlaySpeedTest HlsPlaylistTest ScreenPolicyTest AuditFixTest HlsDownloaderTest DirReaderTest TreeOpsTest"
 
 if [ $# -gt 0 ]; then
   TESTS="$*"
 elif [ "${QUICK:-0}" = "1" ]; then
   # 重签/会话类用例要真跑 apksig 打包，几十秒起，改 UI 时没必要每次都等
-  TESTS="DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest ArscPreviewTest HexLayoutTest FileInspectTest KeystoreCreateTest ActivityLogTest ToolboxCoreTest TestDataCoreTest MimeUtilTest DiskScanTest UiKitTest ScanCacheTest LanProtocolTest UiDecorTest FileTaskTest FileClipboardTest FileAttrsTest ContentGrepTest LinkUtilTest TrashPolicyTest CredentialCodecTest ContrastTest WorkDirTest DocPathTest WidgetTextTest SyncPlanTest ResumePlanTest DragPlanTest S3SignerTest JsonTest OAuthTokenTest CloudPathTest Iso8601Test TokenHarvestTest M3u8PlaylistTest StreamUrlTest PlaySpeedTest HlsPlaylistTest ScreenPolicyTest AuditFixTest HlsDownloaderTest DirReaderTest"
+  TESTS="DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest ArscPreviewTest HexLayoutTest FileInspectTest KeystoreCreateTest ActivityLogTest ToolboxCoreTest TestDataCoreTest MimeUtilTest DiskScanTest UiKitTest ScanCacheTest LanProtocolTest UiDecorTest FileTaskTest FileClipboardTest FileAttrsTest ContentGrepTest LinkUtilTest TrashPolicyTest CredentialCodecTest ContrastTest WorkDirTest DocPathTest WidgetTextTest SyncPlanTest ResumePlanTest DragPlanTest S3SignerTest JsonTest OAuthTokenTest CloudPathTest Iso8601Test TokenHarvestTest M3u8PlaylistTest StreamUrlTest PlaySpeedTest HlsPlaylistTest ScreenPolicyTest AuditFixTest HlsDownloaderTest DirReaderTest TreeOpsTest"
 else
   TESTS="$ALL"
 fi
@@ -91,20 +91,6 @@ for t in $TESTS; do
   esac
   if [ "$needs_apk" = "1" ] && [ ! -f test/huangguo.apk ]; then
     printf '[..] %-20s SKIP (缺 test/huangguo.apk)\n' "$t"
-    skipped=$((skipped + 1))
-    continue
-  fi
-  # v1.96.0：少数用例依赖本机样本 APK（*.apk 被 .gitignore，CI 上必然没有）——
-  # 缺样本就 SKIP，不然整条流水线因为「样本没上传」变红，测试就白接了。
-  # 注意：这里必须按用例逐个点名，不能拿"ARG 文件是否存在"当判据：
-  # 绝大多数用例的 ARG 只是占位，会对不存在的路径照样自给自足。
-  case "$t" in
-    KeyStoreUtilTest|SignSchemeTest|ArscPreviewTest|FileInspectTest) needs_apk=1;;
-    *) needs_apk=0;;
-  esac
-  if [ "$needs_apk" = "1" ] && [ ! -f test/huangguo.apk ]; then
-    printf '[..] %-20s SKIP (缺 test/huangguo.apk)
-' "$t"
     skipped=$((skipped + 1))
     continue
   fi

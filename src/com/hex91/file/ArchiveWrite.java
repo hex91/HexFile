@@ -184,13 +184,9 @@ public class ArchiveWrite {
                     sz.getName() + ".reb" + System.currentTimeMillis() + ".tmp");
         }
 
+        /** v1.97.0：同 ZipUtil —— 原来的「先删旧再改名」在两个都失败时会把原包一起弄丢 */
         private static boolean replaceOriginal(File sz, File tmp) {
-            if (!tmp.renameTo(sz)) {
-                if (sz.delete() && tmp.renameTo(sz)) return true;
-                tmp.delete();
-                return false;
-            }
-            return true;
+            return FileOps.replaceFile(tmp, sz);
         }
 
         private static void closeQuiet(InputStream in) {
@@ -320,13 +316,9 @@ public class ArchiveWrite {
                     tar.getName() + ".reb" + System.currentTimeMillis() + ".tmp");
         }
 
+        /** v1.97.0：同上 */
         private static boolean replaceOriginal(File tar, File tmp) {
-            if (!tmp.renameTo(tar)) {
-                if (tar.delete() && tmp.renameTo(tar)) return true;
-                tmp.delete();
-                return false;
-            }
-            return true;
+            return FileOps.replaceFile(tmp, tar);
         }
 
         private static void closeQuiet(InputStream in) {

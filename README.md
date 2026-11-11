@@ -1668,6 +1668,74 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.97.0（versionCode 175）—— 软链接、压缩包写回、读目录失败路径
+
+第三轮审查只提了三条，但三条都是「真机上才复现、复现即丢数据」的类型。
+
+### S-1 软链接被递归函数跟进（P0，会删掉目标内容）
+
+`File.isDirectory()` 与 `listFiles()` **会跟随符号链接**。凡是拿它们当递归判据的地方，
+「删除/复制一个看起来像快捷方式的条目」就等于「删除/复制链接指向的真实目录」：
+
+| 位置 | 原后果 |
+|---|---|
+| `FileOps.deleteRecursive`、`FileTaskEngine.deleteTree` | 删链目录 → 目标里的文件全被删，最后只删链 |
+| `RemoteServer.deleteRecursive`（网页端）、`HfDocumentsProvider.deleteRecursive`（SAF） | 同上，后者的调用方是「别的应用」 |
+| `FileOps.copyDir`、`FileTaskEngine.copyTree` | 复制链目录 → 目标整棵树被复制一份；成环则 StackOverflow |
+| `Trash.moveFile` 跨卷回退、`Trash.sizeOf`、`MainActivity.dirSize`、`DiskScanUtil` 五处 | 跟进目标；环 → 爆栈 |
+
+不是理论问题：不少 ROM 上 `/sdcard` 本身就是指向 `/storage/...` 的链接，
+root 下浏览 `/` 时删掉它，用户以为删了个快捷方式，实际删了整个内部存储。
+
+修法是**一个入口**：新增 `TreeOps`（删除 / 统计 / 复制），链接一律不跟进 ——
+删除只删链本身（等价 `rm -rf` 不带尾斜杠）、统计按 0 计（同时断开环）、
+复制按原样复刻成链接（`Os.symlink`），目标文件系统不支持链接（FAT32）就跳过并计数。
+上面 10 处调用点全部改为走它，并统一加了 **64 层深度上限**。
+
+> 顺带把 `Trash.sizeOf` 的注释修对了：它一直写着「不跟随符号链接」，代码却在跟随。
+
+### O-19 压缩包写回会让「原包 + 新包一起消失」（P1）
+
+三处实现（`ZipUtil`、`ArchiveWrite` 的 7z 与 tar 后端）是同一段代码：
+
+```java
+if (!tmp.renameTo(zip)) {
+    if (zip.delete() && tmp.renameTo(zip)) return true;   // 原包已删
+    tmp.delete();                                        // 新包也删
+    return false;                                        // → 两个都没了
+}
+```
+
+rename 失败（跨挂载点、目标被占用/打开）时它先删原包，第二次 rename 再失败就把新包也删掉。
+现在统一走 `FileOps.replaceFile`：同卷 rename 原子替换；必须让位时先改名成 `.bakrepl` 备份，
+复制成功才删备份，失败则还原 —— **任何一步失败都不动原文件**（`ApkEditSession.safeReplace` 的思路）。
+
+### O-02 读目录没有失败路径（P1，「点了没反应」的根因）
+
+`Bg.io` 只把异常写日志。任务体一旦抛出，回主线程收尾那一步根本不执行 →
+`FileAdapter.loading` 永远为 true，而读取期间点击/长按是被拦的 → **该窗格从此点不动，只能杀进程**。
+
+三层兜底：
+
+1. `DirReader.readSafe(...)`：读目录绝不抛，失败返回带 `error` 的空结果；
+2. `Bg.io(r, onFail)`：后台任务失败也有回主线程的出口；
+3. `loadDir` 里 20 秒看门狗：超时按失败收尾（`su ls` 之类外部进程挂住时自愈）。
+
+失败时的行为是**清空列表 + Toast 说明原因**，而不是留着上一个目录的条目 ——
+后者更糟：用户会以为读到了新目录，接着在上面删除/复制，操作的全是别的目录里的东西。
+
+### 新增测试
+
+`test/TreeOpsTest`（24 项）：链接删除不伤目标、普通目录递归删除不受影响、
+统计跳过链接、复制不复刻目标内容、链接不可复刻时跳过并计数、70 层深度不爆栈、
+`replaceFile` 成功/失败两种姿态。
+`DirReaderTest` 补 4 项：`readSafe` 在 `listFiles()` 抛异常时返回带 error 的结果。
+
+链接的判定与复刻抽成了 `LinkProbe` 接口：真机用 `Os.lstat/symlink`，单测注入桩 ——
+否则这条规则只能靠「在 ext4 上手工建链」验证，Windows 桌面建链要管理员权限。
+
+`QUICK=1 ./test/run_core.sh` → **47/47 PASS**。
+
 ## v1.96.0（versionCode 173）—— 结构审查里能立刻兑现的那几项
 
 第二轮审查（结构 / 性能 / 稳定性）给的清单比上一轮长得多，但它分成两类：

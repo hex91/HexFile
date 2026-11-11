@@ -29,14 +29,55 @@ public final class DirReader {
         public final List<FileItem> items;
         public final int dirs;
         public final int files;
+        /** v1.97.0：非 null 表示这次读取失败（items 为空），调用方必须收尾而不是一直等。 */
+        public final String error;
 
         Result(List<FileItem> items, int dirs, int files) {
+            this(items, dirs, files, null);
+        }
+
+        Result(List<FileItem> items, int dirs, int files, String error) {
             this.items = items;
             this.dirs = dirs;
             this.files = files;
+            this.error = error;
         }
 
         int count() { return items.size(); }
+    }
+
+    /**
+     * v1.97.0：读目录的「绝不抛异常」版本。
+     *
+     * <p>为什么需要它：{@code Bg.io} 只把异常写进日志，任务体一旦抛出，
+     * 回主线程的那一步 {@code Bg.ui(...)} 根本不会执行 —— 列表的 loading 标志永远为 true，
+     * 而读目录期间点击/长按是被拦住的，于是整个窗格从此点不动，只能杀进程重启。
+     * 这类「不自愈」的失败姿态不该由调用方逐处 try/catch 兜。</p>
+     *
+     * <p>现在读目录要么返回正常结果、要么返回带 {@code error} 的空结果，调用方一律收尾。</p>
+     */
+    public static Result readSafe(File dir, int sortMode, boolean showHidden, File rootDir) {
+        try {
+            return read(dir, sortMode, showHidden, rootDir);
+        } catch (Throwable t) {
+            return failed(t);
+        }
+    }
+
+    /** 单测用：显式注入特权状态（不探测 su） */
+    public static Result readSafe(File dir, int sortMode, boolean showHidden, File rootDir,
+                                  boolean privileged) {
+        try {
+            return read(dir, sortMode, showHidden, rootDir, privileged);
+        } catch (Throwable t) {
+            return failed(t);
+        }
+    }
+
+    private static Result failed(Throwable t) {
+        String m = t == null ? "未知错误"
+                : (t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName());
+        return new Result(new ArrayList<FileItem>(), 0, 0, m);
     }
 
     /**

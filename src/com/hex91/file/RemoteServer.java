@@ -237,12 +237,12 @@ public final class RemoteServer extends NanoHTTPD {
         return f;
     }
 
+    /**
+     * v1.97.0：改为走 {@link TreeOps#delete} —— 原来用 {@code f.isDirectory()} 判断递归，
+     * 会跟随软链接：网页端删除一个链接目录时，目标里的文件会被一并删掉。
+     */
     private static boolean deleteRecursive(File f) {
-        if (f.isDirectory()) {
-            File[] children = f.listFiles();
-            if (children != null) for (File c : children) if (!deleteRecursive(c)) return false;
-        }
-        return f.delete();
+        return TreeOps.delete(f);
     }
 
     private static void copyFile(File src, File dst) throws IOException {

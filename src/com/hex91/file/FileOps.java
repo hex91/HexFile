@@ -66,23 +66,16 @@ public class FileOps {
         }
     }
 
+    /**
+     * 递归复制目录。
+     *
+     * <p>v1.97.0：实现搬到 {@link TreeOps#copyDir}，原因是这里原来用
+     * {@code k.isDirectory()} 判断递归 —— 该调用会跟随符号链接，于是「复制一个链接目录」
+     * 会把目标整棵树复制一份，链接成环时直接 StackOverflow。TreeOps 里链接按原样复刻、
+     * 不跟进，并有深度上限。</p>
+     */
     private static void copyDir(File src, File dst) throws Exception {
-        dst.mkdirs();
-        File[] kids = src.listFiles();
-        if (kids == null) return;
-        for (File k : kids) {
-            File d = new File(dst, k.getName());
-            if (k.isDirectory()) copyDir(k, d);
-            else {
-                InputStream in = new FileInputStream(k);
-                OutputStream out = new FileOutputStream(d);
-                byte[] buf = new byte[65536];
-                int n;
-                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-                in.close();
-                out.close();
-            }
-        }
+        TreeOps.copyDir(src, dst, TreeOps.SYSTEM, null);
     }
 
     /**
@@ -110,14 +103,86 @@ public class FileOps {
         }
     }
 
-    public static boolean deleteRecursive(File f) {
-        if (f.isDirectory()) {
-            File[] kids = f.listFiles();
-            if (kids != null) for (File k : kids) deleteRecursive(k);
+    /**
+     * 递归删除。
+     *
+     * <p>v1.97.0：软链接只删链本身。原来的 {@code if (f.isDirectory())} 会跟随链接 ——
+     * root 下选中一个指向普通目录的链接（不少 ROM 上 {@code /sdcard} 就是链接）删除时，
+     * 会把目标里的内容全部删光，最后只删掉链，用户完全无法理解发生了什么。
+     * 递归逻辑（含深度上限）现在统一在 {@link TreeOps#delete}。</p>
+     */
+    /**
+     * 用 tmp 替换 target（压缩包写回、原地重打包用）。
+     *
+     * <p>v1.97.0：原来三处实现都是同一段危险代码：</p>
+     * <pre>
+     * if (!tmp.renameTo(zip)) {
+     *     if (zip.delete() &amp;&amp; tmp.renameTo(zip)) return true;   // 原包已删
+     *     tmp.delete();                                        // 新包也删
+     *     return false;                                        // → 两个都没了
+     * }
+     * </pre>
+     * <p>rename 失败（跨挂载点、目标被占用）时它先删原文件，第二次 rename 再失败就把新文件也删了，
+     * 用户手里的压缩包连同刚写好的内容一起消失 —— 这是最不该出现的失败姿态。</p>
+     *
+     * <p>这里改成 {@code ApkEditSession.safeReplace} 的思路：<b>任何一步失败都不动原文件</b>，
+     * 必须挪开时先改名成 {@code .bakrepl} 备份，复制成功才删备份；失败则还原。</p>
+     *
+     * @return 成功替换返回 true；失败时保证 target 仍是原来的内容（或作为 {@code .bakrepl} 完整存在）
+     */
+    public static boolean replaceFile(File tmp, File target) {
+        if (tmp == null || target == null || !tmp.isFile()) return false;
+        // 同一挂载点：rename 直接原子替换，既快又没有中间态
+        if (tmp.renameTo(target)) return true;
+        File parent = target.getParentFile();
+        if (parent == null) return false;
+        File bak = new File(parent, target.getName() + ".bakrepl");
+        if (bak.exists() && !bak.delete()) return false;
+        boolean hadOld = target.exists();
+        if (hadOld && !target.renameTo(bak)) {
+            // 原文件挪不开（被别的进程打开 / 权限）：原样保留，tmp 也留着供人工恢复
+            return false;
         }
-        boolean ok = f.delete();
+        if (tmp.renameTo(target)) {          // 原文件让位后空间/名称冲突消失，rename 可能成功
+            bak.delete();
+            return true;
+        }
+        if (copyFileTo(tmp, target)) {
+            bak.delete();
+            tmp.delete();
+            return true;
+        }
+        // 复制失败：清掉可能写了一半的目标，再把备份改回来
+        if (target.exists()) target.delete();
+        if (hadOld) bak.renameTo(target);
+        return false;
+    }
+
+    /** 流式复制单个文件（失败返回 false，不抛） */
+    private static boolean copyFileTo(File src, File dst) {
+        InputStream in = null;
+        OutputStream out = null;
+        try {
+            in = new FileInputStream(src);
+            out = new FileOutputStream(dst);
+            byte[] buf = new byte[65536];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            out.flush();
+            return true;
+        } catch (Exception e) {
+            return false;
+        } finally {
+            if (in != null) try { in.close(); } catch (Exception ignored) {}
+            if (out != null) try { out.close(); } catch (Exception ignored) {}
+        }
+    }
+
+    public static boolean deleteRecursive(File f) {
+        boolean ok = TreeOps.delete(f);
         // v1.44.0：普通删除失败且文件仍在（root 区/系统文件）→ su rm -rf
-        if (!ok && f.exists() && RootUtil.isRootAvailable()) return RootIO.delete(f);
+        // 注意：RootIO.delete 是 `rm -rf <路径>`（不带尾斜杠），对链接同样只删链接
+        if (!ok && f != null && f.exists() && RootUtil.isRootAvailable()) return RootIO.delete(f);
         return ok;
     }
 

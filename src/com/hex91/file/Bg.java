@@ -50,14 +50,38 @@ final class Bg {
 
     private Bg() {}
 
-    /** 丢到后台跑；异常只记日志，不会影响下一条任务 */
+    /** 后台任务失败回调（在主线程执行） */
+    interface Fail {
+        void onFail(Throwable t);
+    }
+
+    /**
+     * 丢到后台跑；异常记日志。
+     *
+     * <p>v1.97.0：只记日志是不够的 —— 任务体里「算完 → 回主线程收尾」这种写法，
+     * 一旦中途抛出，收尾那步不会执行，界面就停在加载态（v1.96.0 读目录就是这个坑：
+     * loading 永远 true → 该窗格点击永久被拦）。需要收尾的调用方请用
+     * {@link #io(Runnable, Fail)}，保证失败也有一条回主线程的路。</p>
+     */
     static void io(final Runnable r) {
+        io(r, null);
+    }
+
+    static void io(final Runnable r, final Fail onFail) {
         IO.execute(new Runnable() {
             public void run() {
                 try {
                     r.run();
                 } catch (Throwable t) {
                     Log.e(TAG, "bg task failed: " + r.getClass().getName(), t);
+                    if (onFail != null) {
+                        try {
+                            ui(new Runnable() {
+                                public void run() { onFail.onFail(t); }
+                            });
+                        } catch (Throwable ignored) {
+                        }
+                    }
                 }
             }
         });

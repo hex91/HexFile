@@ -106,13 +106,20 @@ public final class DiskScanUtil {
 
     /** 阶段 1：只数条目，不做 length() 统计，速度较快，用于给进度条一个真实分母 */
     private static void countEntries(File dir, int[] out, ScanProgress p) {
+        countEntries(dir, out, p, 0);
+    }
+
+    private static void countEntries(File dir, int[] out, ScanProgress p, int depth) {
+        if (depth > TreeOps.MAX_DEPTH) return;
         File[] cs = dir.listFiles();
         if (cs == null) return;
         for (File c : cs) {
             if (p != null && p.isCancelled()) throw new Cancelled();
+            // v1.97.0：链接不跟进（目标会被另一个入口统计到，跟进等于重复计数 + 环）
+            if (LinkUtil.isLink(c)) { out[0]++; continue; }
             if (c.isDirectory()) {
                 out[1]++;
-                countEntries(c, out, p);
+                countEntries(c, out, p, depth + 1);
             } else {
                 out[0]++;
                 if (p != null && (out[0] & 1023) == 0) p.onProgress(-1, out[0], 0);
@@ -123,16 +130,29 @@ public final class DiskScanUtil {
     /** 阶段 2：一次遍历同时得到大小、子目录占用、Top N */
     private static void walk(File dir, boolean isRoot, Result r, PriorityQueue<FileSize> pq,
             int topN, int total, int[] done, long[] bytes, ScanProgress p, Acc out) {
+        walk(dir, isRoot, r, pq, topN, total, done, bytes, p, out, 0);
+    }
+
+    private static void walk(File dir, boolean isRoot, Result r, PriorityQueue<FileSize> pq,
+            int topN, int total, int[] done, long[] bytes, ScanProgress p, Acc out, int depth) {
+        if (depth > TreeOps.MAX_DEPTH) { out.size = 0; out.files = 0; return; }
         File[] cs = dir.listFiles();
         if (cs == null) { out.size = 0; out.files = 0; return; }
         long size = 0;
         int files = 0;
         for (File c : cs) {
             if (p != null && p.isCancelled()) throw new Cancelled();
+            if (LinkUtil.isLink(c)) {
+                // v1.97.0：链接不进递归，按「0 字节文件」计入条目数（真实大小归目标所有）
+                r.fileCount++;
+                files++;
+                done[0]++;
+                continue;
+            }
             if (c.isDirectory()) {
                 r.dirCount++;
                 Acc sub = new Acc();
-                walk(c, false, r, pq, topN, total, done, bytes, p, sub);
+                walk(c, false, r, pq, topN, total, done, bytes, p, sub, depth + 1);
                 size += sub.size;
                 files += sub.files;
                 if (isRoot) {
@@ -172,15 +192,21 @@ public final class DiskScanUtil {
     public interface DirVisitor { void onDir(File dir, long size, int fileCount); }
 
     public static long scanSize(File dir, DirVisitor v) {
+        return scanSize(dir, v, 0);
+    }
+
+    private static long scanSize(File dir, DirVisitor v, int depth) {
+        if (depth > TreeOps.MAX_DEPTH) return 0;
         File[] cs = dir.listFiles();
         if (cs == null) return 0;
         long total = 0;
         int files = 0;
         List<File> subDirs = new ArrayList<File>();
         for (File c : cs) {
+            if (LinkUtil.isLink(c)) continue;    // v1.97.0：不跟进链接（环 / 重复计数）
             if (c.isDirectory()) {
                 subDirs.add(c);
-                total += scanSize(c, v);
+                total += scanSize(c, v, depth + 1);
             } else {
                 total += c.length();
                 files++;
@@ -190,7 +216,11 @@ public final class DiskScanUtil {
         return total;
     }
 
-    /** 递归收集最大的 n 个文件（跳过符号链接不适用 File API，按普通文件处理） */
+    /**
+     * 递归收集最大的 n 个文件。
+     * <p>v1.97.0：软链接一律跳过 —— 原注释写「跳过符号链接不适用 File API」，但代码并没有跳，
+     * 而是跟进到了目标（同一批文件被重复计入 Top N，链接成环时还会递归爆栈）。</p>
+     */
     public static List<FileSize> topFiles(File root, final int n, java.util.Set<Long> minSizeFilter) {
         final java.util.PriorityQueue<FileSize> pq = new java.util.PriorityQueue<FileSize>(
                 n + 1, new Comparator<FileSize>() {
@@ -205,11 +235,17 @@ public final class DiskScanUtil {
     }
 
     private static void collect(File dir, java.util.PriorityQueue<FileSize> pq, int n) {
+        collect(dir, pq, n, 0);
+    }
+
+    private static void collect(File dir, java.util.PriorityQueue<FileSize> pq, int n, int depth) {
+        if (depth > TreeOps.MAX_DEPTH) return;
         File[] cs = dir.listFiles();
         if (cs == null) return;
         for (File c : cs) {
+            if (LinkUtil.isLink(c)) continue;    // v1.97.0：链接不跟进
             if (c.isDirectory()) {
-                collect(c, pq, n);
+                collect(c, pq, n, depth + 1);
             } else {
                 long len = c.length();
                 if (pq.size() < n) {
@@ -313,10 +349,16 @@ public final class DiskScanUtil {
     }
 
     private static void collectFiles(File dir, List<File> out) {
+        collectFiles(dir, out, 0);
+    }
+
+    private static void collectFiles(File dir, List<File> out, int depth) {
+        if (depth > TreeOps.MAX_DEPTH) return;
         File[] cs = dir.listFiles();
         if (cs == null) return;
         for (File c : cs) {
-            if (c.isDirectory()) collectFiles(c, out);
+            if (LinkUtil.isLink(c)) continue;    // v1.97.0：链接不跟进（否则同一文件会被判重）
+            if (c.isDirectory()) collectFiles(c, out, depth + 1);
             else if (c.isFile()) out.add(c);
         }
     }
