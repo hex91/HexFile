@@ -81,22 +81,30 @@ for t in $TESTS; do
     SessionTest) ARG="test/huangguo.apk assets/hexfile.p12";;
     *) ARG="test/huangguo.apk";;
   esac
-  # v1.96.0：样本 APK 不入库（.gitignore 里 *.apk），CI 上必然没有 —— 缺文件就 SKIP，
-  # 不然整条流水线会因为「本机样本没上传」而变红，测试就白接了。
-  miss=""
-  for f in $ARG; do [ -f "$f" ] || miss="$miss $f"; done
-  if [ -n "$miss" ]; then
-    printf '[..] %-20s SKIP (缺%s)\n' "$t" "$miss"
+  # v1.96.0：少数用例依赖本机样本 APK（*.apk 被 .gitignore，CI 上必然没有）——
+  # 缺样本就 SKIP，不然整条流水线因为「样本没上传」变红，测试就白接了。
+  # 注意：这里必须按用例逐个点名，不能拿"ARG 文件是否存在"当判据：
+  # 绝大多数用例的 ARG 只是占位，会对不存在的路径照样自给自足。
+  case "$t" in
+    KeyStoreUtilTest|SignSchemeTest|ArscPreviewTest|FileInspectTest) needs_apk=1;;
+    *) needs_apk=0;;
+  esac
+  if [ "$needs_apk" = "1" ] && [ ! -f test/huangguo.apk ]; then
+    printf '[..] %-20s SKIP (缺 test/huangguo.apk)\n' "$t"
     skipped=$((skipped + 1))
     continue
   fi
-  # v1.96.0：样本 APK 不入库（.gitignore 里 *.apk），CI 上必然没有 —— 缺文件就 SKIP，
-  # 不然整条流水线会因为「本机样本没上传」而变红，测试就白接了。
-  miss=""
-  for f in $ARG; do [ -f "$f" ] || miss="$miss $f"; done
-  if [ -n "$miss" ]; then
-    printf '[..] %-20s SKIP (缺%s)
-' "$t" "$miss"
+  # v1.96.0：少数用例依赖本机样本 APK（*.apk 被 .gitignore，CI 上必然没有）——
+  # 缺样本就 SKIP，不然整条流水线因为「样本没上传」变红，测试就白接了。
+  # 注意：这里必须按用例逐个点名，不能拿"ARG 文件是否存在"当判据：
+  # 绝大多数用例的 ARG 只是占位，会对不存在的路径照样自给自足。
+  case "$t" in
+    KeyStoreUtilTest|SignSchemeTest|ArscPreviewTest|FileInspectTest) needs_apk=1;;
+    *) needs_apk=0;;
+  esac
+  if [ "$needs_apk" = "1" ] && [ ! -f test/huangguo.apk ]; then
+    printf '[..] %-20s SKIP (缺 test/huangguo.apk)
+' "$t"
     skipped=$((skipped + 1))
     continue
   fi
