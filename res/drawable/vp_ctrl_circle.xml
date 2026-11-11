@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.93.0 播放器中控按钮底：半透明黑圆。
+     为什么必须有：中控（上一个 / 播放 / 下一个）压在视频画面上，而视频画面可能是白底
+     PPT / 文档录屏。白色字形直接画在白底上等于不存在 —— 上一版真机上就是这么「消失」的。
+     顶栏与底栏本身有 #8C000000 底色，所以只有中控需要单独补。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#73000000" />
+</shape>

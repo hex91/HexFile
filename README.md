@@ -46,7 +46,7 @@ adb install -r out/HexFile-*.apk
     ├── TextEditorActivity.java  # 文本编辑器（UTF-8/GBK 自动识别、未保存防丢、二进制检测）
     ├── HexViewerActivity.java   # HEX 查看器（偏移+HEX+ASCII、点行复制、偏移跳转、4MB 截断）
     ├── SmaliTool.java           # smali 反编译（org.smali:baksmali:2.5.2 编程 API 封装）
-    └── libs/                    # baksmali 2.5.2 + dexlib2 + guava-27.1-android + jsr305 + failureaccess
+    └── libs/                    # baksmali 2.5.2 + dexlib2 + guava-31.1-android + jsr305 + failureaccess
     ├── FeatureRegistry.java     # 功能注册表
     ├── BookmarkStore.java       # 书签持久化（SharedPreferences）
     ├── Trash.java               # 回收站（meta 记录原路径，可恢复/彻底删除/清空）
@@ -86,7 +86,7 @@ adb install -r out/HexFile-*.apk
 | 长按菜单新增：**文本编辑** / **HEX 查看**（任何文件均可进） | 完成 |
 | **smali 反编译（v1.5）**：APK 压缩包浏览中**长按 classes.dex（或任意 .dex）→ 反编译为 smali**，后台线程跑 baksmali（4 并发），输出 `/sdcard/HexFileSmali/<apk名>/<dex名>/` 并自动跳转浏览；点 .smali 文件直接用自带文本编辑器查看 | 完成 |
 | **独立 dex 文件反编译（v1.5.1）**：主界面**点击 .dex 弹菜单**（反编译为 smali / HEX 查看 / 属性），长按菜单也含「反编译为 smali」；输出 `/sdcard/HexFileSmali/<dex名>/` 并自动跳转 | 完成 |
-| baksmali 引擎内嵌（org.smali 2.5.2：dexlib2+guava-27.1-android，纯 Java 零 native）；multidex 就绪的构建链（d8 自动拆分 classesN.dex）；manifest 开启 largeHeap | 完成 |
+| baksmali 引擎内嵌（org.smali 2.5.2：dexlib2+guava-31.1-android，纯 Java 零 native）；multidex 就绪的构建链（d8 自动拆分 classesN.dex）；manifest 开启 largeHeap | 完成 |
 | 粉色主题 UI | 完成 |
 
 ## 路线图
@@ -1667,6 +1667,127 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - versionCode 109，APK 约 13MB。
 
 ---
+
+## v1.93.0 —— 修两个「只有真机才炸」的崩溃
+
+v1.91.0 / v1.92.0 在真机（Pixel 6 / Android 15）上点开 `/sdcard/123.mp4` 直接闪退。
+两个崩溃都发生在 `VideoPlayerActivity.onCreate`，而 **javac、aapt2、d8、单测全部通过**：
+
+```
+java.lang.NoSuchMethodError: No virtual method buildOrThrow()Lcom/google/common/collect/ImmutableMap;
+    at androidx.media3.exoplayer.audio.AudioCapabilities.<clinit>
+```
+
+```
+java.lang.AbstractMethodError: abstract method
+    "void androidx.media3.common.Player$Listener.onTimelineChanged(Timeline, int)"
+    on receiver com.hex91.file.VideoPlayerActivity$15
+```
+
+这一版把两个都修掉，并把「为什么会漏」做成了一道可以反复执行的检查。
+
+### 一、崩溃一：Guava 27 撑不住 Media3 1.4.1
+
+Media3 1.4.1 是用 Guava 31+ 编译的：`AudioCapabilities` 的静态初始化块里调用了
+`ImmutableMap.Builder.buildOrThrow()`，而这个方法是 **Guava 31.0 才新增**的。
+工程 `libs/` 里的 `guava-27.1-android.jar` 是 smbj / dexlib2 的传递依赖，于是
+「创建播放器的第一秒」就撞上 `NoSuchMethodError`。
+
+编译期为什么看不见：Media3 的 class 是**预编译**的，javac 只核对「类型签名对不对」，
+不会去检查「这个 class 引用的方法在 classpath 上存不存在」。这类问题只能运行时暴露。
+
+修法是换 **`guava-31.1-android.jar`**。两个必须注意的点：
+
+- **只能用 `-android` 变体**。JRE 变体依赖 `java.util.stream` / `java.lang.invoke` 等
+  minSdk 21 上不存在的 API，换上去会在老设备上以另一种方式崩；
+- **不能只升「看起来相关」的那一个**。工程源码零处直接使用 Guava，但 smbj、dexlib2、
+  baksmali 都在用它 —— 升版本后要确认它们引用的方法在新版里还在（下一节的工具就是干这个的）。
+
+### 二、崩溃二：分层 dex 把 d8 的接口 desugar 劈成了两半
+
+这个更隐蔽，跟代码一点关系都没有，是**构建流水线**的问题。
+
+本工程的 d8 分两次跑（为了构建速度）：
+① 依赖 dex —— `libs/*.jar` 全部当 program 输入；
+② 应用 dex —— 只把 `src/` 的 class 当 program，`libs/` 用 `--lib` 只做类型解析。
+
+在 `--min-api 21` 下，d8 必须把接口的 default 方法改造掉：
+拆成「接口里只留抽象声明」+「`Interface$-CC` 类里的静态实现」，
+**同时给每一个实现类补一个转发 stub**。这一步 d8 只有同时看到接口和实现类才做得到。
+
+分层之后：
+
+| 阶段 | media3 的身份 | d8 的动作 |
+|---|---|---|
+| 依赖 dex | program | 把 `Player$Listener` 的 default 方法改成 abstract，实现体挪进 `Player$Listener$-CC` |
+| 应用 dex | `--lib` | 认为「这个库在运行时自带方法体」，**不**给 `VideoPlayerActivity$15` 补 stub |
+
+拼到一起就是「接口是空的、实现类也什么都没写」。ART 执行 `invoke-interface` 时找不到实现，
+直接 `AbstractMethodError`。
+
+修法是在 `build.sh` 里加一个分组函数：
+
+```bash
+is_app_program_jar() {
+    case "$1" in
+        */media3-*.jar|*/collection-*.jar|*/exifinterface-*.jar) return 0 ;;
+    esac
+    return 1
+}
+```
+
+这几个库从依赖 dex 里剔除，改成与应用类**同批 desugar**；其余 20MB 依赖继续走指纹缓存，
+构建时间只从 2 分 8 秒涨到 2 分 28 秒（只重建一次，之后 media3 每次都参与应用 dex，约 +20 秒）。
+
+顺手修了一个衍生坑：把 **`build.sh` 自身也纳入 deps 指纹**。否则改了分组逻辑后，
+`deps.sig` 不变 → 复用仍然带着 media3 的旧依赖 dex → 和新 app dex 撞成 duplicate class。
+
+### 三、为什么这次能定位：把「二进制兼容性」做成脚本
+
+`tools/dexcheck.py`（新增，纯 Python，无依赖）：
+
+```bash
+python tools/dexcheck.py build/dexchk/classes*.dex libs/*.jar
+```
+
+它做两件事：
+
+1. **方法级**：解析 dex 的 `method_ids` / `proto_ids`，抽出「类名 + 方法名 + 描述符」，
+   对每个引用了外部 jar 的方法，沿**父类与接口链**去 jar 的 class 文件里核对是否真的存在；
+2. **类级**：dex 的 `type_ids` 对照 `class_defs` + jar + `android.jar`，抓「整类不存在」
+   （`NoClassDefFoundError` 那一类）。
+
+它当场抓到了 `buildOrThrow`。修完后对 **104815 条方法引用**复查，缺失 0。
+
+两个必须处理的假阳性，否则输出会淹没真问题：
+
+- `equals` / `hashCode` / `ordinal` 这类**继承来的**方法：必须沿继承链查，不能只看本类；
+- `lambda$xxx$0` / `$r8$lambda$xxx`：这是 d8 desugar 生成的**新方法**，jar 里当然没有。
+
+### 四、顺带：中控按钮在白底视频上「消失」
+
+真机验证时发现的独立问题：中控三个按钮（上一个 / 播放 / 下一个）只有白色字形、没有底色。
+顶栏底栏本身有 `#8C000000`，但中控是浮在画面上的，遇到白底 PPT 录屏就完全看不见。
+新增 `res/drawable/vp_ctrl_circle.xml`（半透明黑圆 `#73000000`）兜底。
+
+### 五、真机验证（Pixel 6 / Android 15，全部实测）
+
+| 项 | 结果 |
+|---|---|
+| 应用内点 `/sdcard/123.mp4` | 进播放器，H.264 硬解（`c2.exynos.h264.decoder`）+ AAC，`FATAL=0` |
+| 画面是否真的在动 | 间隔两次截图 MD5 不同 |
+| 外部 Intent（`am start` 同一路径） | 正常起播 |
+| 返回 → 再次进入 | 从 00:34 续到 01:08，断点续播生效 |
+| 缩略图 | `cache/vthumb/a78ddd20-168.jpg` 已生成，列表项 `id/thumb` 可见、`id/icon` 已 GONE |
+| QUICK 全量 | 通过 |
+
+### 六、教训
+
+1. **「编译过 + 单测过」不等于「能跑」**。没有 Gradle 的依赖解析与 desugar 编排，
+   这两件事必须自己兜：第三方 jar 的版本要对齐「使用它的那个库」的编译期版本
+   （不是越老越稳），跨 dex 的语言特性（接口 default、静态接口方法）要格外小心；
+2. **真机是唯一的裁判**。这两个问题在 IDE、单测、CI 编译里都不会出现，
+   只有装到设备上点一下才暴露 —— 所以「能构建成功」不能作为交付标准。
 
 ## v1.92.0 —— m3u8/TS 下载合并为 MP4（以及为什么没集成 FFmpeg）
 

@@ -131,7 +131,7 @@
             android:text="⏮"
             android:textColor="#E6FFFFFF"
             android:textSize="24sp"
-            android:background="?android:attr/selectableItemBackground" />
+            android:background="@drawable/vp_ctrl_circle" />
 
         <TextView
             android:id="@+id/vp_play"
@@ -143,7 +143,7 @@
             android:text="▶"
             android:textColor="#FFFFFFFF"
             android:textSize="34sp"
-            android:background="?android:attr/selectableItemBackground" />
+            android:background="@drawable/vp_ctrl_circle" />
 
         <TextView
             android:id="@+id/vp_next"
@@ -153,7 +153,7 @@
             android:text="⏭"
             android:textColor="#E6FFFFFF"
             android:textSize="24sp"
-            android:background="?android:attr/selectableItemBackground" />
+            android:background="@drawable/vp_ctrl_circle" />
     </LinearLayout>
 
     <!-- ===== 底栏 -->

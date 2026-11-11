@@ -204,8 +204,33 @@ echo "[5/7] d8 dex（分层：依赖 dex 指纹缓存 + 应用 dex 增量重建�
 #   ② 应用 dex（build/dex）：每次只编译工程自身的 class，libs 以 --lib 形式仅参与类型解析。
 DEPS_DIR="$BUILD/deps"
 DEPS_SIG="$BUILD/deps.sig"
+
+# v1.93.0：含「接口 default 方法」的库不能进依赖 dex。
+#
+# 症状（真机必现，编译期完全看不出来）：
+#   java.lang.AbstractMethodError: abstract method
+#     "void androidx.media3.common.Player$Listener.onTimelineChanged(Timeline, int)"
+#     on receiver VideoPlayerActivity$15
+#
+# 原因：d8 在 --min-api 21 下把接口 default 方法 desugar 成「接口里只剩抽象声明 +
+# Interface$-CC 里的静态实现」，同时要在**实现类**里补一个转发 stub。这两件事必须
+# 在同一批 program 输入里完成 —— d8 只有同时看到接口与实现类，才知道给谁补 stub。
+# 分层构建破坏了这一点：依赖 dex 把 media3 当 program（接口被改成 abstract），
+# 应用 dex 却把 media3 当 --lib（d8 以为库自带方法体，不补 stub）→ 拼起来是
+# 「接口空、实现类也空」，invoke-interface 直接 AbstractMethodError。
+#
+# 所以 media3 / androidx 这几个小库跟工程类同批 desugar，其余 20MB 依赖继续走缓存。
+is_app_program_jar() {
+    case "$1" in
+        */media3-*.jar|*/collection-*.jar|*/exifinterface-*.jar) return 0 ;;
+    esac
+    return 1
+}
+
 deps_inputs() {
-    ls -l "$BT/lib/apksigner.jar" "$PLATFORM" 2>/dev/null
+    # 把构建脚本自己也纳入指纹：改了分组逻辑必须重建依赖 dex，
+    # 否则会复用仍然带着 media3 的旧 deps dex，和新 app dex 撞成 duplicate class
+    ls -l "$0" "$BT/lib/apksigner.jar" "$PLATFORM" 2>/dev/null
     for j in "$ROOT"/libs/*.jar; do ls -l "$j"; done
     echo "$BT"
 }
@@ -226,24 +251,47 @@ else
         echo "--lib \"$PLATFORM\""
         echo "--output \"$DEPS_DIR\""
         echo "\"$BT/lib/apksigner.jar\""
-        for j in "$ROOT"/libs/*.jar; do echo "\"$j\""; done
+        for j in "$ROOT"/libs/*.jar; do
+            is_app_program_jar "$j" || echo "\"$j\""
+        done
     } > "$BUILD/deps.args"
     "$JAVA_BIN" @"$BUILD/deps.args"
     echo "$SIG_NOW" > "$DEPS_SIG"
 fi
 
-# 应用 dex：只编译工程自身 class（libs 作为 --lib 不打包进来）
+# 应用 dex：工程自身 class + 带接口 default 方法的库（见 is_app_program_jar 的注释，
+# 两者必须同批 desugar）。其余 libs 以 --lib 只参与类型解析，class 由依赖 dex 提供。
 ARGS="$BUILD/java.args"
 {
     echo "-cp \"$BT/lib/d8.jar\""
     echo "com.android.tools.r8.D8"
     echo "--release --min-api 21"
     echo "--lib \"$PLATFORM\""
-    for j in "$ROOT"/libs/*.jar; do echo "--lib \"$j\""; done
+    for j in "$ROOT"/libs/*.jar; do
+        is_app_program_jar "$j" || echo "--lib \"$j\""
+    done
     echo "--output \"$BUILD/dex\""
+    for j in "$ROOT"/libs/*.jar; do
+        if is_app_program_jar "$j"; then echo "\"$j\""; fi
+    done
     find "$BUILD/obj/com/hex91/file" "$BUILD/obj/jadx" "$BUILD/obj/com/termux" "$BUILD/obj/androidx" "$BUILD/obj/io" -name "*.class" -printf '"%p"\n'
 } > "$ARGS"
 "$JAVA_BIN" @"$ARGS"
+
+# v1.93.0：[5.5/7] 二进制兼容性自检。
+#
+# 为什么要有这一步：v1.91.0 的播放器在真机上一点就闪退 —— Media3 1.4.1 的
+# AudioCapabilities.<clinit> 调了 Guava 31 才有的 ImmutableMap.Builder.buildOrThrow()，
+# 而 libs 里躺的是 27.1。javac 不会检查预编译 class 引用的方法在不在 classpath 上，
+# 所以编译、d8、单测全过，只有装到手机上才炸。
+# tools/dexcheck.py 把 dex 里的每一个外部方法引用拿去 jar 里核对，能提前拦下这类问题。
+if [ -f "$ROOT/tools/dexcheck.py" ]; then
+    echo "[5.5/7] 校验 dex ↔ jar 的二进制兼容性..."
+    if ! "$PY" "$ROOT/tools/dexcheck.py" "$BUILD"/dex/classes*.dex "$BUILD"/deps/classes*.dex "$ROOT"/libs/*.jar; then
+        echo "!! dex 里有 libs 中不存在的方法/类：装机后必抛 NoSuchMethodError / NoClassDefFoundError"
+        exit 1
+    fi
+fi
 
 echo "[6/7] zipalign + 打包原生库..."
 cd "$BUILD"

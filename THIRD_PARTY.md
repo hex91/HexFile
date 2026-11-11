@@ -15,7 +15,7 @@
 | **zstd-jni 1.5.5-11**（`libs/zstd-jni-*.jar` + `native/libzstd-jni-1.5.5-11.so`） | Zstandard 压缩 | BSD-2-Clause | https://github.com/luben/zstd-jni |
 | **Apache Commons Compress 1.22**（`libs/commons-compress-1.22.jar`） | 归档格式支持 | Apache-2.0 | https://commons.apache.org/proper/commons-compress/ |
 | **zip4j 2.11.5**（`libs/zip4j-2.11.5.jar`） | AES/ZipCrypto 加密 ZIP | Apache-2.0 | https://github.com/srikanth-lingala/zip4j |
-| **Guava 27.1-android** 及其依赖（`libs/guava-*.jar`、`failureaccess`、`jsr305`） | 通用工具 | Apache-2.0 / BSD | https://github.com/google/guava |
+| **Guava 31.1-android** 及其依赖（`libs/guava-*.jar`、`failureaccess`、`jsr305`） | 通用工具（smbj / dexlib2 依赖；**版本下限由 Media3 1.4.1 决定** —— 它编译期用了 `ImmutableMap.Builder.buildOrThrow()`，该方法 31.0 才加入） | Apache-2.0 / BSD | https://github.com/google/guava |
 | **ANTLR runtime 3.5.2**（`libs/antlr-runtime-3.5.2.jar`） | 解析支持 | BSD-3-Clause | https://www.antlr.org/ |
 | **SLF4J 1.7.36**（`libs/slf4j-api-1.7.36.jar`） | 日志门面（sevenzipjbinding 依赖） | MIT | https://www.slf4j.org/ |
 | **XZ for Java 1.9**（`libs/xz-1.9.jar`） | .xz 解压（commons-compress 依赖） | Public Domain | https://github.com/tukaani-project/xz-java |
