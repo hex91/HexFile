@@ -34,6 +34,7 @@ import android.widget.GridView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -842,6 +843,8 @@ public class MainActivity extends BaseActivity {
         menu.add(Menu.NONE, 13, 9, "云同步…");
         // v1.91.0：播放网络地址（m3u8 / mpd / rtsp / 直链）
         menu.add(Menu.NONE, 14, 9, "播放链接 / 串流…");
+        // v1.92.0：把 m3u8 拉成单个 MP4（下载 + 合并 + 换容器）
+        menu.add(Menu.NONE, 15, 9, "下载视频（m3u8 → MP4）…");
         // v1.83.0：设置页（主题 / 工作目录 / Root / 回收站策略 / 版本）
         menu.add(Menu.NONE, 12, 9, "设置");
         // 让菜单右边缘与锚点（右上角 ⋮ 按钮）对齐，呈现“吸附右上角”效果
@@ -901,6 +904,9 @@ public class MainActivity extends BaseActivity {
                         break;
                     case 14:
                         promptPlayUrl();
+                        break;
+                    case 15:
+                        startActivity(new Intent(MainActivity.this, HlsDownloadActivity.class));
                         break;
                 }
                 return true;
@@ -1505,6 +1511,83 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 用内置播放器打开本地视频/流清单 */
+    /**
+     * TS → MP4 转封装（v1.92.0）。
+     *
+     * <p>为什么不放到下载页里：本地已有的 TS（录屏、别的工具下的切片、行车记录仪）
+     * 不需要「下载」，只需要换个容器。走同一个 {@link TsRemuxer}，
+     * 但入口放在长按菜单里更符合「就地操作这个文件」的直觉。</p>
+     */
+    private void remuxToMp4(final File src) {
+        if (src == null || !src.isFile()) return;
+        final File dst = TsRemuxer.mp4Sibling(src);
+        final float den = getResources().getDisplayMetrics().density;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (16 * den);
+        box.setPadding(pad, (int) (6 * den), pad, 0);
+        final TextView tv = new TextView(this);
+        tv.setText("正在读取索引…");
+        tv.setTextSize(13);
+        final ProgressBar pb = new ProgressBar(this, null,
+                android.R.attr.progressBarStyleHorizontal);
+        pb.setMax(100);
+        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, (int) (4 * den));
+        plp.topMargin = (int) (10 * den);
+        box.addView(tv);
+        box.addView(pb, plp);
+        final AlertDialog dlg = new HfDialogBuilder(this)
+                .setTitle("转为 MP4（只换容器，不重新编码）")
+                .setView(box)
+                .create();
+        dlg.setCanceledOnTouchOutside(false);
+        dlg.show();
+
+        new Thread(new Runnable() {
+            public void run() {
+                try {
+                    long size = TsRemuxer.remuxToMp4(src, dst, new TsRemuxer.Progress() {
+                        public void onProgress(final long us, final long total) {
+                            runOnUiThread(new Runnable() {
+                                public void run() {
+                                    if (isFinishing()) return;
+                                    long sec = us / 1000000L;
+                                    if (total > 0) {
+                                        int pct = (int) Math.min(100, us * 100 / total);
+                                        pb.setProgress(pct);
+                                        tv.setText("已处理 " + sec + " 秒 · " + pct + "%");
+                                    } else {
+                                        tv.setText("已处理 " + sec + " 秒");
+                                    }
+                                }
+                            });
+                        }
+                    });
+                    final long fs = size;
+                    runOnUiThread(new Runnable() {
+                        public void run() {
+                            if (isFinishing()) return;
+                            dlg.dismiss();
+                            refreshAll();
+                            toast("已生成 " + dst.getName() + "（"
+                                    + (fs / 1024 / 1024) + " MB）");
+                        }
+                    });
+                } catch (final Throwable t) {
+                    runOnUiThread(new Runnable() {
+                        public void run() {
+                            if (isFinishing()) return;
+                            dlg.dismiss();
+                            String m = t.getMessage();
+                            toast("转换失败：" + (m == null ? t.getClass().getSimpleName() : m));
+                        }
+                    });
+                }
+            }
+        }, "ts-remux").start();
+    }
+
     private void openVideo(File f) {
         startActivity(new Intent(this, VideoPlayerActivity.class)
                 .putExtra(VideoPlayerActivity.EXTRA_FILE, f.getAbsolutePath())
@@ -4353,13 +4436,21 @@ public class MainActivity extends BaseActivity {
                 A_TOZIP_C = 18, A_TOZIP_M = 19, A_COMPARE = 21,
                 A_ENCRYPT = 24, A_DECRYPT = 25, A_SPLIT = 27, A_MERGE = 28,
                 A_ZSTDC = 29, A_ZSTDD = 30, A_STRINGS = 31, A_SHARE = 45, A_LAN = 46, A_OPEN = 47,
-                A_CLIP_C = 48, A_CLIP_M = 49, A_PLAYER = 50;
+                A_CLIP_C = 48, A_CLIP_M = 49, A_PLAYER = 50, A_TSMP4 = 51, A_HLSD = 52;
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
         // v1.91.0：视频与流清单直接给「播放」（内置播放器），不必先绕「打开方式」
         if (isFile && (MimeUtil.isVideo(f.getName().toLowerCase())
                 || MimeUtil.isPlaylist(f.getName().toLowerCase()))) {
             ops.add("播放"); acts.add(A_PLAYER);
+        }
+        // v1.92.0：TS 录像/切片换容器成 MP4（不重编码，秒级完成）
+        if (isFile && f.getName().toLowerCase().endsWith(".ts") && looksLikeMpegTs(f)) {
+            ops.add("转为 MP4"); acts.add(A_TSMP4);
+        }
+        // 本地 m3u8（整目录下好的切片）→ 打开下载页，路径已预填
+        if (isFile && f.getName().toLowerCase().endsWith(".m3u8")) {
+            ops.add("合并为 MP4"); acts.add(A_HLSD);
         }
         if (isSmaliDir) { ops.add("编译为 dex"); acts.add(A_ASSEMBLE); }
         // v1.68.0：签名文件专属操作（导入签名管理 / 查看别名与证书）
@@ -4629,6 +4720,13 @@ public class MainActivity extends BaseActivity {
                 break;
             case 50:                              // v1.91.0：内置播放器
                 openVideo(f);
+                break;
+            case 51:                              // v1.92.0：TS → MP4（转封装）
+                remuxToMp4(f);
+                break;
+            case 52:                              // v1.92.0：本地 m3u8 → 下载/合并页
+                startActivity(new Intent(MainActivity.this, HlsDownloadActivity.class)
+                        .putExtra(HlsDownloadActivity.EXTRA_URL, f.getAbsolutePath()));
                 break;
             case 49:                              // 剪切到剪贴板
                 FileClipboard.get().put(java.util.Collections.singletonList(f), true);

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hex91.file"
-    android:versionCode="163"
-    android:versionName="1.91.0">
+    android:versionCode="164"
+    android:versionName="1.92.0">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
 
@@ -354,6 +354,16 @@
                 <data android:scheme="rtsp"/>
             </intent-filter>
         </activity>
+
+        <!-- v1.92.0：HLS 下载 / 合并为 MP4。
+             不挂任何 intent-filter：它接受 http 地址与本地路径，exported=false 才不会
+             被第三方应用塞一个 URL 触发下载（那会变成一个「后台偷偷下东西」的入口）。 -->
+        <activity
+            android:name="com.hex91.file.HlsDownloadActivity"
+            android:label="下载视频"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <!-- v1.69.0：Activity 记录浮窗（前台服务，TYPE_APPLICATION_OVERLAY） -->
         <service
