@@ -69,6 +69,11 @@ public class FileAdapter extends BaseAdapter {
 
     /** 直接展示给定条目（压缩包内浏览用；调用方已排好序，首项可为 .. 返回项） */
     public void setItems(List<FileItem> list) {
+        // v1.99.0（O-05）：这里是「数据已经就位」，必须同时收掉读取态。
+        // 原来只换数据不清 loading：从目录里点开一个 zip，进压缩包走的就是 setItems，
+        // loading 留在 true，而 MainActivity.handleItemClick 开头有 isLoading() 拦截
+        // → 压缩包里的条目怎么点都没反应（只能返回键退出），看着像「应用卡死」。
+        loading = false;
         items.clear();
         items.addAll(list);
         notifyDataSetChanged();

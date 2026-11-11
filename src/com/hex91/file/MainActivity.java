@@ -64,6 +64,8 @@ public class MainActivity extends BaseActivity {
 
     private TextView headerPath, headerStats;
     private ListView listLeft, listRight;
+    /** v1.99.0（O-03）：吞掉 onCreate 之后那一次重复的目录读取，见 onResume */
+    private boolean skipResumeReload = true;
 
     /** 单侧面板状态（对标 MT 的左右窗口） */
     private class Panel {
@@ -87,8 +89,15 @@ public class MainActivity extends BaseActivity {
          * v1.96.0：目录读取代次。读目录移到后台线程后，用户可能在结果回来之前
          * 又切了别的目录，回来时才发现手里这份是上一个目录的 —— 每次发起读取 +1，
          * 结果回来时代次对不上就整份丢掉。
+         *
+         * <p>v1.99.0（O-03）：加 volatile。后台任务在 <b>开始执行前</b> 也要查一次代次
+         * （见 loadDir 里的 Bg.io），否则连点几下会排出一串已经作废的读取，
+         * 每条都要跑完整的 stat / su ls，把 3 条 IO 线程占满，新目录反而更慢。
+         * 主线程写、工作线程读，没有 volatile 时这个判断可能读到旧值。</p>
          */
-        int dirGen;
+        volatile int dirGen;
+        /** v1.99.0（O-01）：下拉刷新的代次，延迟收圈时用来确认「收的是自己那次」 */
+        int pullGen;
         /** v1.96.0：最近一次读取统计（顶栏用，避免每次 O(n) 遍历适配器） */
         int dirCount, fileCount;
     }
@@ -1408,17 +1417,22 @@ public class MainActivity extends BaseActivity {
     /** v1.97.0：单次读目录的超时上限（超过即按失败收尾，见 loadDir 里的看门狗） */
     private static final long LOAD_TIMEOUT_MS = 20000L;
 
-    /** push=false 用于历史导航（不写入历史栈） */
-    private void loadDir(Panel p, File dir, boolean push) {
+    /**
+     * push=false 用于历史导航（不写入历史栈）。
+     *
+     * @return true = 已发起/正在进行的读取（调用方不必自己收下拉圈），
+     *         false = 参数校验没过或被去重跳过（没有收尾回调会来）
+     */
+    private boolean loadDir(Panel p, File dir, boolean push) {
         // v1.42.0：root 设备上 stat 可能被拒（ls 才需要 su），放行交给 DirReader 的 root 回退
         if (dir == null || (!dir.isDirectory() && !RootUtil.isRootAvailable())) {
             Toast.makeText(this, "无法访问: " + dir, Toast.LENGTH_SHORT).show();
-            return;
+            return false;
         }
         // v1.98.0：同一目录、上一次还在读 → 直接忽略。
         // 双击/连点会让同一个目录读两遍，两遍结果都会回主线程（代次只保住最新那份，白白多读一次）；
         // 大目录或 su 回退时这一次多读就是几百毫秒到几秒的额外占用。
-        if (p.dir != null && p.dir.equals(dir) && p.adapter.isLoading()) return;
+        if (p.dir != null && p.dir.equals(dir) && p.adapter.isLoading()) return true;
         if (p.adapter != null && p.adapter.selectionMode) exitSelection(p);
         closeArchiveQuiet(p);
         p.dir = dir;
@@ -1439,8 +1453,8 @@ public class MainActivity extends BaseActivity {
         // 原来 listFiles + 排序 + 逐项 lstat 都在主线程，几千项的目录或 su ls 回退会卡住甚至 ANR。
         final int gen = ++p.dirGen;
         p.adapter.setLoading(true);
-        // 顶栏路径立刻切（统计还是上一个目录的，读完补正）：慢目录（root 下 su ls 要几百毫秒到几秒）
-        // 若连路径都不动，用户会以为没点中而反复点
+        // 顶栏路径立刻切（慢目录 root 回退要几百毫秒到几秒，路径不动用户会以为没点中）；
+        // v1.99.0（O-06）：计数这一栏此时显示「读取中…」，不再沿用上一个目录的数字
         updateHeader();
         // 换目录后网格要回到顶部：数据换了一批，保留旧滚动位置会落在中间
         if (p.grid != null) p.grid.setSelection(0);
@@ -1449,10 +1463,16 @@ public class MainActivity extends BaseActivity {
         final File root = p.adapter.rootDir;
         Bg.io(new Runnable() {
             public void run() {
+                // v1.99.0（O-03）：真正开跑之前先看代次。IO 池只有 3 条线程，用户连点三个
+                // 目录就会排出三条任务；不在入口拦一道的话，已经作废的两条仍会跑完整的
+                // stat / su ls（慢目录各几百毫秒到几秒），把线程占满让最新那条排队 ——
+                // 用户看到的就是「越点越慢」。排在后面的作废任务直接退出，一个 syscall 都不发。
+                if (gen != p.dirGen) return;
                 // v1.97.0：readSafe 不抛异常 —— 失败会带着 error 回来，走同一条收尾路径。
                 // 原来这里直接 read：任务体一抛，下面的 Bg.ui 就不执行了，
                 // loading 卡在 true，而读取期间点击是被拦的 → 该窗格永久点不动。
                 final DirReader.Result r = DirReader.readSafe(dir, sort, hidden, root);
+                if (gen != p.dirGen) return;      // 读的过程里用户又切了，连回主线程都省了
                 Bg.ui(new Runnable() {
                     public void run() {
                         applyDirResult(p, gen, r);
@@ -1472,11 +1492,17 @@ public class MainActivity extends BaseActivity {
             public void run() {
                 if (gen != p.dirGen || !p.adapter.isLoading()) return;
                 p.dirGen++;                  // 让在途结果作废，免得回来又把列表盖一次
-                p.adapter.setLoading(false);
+                // v1.99.0（O-06）：超时也按失败收尾 —— 只把 loading 收掉、留着上一个目录的
+                // 条目的话，路径已经是新目录，用户点到的却是旧目录里的文件（删除/复制全错位）。
+                p.adapter.setResult(null);
+                p.dirCount = 0;
+                p.fileCount = 0;
+                updateHeader();
                 if (p.pull != null) p.pull.finishRefresh();
                 if (!isFinishing() && !isDestroyed()) toast("读取超时: " + dir.getName());
             }
         }, LOAD_TIMEOUT_MS);
+        return true;
     }
 
     /** 读目录的收尾（成功/失败同一入口）：换数据、补计数、收下拉刷新、失败给可见提示 */
@@ -1527,6 +1553,14 @@ public class MainActivity extends BaseActivity {
         }
         if (p.dir == null) return;
         headerPath.setText(p.dir.getPath());
+        // v1.99.0（O-06）：路径已经切到新目录，计数却还是上一层的。
+        // 大目录/root 回退时这段时间有几百毫秒到几秒，用户看到「路径是 A，文件数还是 B 的」
+        // 会以为读错了目录，甚至照着旧数字做删除。读取期间明确写「读取中…」，
+        // 顺便跳过下面的 usageOf（那是一次 statfs，读目录期间没必要连着做）。
+        if (p.adapter.isLoading()) {
+            headerStats.setText("读取中…");
+            return;
+        }
         // v1.96.0：计数由 DirReader 读目录时顺带算好（原来这里每次再遍历一遍适配器，
         // 几千项时和读目录叠加成双份开销，而且读目录已经不在主线程了，这里也不能留 O(n)）
         int dirs = p.dirCount, files = p.fileCount;
@@ -6200,9 +6234,18 @@ public class MainActivity extends BaseActivity {
         FileTaskEngine.get().setListener(taskListener);
         renderTaskBar();
         updatePasteButton();      // 剪贴板里的文件可能在本应用外被删了
+        // v1.99.0（O-03）：onCreate 里 restorePanesOrLoad 已经把两栏读起来了，
+        // 紧接着的第一次 onResume 不能再读一遍 —— 冷启动时同一个目录读两次，
+        // 第二次还会把第一次的代次推走（第一次白读，慢目录上等于启动多等一倍）。
+        if (skipResumeReload) {
+            skipResumeReload = false;
+            return;
+        }
         for (Panel p : new Panel[]{left, right}) {
             if (p.archiveFile != null) showArchiveDir(p);
-            else if (p.dir != null) loadDir(p, p.dir);
+            // v1.99.0（O-04）：三参 push=false。回前台不是「进入新目录」，
+            // 用两参版本会往历史栈里补当前路径，用户从子页面回来再按 ‹ 就退不动。
+            else if (p.dir != null) loadDir(p, p.dir, false);
         }
     }
 
@@ -6442,26 +6485,51 @@ public class MainActivity extends BaseActivity {
     /**
      * v1.79.0 下拉刷新：重读当前目录（压缩包浏览中则重列压缩包当前层）。
      *
-     * 读目录是同步的（大目录、root 回退的 ls 可能要几十毫秒到几秒），所以先让转圈画出来
-     * 再干活；结束时再停留 200ms，避免一闪而过让人以为没刷。刷新不写历史栈。
+     * <p>v1.99.0（O-01）：转圈的收尾交给真正读完的那一方。原来这里 {@code postDelayed(220)}
+     * <b>无条件</b> {@code finishRefresh()}，而读目录早已是异步的（大目录 / su 回退几百毫秒到几秒）
+     * —— 圈在 220ms 就停了，列表还是上一个目录的，点击又被 {@code isLoading()} 拦着，
+     * 用户看到的是「刷新完了但点不动」，很自然就会反复下拉。现在只有没走异步读取的分支
+     * （压缩包重列失败 / dir 为空 / 路径校验没过）才用 220ms 兜底，其余由
+     * {@code applyDirResult} / 20s 看门狗 / 失败回调统一收。</p>
      */
     private void refreshPanel(final Panel p) {
         if (p == null || p.pull == null || p.adapter == null) return;
         p.pull.setRefreshing(true);
+        final int pg = ++p.pullGen;
         p.list.postDelayed(new Runnable() {
             public void run() {
                 if (p.adapter.selectionMode) exitSelection(p);
-                if (p.archiveFile != null) showArchiveDir(p);
-                else if (p.dir != null) loadDir(p, p.dir, false);
+                boolean asyncRead;
+                if (p.archiveFile != null) {
+                    // 压缩包重列也是异步的（showArchiveDir 内部起线程 listChildren，
+                    // 回主线程 setItems 后自己 finishRefresh），这里同样不能提前收圈；
+                    // 归档被关掉/列目录抛异常时那条路径可能不回来，挂一个长兜底
+                    showArchiveDir(p);
+                    asyncRead = true;
+                    finishPullLater(p, pg, 8000);
+                } else if (p.dir != null) {
+                    asyncRead = loadDir(p, p.dir, false);
+                } else {
+                    asyncRead = false;
+                }
                 updateHeader();
                 updatePasteButton();      // 目录内容变了，剪贴板里失效的源要重新剔除
-                p.pull.postDelayed(new Runnable() {
-                    public void run() {
-                        p.pull.finishRefresh();
-                    }
-                }, 220);
+                // 220ms 只是让转圈至少画出一帧，不是「读取完成」的信号
+                if (!asyncRead) finishPullLater(p, pg, 220);
             }
         }, 90);
+    }
+
+    /** 延迟收下拉圈；调用前已经在转才收，避免把下一次刷新的圈提前收掉 */
+    private void finishPullLater(final Panel p, final int pg, long delayMs) {
+        if (p == null || p.pull == null) return;
+        p.pull.postDelayed(new Runnable() {
+            public void run() {
+                // 代次不一致 = 这期间用户又下拉了一次，别把新那次的圈收掉
+                if (p.pull != null && p.pull.isRefreshing() && pg == p.pullGen)
+                    p.pull.finishRefresh();
+            }
+        }, delayMs);
     }
 
     private void toast(String s) {

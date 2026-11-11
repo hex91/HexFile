@@ -1668,6 +1668,26 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.99.0（versionCode 178）—— 目录加载的六个收尾缺口（O-01 ~ O-06）
+
+第四轮审查把「异步读目录」又翻了一遍，这次盯的不是「读得慢」，而是**读的状态没有收尾**：
+转圈停了但没读完、读完了但点不动、路径换了但数字还是旧的。六条里五条要改，一条复核已闭合。
+
+| 项 | 现象 | 修法 |
+|---|---|---|
+| **O-05** | 从目录点开 zip → 压缩包内**任何条目都点不动**，只能返回键退出 | `FileAdapter.setItems` 是压缩包浏览的唯一入口，原来只换数据不清 `loading`，而 `handleItemClick` 开头有 `isLoading()` 拦截 → 补 `loading = false` |
+| **O-01** | 下拉刷新 220ms 后圈就停了，列表还是旧的，点击又被拦 | 收圈交给真正读完的一方：`loadDir` 返回「是否发起异步读取」，只有压缩包 / `dir==null` / 校验失败才走 220ms 兜底；其余由 `applyDirResult`、20s 看门狗、失败回调统一收 |
+| **O-06** | 路径已切到新目录，顶栏文件数还是上一层的 | `updateHeader` 在 `isLoading()` 时写「读取中…」并跳过 `usageOf`（省一次 statfs）；超时分支同步刷顶栏 |
+| **O-03** | 连点几个目录，作废的读取仍跑完整 `stat`/`su ls`；冷启动同一目录读两遍 | ① `Bg.io` 任务体**开跑前**先查代次，过期的直接退出（一个 syscall 都不发），`Panel.dirGen` 加 `volatile`；② `onResume` 吞掉 `onCreate` 之后那一次重复读取 |
+| **O-04** | 从子页面回前台往历史栈补一条，`‹` 退不动 | `onResume` 改三参 `push=false` |
+| **O-02** | 异常时 `loading` 永久 true | v1.97.0 已闭合（`Bg.io(r, Fail)` + `readSafe` + `applyDirResult(gen,null)`），本轮复核无遗漏 |
+
+顺带把超时分支从「只收 loading」改成**按失败收尾**（清空列表 + 计数归零）：
+只清 loading 而留着旧目录条目的话，路径已经是新目录，用户点到的却是旧目录里的文件 ——
+删除、复制会全部错位，比看见空白危险得多。
+
+`QUICK=1 ./test/run_core.sh` → **48/48 PASS**；APK 13.0MB，`versionCode 178 / 1.99.0`，V3 签名校验通过。
+
 ## v1.98.0（versionCode 177）—— 文件任务进前台服务（F-07）
 
 复制/移动/压缩原来跑在进程内的普通线程上。用户切到微信回两条消息，进程进入 cached 状态，
