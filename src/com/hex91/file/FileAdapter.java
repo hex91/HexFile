@@ -215,8 +215,10 @@ public class FileAdapter extends BaseAdapter {
                 || low.endsWith(".bmp"));
         boolean isApk = isRealFile && low.endsWith(".apk");
         boolean isGif = isImg && low.endsWith(".gif");
+        // v1.91.0：视频也出缩略图（抽帧结果有磁盘缓存，第二次进目录几乎是瞬时）
+        boolean isVid = isRealFile && MimeUtil.isVideo(low);
 
-        if (isImg || isApk) {
+        if (isImg || isApk || isVid) {
             // 缩略图模式：隐藏彩色角标，异步加载（回调以 tag 校验，回收复用安全）
             icon.setVisibility(View.GONE);
             badge.setVisibility(isGif ? View.VISIBLE : View.GONE);
@@ -232,8 +234,9 @@ public class FileAdapter extends BaseAdapter {
                 } else {
                     final int px = (int) (38 * ctx.getResources().getDisplayMetrics().density) * 2;
                     final android.content.Context app = ctx.getApplicationContext();
-                    final boolean apkF = isApk;
-                    ThumbLoader.load(app, it.file, apkF, px, new ThumbLoader.Cb() {
+                    final int kind = isApk ? ThumbLoader.KIND_APK
+                            : isVid ? ThumbLoader.KIND_VIDEO : ThumbLoader.KIND_IMAGE;
+                    ThumbLoader.load(app, it.file, kind, px, new ThumbLoader.Cb() {
                         public void onThumb(String k, android.graphics.Bitmap bmp) {
                             if (k.equals(tv.getTag()) && bmp != null) tv.setImageBitmap(bmp);
                         }
@@ -267,7 +270,7 @@ public class FileAdapter extends BaseAdapter {
                 icon.setBackground(bg);
             }
         }
-        if (isImg || isApk) thumb.setVisibility(View.VISIBLE);
+        if (isImg || isApk || isVid) thumb.setVisibility(View.VISIBLE);
 
         boolean sel = selectionMode && it.selected;
         name.setText(styledName(it, sel));

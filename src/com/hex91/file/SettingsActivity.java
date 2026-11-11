@@ -184,6 +184,36 @@ public class SettingsActivity extends BaseActivity {
                     }
                 });
 
+        // ---- 视频播放（v1.91.0） ----
+        LinearLayout video = section("视频播放");
+        switchRow(video, "视频缩略图",
+                "文件列表里给视频显示首帧。关掉后只显示类型角标（省电、省内存，老机器建议关）。",
+                PlayerPrefs.thumbsEnabled(this),
+                new CompoundButton.OnCheckedChangeListener() {
+                    public void onCheckedChanged(CompoundButton cb, boolean on) {
+                        PlayerPrefs.setThumbsEnabled(SettingsActivity.this, on);
+                        if (!on) ThumbLoader.clearDiskCache(SettingsActivity.this);
+                        toast(on ? "已开启：重新进目录即可看到视频首帧" : "已关闭，并清掉了已有的缩略图缓存");
+                    }
+                });
+        infoRow(video, "缩略图缓存", bytesText(ThumbLoader.diskCacheSize(this)));
+        row(video, "清除缩略图缓存", "删掉缓存目录（cacheDir/vthumb），下次进目录会重新抽帧", "",
+                new View.OnClickListener() {
+                    public void onClick(View v) {
+                        int n = ThumbLoader.clearDiskCache(SettingsActivity.this);
+                        toast("已删除 " + n + " 个缩略图缓存文件");
+                        build();
+                    }
+                });
+        row(video, "清除播放记录", "忘掉所有视频的续播位置（已看的片子下次从头开始）", "",
+                new View.OnClickListener() {
+                    public void onClick(View v) {
+                        PlayerPrefs.clearPositions(SettingsActivity.this);
+                        toast("播放记录已清除");
+                    }
+                });
+        infoRow(video, "播放内核", "Media3 ExoPlayer 1.4.1（HLS/DASH/RTSP/本地容器）");
+
         // ---- 回收站 ----
         LinearLayout trash = section("回收站");
         row(trash, "保留策略", TrashPolicyDialog.summary(), "", new View.OnClickListener() {
@@ -459,5 +489,13 @@ public class SettingsActivity extends BaseActivity {
 
     private void toast(String s) {
         Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
+    }
+
+    /** 缓存体积显示：不足 1MB 用 KB，避免一堆 0.0 MB */
+    private static String bytesText(long b) {
+        if (b <= 0) return "空";
+        if (b < 1024) return b + " B";
+        if (b < 1024 * 1024) return (b / 1024) + " KB";
+        return String.format(java.util.Locale.US, "%.1f MB", b / 1048576.0);
     }
 }

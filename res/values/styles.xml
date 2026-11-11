@@ -50,4 +50,27 @@
         <item name="android:textColor">?attr/hfText</item>
         <item name="android:background">?attr/hfSurfaceAlt</item>
     </style>
+
+    <!-- v1.91.0：播放器底栏胶囊按钮（黑底白字，固定配色，不随主题变化） -->
+    <style name="VpChip">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">32dp</item>
+        <item name="android:layout_marginRight">6dp</item>
+        <item name="android:paddingLeft">10dp</item>
+        <item name="android:paddingRight">10dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">#E6FFFFFF</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:background">@drawable/vp_chip</item>
+    </style>
+    <!-- v1.91.0：播放器的「启动窗口」主题。
+         只影响 setContentView 之前那一瞬（BaseActivity 会再套应用主题），
+         但白色闪一下在纯黑播放器上非常刺眼，所以单独给个黑底。 -->
+    <style name="VpWindow" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF000000</item>
+        <item name="android:colorAccent">#FFFFFFFF</item>
+        <item name="android:statusBarColor">#FF000000</item>
+        <item name="android:navigationBarColor">#FF000000</item>
+    </style>
 </resources>

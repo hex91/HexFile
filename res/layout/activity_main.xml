@@ -681,18 +681,8 @@
             android:textColor="?attr/hfText"
             android:background="?android:attr/selectableItemBackground"/>
 
-        <!-- v1.83.0：统一设置页（含主题、工作目录、Root、回收站策略） -->
-        <TextView
-            android:id="@+id/drawer_settings"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:gravity="center_vertical"
-            android:paddingLeft="16dp"
-            android:text="⚙  设置"
-            android:textSize="15sp"
-            android:textColor="?attr/hfText"
-            android:background="?android:attr/selectableItemBackground"/>
-
+        <!-- v1.91.0：抽屉不再放「设置」——顶栏 ⋮ 菜单里已有同一入口，
+             同一页面两个并列入口只会让人犹豫点哪个，故删掉抽屉这一行。 -->
         <TextView
             android:id="@+id/drawer_theme"
             android:layout_width="match_parent"

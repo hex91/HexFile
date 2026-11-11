@@ -74,4 +74,34 @@ public final class MimeUtil {
         if (e.equals("so")) return "application/x-sharedlib";
         return "application/octet-stream";
     }
+
+    /**
+     * v1.91.0：是否是「可播放的视频容器」。
+     *
+     * <p>与 {@link #of(String)} 的区别：这里只回答「该不该交给播放器/该不该生成缩略图」，
+     * 因此不包含 m3u8/mpd（那是清单不是片子，拿它抽帧只会得到一个「不支持的格式」）。
+     * rmvb/wmv 这类本机解不了的容器也一并列进来 —— 能不能解码是播放器的事，
+     * 该不该把它当视频、该不该出缩略图是文件管理器的事，两者不要混。</p>
+     *
+     * <p>刻意<b>不含</b> {@code .ts}：本工程把 .ts 当 TypeScript 源码（见 MainActivity.isTextName），
+     * 列进来会让点开一个 .ts 源码就跳进播放器。真正的 MPEG-TS 视频由点击处按字节嗅探
+     * （{@code looksLikeMpegTs}）单独识别。</p>
+     */
+    public static boolean isVideo(String name) {
+        if (name == null) return false;
+        String n = name.toLowerCase();
+        return n.endsWith(".mp4") || n.endsWith(".m4v") || n.endsWith(".mkv")
+                || n.endsWith(".webm") || n.endsWith(".mov") || n.endsWith(".avi")
+                || n.endsWith(".flv") || n.endsWith(".m2ts")
+                || n.endsWith(".3gp") || n.endsWith(".wmv") || n.endsWith(".mpg")
+                || n.endsWith(".mpeg") || n.endsWith(".rmvb") || n.endsWith(".rm")
+                || n.endsWith(".asf") || n.endsWith(".vob") || n.endsWith(".ogv");
+    }
+
+    /** v1.91.0：是否是流清单（HLS / DASH），播放器要按「源」处理而不是按渐进下载 */
+    public static boolean isPlaylist(String name) {
+        if (name == null) return false;
+        String n = name.toLowerCase();
+        return n.endsWith(".m3u8") || n.endsWith(".m3u") || n.endsWith(".mpd");
+    }
 }

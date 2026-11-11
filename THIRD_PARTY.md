@@ -1,6 +1,7 @@
 # 第三方组件与许可证（THIRD_PARTY）
 
-本项目（HexFile）为个人本地工具集，**零 AndroidX / 零 Gradle**，采用 Apache-2.0 许可（见 `LICENSE`）。
+本项目（HexFile）为个人本地工具集，**零 Gradle**（aapt2 + javac + d8 手写流水线），采用 Apache-2.0 许可（见 `LICENSE`）。
+除下表的 Java 库外，v1.91.0 起引入 Media3 / AndroidX 的少量 AAR 解包出的 class（仅 jar，不含资源），同样列在下表中。
 项目内 vendored（内置源码/二进制）了以下开源组件，特此致谢并标注其许可证：
 
 | 组件 | 用途 | 许可证 | 来源 |
@@ -21,6 +22,9 @@
 | **smbj 0.14.0**（`libs/smbj-0.14.0.jar`） | SMB 客户端（网络存储，SMB2/SMB3） | Apache-2.0 | https://github.com/hierynomus/smbj |
 | **asn-one 0.6.0**（`libs/asn-one-0.6.0.jar`） | ASN.1 编解码（smbj 依赖） | Apache-2.0 | https://github.com/hierynomus/asn-one |
 | **mbassador 1.3.0**（`libs/mbassador-1.3.0.jar`） | 事件总线（smbj 依赖） | MIT | https://github.com/bennidi/mbassador |
+| **Media3 ExoPlayer 1.4.1**（`libs/media3-*-1.4.1.jar`） | 视频播放内核：HLS / DASH / RTSP / 本地容器解码 | Apache-2.0 | https://github.com/androidx/media |
+| **androidx.collection 1.2.0**（`libs/collection-1.2.0.jar`） | `CircularIntArray`（Media3 异步解码回调依赖） | Apache-2.0 | https://developer.android.com/jetpack/androidx/releases/collection |
+| **androidx.exifinterface 1.3.6**（`libs/exifinterface-1.3.6.jar`） | Media3 读取封面图方向 | Apache-2.0 | https://developer.android.com/jetpack/androidx/releases/exifinterface |
 | **Bouncy Castle bcprov-jdk18on 1.79**（`libs/bcprov-jdk18on-1.79.jar`） | 加密算法提供者（smbj 依赖） | MIT（BC 双许可 MIT/LGPL，此处按 MIT 使用） | https://www.bouncycastle.org/ |
 
 > 说明：`sevenzipjbinding` 以 LGPL-2.1 发布并附带静态链接例外，本项目以动态加载其原生库（`.so`）的方式使用，符合其许可要求。

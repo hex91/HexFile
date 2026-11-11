@@ -630,13 +630,7 @@ public class MainActivity extends BaseActivity {
                 startActivity(new Intent(MainActivity.this, LanShareActivity.class));
             }
         });
-        // v1.83.0：统一设置页入口（抽屉 + ⋮ 菜单各一处）
-        findViewById(R.id.drawer_settings).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                closeDrawer();
-                startActivity(new Intent(MainActivity.this, SettingsActivity.class));
-            }
-        });
+        // v1.91.0：抽屉里的「设置」已删除（⋮ 菜单同一入口足够），见 showMoreMenu
         findViewById(R.id.drawer_theme).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 closeDrawer();
@@ -846,6 +840,8 @@ public class MainActivity extends BaseActivity {
         menu.add(Menu.NONE, 8, 8, "最近打开");
         // v1.87.0：云同步（WebDAV 双向）
         menu.add(Menu.NONE, 13, 9, "云同步…");
+        // v1.91.0：播放网络地址（m3u8 / mpd / rtsp / 直链）
+        menu.add(Menu.NONE, 14, 9, "播放链接 / 串流…");
         // v1.83.0：设置页（主题 / 工作目录 / Root / 回收站策略 / 版本）
         menu.add(Menu.NONE, 12, 9, "设置");
         // 让菜单右边缘与锚点（右上角 ⋮ 按钮）对齐，呈现“吸附右上角”效果
@@ -902,6 +898,9 @@ public class MainActivity extends BaseActivity {
                         break;
                     case 13:
                         startActivity(new Intent(MainActivity.this, SyncActivity.class));
+                        break;
+                    case 14:
+                        promptPlayUrl();
                         break;
                 }
                 return true;
@@ -1469,6 +1468,12 @@ public class MainActivity extends BaseActivity {
                     .putExtra(FontPreviewActivity.EXTRA_FILE, f.getAbsolutePath()));
         } else if (isKeystoreFile(f, lower)) {
             showKeystoreAction(f);          // v1.68.0：签名文件 → 导入 / 查看 / HEX
+        } else if (lower.endsWith(".ts") && looksLikeMpegTs(f)) {
+            // .ts 在本工程里默认是 TypeScript 源码，只有真的 MPEG-TS 才当视频
+            openVideo(f);
+        } else if (MimeUtil.isVideo(lower) || MimeUtil.isPlaylist(lower)) {
+            // v1.91.0：视频/流清单交给内置播放器（以前一律交给系统，等于「管理器里看不了视频」）
+            openVideo(f);
         } else if (isTextFile(f, lower)) {
             openEditor(f);
         } else if (!OpenWith.open(this, f)) {
@@ -1483,6 +1488,76 @@ public class MainActivity extends BaseActivity {
     public static boolean isImageExt(String lower) {
         return lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png")
                 || lower.endsWith(".gif") || lower.endsWith(".webp") || lower.endsWith(".bmp");
+    }
+
+    // ============================================================ 内置播放器（v1.91.0）
+
+    /**
+     * 字节嗅探 MPEG-TS：188 字节一个包、包头固定 0x47。
+     * <p>不这么做的话只有两个选择：把 .ts 一律当视频（点 TypeScript 源码会进播放器），
+     * 或一律当文本（真的 TS 录像打不开）。两种都能用，但都别扭。</p>
+     */
+    static boolean looksLikeMpegTs(File f) {
+        if (f == null || !f.isFile() || f.length() < 376) return false;
+        byte[] h = FileInspect.readHead(f, 377);
+        if (h == null || h.length < 377) return false;
+        return h[0] == 0x47 && h[188] == 0x47 && h[376] == 0x47;
+    }
+
+    /** 用内置播放器打开本地视频/流清单 */
+    private void openVideo(File f) {
+        startActivity(new Intent(this, VideoPlayerActivity.class)
+                .putExtra(VideoPlayerActivity.EXTRA_FILE, f.getAbsolutePath())
+                .putExtra(VideoPlayerActivity.EXTRA_TITLE, f.getName()));
+    }
+
+    /**
+     * 「播放链接 / 串流…」：手输或粘贴地址。
+     * <p>输入框预填剪贴板里的第一个地址 —— 用户通常是从浏览器/聊天里复制完再切过来，
+     * 预填能省掉一次长按粘贴；剪贴板里没有合法地址就留空。</p>
+     */
+    private void promptPlayUrl() {
+        final android.widget.EditText input = new android.widget.EditText(this);
+        input.setHint("http(s)://…/index.m3u8  或  rtsp://…");
+        input.setTextSize(13);
+        input.setSingleLine(true);
+        try {
+            android.content.ClipboardManager cm = (android.content.ClipboardManager)
+                    getSystemService(CLIPBOARD_SERVICE);
+            if (cm != null && cm.hasPrimaryClip() && cm.getPrimaryClip() != null
+                    && cm.getPrimaryClip().getItemCount() > 0) {
+                CharSequence txt = cm.getPrimaryClip().getItemAt(0).coerceToText(this);
+                String url = StreamUrl.firstUrl(txt == null ? null : txt.toString());
+                if (url != null) input.setText(url);
+            }
+        } catch (Throwable ignore) {
+        }
+        int pad = Math.round(18 * getResources().getDisplayMetrics().density);
+        input.setPadding(pad, pad / 2, pad, pad / 2);
+
+        new HfDialogBuilder(this)
+                .setTitle("播放网络地址 / 串流")
+                .setView(input)
+                .setMessage("支持 m3u8（HLS）、mpd（DASH）、rtsp 摄像头、直链视频。\n"
+                        + "m3u8 会自动解析多档画质，可在播放器里锁定。")
+                .setPositiveButton("播放", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        String raw = input.getText() == null ? "" : input.getText().toString();
+                        String url = StreamUrl.normalize(raw);
+                        if (url == null) {
+                            toast("不是可播放的地址（只支持 http/https/rtsp）");
+                            return;
+                        }
+                        if (StreamUrl.kindOf(url) == StreamUrl.KIND_RTMP) {
+                            toast("RTMP 需要额外解码扩展，当前版本请改用 m3u8/HLS 地址");
+                            return;
+                        }
+                        startActivity(new Intent(MainActivity.this, VideoPlayerActivity.class)
+                                .putExtra(VideoPlayerActivity.EXTRA_URL, url));
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     // ============================================================ 签名文件（v1.68.0）
@@ -4278,9 +4353,14 @@ public class MainActivity extends BaseActivity {
                 A_TOZIP_C = 18, A_TOZIP_M = 19, A_COMPARE = 21,
                 A_ENCRYPT = 24, A_DECRYPT = 25, A_SPLIT = 27, A_MERGE = 28,
                 A_ZSTDC = 29, A_ZSTDD = 30, A_STRINGS = 31, A_SHARE = 45, A_LAN = 46, A_OPEN = 47,
-                A_CLIP_C = 48, A_CLIP_M = 49;
+                A_CLIP_C = 48, A_CLIP_M = 49, A_PLAYER = 50;
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
+        // v1.91.0：视频与流清单直接给「播放」（内置播放器），不必先绕「打开方式」
+        if (isFile && (MimeUtil.isVideo(f.getName().toLowerCase())
+                || MimeUtil.isPlaylist(f.getName().toLowerCase()))) {
+            ops.add("播放"); acts.add(A_PLAYER);
+        }
         if (isSmaliDir) { ops.add("编译为 dex"); acts.add(A_ASSEMBLE); }
         // v1.68.0：签名文件专属操作（导入签名管理 / 查看别名与证书）
         if (isKs) { ops.add("签名信息"); acts.add(43); }
@@ -4340,7 +4420,7 @@ public class MainActivity extends BaseActivity {
                 A_TOZIP_C = 18, A_TOZIP_M = 19, A_SIGN_APK = 20, A_APK_COMPARE = 22, A_APK_CLONE = 23,
                 A_SIGKILL = 26, A_INFO = 32, A_UNPACK = 33, A_SIGN_CUSTOM = 34, A_RM_SIGN = 35,
                 A_DEL = 7, A_IMGBATCH = 37, A_ARSCPP2 = 40, A_SHARE = 45, A_LAN = 46, A_OPEN = 47,
-                A_CLIP_C = 48, A_CLIP_M = 49;
+                A_CLIP_C = 48, A_CLIP_M = 49, A_PLAYER = 50;
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
         ops.add("Dex 编辑器++"); acts.add(A_DEXPP);
@@ -4546,6 +4626,9 @@ public class MainActivity extends BaseActivity {
                 FileClipboard.get().put(java.util.Collections.singletonList(f), false);
                 updatePasteButton();
                 toast("已复制 " + f.getName() + "，翻到目标目录点底部 📋 粘贴");
+                break;
+            case 50:                              // v1.91.0：内置播放器
+                openVideo(f);
                 break;
             case 49:                              // 剪切到剪贴板
                 FileClipboard.get().put(java.util.Collections.singletonList(f), true);

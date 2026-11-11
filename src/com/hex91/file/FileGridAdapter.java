@@ -68,8 +68,9 @@ public class FileGridAdapter extends BaseAdapter {
                 || low.endsWith(".png") || low.endsWith(".gif") || low.endsWith(".webp")
                 || low.endsWith(".bmp"));
         boolean isApk = real && low.endsWith(".apk");
+        boolean isVid = real && MimeUtil.isVideo(low);   // v1.91.0：视频缩略图
 
-        if (isImg || isApk) {
+        if (isImg || isApk || isVid) {
             icon.setVisibility(View.GONE);
             thumb.setVisibility(View.VISIBLE);
             thumb.setBackground(thumbBg);
@@ -83,8 +84,9 @@ public class FileGridAdapter extends BaseAdapter {
                     thumb.setImageBitmap(mem);
                 } else {
                     final ImageView tv = thumb;
-                    final boolean apkF = isApk;
-                    ThumbLoader.load(ctx.getApplicationContext(), it.file, apkF, thumbPx,
+                    final int kind = isApk ? ThumbLoader.KIND_APK
+                            : isVid ? ThumbLoader.KIND_VIDEO : ThumbLoader.KIND_IMAGE;
+                    ThumbLoader.load(ctx.getApplicationContext(), it.file, kind, thumbPx,
                             new ThumbLoader.Cb() {
                                 public void onThumb(String k, Bitmap bmp) {
                                     if (k.equals(tv.getTag()) && bmp != null) tv.setImageBitmap(bmp);

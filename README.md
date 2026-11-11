@@ -1668,6 +1668,161 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.91.0 —— 内置视频播放器（Media3 ExoPlayer 内核）
+
+以前在文件管理器里点视频，走的是 `OpenWith`（交给系统找应用）。结果是：手机上但凡
+没装第三方播放器，点视频就只弹一句「没有可打开该类型的应用」——一个文件管理器
+打不开自己目录里的视频，说不过去。
+
+这一版补上内置播放器：**本地视频 / 网络直链 / HLS(m3u8) / DASH(mpd) / RTSP**，
+倍速 0.25×–3.0×，m3u8 多档画质可锁定，列表里出视频首帧缩略图。
+
+### 一、把 ExoPlayer 塞进「没有 Gradle」的工程
+
+本工程的构建链是 `aapt2 → javac → d8 → zipalign → apksigner`，没有 AGP 的资源合并。
+集成 Media3 的难点不在代码，在两件事：
+
+1. **AAR 里的 classes.jar 可以直接用**：把 11 个 media3 AAR 解包，只取 `classes.jar`
+   放进 `libs/`（`build.sh` 的 `libs/*.jar` 通配自然吃到），共 4.7MB；
+2. **AAR 的 res/ 不要**：media3 只有 `media3-exoplayer` 带资源，且全是
+   `DownloadService` 通知文案（`exo_download_*`），本项目不做离线缓存下载，用不到。
+   代价是 `androidx.media3.exoplayer.R` 这个类在运行时不存在 —— 只要不去碰
+   `DownloadNotificationHelper` 就不会加载它（已按此裁剪）。
+
+真正的依赖只有三个外部包，实测（扫 `classes.jar` 常量池）：
+`androidx.annotation`（本工程有桩）、`androidx.collection.CircularIntArray`
+（异步解码回调要用，引了真 jar）、`androidx.exifinterface.ExifInterface`
+（读封面图方向，也引了真 jar）。
+**没有引入 media3-ui** —— 它带整套 layout/values 且依赖 AppCompat，与「37 个页面全部手写 UI」
+的本工程冲突；控制条是自绘的（`activity_video_player.xml` + `VideoPlayerActivity`）。
+
+编译验证：`javac -source 8 -target 8 -bootclasspath android-35/android.jar` 直接通过，
+说明 Media3 1.4.1 的字节码版本与本工程的 Java 8 / minSdk 21 基线兼容。
+
+### 二、「不压缩」落到了三行具体代码
+
+口号没有意义，落到实处只有三处：
+
+```java
+trackSelector.setParameters(trackSelector.buildUponParameters()
+        .setMaxVideoSize(Integer.MAX_VALUE, Integer.MAX_VALUE)   // 不设分辨率上限
+        .setMaxVideoBitrate(Integer.MAX_VALUE)                   // 不设码率上限
+        .setMaxAudioBitrate(Integer.MAX_VALUE));
+```
+
+```java
+// 默认 FIT：等比缩放到完整可见（四周留黑），绝不裁切、绝不变形
+float s = Math.min((float) vw / videoW, (float) vh / videoH);
+m.setScale(s, s, vw / 2f, vh / 2f);
+```
+
+加上「不做二次编码」——ExoPlayer 把解码结果直接送到 `TextureView` 的 surface，
+中间没有缩放到固定分辨率、没有重编码。用户看到的像素就是片源像素（唯一例外是设备
+自身的显示缩放，那一步不在 App 控制范围内）。
+
+需要说明的边界：**解码能力取决于设备**。Media3 的 extractor 能拆 mp4/mkv/webm/ts/flv/avi 等
+容器，但真正的解码是系统 `MediaCodec` 干的。AV1、HEVC 10bit 这类，老设备就是解不了，
+这种情况下播放器给的是明确的人话提示（见下文错误码表），而不是一个黑屏。
+
+### 三、画质：自己解析 master，而不是设个上限
+
+`setMaxVideoSize` 是「上限」语义 —— 设 1080p 表示「不超过 1080p」，播放器仍然会在
+360p/720p 之间自适应。用户点「720P」时想要的是**锁死 720P**，这两件事不一样。
+
+所以做了 `M3u8Playlist`：拉取 master playlist，解析 `#EXT-X-STREAM-INF` 的
+`RESOLUTION` / `BANDWIDTH` / `CODECS`，把每一档的**子播放列表地址**拿出来；
+用户选档 → 把当前 `MediaItem` 换成那一档的地址重新 prepare（位置不动）。
+播放器从此只看到一路流，ABR 无从切换 —— 这才是「锁定」。选「自动」则换回原始 master 地址。
+
+解析器里有三个真实坑，单测全部钉住：
+
+- **HLS 是 CRLF 行尾**。`split("\n")` 会留下 `\r`，拼出来的子地址带 `\r`，请求必 404；
+- **`CODECS="avc1.640028,mp4a.40.2"` 的引号里有逗号**。按逗号切属性会把 CODECS 切成两半，
+  后面所有属性错位（表现是画质菜单里分辨率全空）。必须做引号感知的切分；
+- **`#EXT-X-I-FRAME-STREAM-INF` 不能进画质菜单**。那是拖动条预览用的 I 帧轨道，
+  混进去用户会选到「只有缩略图没有画面」的一路。
+
+### 四、m3u8 拦截：三道必须踩对的坎
+
+**坎 1：注册 `http` + `pathPattern` 必须带 `host="*"`。**
+Android 的规则是「path 类条件只在同时声明了 scheme 与 host 时才生效」。只写
+`scheme="https" pathPattern=".*\\.m3u8"`，系统会**忽略 path 条件**，等于接管所有 https 链接 ——
+用户点任何网页都会问「用 HexFile 打开？」，这是灾难。
+
+**坎 2：用 `pathSuffix` 而不是 `pathPattern`。**
+`pathPattern` 是「简单 glob」，反斜杠转义在不同版本上语义有差异；写错的两个失败方向都很隐蔽：
+要么过滤器静默失效（拦截不到），要么过度匹配（抢别人的链接）。`pathSuffix=".m3u8"` 是纯文本
+后缀比较，没有转义歧义。
+
+**坎 3：`exported=true` 就必须自己把住协议。**
+播放器页面从外部可达，`Intent` 的 data 是**不可信输入**。`StreamUrl.isSupported()` 只放行
+`http/https/rtsp/rtmps/udp/file/content`，`javascript:`、`intent:`、`data:` 一律拒绝 ——
+否则等于把「用任意 scheme 打开任意东西」的能力交给第三方应用。
+
+另外 `StreamUrl` 负责清洗从聊天/网页复制过来的脏文本（中文前后缀、引号、全角空格、
+「提取码: abcd」），抽出唯一像样的地址。这类输入在真实使用里是常态，不是边角。
+
+### 五、缩略图：不落磁盘就是负优化
+
+`MediaMetadataRetriever` 抽一帧要真解码一段视频，单次 60–300ms。一个目录里 40 个视频，
+滑一遍就是十几秒的串行卡顿（列表缩略图是单线程池，避免同时开一堆解码器）。
+
+所以：**抽一帧 → 缩到图标尺寸 → 存 `cacheDir/vthumb/<hash>-<size>.jpg`（质量 82）**。
+第二次进目录只读几十 KB 的小图，毫秒级。缓存目录按「400 个文件 / 32MB」上限、
+超了按 mtime 删最旧的一半；设置页可一键清空并显示当前占用。
+
+抽帧位置取自时长 10%（上限 5 秒）—— 取第 0 秒的话，大量视频开头是黑场或台标，
+缩略图会是一排黑块。API 27+ 用 `getScaledFrameAtTime` 直接解出小图，
+避免 4K 片源一次性分配 32MB 位图。
+
+### 六、倍速与手势
+
+倍速档位 `0.25 / 0.5 / 0.75 / 1.0 / 1.25 / 1.5 / 1.75 / 2.0 / 2.5 / 3.0`（`PlaySpeed`）：
+上限 3.0 是需求，也是音调不变（`PlaybackParameters` 走 Sonic 时间伸缩）仍可接受的实用上限。
+从 1.0 连点到 3.0 需要 6 次，把 1.5/2.0/2.5/3.0 排进常用路径，避免连点七八次。
+
+手势（`VideoPlayerActivity.handleTouch`）：
+单击显隐控制条、双击播放/暂停（280ms 判定窗口，双击期间不闪控制条）、
+**横滑**快进/快退（半屏 = 最多 90 秒，短视频按比例缩）、
+**左竖滑**亮度（直接改 `window.screenBrightness`，不需要权限）、
+**右竖滑**音量、**长按**临时 3.0× 快进（松手还原，这是 MX/VLC 的老习惯）。
+
+还有两个容易漏的点：
+- 拔耳机/蓝牙断开自动暂停（`setHandleAudioBecomingNoisy(true)`），否则突然外放；
+- 切后台就暂停（文件管理器里的播放器不做后台音频，否则用户会莫名其妙听到声音）。
+
+### 七、顺带：抽屉里的「设置」删了
+
+v1.83.0 把设置页同时挂在了抽屉和顶栏 ⋮ 两处。同一页面两个并列入口，用户会犹豫点哪个。
+按你的要求删掉抽屉那一行，只保留 ⋮ →「设置」。
+
+### 八、错误提示：不能给用户看 4003
+
+`PlaybackException` 的错误码统一翻成人话，并给出下一步动作。例如：
+
+| 错误码 | 提示 |
+|--------|------|
+| `ERROR_CODE_IO_BAD_HTTP_STATUS` | 服务器返回 403/404：地址过期、需要 Referer/Cookie，或切片已删除 |
+| `ERROR_CODE_DECODING_FORMAT_UNSUPPORTED` | 本机解码器不支持该编码（AV1/HEVC 10bit 常见），可换设备或先转码 H.264 |
+| `ERROR_CODE_PARSING_MANIFEST_MALFORMED` | 容器/清单解析失败：文件损坏，或 m3u8 内容其实是错误页面 |
+
+### 九、测试与产物
+
+新增桌面单测 3 组共 126 条断言：
+`M3u8PlaylistTest`（45）、`StreamUrlTest`（48）、`PlaySpeedTest`（33）。
+
+- 版本 **1.91.0（versionCode 163）**；
+- QUICK 全量通过（含新增三组），全套 41 项；
+- APK 体积 12.83MB → **14.84MB**（+2.0MB）——4.7MB 的 jar 进 dex 并被压缩后只涨这么多，
+  这是「内置播放器」的必然代价，比再装一个第三方播放器省。
+
+### 十、真机待验
+
+1. 4K HEVC 片源在某台设备上解不了时，提示是否准确、是否有回退；
+2. 弱网下 m3u8 切换画质后的重新缓冲时长是否可接受；
+3. 目录里视频很多（50+）时首次进目录的缩略图生成是否影响滚动；
+4. 从浏览器「打开方式」里选 HexFile 打开 m3u8 链接是否出现在候选列表中。
+
 ## v1.90.0 —— 阿里云盘改成「弹出登录页」
 
 上一版让用户「电脑浏览器 F12 → Local Storage → 复制 token」，本质是把开发者调试手段

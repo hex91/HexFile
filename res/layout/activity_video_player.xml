@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  v1.91.0 视频播放器（自绘控制层，不用 media3-ui：
+  本工程的构建链是 aapt2 + javac 手写流水线，引入 AAR 的 res 合并代价太大，
+  而且自带控制条永远是「别人的样式」，与 MT 风格的本体不搭）。
+
+  层级顺序（后写的在上层）：
+    vp_texture  视频画面（TextureView：支持等比/裁切/拉伸三种变换）
+    vp_gesture  透明手势层（点一下显隐控制条、双击暂停、横滑快进、竖滑亮度/音量、长按 3 倍速）
+    vp_msg      错误/提示文字（居中）
+    vp_buffer   缓冲转圈
+    vp_top      顶栏：返回 / 标题 / 菜单
+    vp_center   中控：上一个 / 播放暂停 / 下一个
+    vp_bottom   底栏：进度 + 倍速/画质/缩放/循环/信息
+  配色固定黑底白字 —— 播放器不该跟着应用主题变成浅色，浅底会干扰画面观感。
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/vp_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF000000">
+
+    <TextureView
+        android:id="@+id/vp_texture"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center" />
+
+    <View
+        android:id="@+id/vp_gesture"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <TextView
+        android:id="@+id/vp_msg"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:maxWidth="300dp"
+        android:paddingLeft="18dp"
+        android:paddingRight="18dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:background="#CC1A1A1A"
+        android:textColor="#FFFFFFFF"
+        android:textSize="14sp"
+        android:lineSpacingExtra="4dp"
+        android:visibility="gone" />
+
+    <ProgressBar
+        android:id="@+id/vp_buffer"
+        android:layout_width="42dp"
+        android:layout_height="42dp"
+        android:layout_gravity="center"
+        android:indeterminate="true"
+        android:indeterminateTint="#FFFFFFFF"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/vp_hint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:paddingLeft="20dp"
+        android:paddingRight="20dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:background="#B3000000"
+        android:textColor="#FFFFFFFF"
+        android:textSize="15sp"
+        android:visibility="gone" />
+
+    <!-- ===== 顶栏 -->
+    <LinearLayout
+        android:id="@+id/vp_top"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_gravity="top"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingLeft="4dp"
+        android:paddingRight="4dp"
+        android:background="#8C000000">
+
+        <TextView
+            android:id="@+id/vp_back"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:gravity="center"
+            android:text="←"
+            android:textColor="#FFFFFFFF"
+            android:textSize="22sp"
+            android:background="?android:attr/selectableItemBackground" />
+
+        <TextView
+            android:id="@+id/vp_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:singleLine="true"
+            android:ellipsize="middle"
+            android:textColor="#FFFFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/vp_menu"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:gravity="center"
+            android:text="⋮"
+            android:textColor="#FFFFFFFF"
+            android:textSize="20sp"
+            android:background="?android:attr/selectableItemBackground" />
+    </LinearLayout>
+
+    <!-- ===== 中控 -->
+    <LinearLayout
+        android:id="@+id/vp_center"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/vp_prev"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:gravity="center"
+            android:text="⏮"
+            android:textColor="#E6FFFFFF"
+            android:textSize="24sp"
+            android:background="?android:attr/selectableItemBackground" />
+
+        <TextView
+            android:id="@+id/vp_play"
+            android:layout_width="76dp"
+            android:layout_height="76dp"
+            android:layout_marginLeft="10dp"
+            android:layout_marginRight="10dp"
+            android:gravity="center"
+            android:text="▶"
+            android:textColor="#FFFFFFFF"
+            android:textSize="34sp"
+            android:background="?android:attr/selectableItemBackground" />
+
+        <TextView
+            android:id="@+id/vp_next"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:gravity="center"
+            android:text="⏭"
+            android:textColor="#E6FFFFFF"
+            android:textSize="24sp"
+            android:background="?android:attr/selectableItemBackground" />
+    </LinearLayout>
+
+    <!-- ===== 底栏 -->
+    <LinearLayout
+        android:id="@+id/vp_bottom"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:paddingLeft="10dp"
+        android:paddingRight="10dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="8dp"
+        android:background="#8C000000">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/vp_pos"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="48dp"
+                android:gravity="center"
+                android:text="00:00"
+                android:textColor="#FFFFFFFF"
+                android:textSize="12sp" />
+
+            <SeekBar
+                android:id="@+id/vp_seek"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="1000"
+                android:progressTint="#FFFFFFFF"
+                android:progressBackgroundTint="#4DFFFFFF"
+                android:thumbTint="#FFFFFFFF" />
+
+            <TextView
+                android:id="@+id/vp_dur"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="48dp"
+                android:gravity="center"
+                android:text="00:00"
+                android:textColor="#B3FFFFFF"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="2dp">
+
+            <TextView
+                android:id="@+id/vp_speed"
+                style="@style/VpChip"
+                android:text="1.0×" />
+
+            <TextView
+                android:id="@+id/vp_quality"
+                style="@style/VpChip"
+                android:text="画质 自动" />
+
+            <TextView
+                android:id="@+id/vp_scale"
+                style="@style/VpChip"
+                android:text="适配" />
+
+            <TextView
+                android:id="@+id/vp_loop"
+                style="@style/VpChip"
+                android:text="循环 关" />
+
+            <TextView
+                android:id="@+id/vp_info"
+                style="@style/VpChip"
+                android:text="信息" />
+
+            <TextView
+                android:id="@+id/vp_stretch_spacer"
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/vp_fullscreen"
+                style="@style/VpChip"
+                android:text="全屏" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>
