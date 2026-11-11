@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.95.2 底栏「缩放」图标：外框 = 窗口，中间实心块 = 按原比例的画面，
+     四周留白就是 letterbox 的黑边。比「适配」两个字更直观。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="16dp"
+    android:height="16dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M3,5 h18 v14 h-18 z"
+        android:strokeColor="#F2FFFFFF"
+        android:strokeLineJoin="round"
+        android:strokeWidth="1.6" />
+
+    <path
+        android:fillColor="#F2FFFFFF"
+        android:pathData="M6,9 h12 v6 h-12 z" />
+</vector>

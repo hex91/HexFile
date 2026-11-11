@@ -64,6 +64,9 @@ public abstract class BaseActivity extends Activity {
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+        // v1.95.0：字号被收敛过的页面，Resources 是 createConfigurationContext 出来的快照，
+        // 系统不会替它更新 orientation / uiMode / screenWidthDp，必须自己同步一次。
+        UiKit.syncConfig(this, newConfig);
         // 仅当「跟随系统主题」且系统深浅色真的发生翻转时才重建界面。
         // 软键盘弹出（keyboard/keyboardHidden 变更）、屏幕旋转、导航栏变化等都
         // 不应触发重建 —— 否则终端会话会被反复销毁（重建会杀掉 shell）。

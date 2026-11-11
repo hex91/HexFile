@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.95.2 底栏「信息」图标：圆圈 + i -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="16dp"
+    android:height="16dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M12,3 A9,9 0 0,1 12,21 A9,9 0 0,1 12,3"
+        android:strokeColor="#F2FFFFFF"
+        android:strokeWidth="1.7" />
+
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M12,11 L12,16.4"
+        android:strokeColor="#F2FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="1.9" />
+
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M12,7.4 L12,7.45"
+        android:strokeColor="#F2FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.6" />
+</vector>

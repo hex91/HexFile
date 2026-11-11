@@ -207,50 +207,73 @@
         </LinearLayout>
 
         <!-- 胶囊行：窄屏（320dp）上六个胶囊放不下，套一层横向滚动兜底，
-             而不是让最后一个被屏幕边缘裁掉。控制条隐藏时整条不可点，不会抢手势。 -->
-        <HorizontalScrollView
+             而不是让最后一个被屏幕边缘裁掉。控制条隐藏时整条不可点，不会抢手势。
+             最右侧的「全屏 / 竖屏」按钮固定在角落、不参与滚动 —— 它是最高频的一个动作，
+             滚出去就失去意义了。 -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            android:scrollbars="none"
-            android:overScrollMode="never">
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-            <LinearLayout
-                android:layout_width="wrap_content"
+            <HorizontalScrollView
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:layout_weight="1"
+                android:scrollbars="none"
+                android:overScrollMode="never">
 
-                <TextView
-                    android:id="@+id/vp_speed"
-                    style="@style/VpChip"
-                    android:text="1.0×" />
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
 
-                <TextView
-                    android:id="@+id/vp_quality"
-                    style="@style/VpChip"
-                    android:text="画质 自动" />
+                    <TextView
+                        android:id="@+id/vp_speed"
+                        style="@style/VpChip"
+                        android:text="1.0×" />
 
-                <TextView
-                    android:id="@+id/vp_scale"
-                    style="@style/VpChip"
-                    android:text="适配" />
+                    <TextView
+                        android:id="@+id/vp_quality"
+                        style="@style/VpChip"
+                        android:text="画质 自动" />
 
-                <TextView
-                    android:id="@+id/vp_orient"
-                    style="@style/VpChip"
-                    android:text="方向 自动" />
+                    <TextView
+                        android:id="@+id/vp_scale"
+                        style="@style/VpChip"
+                        android:drawableStart="@drawable/ic_vp_scale"
+                        android:text="适配" />
 
-                <TextView
-                    android:id="@+id/vp_loop"
-                    style="@style/VpChip"
-                    android:text="循环 关" />
+                    <TextView
+                        android:id="@+id/vp_orient"
+                        style="@style/VpChip"
+                        android:drawableStart="@drawable/ic_vp_orient"
+                        android:text="自动" />
 
-                <TextView
-                    android:id="@+id/vp_info"
-                    style="@style/VpChip"
-                    android:text="信息" />
-            </LinearLayout>
-        </HorizontalScrollView>
+                    <TextView
+                        android:id="@+id/vp_loop"
+                        style="@style/VpChip"
+                        android:drawableStart="@drawable/ic_vp_loop"
+                        android:text="关" />
+
+                    <TextView
+                        android:id="@+id/vp_info"
+                        style="@style/VpChipIcon"
+                        android:contentDescription="播放信息"
+                        android:drawableStart="@drawable/ic_vp_info" />
+                </LinearLayout>
+            </HorizontalScrollView>
+
+            <TextView
+                android:id="@+id/vp_fs"
+                style="@style/VpChipIcon"
+                android:layout_marginLeft="2dp"
+                android:layout_marginRight="2dp"
+                android:layout_width="44dp"
+                android:contentDescription="全屏 / 竖屏切换"
+                android:drawableStart="@drawable/ic_vp_expand" />
+        </LinearLayout>
     </LinearLayout>
 </FrameLayout>

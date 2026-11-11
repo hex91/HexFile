@@ -95,7 +95,7 @@ public class VideoPlayerActivity extends BaseActivity {
     // ---------------- 界面
     private View root, topBar, centerBar, bottomBar, gesture;
     private TextView titleView, playBtn, posView, durView, hintView, msgView;
-    private TextView speedChip, qualityChip, scaleChip, loopChip, orientChip;
+    private TextView speedChip, qualityChip, scaleChip, loopChip, orientChip, fsChip;
     private SeekBar seekBar;
     private ProgressBar bufferView;
     private volatile boolean controlsVisible = true;
@@ -169,6 +169,7 @@ public class VideoPlayerActivity extends BaseActivity {
         scaleChip = (TextView) findViewById(R.id.vp_scale);
         loopChip = (TextView) findViewById(R.id.vp_loop);
         orientChip = (TextView) findViewById(R.id.vp_orient);
+        fsChip = (TextView) findViewById(R.id.vp_fs);
         seekBar = (SeekBar) findViewById(R.id.vp_seek);
         bufferView = (ProgressBar) findViewById(R.id.vp_buffer);
 
@@ -184,7 +185,14 @@ public class VideoPlayerActivity extends BaseActivity {
         });
 
         findViewById(R.id.vp_back).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { finish(); }
+            public void onClick(View v) {
+                // 顶栏返回箭头必须与系统返回键同一条路径：横屏时先回竖屏继续播，
+                // 竖屏才退出。以前这里直接 finish()，于是横屏点一下就整个退出到文件列表。
+                if (!stepBackToPortrait()) exitPlayer();
+            }
+        });
+        findViewById(R.id.vp_fs).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { toggleFullscreen(); }
         });
         findViewById(R.id.vp_menu).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { showMenu(); }
@@ -705,6 +713,7 @@ public class VideoPlayerActivity extends BaseActivity {
         updateScaleChip();
         updateLoopChip();
         updateOrientChip();
+        updateFsChip();
         if (speedChip != null) speedChip.setText(PlaySpeed.label(speed));
     }
 
@@ -850,8 +859,27 @@ public class VideoPlayerActivity extends BaseActivity {
 
     // ---------------------------------------------------------- 方向
 
+    /**
+     * 当前屏幕是不是横的。
+     *
+     * <p>不用 {@code getResources().getConfiguration().orientation}：系统字号被调出
+     * [0.90,1.10] 时，{@link UiKit#alignMetrics} 会用 {@code createConfigurationContext}
+     * 生成一份**页面创建时刻的配置快照**，转屏后它不会更新 —— 实测小米/Pixel 上
+     * 横屏播放页里读到的一直是竖屏，导致「横屏点返回先回竖屏」判断失败、直接退出应用。</p>
+     *
+     * <p>改用窗口实际像素尺寸判断，这是唯一不会被配置快照骗到的事实。</p>
+     */
     private boolean isLandscapeNow() {
-        return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+        try {
+            android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+            getWindowManager().getDefaultDisplay().getRealMetrics(dm);
+            if (dm.widthPixels > 0 && dm.heightPixels > 0) {
+                return dm.widthPixels > dm.heightPixels;
+            }
+        } catch (Throwable ignored) {
+            // 极端情况（无窗口）退回到 View 尺寸
+        }
+        return root != null && root.getWidth() > root.getHeight();
     }
 
     /**
@@ -862,7 +890,9 @@ public class VideoPlayerActivity extends BaseActivity {
      */
     private void applyOrientation() {
         boolean want = ScreenPolicy.wantLandscape(orientMode, videoW, videoH, isLandscapeNow());
-        if (backPortrait && orientMode == ScreenPolicy.AUTO) want = false;
+        // 按过返回回竖屏后，本篇不再自动转回横屏（换片或用户重选档位时才会清掉 backPortrait）。
+        // 这里不能只判 AUTO：手动选了「横屏」档的用户按返回同样期望停在竖屏。
+        if (backPortrait) want = false;
         int target = want ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                 : ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT;
         android.util.Log.i(TAG, "applyOrientation mode=" + orientMode + " video=" + videoW + "x" + videoH
@@ -932,7 +962,38 @@ public class VideoPlayerActivity extends BaseActivity {
     }
 
     private void updateOrientChip() {
-        if (orientChip != null) orientChip.setText("方向 " + ScreenPolicy.label(orientMode));
+        if (orientChip != null) orientChip.setText(ScreenPolicy.label(orientMode));
+    }
+
+    /** 右下角那颗固定按钮：竖屏时是「撑开」图标，横屏时是「竖屏手机」图标 */
+    private void updateFsChip() {
+        if (fsChip == null) return;
+        fsChip.setCompoundDrawablesWithIntrinsicBounds(
+                isLandscapeNow() ? R.drawable.ic_vp_portrait : R.drawable.ic_vp_expand, 0, 0, 0);
+    }
+
+    /**
+     * 右下角全屏/竖屏按钮 —— 一步切换，不像「方向」胶囊那样要循环三档。
+     *
+     * <p>只改「本次」方向，不动持久化的 orientMode：临时全屏看一眼就退出来的场景
+     * 不该把用户的长期偏好改掉。横屏→竖屏直接复用返回键那套（backPortrait），
+     * 避免下次换片时又被自动转回横屏。</p>
+     */
+    private void toggleFullscreen() {
+        if (isLandscapeNow()) {
+            stepBackToPortrait();
+        } else {
+            backPortrait = false;
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+            scheduleReframe();
+            android.util.Log.i(TAG, "fs: portrait -> landscape (mode=" + orientMode + ")");
+        }
+        updateFsChip();
+        // 转屏是异步的，落地后再对一次（否则文字停在旧值）
+        ui.postDelayed(new Runnable() {
+            public void run() { updateFsChip(); }
+        }, 450);
+        showControls();
     }
 
     private void cycleLoop() {
@@ -944,8 +1005,8 @@ public class VideoPlayerActivity extends BaseActivity {
     }
 
     private void updateLoopChip() {
-        loopChip.setText(repeatMode == Player.REPEAT_MODE_ONE ? "循环 单个"
-                : repeatMode == Player.REPEAT_MODE_ALL ? "循环 列表" : "循环 关");
+        loopChip.setText(repeatMode == Player.REPEAT_MODE_ONE ? "单个"
+                : repeatMode == Player.REPEAT_MODE_ALL ? "列表" : "关");
     }
 
     // ============================================================ 信息 / 错误
@@ -988,12 +1049,16 @@ public class VideoPlayerActivity extends BaseActivity {
         }
         sb.append("地址：").append(sources.get(index));
 
+        // 颜色必须跟主题走：v1.95.1 及以前写死 0xFFEEEEEE，浅色主题下弹窗是白底，
+        // 这层浅灰字几乎看不见（用户反馈「白色、灰字」）。播放器页面本身永远是黑底，
+        // 但弹窗是应用主题的一部分，用 ThemeManager 取色才能两种主题都清楚。
         final TextView tv = new TextView(this);
         tv.setText(sb.toString());
-        tv.setTextSize(12);
-        tv.setTextColor(0xFFEEEEEE);
-        tv.setPadding(dp(18), dp(14), dp(18), dp(8));
+        tv.setTextSize(12.5f);
+        tv.setTextColor(ThemeManager.text(this));
+        tv.setLineSpacing(dp(3), 1f);
         tv.setTextIsSelectable(true);
+        tv.setPadding(dp(18), dp(14), dp(18), dp(8));
         new HfDialogBuilder(this)
                 .setTitle("播放信息")
                 .setView(tv)
@@ -1499,20 +1564,53 @@ public class VideoPlayerActivity extends BaseActivity {
         ui.postDelayed(new Runnable() {
             public void run() { hideSystemBars(); }
         }, 420);
+        // 右下角按钮的文案跟着方向翻转（全屏 ⇄ 竖屏）
+        updateFsChip();
         scheduleReframe();
+    }
+
+    /**
+     * 返回一步：横屏时先转回竖屏继续播放，返回 true 表示「已经消费掉这次返回」。
+     * 顶栏箭头与系统返回键共用，避免两个入口行为不一致。
+     */
+    private boolean stepBackToPortrait() {
+        if (!isLandscapeNow()) return false;
+        if (backPortrait) {
+            // 正在转回竖屏（转屏动画还没结束）时又按了一次：吞掉，别直接退出
+            return true;
+        }
+        // backPortrait 只在本次生效：用户偏好（orientMode）不动，下次进来仍按「自动」走。
+        backPortrait = true;
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT);
+        scheduleReframe();
+        android.util.Log.i(TAG, "stepBack: landscape -> portrait, mode=" + orientMode);
+        return true;
     }
 
     @Override
     public void onBackPressed() {
         // 横屏看片时按返回先回竖屏，再按一次才退出 —— 与主流播放器一致。
-        // backPortrait 只在本次生效：用户偏好（orientMode）不动，下次进来仍按「自动」走。
-        if (isLandscapeNow()) {
-            backPortrait = true;
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT);
-            scheduleReframe();
-            return;
+        if (stepBackToPortrait()) return;
+        exitPlayer();
+    }
+
+    /**
+     * 退出播放页。
+     *
+     * <p>如果本页就是任务里的第一屏（从浏览器/聊天/「打开方式」直接进来的，栈下面
+     * 什么都没有），直接 finish() 会露出桌面 —— 用户看到的是「播个视频把应用退掉了」。
+     * 这种情况先拉起文件管理器再结束，落点始终是这个 App 的文件列表。</p>
+     */
+    private void exitPlayer() {
+        if (isTaskRoot()) {
+            try {
+                startActivity(new Intent(this, MainActivity.class)
+                        .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP));
+            } catch (Throwable ignored) {
+                // 拉不起来就退回普通 finish，绝不让退出动作卡住
+            }
         }
-        super.onBackPressed();
+        finish();
     }
 
     private void toast(String s) {

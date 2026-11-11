@@ -56,6 +56,31 @@ public final class UiKit {
         }
     }
 
+    /**
+     * 把系统最新配置同步进 Activity 自己的 Resources（v1.95.0）。
+     *
+     * <p>{@link #alignMetrics} 在系统字号被调出 [0.90, 1.10] 时会用
+     * {@code createConfigurationContext} 另造一份 Resources —— 那是**页面创建那一刻的快照**。
+     * 此后转屏、切深色模式，系统只更新 Activity 原本的 Resources，这份快照里的
+     * {@code orientation} / {@code screenWidthDp} / {@code uiMode} 全部停在旧值。</p>
+     *
+     * <p>症状：系统字号 1.15 的机器上，`getResources().getConfiguration().orientation`
+     * 在横屏播放页里依然返回竖屏 —— 播放器「横屏点返回先回竖屏」判断失败，直接退出到文件列表；
+     * 同时「跟随系统深色」在页面存活期间也不生效。</p>
+     */
+    public static void syncConfig(android.app.Activity a, Configuration newConfig) {
+        if (a == null || newConfig == null) return;
+        try {
+            android.content.res.Resources r = a.getResources();
+            Configuration c = new Configuration(newConfig);
+            // 保持与 attachMetrics 一致的收敛结果，否则同步一次字号就被打回原值
+            c.fontScale = clampFontScale(c.fontScale);
+            r.updateConfiguration(c, r.getDisplayMetrics());
+        } catch (Throwable ignored) {
+            // 同步失败不影响功能，调用方（播放器）另有窗口尺寸兜底
+        }
+    }
+
     /** dp → px */
     public static int dp(Context c, float v) {
         return Math.round(v * c.getResources().getDisplayMetrics().density);

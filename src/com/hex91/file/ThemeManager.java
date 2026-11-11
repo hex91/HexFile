@@ -72,7 +72,10 @@ public final class ThemeManager {
      */
     public static boolean isSystemDark(Context c) {
         try {
-            Configuration cfg = c.getResources().getConfiguration();
+            // 用 Application 的 Resources：Activity 侧可能是一份冻结的配置快照
+            // （见 UiKit.alignMetrics），页面存活期间切深色会读不到。
+            Context app = c.getApplicationContext();
+            Configuration cfg = (app != null ? app : c).getResources().getConfiguration();
             int mask = cfg.uiMode & Configuration.UI_MODE_NIGHT_MASK;
             return mask == Configuration.UI_MODE_NIGHT_YES;
         } catch (Throwable t) {

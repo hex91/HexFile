@@ -1668,6 +1668,92 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.95.1 / v1.95.2 —— 返回键落点、右下角一键全屏、底栏图标化
+
+v1.94.0 上线后真机连续反馈三个问题：横屏点返回回竖屏（这条对了），但**竖屏点返回直接
+退到桌面**；想要一颗「一键全屏 / 一键竖屏」的按钮，而不是点「方向」循环三档；
+底栏一排文字胶囊不好看、信息弹窗**白底浅灰字看不清**。
+
+### 一、竖屏点返回退到桌面：一个被字号收敛冻住的配置快照
+
+顶栏返回箭头原来是 `finish()`，绕过了返回键的「横屏先回竖屏」逻辑。改成两者共用
+`stepBackToPortrait()` 后横屏没问题，竖屏却退到桌面 —— 打日志发现连「转竖屏」那行
+都没有，说明 `isLandscapeNow()` 认为「本来就不是横屏」：
+
+```java
+private boolean isLandscapeNow() {
+    return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+}
+```
+
+根因不在播放器，在 **`UiKit.alignMetrics`**（v1.73.0 的字号收敛）：
+
+```java
+Configuration cfg = new Configuration(base.getResources().getConfiguration());
+cfg.fontScale = fixed;
+return base.createConfigurationContext(cfg);   // ← 一份「此刻」的配置快照
+```
+
+`createConfigurationContext` 造出的是**独立的 Resources**，系统后续转屏、切深色模式只在
+Activity 原始的 Resources 上更新，这份快照里的 `orientation` / `uiMode` / `screenWidthDp`
+永远停在页面创建那一刻。这台 Pixel 6 系统字号正好 1.15，命中收敛条件，于是播放页的
+`orientation` 永远是 PORTRAIT。验证很直接：`settings put system font_scale 1.0` 立刻正常，
+改回 1.15 立刻复现 —— **同一份 APK，只差一个系统设置，行为相反**。
+
+四处修法：
+
+| 位置 | 修法 |
+| --- | --- |
+| `UiKit.syncConfig()`（新增） | `onConfigurationChanged` 时把 `newConfig` 写回自己的 Resources（fontScale 仍收敛），补上快照缺的更新 |
+| `BaseActivity.onConfigurationChanged` | 每次配置变更调用 `syncConfig`，所有页面一起修好 |
+| `VideoPlayerActivity.isLandscapeNow()` | 不再信任 `Configuration.orientation`，改用窗口像素 `widthPixels > heightPixels`，退路是根 View 宽高 |
+| `ThemeManager.isSystemDark()` | 改读 **Application** 的 Resources（那份由系统更新），页面存活期间切深色也能读到 |
+
+另外新增 `exitPlayer()`：从浏览器 / 聊天 / 「打开方式」直接进播放器时本页是任务栈第一屏，
+`finish()` 之后下面什么都没有，用户看到的是「播个视频把应用退没了」。所以
+
+```java
+private void exitPlayer() {
+    if (isTaskRoot()) {          // 栈底：先把文件管理器拉起来，再结束自己
+        startActivity(new Intent(this, MainActivity.class).addFlags(FLAG_ACTIVITY_CLEAR_TOP));
+    }
+    finish();
+}
+```
+
+从文件管理器点进来的情况 `isTaskRoot()` 为 false，仍是原来的 `finish()`，退回上一级目录。
+
+### 二、右下角一键「全屏 / 竖屏」
+
+底栏左边是可横向滚动的胶囊，右边**固定**一颗按钮：竖屏显示全屏图标，横屏显示竖屏手机图标，
+点一下直接切，不用循环三档。
+
+- 只改「本次」方向，不动持久化的 `orientMode` —— 临时全屏看一眼不该改掉长期偏好；
+- 横屏 → 竖屏复用 `stepBackToPortrait()` 的 `backPortrait` 标记，换片前不会被自动转回横屏；
+- 转屏是异步的，按钮图标点完立刻翻一次、450ms 后再对一次，避免停在旧值；
+- 固定在滚动区之外（`layout_weight=1` 的 HorizontalScrollView + 独立按钮），
+  320dp 窄屏滚胶囊也不会把它挤出去。
+
+### 三、底栏改图标 + 信息弹窗跟主题取色（v1.95.2）
+
+胶囊从「纯文字」改成「16dp 线性图标 + 极短状态词」：`适配` / `自动` / `关` / 纯图标信息，
+右下角「全屏 / 竖屏」是纯图标（点击时动态换 `ic_vp_expand` / `ic_vp_portrait`）。
+六个图标都是手写 vector（stroke 风格、24 viewport、`#F2FFFFFF`），不引第三方图标库：
+
+| 资源 | 语义 |
+| --- | --- |
+| `ic_vp_scale` | 外框 + 居中实心块 = letterbox 留黑边 |
+| `ic_vp_orient` | 270° 弧 + 箭头 = 转向 |
+| `ic_vp_loop` | 上下两段半圆 + 双箭头 = 闭环 |
+| `ic_vp_info` | 圆圈 + i |
+| `ic_vp_expand` | 四角向外 |
+| `ic_vp_portrait` | 竖持手机 |
+
+信息弹窗原来把正文写死成 `0xFFEEEEEE`，浅色主题下弹窗是白底，这层浅灰字几乎看不见。
+改成 `ThemeManager.text(this)`，两种主题都清楚；顺带 12 → 12.5sp、行距 +3dp。
+
+---
+
 ## v1.94.0 —— 画面方向跟视频比例走，且永不变形
 
 ### 症状
