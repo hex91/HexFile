@@ -1417,6 +1417,9 @@ public class MainActivity extends BaseActivity {
         // 原来 listFiles + 排序 + 逐项 lstat 都在主线程，几千项的目录或 su ls 回退会卡住甚至 ANR。
         final int gen = ++p.dirGen;
         p.adapter.setLoading(true);
+        // 顶栏路径立刻切（统计还是上一个目录的，读完补正）：慢目录（root 下 su ls 要几百毫秒到几秒）
+        // 若连路径都不动，用户会以为没点中而反复点
+        updateHeader();
         // 换目录后网格要回到顶部：数据换了一批，保留旧滚动位置会落在中间
         if (p.grid != null) p.grid.setSelection(0);
         final int sort = p.adapter.sortMode;
@@ -1433,6 +1436,8 @@ public class MainActivity extends BaseActivity {
                         p.dirCount = r.dirs;
                         p.fileCount = r.files;
                         updateHeader();
+                        // 下拉刷新：转圈一直转到数据真回来为止（原来固定 220ms 后收，慢目录会「假结束」）
+                        if (p.pull != null) p.pull.finishRefresh();
                     }
                 });
             }
