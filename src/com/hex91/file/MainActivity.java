@@ -1312,16 +1312,19 @@ public class MainActivity extends BaseActivity {
     /** 点击条目：列表与网格共用（两侧下标都指向同一个 FileAdapter） */
     private void handleItemClick(Panel p, int i) {
         setActive(p);
-        // v1.96.0：读目录期间列表里可能还是上一个目录的条目，此时点击会打开错文件
-        if (p.adapter.isLoading()) return;
         FileItem it = p.adapter.get(i);
         // v1.40.0：列表顶部 .. 返回项（多选中点击 = 退出多选并返回，loadDir 内处理）
-        if (it.upEntry) {
-            File up = p.dir.getParentFile();
+        // v1.97.0：这一条必须在 loading 判断之前 —— 读取中原先把所有点击都拦了，
+        // 于是「进了一个读得很慢的目录」就退不出来（只能等它读完或杀进程）。
+        // 返回上级是唯一的逃生口，任何时候都得留着。
+        if (it != null && it.upEntry) {
+            File up = p.dir == null ? null : p.dir.getParentFile();
             if (up != null && (up.canRead() || RootUtil.isRootAvailable()))
                 loadDir(p, up);
             return;
         }
+        // v1.96.0：读目录期间列表里可能还是上一个目录的条目，此时点击会打开错文件
+        if (p.adapter.isLoading()) return;
         if (p.adapter.selectionMode) {
             p.adapter.toggle(i);
             updateSelDone();
@@ -1412,9 +1415,17 @@ public class MainActivity extends BaseActivity {
         closeArchiveQuiet(p);
         p.dir = dir;
         if (push) {
-            while (p.history.size() > p.hIndex + 1) p.history.remove(p.history.size() - 1);
-            p.history.add(dir.getPath());
-            p.hIndex = p.history.size() - 1;
+            // v1.97.0：同一个目录不重复入栈。新建文件/新建目录/退出压缩包浏览之后都是
+            // loadDir(p, p.dir)（路径没变），原来每次都往历史栈里塞一条重复路径，
+            // ‹ › 要按好几下才退得出去，看着像「返回键失灵」。
+            String path = dir.getPath();
+            boolean same = p.hIndex >= 0 && p.hIndex < p.history.size()
+                    && p.history.get(p.hIndex).equals(path);
+            if (!same) {
+                while (p.history.size() > p.hIndex + 1) p.history.remove(p.history.size() - 1);
+                p.history.add(path);
+                p.hIndex = p.history.size() - 1;
+            }
         }
         // v1.96.0：路径立刻切（用户马上看到自己在哪），条目在后台读完后一次性替换。
         // 原来 listFiles + 排序 + 逐项 lstat 都在主线程，几千项的目录或 su ls 回退会卡住甚至 ANR。
