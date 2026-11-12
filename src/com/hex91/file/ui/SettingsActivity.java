@@ -78,8 +78,8 @@ public class SettingsActivity extends BaseActivity {
                     ShizukuBridge.invalidate();
                     build();
                     toast(grantResult == android.content.pm.PackageManager.PERMISSION_GRANTED
-                            ? "Shizuku 授权成功，命令已可走 shell 权限"
-                            : "Shizuku 授权被拒绝");
+                            ? getString(R.string.settings_shizuku_granted)
+                            : getString(R.string.settings_shizuku_denied));
                 }
             };
             rikka.shizuku.Shizuku.addRequestPermissionResultListener(
@@ -106,146 +106,145 @@ public class SettingsActivity extends BaseActivity {
         container.removeAllViews();
 
         // ---- 外观 ----
-        LinearLayout look = section("外观");
-        row(look, "主题与配色", themeSummary(), "", new View.OnClickListener() {
+        LinearLayout look = section(getString(R.string.settings_section_appearance));
+        row(look, getString(R.string.settings_theme), themeSummary(), "", new View.OnClickListener() {
             public void onClick(View v) {
                 startActivity(new Intent(SettingsActivity.this, ThemeActivity.class));
             }
         });
 
         // ---- 文件与目录 ----
-        LinearLayout files = section("文件与目录");
-        row(files, "工作目录", "回收站、备份、Smali 输出、网络下载都放这里。切换后旧目录内容不会自动迁移。",
+        LinearLayout files = section(getString(R.string.settings_section_files));
+        row(files, getString(R.string.settings_workdir), getString(R.string.settings_workdir_sub),
                 WorkDir.path(), new View.OnClickListener() {
                     public void onClick(View v) { pickWorkDir(); }
                 });
         if (WorkDir.isCustom()) {
-            row(files, "恢复默认目录", WorkDir.defaultPath(), "", new View.OnClickListener() {
+            row(files, getString(R.string.settings_workdir_reset), WorkDir.defaultPath(), "", new View.OnClickListener() {
                 public void onClick(View v) { resetWorkDir(); }
             });
         }
         // v1.99.2（R-06）：上次压缩/解压失败留下的 .bakrepl / .part 在这里能看见
-        row(files, "遗留文件", "上次失败留下的 .bakrepl（原内容备份）/ .part（半成品）。只列出，不动任何文件。",
+        row(files, getString(R.string.settings_leftovers), getString(R.string.settings_leftovers_sub),
                 "", new View.OnClickListener() {
                     public void onClick(View v) { scanLeftovers(); }
                 });
 
         // ---- 权限 ----
-        LinearLayout perm = section("权限");
-        switchRow(perm, "使用 Root 权限",
+        LinearLayout perm = section(getString(R.string.settings_section_permissions));
+        switchRow(perm, getString(R.string.settings_root),
                 RootUtil.isRootAvailable()
-                        ? "当前设备已获取 Root。关闭后一切操作改走普通文件 API。"
-                        : "当前设备未检测到 Root；打开开关只表示「允许尝试」，无 su 时仍走普通 API。",
+                        ? getString(R.string.settings_root_sub_on)
+                        : getString(R.string.settings_root_sub_off),
                 RootUtil.isEnabled(), new CompoundButton.OnCheckedChangeListener() {
                     public void onCheckedChanged(CompoundButton cb, boolean on) {
                         RootUtil.saveEnabled(SettingsActivity.this, on);
-                        toast(on ? "已允许使用 Root" : "已停用 Root，/data 等目录将不可访问");
+                        toast(on ? getString(R.string.settings_root_on_toast) : getString(R.string.settings_root_off_toast));
                     }
                 });
-        infoRow(perm, "当前状态", rootStatus());
+        infoRow(perm, getString(R.string.settings_status), rootStatus());
 
         // v1.86.0：Shizuku —— 无 root 设备上的 shell 权限
-        switchRow(perm, "使用 Shizuku（免 Root）",
-                "装好 Shizuku 并授权后，用 shell 身份执行命令。注意：它不是 root，"
-                        + "/data/data 下别的应用私有目录（700）仍读不到。",
+        switchRow(perm, getString(R.string.settings_shizuku),
+                getString(R.string.settings_shizuku_sub),
                 ShizukuBridge.isEnabled(this), new CompoundButton.OnCheckedChangeListener() {
                     public void onCheckedChanged(CompoundButton cb, boolean on) {
                         ShizukuBridge.setEnabled(SettingsActivity.this, on);
                         build();
-                        toast(on ? "已允许使用 Shizuku" : "已停用 Shizuku，命令改走普通 API");
+                        toast(on ? getString(R.string.settings_shizuku_on_toast) : getString(R.string.settings_shizuku_off_toast));
                     }
                 });
-        infoRow(perm, "Shizuku 状态", ShizukuBridge.statusText(this));
+        infoRow(perm, getString(R.string.settings_shizuku_status), ShizukuBridge.statusText(this));
         if (ShizukuBridge.supported() && ShizukuBridge.alive() && !ShizukuBridge.granted()) {
-            row(perm, "申请 Shizuku 授权", "会弹出 Shizuku 的确认框，选择「允许」即可", "",
+            row(perm, getString(R.string.settings_shizuku_request), getString(R.string.settings_shizuku_request_sub), "",
                     new View.OnClickListener() {
                         public void onClick(View v) { ShizukuBridge.request(SettingsActivity.this); }
                     });
         }
 
         // ---- 系统集成（v1.84.0） ----
-        LinearLayout sys = section("系统集成");
-        switchRow(sys, "在系统文件选择器中显示",
-                "开启后，系统「文件」应用侧边栏会多出本应用；微信 / 邮件等点「打开文件」时也能直接选这里。",
+        LinearLayout sys = section(getString(R.string.settings_section_system));
+        switchRow(sys, getString(R.string.settings_saf),
+                getString(R.string.settings_saf_sub),
                 HfDocumentsProvider.isVisible(this),
                 new CompoundButton.OnCheckedChangeListener() {
                     public void onCheckedChanged(CompoundButton cb, boolean on) {
                         getSharedPreferences(HfDocumentsProvider.PREF, MODE_PRIVATE)
                                 .edit().putBoolean(HfDocumentsProvider.KEY_VISIBLE, on).apply();
                         HfDocumentsProvider.notifyRootsChanged(SettingsActivity.this);
-                        toast(on ? "已对系统文件选择器开放" : "已隐藏，系统文件选择器不再显示本应用");
+                        toast(on ? getString(R.string.settings_saf_on_toast) : getString(R.string.settings_saf_off_toast));
                     }
                 });
-        row(sys, "在系统选择器中试一下", "调用系统的「打开文件」界面，确认能看到 HexFile 入口", "",
+        row(sys, getString(R.string.settings_saf_try), getString(R.string.settings_saf_try_sub), "",
                 new View.OnClickListener() {
                     public void onClick(View v) { openSystemPicker(); }
                 });
 
         // ---- 桌面小组件（v1.85.0） ----
-        LinearLayout widget = section("桌面小组件");
-        row(widget, "添加到桌面",
-                "在桌面长按空白处 → 小组件 → 找到 HexFile，把卡片拖到桌面。卡片内含工作目录、下载、图片、回收站四个入口。",
+        LinearLayout widget = section(getString(R.string.settings_section_widget));
+        row(widget, getString(R.string.settings_widget_add),
+                getString(R.string.settings_widget_add_sub),
                 "", null);
-        row(widget, "立即刷新卡片", "重新读取存储占用（没有添加过卡片时不会有变化）", "",
+        row(widget, getString(R.string.settings_widget_refresh), getString(R.string.settings_widget_refresh_sub), "",
                 new View.OnClickListener() {
                     public void onClick(View v) {
                         WidgetProvider.refreshIfExists(SettingsActivity.this);
-                        toast("已刷新小组件");
+                        toast(getString(R.string.settings_widget_refreshed));
                     }
                 });
 
         // ---- 视频播放（v1.91.0） ----
-        LinearLayout video = section("视频播放");
-        switchRow(video, "视频缩略图",
-                "文件列表里给视频显示首帧。关掉后只显示类型角标（省电、省内存，老机器建议关）。",
+        LinearLayout video = section(getString(R.string.settings_section_video));
+        switchRow(video, getString(R.string.settings_thumbs),
+                getString(R.string.settings_thumbs_sub),
                 PlayerPrefs.thumbsEnabled(this),
                 new CompoundButton.OnCheckedChangeListener() {
                     public void onCheckedChanged(CompoundButton cb, boolean on) {
                         PlayerPrefs.setThumbsEnabled(SettingsActivity.this, on);
                         if (!on) ThumbLoader.clearDiskCache(SettingsActivity.this);
-                        toast(on ? "已开启：重新进目录即可看到视频首帧" : "已关闭，并清掉了已有的缩略图缓存");
+                        toast(on ? getString(R.string.settings_thumbs_on) : getString(R.string.settings_thumbs_off));
                     }
                 });
-        infoRow(video, "缩略图缓存", bytesText(ThumbLoader.diskCacheSize(this)));
-        row(video, "清除缩略图缓存", "删掉缓存目录（cacheDir/vthumb），下次进目录会重新抽帧", "",
+        infoRow(video, getString(R.string.settings_thumb_cache), bytesText(ThumbLoader.diskCacheSize(this)));
+        row(video, getString(R.string.settings_thumb_cache_clear), getString(R.string.settings_thumb_cache_clear_sub), "",
                 new View.OnClickListener() {
                     public void onClick(View v) {
                         int n = ThumbLoader.clearDiskCache(SettingsActivity.this);
-                        toast("已删除 " + n + " 个缩略图缓存文件");
+                        toast(getString(R.string.settings_thumb_cache_cleared, n));
                         build();
                     }
                 });
-        row(video, "清除播放记录", "忘掉所有视频的续播位置（已看的片子下次从头开始）", "",
+        row(video, getString(R.string.settings_playback_clear), getString(R.string.settings_playback_clear_sub), "",
                 new View.OnClickListener() {
                     public void onClick(View v) {
                         PlayerPrefs.clearPositions(SettingsActivity.this);
-                        toast("播放记录已清除");
+                        toast(getString(R.string.settings_playback_cleared));
                     }
                 });
-        infoRow(video, "播放内核", "Media3 ExoPlayer 1.4.1（HLS/DASH/RTSP/本地容器）");
+        infoRow(video, getString(R.string.settings_player_engine), getString(R.string.settings_player_engine_value));
 
         // ---- 回收站 ----
-        LinearLayout trash = section("回收站");
-        row(trash, "保留策略", TrashPolicyDialog.summary(), "", new View.OnClickListener() {
+        LinearLayout trash = section(getString(R.string.settings_section_trash));
+        row(trash, getString(R.string.settings_trash_policy), TrashPolicyDialog.summary(), "", new View.OnClickListener() {
             public void onClick(View v) {
                 TrashPolicyDialog.show(SettingsActivity.this, new Runnable() {
                     public void run() { build(); }
                 });
             }
         });
-        row(trash, "打开回收站", Trash.dir().getAbsolutePath(), "", new View.OnClickListener() {
+        row(trash, getString(R.string.settings_trash_open), Trash.dir().getAbsolutePath(), "", new View.OnClickListener() {
             public void onClick(View v) {
                 startActivity(new Intent(SettingsActivity.this, TrashActivity.class));
             }
         });
 
         // ---- 关于（版本号固定在最下） ----
-        LinearLayout about = section("关于");
-        infoRow(about, "版本", versionName() + "（" + versionCode() + "）");
-        infoRow(about, "工作目录", WorkDir.path());
+        LinearLayout about = section(getString(R.string.settings_section_about));
+        infoRow(about, getString(R.string.settings_version), versionName() + "（" + versionCode() + "）");
+        infoRow(about, getString(R.string.settings_workdir), WorkDir.path());
 
         TextView foot = new TextView(this);
-        foot.setText("HexFile · 双栏文件管理器");
+        foot.setText(getString(R.string.settings_footer));
         foot.setTextSize(11);
         foot.setTextColor(ThemeManager.textSub(this));
         foot.setGravity(Gravity.CENTER);
@@ -402,7 +401,7 @@ public class SettingsActivity extends BaseActivity {
             i.setType("*/*");
             startActivity(i);
         } catch (Throwable t) {
-            toast("当前系统没有文件选择器：" + t.getClass().getSimpleName());
+            toast(getString(R.string.settings_no_picker, t.getClass().getSimpleName()));
         }
     }
 
@@ -418,7 +417,7 @@ public class SettingsActivity extends BaseActivity {
      */
     private void scanLeftovers() {
         final File root = new File(WorkDir.path());
-        toast("正在扫描 " + root.getPath());
+        toast(getString(R.string.leftover_scanning, root.getPath()));
         Bg.io(new Runnable() {
             public void run() {
                 final java.util.List<LeftoverScan.Hit> hits = LeftoverScan.scan(root);
@@ -428,7 +427,7 @@ public class SettingsActivity extends BaseActivity {
             }
         }, new Bg.Fail() {
             public void onFail(Throwable t) {
-                toast("扫描失败：" + t.getClass().getSimpleName());
+                toast(getString(R.string.leftover_scan_failed, t.getClass().getSimpleName()));
             }
         });
     }
@@ -437,10 +436,9 @@ public class SettingsActivity extends BaseActivity {
         if (isFinishing()) return;
         if (hits.isEmpty()) {
             new HfDialogBuilder(this)
-                    .setTitle("没有遗留文件")
-                    .setMessage("工作目录里没有 .bakrepl / .replacebak / .part。\n\n"
-                            + "压缩包写回失败时才会留下备份，平时看不到是正常的。")
-                    .setPositiveButton("好", null)
+                    .setTitle(getString(R.string.leftover_none_title))
+                    .setMessage(getString(R.string.leftover_none_msg))
+                    .setPositiveButton(getString(R.string.common_ok), null)
                     .show();
             return;
         }
@@ -451,8 +449,7 @@ public class SettingsActivity extends BaseActivity {
         long total = 0;
         for (LeftoverScan.Hit h : hits) total += h.size;
         TextView head = new TextView(this);
-        head.setText(hits.size() + " 个，共 " + FileOps.formatSize(total)
-                + "。点条目可单独删除。");
+        head.setText(getString(R.string.leftover_head, hits.size(), FileOps.formatSize(total)));
         head.setTextSize(12f);
         head.setTextColor(ThemeManager.textSub(this));
         head.setPadding(0, 0, 0, dp(8));
@@ -472,9 +469,9 @@ public class SettingsActivity extends BaseActivity {
         ScrollView sv = new ScrollView(this);
         sv.addView(box);
         new HfDialogBuilder(this)
-                .setTitle("遗留文件")
+                .setTitle(getString(R.string.settings_leftovers))
                 .setView(sv)
-                .setPositiveButton("关闭", null)
+                .setPositiveButton(getString(R.string.common_close), null)
                 .show();
     }
 
@@ -482,18 +479,16 @@ public class SettingsActivity extends BaseActivity {
         boolean isBak = h.file.getName().endsWith(LeftoverScan.BAK)
                 || h.file.getName().endsWith(LeftoverScan.BAK_LEGACY);
         new HfDialogBuilder(this)
-                .setTitle(isBak ? "删除备份？" : "删除半成品？")
-                .setMessage(h.file.getPath() + "\n\n"
-                        + (isBak
-                        ? "这是 " + h.owner + " 的备份，里面可能装着上一次替换失败前的原内容。"
-                          + "删掉就无法从这里恢复了。"
-                        : "这是没写完的临时文件，删除不会影响已完成的文件。"))
-                .setPositiveButton("删除", new DialogInterface.OnClickListener() {
+                .setTitle(isBak ? getString(R.string.leftover_delete_bak_title) : getString(R.string.leftover_delete_part_title))
+                .setMessage(isBak
+                        ? getString(R.string.leftover_delete_bak_msg, h.file.getPath(), h.owner)
+                        : getString(R.string.leftover_delete_part_msg, h.file.getPath()))
+                .setPositiveButton(getString(R.string.common_delete), new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
-                        toast(LeftoverScan.delete(h.file) ? "已删除" : "删除失败（可能被占用）");
+                        toast(LeftoverScan.delete(h.file) ? getString(R.string.leftover_deleted) : getString(R.string.leftover_delete_failed));
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(getString(R.string.common_cancel), null)
                 .show();
     }
 
@@ -504,18 +499,18 @@ public class SettingsActivity extends BaseActivity {
                 final String p = dir.getAbsolutePath();
                 if (!dir.isDirectory()) {
                     new HfDialogBuilder(SettingsActivity.this)
-                            .setTitle("目录不存在")
-                            .setMessage(p + "\n\n是否创建该目录并设为工作目录？")
-                            .setPositiveButton("创建并使用", new DialogInterface.OnClickListener() {
+                            .setTitle(getString(R.string.workdir_missing_title))
+                            .setMessage(getString(R.string.workdir_missing_msg, p))
+                            .setPositiveButton(getString(R.string.workdir_create_use), new DialogInterface.OnClickListener() {
                                 public void onClick(DialogInterface d, int w) {
                                     if (!dir.mkdirs() && !dir.isDirectory()) {
-                                        toast("创建失败，请检查存储权限或换个位置");
+                                        toast(getString(R.string.workdir_create_failed));
                                         return;
                                     }
                                     applyWorkDir(p);
                                 }
                             })
-                            .setNegativeButton("取消", null)
+                            .setNegativeButton(getString(R.string.common_cancel), null)
                             .show();
                     return;
                 }
@@ -526,26 +521,25 @@ public class SettingsActivity extends BaseActivity {
 
     private void applyWorkDir(String p) {
         if (!WorkDir.set(this, p)) {
-            toast("保存失败，请检查存储权限");
+            toast(getString(R.string.workdir_save_failed));
             return;
         }
-        toast("工作目录已切换");
+        toast(getString(R.string.workdir_switched));
         build();
     }
 
     private void resetWorkDir() {
         new HfDialogBuilder(this)
-                .setTitle("恢复默认工作目录")
-                .setMessage("将改回 " + WorkDir.defaultPath()
-                        + "\n\n当前目录里的回收站、备份不会被移动，仍留在原处。")
-                .setPositiveButton("恢复默认", new DialogInterface.OnClickListener() {
+                .setTitle(getString(R.string.workdir_reset_title))
+                .setMessage(getString(R.string.workdir_reset_msg, WorkDir.defaultPath()))
+                .setPositiveButton(getString(R.string.workdir_reset_action), new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         WorkDir.reset(SettingsActivity.this);
-                        toast("已恢复默认");
+                        toast(getString(R.string.workdir_reset_done));
                         build();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(getString(R.string.common_cancel), null)
                 .show();
     }
 
@@ -553,19 +547,19 @@ public class SettingsActivity extends BaseActivity {
 
     /** Root 当前可用性的人类可读描述（只读缓存，不触发新的探测） */
     private String rootStatus() {
-        if (!RootUtil.isEnabled()) return "已停用";
-        if (RootUtil.isRealRoot()) return "已获取 root（uid 0）";
-        if (ShizukuBridge.usable()) return "无 root，当前用 Shizuku（shell）";
-        return "未获取 root（或尚未检测）";
+        if (!RootUtil.isEnabled()) return getString(R.string.root_status_disabled);
+        if (RootUtil.isRealRoot()) return getString(R.string.root_status_root);
+        if (ShizukuBridge.usable()) return getString(R.string.root_status_shizuku);
+        return getString(R.string.root_status_none);
     }
 
     private String themeSummary() {
         int scheme = ThemeManager.scheme(this);
         String name = (scheme >= 0 && scheme < ThemeSchemes.NAMES.length)
-                ? ThemeSchemes.NAMES[scheme] : "默认";
+                ? ThemeSchemes.NAMES[scheme] : getString(R.string.theme_name_default);
         int mode = ThemeManager.mode(this);
         String modeName = mode == ThemeManager.MODE_FOLLOW_SYSTEM
-                ? "跟随系统" : (ThemeManager.isDark(this) ? "深色" : "浅色");
+                ? getString(R.string.theme_mode_system) : (ThemeManager.isDark(this) ? getString(R.string.theme_mode_dark) : getString(R.string.theme_mode_light));
         return name + " · " + modeName;
     }
 
@@ -593,8 +587,8 @@ public class SettingsActivity extends BaseActivity {
     }
 
     /** 缓存体积显示：不足 1MB 用 KB，避免一堆 0.0 MB */
-    private static String bytesText(long b) {
-        if (b <= 0) return "空";
+    private String bytesText(long b) {
+        if (b <= 0) return getString(R.string.common_empty);
         if (b < 1024) return b + " B";
         if (b < 1024 * 1024) return (b / 1024) + " KB";
         return String.format(java.util.Locale.US, "%.1f MB", b / 1048576.0);
