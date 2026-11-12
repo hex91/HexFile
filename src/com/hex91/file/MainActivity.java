@@ -67,42 +67,9 @@ public class MainActivity extends BaseActivity {
     /** v1.99.0（O-03）：吞掉 onCreate 之后那一次重复的目录读取，见 onResume */
     private boolean skipResumeReload = true;
 
-    /** 单侧面板状态（对标 MT 的左右窗口） */
-    private class Panel {
-        ListView list;
-        /** v1.80.0：网格/大图视图（与 list 共用同一份数据，同一时刻只有一个可见） */
-        GridView grid;
-        FileGridAdapter gridAdapter;
-        /** v1.79.0：列表外层的下拉刷新容器 */
-        PullRefreshLayout pull;
-        FileAdapter adapter;
-        File dir;
-        boolean active;
-        // ---------- 窗格内嵌压缩包浏览（v1.14） ----------
-        File archiveFile;                 // 非空 = 该窗格正在浏览压缩包
-        ArchiveUtil.Archive archive;
-        String archPrefix = "";           // 压缩包内当前路径前缀
-        /** 目录历史栈（‹ › 前进后退用） */
-        final java.util.List<String> history = new java.util.ArrayList<String>();
-        int hIndex = -1;
-        /**
-         * v1.96.0：目录读取代次。读目录移到后台线程后，用户可能在结果回来之前
-         * 又切了别的目录，回来时才发现手里这份是上一个目录的 —— 每次发起读取 +1，
-         * 结果回来时代次对不上就整份丢掉。
-         *
-         * <p>v1.99.0（O-03）：加 volatile。后台任务在 <b>开始执行前</b> 也要查一次代次
-         * （见 loadDir 里的 Bg.io），否则连点几下会排出一串已经作废的读取，
-         * 每条都要跑完整的 stat / su ls，把 3 条 IO 线程占满，新目录反而更慢。
-         * 主线程写、工作线程读，没有 volatile 时这个判断可能读到旧值。</p>
-         */
-        volatile int dirGen;
-        /** v1.99.0（O-01）：下拉刷新的代次，延迟收圈时用来确认「收的是自己那次」 */
-        int pullGen;
-        /** v1.96.0：最近一次读取统计（顶栏用，避免每次 O(n) 遍历适配器） */
-        int dirCount, fileCount;
-    }
-    private Panel left = new Panel();
-    private Panel right = new Panel();
+    /** 单侧窗格状态（对标 MT 的左右窗口）；v2.0.0（O-15 刀1）搬到 Pane */
+    private Pane left = new Pane();
+    private Pane right = new Pane();
 
     /** v1.78.0：窗格显示偏好（排序方式 / 是否显示 . 文件 / 列表or网格），两栏共用 */
     private static final String PREF_UI = "hf_view";
@@ -214,7 +181,7 @@ public class MainActivity extends BaseActivity {
         // 底部 MT 工具栏：‹ 历史 › ＋ 新建 ⇄ 交换 ↑ 上级
         findViewById(R.id.btn_up).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                Panel p = active();
+                Pane p = active();
                 if (p.archiveFile != null) { archGoUp(p); return; }
                 File up = p.dir.getParentFile();
                 if (up != null && up.canRead()) loadDir(p, up);
@@ -273,7 +240,7 @@ public class MainActivity extends BaseActivity {
 
     /** 粘贴到活动窗格当前目录；复用任务队列，所以照样有进度、可取消 */
     private void pasteClipboard() {
-        final Panel p = active();
+        final Pane p = active();
         FileClipboard cb = FileClipboard.get();
         cb.prune();
         if (cb.isEmpty()) {
@@ -751,7 +718,7 @@ public class MainActivity extends BaseActivity {
 
     /** ⋮ 主菜单（对标 MT 溢出菜单，锚定在右上角 ⋮ 按钮往下弹出） */
     private void showMoreMenu() {
-        final Panel p = active();
+        final Pane p = active();
         View anchor = findViewById(R.id.btn_more);
         PopupMenu popup = new PopupMenu(this, anchor);
         Menu menu = popup.getMenu();
@@ -821,7 +788,7 @@ public class MainActivity extends BaseActivity {
                         // v1.78.0：两栏共用这套显示设置，改完存盘并同步刷新
                         boolean nh = !p.adapter.showHidden;
                         saveShowHidden(nh);
-                        for (Panel q : new Panel[]{left, right}) q.adapter.showHidden = nh;
+                        for (Pane q : new Pane[]{left, right}) q.adapter.showHidden = nh;
                         refreshAll();
                         break;
                     case 5: showBookmarks(); break;
@@ -852,7 +819,7 @@ public class MainActivity extends BaseActivity {
 
     /** 排序方式：名称 / 大小 / 修改时间（两栏共用，会记住选择） */
     private void askSortMode() {
-        final Panel p = active();
+        final Pane p = active();
         new HfDialogBuilder(this)
                 .setTitle("排序方式")
                 .setSingleChoiceItems(
@@ -860,7 +827,7 @@ public class MainActivity extends BaseActivity {
                         new android.content.DialogInterface.OnClickListener() {
                             public void onClick(android.content.DialogInterface d, int which) {
                                 saveSortMode(which);
-                                for (Panel q : new Panel[]{left, right}) q.adapter.sortMode = which;
+                                for (Pane q : new Pane[]{left, right}) q.adapter.sortMode = which;
                                 refreshAll();
                                 d.dismiss();
                             }
@@ -884,7 +851,7 @@ public class MainActivity extends BaseActivity {
     }
 
     private void askNewFile() {
-        final Panel p = active();
+        final Pane p = active();
         if (p.archiveFile != null) { toast("压缩包浏览中不可新建，请先退出压缩包"); return; }
         final EditText et = new EditText(this);
         et.setInputType(InputType.TYPE_CLASS_TEXT);
@@ -914,7 +881,7 @@ public class MainActivity extends BaseActivity {
 
     /** ‹ › 历史导航：沿活动栏自己的历史栈前进/后退；压缩包浏览中先逐级退回 */
     private void jumpHistory(int delta) {
-        Panel p = active();
+        Pane p = active();
         if (p.archiveFile != null) {          // 压缩包浏览中 → 先退压缩包（根则退出）
             archGoUp(p);
             return;
@@ -935,8 +902,8 @@ public class MainActivity extends BaseActivity {
         }
     }
 
-    private Panel active() { return left.active ? left : right; }
-    private Panel other() { return left.active ? right : left; }
+    private Pane active() { return left.active ? left : right; }
+    private Pane other() { return left.active ? right : left; }
 
     /**
      * ⇄ 交换窗口：完整交换两侧状态（目录 / 压缩包浏览 / 历史栈 / 适配器）。
@@ -945,19 +912,19 @@ public class MainActivity extends BaseActivity {
     private void swapPanes() {
         if (left.adapter.selectionMode) exitSelection(left);
         if (right.adapter.selectionMode) exitSelection(right);
-        Panel t = left;
+        Pane t = left;
         left = right;
         right = t;
-        // Panel 自带 list/adapter 配对，交换引用后两侧各自仍然成套；
-        // active 标记随 Panel 移动 = 屏幕侧焦点不变
-        for (Panel p : new Panel[]{left, right}) {
+        // Pane 自带 list/adapter 配对，交换引用后两侧各自仍然成套；
+        // active 标记随 Pane 移动 = 屏幕侧焦点不变
+        for (Pane p : new Pane[]{left, right}) {
             if (p.archiveFile != null) showArchiveDir(p);
             else if (p.dir != null) loadDir(p, p.dir, false);
         }
         updateHeader();
     }
 
-    private void setupPanel(final Panel p) {
+    private void setupPanel(final Pane p) {
         p.adapter = new FileAdapter(this);
         p.adapter.rootDir = Environment.getExternalStorageDirectory();
         // v1.78.0：排序方式与「显示 . 文件」原来是内存态，重启就回到默认值。
@@ -1089,14 +1056,14 @@ public class MainActivity extends BaseActivity {
      */
     private final List<File> mDragSrcs = new ArrayList<File>();
     /** 拖拽发起窗格（只有它会负责在拖拽结束时收尾） */
-    private Panel mDragFrom;
+    private Pane mDragFrom;
     /** 拖拽发起条目（未投放时用它弹出原来的长按菜单） */
     private FileItem mDragItem;
     /** 这一次拖拽是否已成功投放 */
     private boolean mDropped;
 
     /** 给一个窗格挂上「可接收拖放」的监听（列表/网格外层容器整体作为目标） */
-    private void setupDropTarget(final Panel p) {
+    private void setupDropTarget(final Pane p) {
         if (p.pull == null) return;
         p.pull.setOnDragListener(new View.OnDragListener() {
             public boolean onDrag(View v, android.view.DragEvent ev) {
@@ -1144,7 +1111,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 拖拽经过时高亮目标栏：能放=强调色，不能放=错误色（13% 透明，不遮内容） */
-    private void paintDropTarget(Panel p, boolean on) {
+    private void paintDropTarget(Pane p, boolean on) {
         if (p.pull == null) return;
         if (!on) {
             p.pull.setBackgroundColor(0x00000000);
@@ -1156,7 +1123,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 落到某个窗格：先判定，再让用户选复制还是移动 */
-    private boolean handleDrop(final Panel dst) {
+    private boolean handleDrop(final Pane dst) {
         if (dst.archiveFile != null) {
             toast("暂不支持拖进压缩包，请用长按菜单里的「复制到对面压缩包」");
             return false;
@@ -1199,7 +1166,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 发起拖拽；系统拒绝时（极少）退回直接弹菜单，不让长按失灵 */
-    private void startItemDrag(final Panel p, int pos, final List<File> srcs) {
+    private void startItemDrag(final Pane p, int pos, final List<File> srcs) {
         if (srcs.isEmpty()) {
             FileItem it = p.adapter.get(pos);
             if (!it.isArchEntry() && !it.upEntry) showOpsMenu(it.file);
@@ -1231,13 +1198,13 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 当前视图模式下真正在显示的列表控件（网格模式下 list 是 GONE，不能作为拖拽发起者） */
-    private View fileView(Panel p) {
+    private View fileView(Pane p) {
         if (viewMode == VIEW_GRID && p.grid != null) return p.grid;
         return p.list;
     }
 
     /** 取某个下标的行视图（拖拽影子用）；不可见时返回 null */
-    private View itemViewAt(Panel p, int pos) {
+    private View itemViewAt(Pane p, int pos) {
         android.widget.AdapterView<?> av = (viewMode == VIEW_GRID && p.grid != null)
                 ? p.grid : (android.widget.AdapterView<?>) p.list;
         int first = av.getFirstVisiblePosition();
@@ -1247,7 +1214,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 点击条目：列表与网格共用（两侧下标都指向同一个 FileAdapter） */
-    private void handleItemClick(Panel p, int i) {
+    private void handleItemClick(Pane p, int i) {
         setActive(p);
         FileItem it = p.adapter.get(i);
         // v1.40.0：列表顶部 .. 返回项（多选中点击 = 退出多选并返回，loadDir 内处理）
@@ -1277,7 +1244,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 长按条目：列表与网格共用 */
-    private boolean handleItemHold(Panel p, int i) {
+    private boolean handleItemHold(Pane p, int i) {
         setActive(p);
         if (p.adapter.isLoading()) return true;   // v1.96.0：同上，读取中不响应长按
         FileItem it = p.adapter.get(i);
@@ -1308,7 +1275,7 @@ public class MainActivity extends BaseActivity {
         return true;
     }
 
-    private void setActive(Panel p) {
+    private void setActive(Pane p) {
         left.active = (p == left);
         right.active = (p == right);
         applyViewMode();
@@ -1320,12 +1287,12 @@ public class MainActivity extends BaseActivity {
      *
      * 网格模式下把非活动窗格整块收起来，让活动栏占满宽度 —— 双栏各 180dp 时，
      * 一行只放得下 1 个 96dp 的格子，大图浏览就没意义了；列表模式下恢复双栏。
-     * 交换窗格（⇄）仍然可用：Panel 自带视图引用，交换后活动栏照样占满。
+     * 交换窗格（⇄）仍然可用：Pane 自带视图引用，交换后活动栏照样占满。
      */
     private void applyViewMode() {
         boolean grid = viewMode == VIEW_GRID;
-        Panel a = active();
-        for (Panel p : new Panel[]{left, right}) {
+        Pane a = active();
+        for (Pane p : new Pane[]{left, right}) {
             if (p.list != null) p.list.setVisibility(grid ? View.GONE : View.VISIBLE);
             if (p.grid != null) p.grid.setVisibility(grid ? View.VISIBLE : View.GONE);
             if (p.pull != null) p.pull.setVisibility(grid && p != a ? View.GONE : View.VISIBLE);
@@ -1334,7 +1301,7 @@ public class MainActivity extends BaseActivity {
         if (div != null) div.setVisibility(grid ? View.GONE : View.VISIBLE);
     }
 
-    private void loadDir(Panel p, File dir) {
+    private void loadDir(Pane p, File dir) {
         loadDir(p, dir, true);
     }
 
@@ -1347,7 +1314,7 @@ public class MainActivity extends BaseActivity {
      * @return true = 已发起/正在进行的读取（调用方不必自己收下拉圈），
      *         false = 参数校验没过或被去重跳过（没有收尾回调会来）
      */
-    private boolean loadDir(Panel p, File dir, boolean push) {
+    private boolean loadDir(Pane p, File dir, boolean push) {
         // v1.42.0：root 设备上 stat 可能被拒（ls 才需要 su），放行交给 DirReader 的 root 回退
         if (dir == null || (!dir.isDirectory() && !RootUtil.isRootAvailable())) {
             Toast.makeText(this, "无法访问: " + dir, Toast.LENGTH_SHORT).show();
@@ -1430,7 +1397,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 读目录的收尾（成功/失败同一入口）：换数据、补计数、收下拉刷新、失败给可见提示 */
-    private void applyDirResult(Panel p, int gen, DirReader.Result r) {
+    private void applyDirResult(Pane p, int gen, DirReader.Result r) {
         // 期间又切了目录 / 界面已销毁：这份结果作废（否则会把旧目录的内容盖上去）
         if (gen != p.dirGen || isFinishing() || isDestroyed()) return;
         if (p.pull != null) p.pull.finishRefresh();
@@ -1460,7 +1427,7 @@ public class MainActivity extends BaseActivity {
     /** 顶部深色栏：显示活动栏路径 + 统计（文件夹/文件/储存），对标 MT */
     private void updateHeader() {
         if (headerPath == null) return;
-        Panel p = active();
+        Pane p = active();
         // 压缩包浏览模式：路径 = 压缩包路径 / 条目前缀
         if (p.archiveFile != null) {
             headerPath.setText(p.archiveFile.getPath()
@@ -1994,7 +1961,7 @@ public class MainActivity extends BaseActivity {
         }, "rar2zip").start();
     }
 
-    private void closeArchiveQuiet(Panel p) {
+    private void closeArchiveQuiet(Pane p) {
         // v1.66.0：退出 APK 浏览时，有未签名修改版 → 统一弹窗（不签名/内置签名文件/自有签名文件）
         if (p.archiveFile != null && ApkEditSession.isApk(p.archiveFile)
                 && ApkEditSession.needsSignPrompt(p.archiveFile)) {
@@ -2009,7 +1976,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 在指定窗格内打开压缩包（替代全屏 ZipBrowserActivity）；加密时弹密码框重试 */
-    private void openArchiveInPane(final Panel p, final File f) {
+    private void openArchiveInPane(final Pane p, final File f) {
         toast("正在打开压缩包…");
         new Thread(new Runnable() {
             public void run() {
@@ -2065,13 +2032,13 @@ public class MainActivity extends BaseActivity {
     private AlertDialog mPwDialog;
 
     /** 加密归档密码输入框（无后续动作重载） */
-    private void promptArchivePassword(final Panel p, final File f, final boolean wrong) {
+    private void promptArchivePassword(final Pane p, final File f, final boolean wrong) {
         promptArchivePassword(p, f, wrong, null);
     }
 
     /** 加密归档密码输入框：确定后记住密码并重开窗格或执行 afterOk；取消则清除密码。
      *  wrong=true 表示上一轮密码已验证失败，标题与提示变为"密码错误，请重输" */
-    private void promptArchivePassword(final Panel p, final File f, final boolean wrong,
+    private void promptArchivePassword(final Pane p, final File f, final boolean wrong,
             final Runnable afterOk) {
         android.util.Log.w("HexFile", "pw-dialog show wrong=" + wrong + " file=" + f.getName()
                 + " pane=" + (p != null));
@@ -2145,7 +2112,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 提取/编辑等后台操作密码类失败 → 弹密码框重开归档，返回 true 表示已处理 */
-    private boolean archPwError(final Panel p, Throwable t) {
+    private boolean archPwError(final Pane p, Throwable t) {
         if (t == null) return false;
         if (ArchiveUtil.cryptoError(t)) {
             final boolean wrong = p.archiveFile != null && ArchivePasswords.get(p.archiveFile) != null;
@@ -2161,7 +2128,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 刷新窗格当前压缩包子级列表（后台列条目，回主线程渲染） */
-    private void showArchiveDir(final Panel p) {
+    private void showArchiveDir(final Pane p) {
         final ArchiveUtil.Archive a = p.archive;
         final File zf = p.archiveFile;
         final String prefix = p.archPrefix == null ? "" : p.archPrefix;
@@ -2198,7 +2165,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 压缩包内返回上级；已到根则退回普通目录模式 */
-    private void archGoUp(Panel p) {
+    private void archGoUp(Pane p) {
         String pre = p.archPrefix == null ? "" : p.archPrefix;
         if (pre.isEmpty()) {
             closeArchiveQuiet(p);
@@ -2211,7 +2178,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 点击压缩包内条目：目录进入 / 文本直接编辑 / 其它弹提取菜单 */
-    private void onArchItemClick(final Panel p, final FileItem it) {
+    private void onArchItemClick(final Pane p, final FileItem it) {
         if (it.archDir) {
             p.archPrefix = it.archFull;
             showArchiveDir(p);
@@ -2251,7 +2218,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** APK 内点击 AndroidManifest.xml：改属性走 Manifest 编辑器++，文本编辑走往返编译 */
-    private void askArchManifestAction(final Panel p, final FileItem it) {
+    private void askArchManifestAction(final Pane p, final FileItem it) {
         new HfDialogBuilder(this)
                 .setTitle(it.archShort)
                 .setItems(new String[] {
@@ -2286,7 +2253,7 @@ public class MainActivity extends BaseActivity {
      * Manifest 文本编辑（往返编译）：提取二进制 AXML → 转 pretty 文本 → 编辑器打开；
      * 保存时 TextEditorActivity 走 EXTRA_RT_* 往返编译写回 APK。
      */
-    private void editArchEntryXml(final Panel p, final FileItem it) {
+    private void editArchEntryXml(final Pane p, final FileItem it) {
         final File zip = p.archiveFile;
         final File tmpDir = new File(getCacheDir(), "arch_edit_xml");
         toast("正在读取…");
@@ -2336,7 +2303,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 提取压缩包内条目（含子树）到目标窗格目录（后台） */
-    private void extractArchEntry(final Panel p, final String entryName, final Panel dst) {
+    private void extractArchEntry(final Pane p, final String entryName, final Pane dst) {
         toast("提取中…");
         new Thread(new Runnable() {
             public void run() {
@@ -2360,7 +2327,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 解压整个压缩包到当前窗格目录（压缩包所在文件夹，即"此目录"），一步到位 */
-    private void extractArchAll(final Panel p) {
+    private void extractArchAll(final Pane p) {
         if (p.archive == null || p.archiveFile == null) return;
         final File outDir = p.dir;
         toast("解压全部中…");
@@ -2387,7 +2354,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 压缩包内文本条目 → 解到缓存后进编辑器（zip/apk 可写回） */
-    private void editArchEntry(final Panel p, final FileItem it) {
+    private void editArchEntry(final Pane p, final FileItem it) {
         final File zip = p.archiveFile;
         final File tmpDir = new File(getCacheDir(), "arch_edit");
         toast("正在读取…");
@@ -2483,7 +2450,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 压缩包内点击 .dex → 操作菜单（MT 风格） */
-    private void askArchDexAction(final Panel p, final FileItem it) {
+    private void askArchDexAction(final Pane p, final FileItem it) {
         // v1.66.5：属性/修复放点击弹窗（对标 NP 打开方式），长按菜单不再重复
         final java.util.List<String> ops = new ArrayList<String>();
         ops.add("Dex 编辑器++（可多选 dex，直接改指令）");
@@ -2525,7 +2492,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** v1.65.0：压缩包内点击 .arsc → 弹选择框（用哪个编辑器打开），不直接进入修改 */
-    private void openArchArsc(final Panel p, final FileItem it) {
+    private void openArchArsc(final Pane p, final FileItem it) {
         new HfDialogBuilder(this)
                 .setTitle(it.archShort)
                 .setItems(new String[] {
@@ -2550,7 +2517,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** v1.64.0：压缩包内 .arsc → ARSC++ 编辑（树状列表 + values XML 源码编辑） */
-    private void openArchArscPlus(final Panel p, final FileItem it) {
+    private void openArchArscPlus(final Pane p, final FileItem it) {
         Intent i = new Intent(MainActivity.this, ArscPlusActivity.class);
         i.putExtra(ArscPlusActivity.EXTRA_APK, p.archiveFile.getAbsolutePath());
         i.putExtra(ArscPlusActivity.EXTRA_ENTRY, it.archPath());
@@ -2558,7 +2525,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 压缩包内单个 dex → 反编译为 smali（/sdcard/HexFile/Smali/<apk名>/<dex名>/）并跳转 */
-    private void decompileArchDex(final Panel p, final FileItem it) {
+    private void decompileArchDex(final Pane p, final FileItem it) {
         final File apk = p.archiveFile;
         final File cacheTmp = new File(getCacheDir(), "arch_dex_tmp");
         final String base = stripExt(new File(it.archPath()).getName());
@@ -2663,7 +2630,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 压缩包内 dex → 提取到缓存后查看属性（v1.66.5） */
-    private void showArchDexProps(final Panel p, final FileItem it) {
+    private void showArchDexProps(final Pane p, final FileItem it) {
         final File apk = p.archiveFile;
         final File tmpDir = new File(getCacheDir(), "arch_dexprops");
         toast("正在读取…");
@@ -2693,7 +2660,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 压缩包内 dex 修复（v1.66.5，仅 APK 归档）：提取 → 修复 → 会话写回原包 */
-    private void askArchDexFix(final Panel p, final FileItem it) {
+    private void askArchDexFix(final Pane p, final FileItem it) {
         final File apk = p.archiveFile;
         new HfDialogBuilder(this)
                 .setTitle("Dex 修复")
@@ -2743,7 +2710,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 压缩包内任意条目 → 提取到缓存后 HEX 查看 */
-    private void hexArchEntry(final Panel p, final FileItem it) {
+    private void hexArchEntry(final Pane p, final FileItem it) {
         final File tmpDir = new File(getCacheDir(), "arch_hex");
         toast("正在读取…");
         new Thread(new Runnable() {
@@ -2775,7 +2742,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 压缩包内图片条目 → 解到缓存后进查看器（只读展示，不写回） */
-    private void viewArchEntry(final Panel p, final FileItem it) {
+    private void viewArchEntry(final Pane p, final FileItem it) {
         final File tmpDir = new File(getCacheDir(), "arch_view");
         toast("正在读取…");
         new Thread(new Runnable() {
@@ -2807,7 +2774,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 压缩包条目长按菜单（MT 式双列宫格） */
-    private void showArchOpsMenu(final Panel p, final FileItem it) {
+    private void showArchOpsMenu(final Pane p, final FileItem it) {
         final boolean canWrite = writableArchive(p.archiveFile);
         final boolean isText = isTextName(it.archShort.toLowerCase(), it.archSize);
         final boolean canToArch = other().archiveFile != null;
@@ -2871,8 +2838,8 @@ public class MainActivity extends BaseActivity {
      * 压缩包条目 → 对面压缩包（v1.15）：先把条目（含子树）提取到缓存，再写入目标归档。
      * nameOverride 非空 = 单条目自定义目标名；move = 写入后从源归档删除（需源可写）。
      */
-    private void askAddEntriesToArchive(final Panel src, final List<FileItem> entries,
-            final Panel dst, final boolean move) {
+    private void askAddEntriesToArchive(final Pane src, final List<FileItem> entries,
+            final Pane dst, final boolean move) {
         if (!ensureArchiveWritable(dst.archiveFile)) return;
         if (move && !writableArchive(src.archiveFile)) {
             toast("源压缩包为只读格式，无法删除原条目（改为复制）");
@@ -2921,8 +2888,8 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 执行「压缩包条目 → 对面压缩包」：提取到缓存 → 逐文件写入 → 可选删源条目 */
-    private void addEntriesToArchive(final Panel src, final List<FileItem> entries,
-            final Panel dst, final String nameOverride, final boolean move) {
+    private void addEntriesToArchive(final Pane src, final List<FileItem> entries,
+            final Pane dst, final String nameOverride, final boolean move) {
         AtomicReplace.lastError = null;      // R-06：旧失败原因不能安到这次头上
         toast("写入压缩包…");
         new Thread(new Runnable() {
@@ -3004,7 +2971,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 从压缩包删除条目（重建 zip；APK 删除后询问自动签名） */
-    private void archDelete(final Panel p, final List<FileItem> items) {
+    private void archDelete(final Pane p, final List<FileItem> items) {
         final List<String> names = new ArrayList<String>();
         for (FileItem it : items) names.add(it.archPath());
         new HfDialogBuilder(this)
@@ -3572,7 +3539,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 写文件/目录进压缩包（nameOverride 非空 = 单源自定义条目名/目录前缀；move = 成功后删源） */
-    private void addToArchive(final File[] sources, final Panel archPane,
+    private void addToArchive(final File[] sources, final Pane archPane,
             final String nameOverride, final boolean move) {
         if (!ensureArchiveWritable(archPane.archiveFile)) return;
         toast("写入压缩包…");
@@ -3661,7 +3628,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 复制/移动文件或目录进压缩包：可自定义目标条目名（含后缀，支持子目录路径） */
-    private void askAddToArchive(final File src, final Panel archPane, final boolean move) {
+    private void askAddToArchive(final File src, final Pane archPane, final boolean move) {
         if (!ensureArchiveWritable(archPane.archiveFile)) return;
         final EditText et = new EditText(this);
         et.setText(src.getName());
@@ -4483,7 +4450,7 @@ public class MainActivity extends BaseActivity {
             showApkOpsMenu(f);       // APK 用专属功能菜单（对标 MT）
             return;
         }
-        final Panel dst = other();
+        final Pane dst = other();
         final boolean isFile = f.isFile();
         final boolean isDex = isFile && f.getName().toLowerCase().endsWith(".dex");
         final boolean isKs = isFile && isKeystoreFile(f, f.getName().toLowerCase());
@@ -4562,7 +4529,7 @@ public class MainActivity extends BaseActivity {
 
     /** MT 风格 APK 功能菜单（对标 MT 长按 APK 的功能项，本地版裁剪） */
     private void showApkOpsMenu(final File f) {
-        final Panel dst = other();
+        final Pane dst = other();
         // 动作码（APK 专属，与 runFileAction 对应）
         final int A_DEX2SMALI = 10, A_EXTRACT_DEX = 11,
                 A_SIGN = 13, A_COPY = 3, A_REN = 5, A_PROP = 8, A_DEXPP = 15, A_ARSCPP = 16, A_MFPP = 17,
@@ -4644,7 +4611,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 长按菜单动作分发 */
-    private void runFileAction(int act, File f, Panel dst) {
+    private void runFileAction(int act, File f, Pane dst) {
         switch (act) {
             case 0: decompileDexFile(f); break;   // 反编译 smali（独立 dex）
             case 1: openEditor(f); break;         // 文本编辑
@@ -5794,13 +5761,13 @@ public class MainActivity extends BaseActivity {
     // ---------- 手势与多选批量操作 ----------
 
     /** 当前处于多选模式的窗格 */
-    private Panel selPanel;
+    private Pane selPanel;
 
     /**
      * 处理面板上的水平快速滑动（pos = 手指起点所在条目，可能无效）：
      * 左滑 → 选中该条目并进入多选；右滑 → 取消该条目选中（非多选时右滑 = 返回上一级）
      */
-    private void onHorizontalSwipe(Panel p, boolean toRight, int pos) {
+    private void onHorizontalSwipe(Pane p, boolean toRight, int pos) {
         if (!toRight) {
             if (pos != AdapterView.INVALID_POSITION) {
                 boolean alreadySelMode = p.adapter.selectionMode;
@@ -5838,7 +5805,7 @@ public class MainActivity extends BaseActivity {
         }
     }
 
-    private void toggleSelectionMode(Panel p) {
+    private void toggleSelectionMode(Pane p) {
         if (p.adapter.selectionMode) {
             exitSelection(p);
         } else {
@@ -5846,7 +5813,7 @@ public class MainActivity extends BaseActivity {
         }
     }
 
-    private void enterSelectionMode(Panel p) {
+    private void enterSelectionMode(Pane p) {
         if (p.adapter.selectionMode) return;
         if (left.adapter.selectionMode) exitSelection(left);
         if (right.adapter.selectionMode) exitSelection(right);
@@ -5858,7 +5825,7 @@ public class MainActivity extends BaseActivity {
         updateSelDone();
     }
 
-    private void exitSelection(Panel p) {
+    private void exitSelection(Pane p) {
         p.adapter.setSelectionMode(false);
         if (p.pull != null) p.pull.setPullEnabled(true);
         if (selPanel == p) {
@@ -5963,7 +5930,7 @@ public class MainActivity extends BaseActivity {
         if (selPanel == null) return;
         List<FileItem> sel = selPanel.adapter.getSelectedItems();
         if (sel.isEmpty()) { toast("未选中任何项"); return; }
-        final Panel dst = (selPanel == left ? right : left);
+        final Pane dst = (selPanel == left ? right : left);
         List<File> realFiles = new ArrayList<File>();
         List<FileItem> archEntries = new ArrayList<FileItem>();
         for (FileItem it : sel) {
@@ -6000,8 +5967,8 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 批量提取压缩包条目到目标窗格目录；alsoDelete=true 时提取后从压缩包删除（仅 ZIP/APK） */
-    private void extractEntriesBatch(final Panel p, final List<FileItem> entries,
-            final Panel dst, final boolean alsoDelete) {
+    private void extractEntriesBatch(final Pane p, final List<FileItem> entries,
+            final Pane dst, final boolean alsoDelete) {
         toast(alsoDelete ? "提取并删除中…" : "提取中…");
         new Thread(new Runnable() {
             public void run() {
@@ -6058,7 +6025,7 @@ public class MainActivity extends BaseActivity {
             archDelete(selPanel, archEntries);
             return;
         }
-        final Panel p = selPanel;
+        final Pane p = selPanel;
         new HfDialogBuilder(this)
                 .setTitle("批量删除")
                 .setMessage("将 " + realFiles.size() + " 项移入回收站（可恢复）？")
@@ -6185,7 +6152,7 @@ public class MainActivity extends BaseActivity {
             skipResumeReload = false;
             return;
         }
-        for (Panel p : new Panel[]{left, right}) {
+        for (Pane p : new Pane[]{left, right}) {
             if (p.archiveFile != null) showArchiveDir(p);
             // v1.99.0（O-04）：三参 push=false。回前台不是「进入新目录」，
             // 用两参版本会往历史栈里补当前路径，用户从子页面回来再按 ‹ 就退不动。
@@ -6211,7 +6178,7 @@ public class MainActivity extends BaseActivity {
      */
     private void restorePanesOrLoad(Bundle b) {
         File def = Environment.getExternalStorageDirectory();
-        Panel[] ps = new Panel[]{left, right};
+        Pane[] ps = new Pane[]{left, right};
         String[] dk = {"left_dir", "right_dir"};
         String[] hk = {"left_hist", "right_hist"};
         String[] ik = {"left_hidx", "right_hidx"};
@@ -6367,13 +6334,13 @@ public class MainActivity extends BaseActivity {
         }
         if (left.adapter.selectionMode) { exitSelection(left); return; }
         if (right.adapter.selectionMode) { exitSelection(right); return; }
-        Panel p = active();
+        Pane p = active();
         if (p.archiveFile != null) {          // 压缩包内：逐级返回，根则退出压缩包
             archGoUp(p);
             return;
         }
         // 活动栏在目录模式，但对面窗格开着压缩包 → 先退对面压缩包（v1.15）
-        Panel o = other();
+        Pane o = other();
         if (o.archiveFile != null) { archGoUp(o); return; }
         File root = Environment.getExternalStorageDirectory();
         String rootPath = root.getAbsolutePath();
@@ -6396,7 +6363,7 @@ public class MainActivity extends BaseActivity {
     }
 
     private void askNewFolder() {
-        final Panel p = active();
+        final Pane p = active();
         if (p.archiveFile != null) { toast("压缩包浏览中不可新建，请先退出压缩包"); return; }
         final EditText et = new EditText(this);
         et.setInputType(InputType.TYPE_CLASS_TEXT);
@@ -6417,7 +6384,7 @@ public class MainActivity extends BaseActivity {
     }
 
     private void refreshAll() {
-        for (Panel p : new Panel[]{left, right}) {
+        for (Pane p : new Pane[]{left, right}) {
             if (p.archiveFile != null) showArchiveDir(p);
             // v1.79.0：push=false —— 刷新不是「进入新目录」，否则每刷一次就往历史栈里塞一条重复路径，
             // ‹ › 要按很多下才退得出去
@@ -6436,7 +6403,7 @@ public class MainActivity extends BaseActivity {
      * （压缩包重列失败 / dir 为空 / 路径校验没过）才用 220ms 兜底，其余由
      * {@code applyDirResult} / 20s 看门狗 / 失败回调统一收。</p>
      */
-    private void refreshPanel(final Panel p) {
+    private void refreshPanel(final Pane p) {
         if (p == null || p.pull == null || p.adapter == null) return;
         p.pull.setRefreshing(true);
         final int pg = ++p.pullGen;
@@ -6465,7 +6432,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 延迟收下拉圈；调用前已经在转才收，避免把下一次刷新的圈提前收掉 */
-    private void finishPullLater(final Panel p, final int pg, long delayMs) {
+    private void finishPullLater(final Pane p, final int pg, long delayMs) {
         if (p == null || p.pull == null) return;
         p.pull.postDelayed(new Runnable() {
             public void run() {
