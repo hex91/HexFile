@@ -257,19 +257,33 @@ public class FileTaskTest {
         // ---------------------------------------------------------- 账本（v1.99.3：Store 注入）
         {
             eng.clearFinished();
-            final String[] box = new String[1];
+            // 记「每一次写入」而不是只看最后值：Linux 上 32KB 几毫秒就拷完了，
+            // waitDone 返回时引擎的收尾 writeJournal 可能还没执行 —— 只看最后值必然偶发失败。
+            // TaskJournal.encode 的输出就是 TaskStore 写进偏好 running_task_json 的内容。
+            final List<String> writes = new ArrayList<String>();
             eng.setJournalStore(new TaskJournal.Store() {
                 public void save(List<TaskJournal.Entry> es) {
-                    box[0] = TaskJournal.encode(es);      // 与 TaskStore 写进偏好的是同一段文本
+                    writes.add(TaskJournal.encode(es));
                 }
             });
             File src = dir("journal_src");
-            File f = file(new File(src, "j.bin"), 32 * 1024);
+            // 4MB 而不是 32KB：保证 submit 内那次 writeJournal 执行时任务还没跑完
+            //（否则「提交时写账本」这条断言本身也在赌时序）
+            File f = file(new File(src, "j.bin"), 4 * 1024 * 1024);
             File dst = dir("journal_dst");
             FileTask jt = eng.submit(FileTask.COPY, list(f), dst);
-            ok(box[0] != null && box[0].contains("S\t"), "提交即写账本（含来源路径）");
             waitDone(jt, 20000);
-            ok(box[0] == null, "任务结束后账本清空（encode 空列表返回 null）");
+            // 收尾写入是异步于 finished 标志的，等它出现（最多 3 秒）
+            long end = System.currentTimeMillis() + 3000;
+            while (System.currentTimeMillis() < end) {
+                if (!writes.isEmpty() && writes.get(writes.size() - 1) == null) break;
+                Thread.sleep(5);
+            }
+            boolean sawPending = false;
+            for (String w : writes) if (w != null && w.contains("S\t")) sawPending = true;
+            ok(sawPending, "提交时写账本（内容含来源路径）");
+            ok(!writes.isEmpty() && writes.get(writes.size() - 1) == null,
+                    "任务结束后账本清空（encode 空列表返回 null）");
             eng.setJournalStore((TaskJournal.Store) null);
         }
 
