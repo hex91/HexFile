@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 平板 / 大屏（最短边 ≥ 600dp）：分隔条可拖，比例记在 hf_view/split_ratio -->
+<resources>
+    <bool name="pane_divider_draggable">true</bool>
+</resources>

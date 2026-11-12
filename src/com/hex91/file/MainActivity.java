@@ -170,6 +170,17 @@ public class MainActivity extends BaseActivity {
     private static final int VIEW_GRID = 1;
     private int viewMode = VIEW_LIST;
 
+    /**
+     * v2.3.0（F-15）：双栏分隔比例。
+     *
+     * <p>只在平板/大屏（sw600dp）上可拖；夹取在 0.3–0.7，避免把某一栏拖成看不见。
+     * 存在 PREF_UI 里，和排序/视图模式同一份偏好，重启与旋转都保持。</p>
+     */
+    private static final String KEY_SPLIT = "split_ratio";
+    private float splitRatio = 0.5f;
+    /** v2.3.0（F-15）：分隔条对象；单栏或网格模式下 GONE */
+    private View paneDivider;
+
     private void saveViewMode(int mode) {
         getSharedPreferences(PREF_UI, MODE_PRIVATE).edit().putInt(KEY_VIEW, mode).apply();
     }
@@ -261,6 +272,9 @@ public class MainActivity extends BaseActivity {
 
         setupPanel(left);
         setupPanel(right);
+        // 必须在 restorePanesOrLoad 之前：那条路径会经 setActive → applyViewMode，
+        // 用得到 paneDivider 的显隐与已恢复的分隔比例。
+        setupPaneDivider();
         restorePanesOrLoad(b);
         taskCtl.setupJournal();
         // v1.80.0：视图模式也持久化（和排序/隐藏文件同一份偏好），重启保持
@@ -286,7 +300,7 @@ public class MainActivity extends BaseActivity {
             public void onClick(View v) { askCreateNew(); }
         });
         findViewById(R.id.btn_swap).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { swapPanes(); }
+            public void onClick(View v) { toggleOrSwapPanes(); }
         });
         // 顶部路径可点 = 书签；⋮ = 主菜单
         headerPath.setOnClickListener(new View.OnClickListener() {
@@ -522,7 +536,7 @@ public class MainActivity extends BaseActivity {
                     case 6:
                         startActivity(new Intent(MainActivity.this, TrashActivity.class));
                         break;
-                    case 7: swapPanes(); break;
+                    case 7: toggleOrSwapPanes(); break;
                     case 9: pasteClipboard(); break;   // v1.78.0
                     case 8: showRecent(); break;
                     case 12:
@@ -618,6 +632,21 @@ public class MainActivity extends BaseActivity {
      * ⇄ 交换窗口：完整交换两侧状态（目录 / 压缩包浏览 / 历史栈 / 适配器）。
      * v1.15 起不再强制关闭压缩包——交换后压缩包仍在原屏幕侧浏览，活动栏跟随屏幕侧不变。
      */
+    /**
+     * v2.3.0（F-15）：⇄ 有两种语义。
+     *
+     * <p>双栏并排时是「交换两栏内容」，和以前一样；单栏（窄屏）时屏幕上只有
+     * 一栏可见，交换无从谈起，改为「切到另一栏」—— 否则单栏模式下另一栏
+     * 永远够不着（点击只能落在可见的那一栏上）。</p>
+     */
+    private void toggleOrSwapPanes() {
+        if (singlePane()) {
+            setActive(active() == left ? right : left);
+        } else {
+            swapPanes();
+        }
+    }
+
     private void swapPanes() {
         if (left.adapter.selectionMode) exitSelection(left);
         if (right.adapter.selectionMode) exitSelection(right);
@@ -1003,14 +1032,101 @@ public class MainActivity extends BaseActivity {
      */
     private void applyViewMode() {
         boolean grid = viewMode == VIEW_GRID;
+        boolean single = singlePane();
+        boolean onePane = grid || single;
         Pane a = active();
         for (Pane p : new Pane[]{left, right}) {
             if (p.list != null) p.list.setVisibility(grid ? View.GONE : View.VISIBLE);
             if (p.grid != null) p.grid.setVisibility(grid ? View.VISIBLE : View.GONE);
-            if (p.pull != null) p.pull.setVisibility(grid && p != a ? View.GONE : View.VISIBLE);
+            if (p.pull != null) p.pull.setVisibility(onePane && p != a ? View.GONE : View.VISIBLE);
         }
-        View div = findViewById(R.id.pane_divider);
-        if (div != null) div.setVisibility(grid ? View.GONE : View.VISIBLE);
+        if (paneDivider != null) paneDivider.setVisibility(onePane ? View.GONE : View.VISIBLE);
+    }
+
+    /**
+     * v2.3.0（F-15）：窄屏只显示一栏。
+     *
+     * <p>360dp 的手机上双栏各 180dp，长文件名只能看到前几个字；这里按当前窗口宽度
+     * 切单栏，双栏留给平板、横屏与分屏后的宽窗口。阈值 400dp 对应 Material 的
+     * compact/medium 分界。切换复用 {@link #setActive} 已有的「显示活动栏、
+     * 收起另一栏」路径，不另写一套显隐逻辑。</p>
+     */
+    private boolean singlePane() {
+        return getResources().getConfiguration().screenWidthDp < 400;
+    }
+
+    // ---------------------------------------------------------------- 分隔条（v2.3.0 F-15）
+
+    /**
+     * 双栏分隔条：平板/大屏可拖，手机只是 1dp 装饰线。
+     *
+     * <p>是否可拖看 {@code bool/pane_divider_draggable}（values 为 false，
+     * values-sw600dp 为 true），宽度看 {@code dimen/pane_divider_width}。
+     * 两种形态共用同一份布局：复制一份 756 行的 activity_main.xml 到
+     * layout-sw600dp，以后每次改布局都得记得改两处，迟早漂移。</p>
+     *
+     * <p>判空是兜底：单栏/网格模式下分隔条会被 GONE，但对象一直在。</p>
+     */
+    private void setupPaneDivider() {
+        paneDivider = findViewById(R.id.pane_divider);
+        if (paneDivider == null) return;
+
+        splitRatio = getSharedPreferences(PREF_UI, MODE_PRIVATE).getFloat(KEY_SPLIT, 0.5f);
+        applySplit(splitRatio);
+
+        if (!getResources().getBoolean(R.bool.pane_divider_draggable)) return;
+        final View bar = (View) paneDivider.getParent();
+        if (bar == null) return;
+
+        paneDivider.setOnTouchListener(new View.OnTouchListener() {
+            public boolean onTouch(View v, MotionEvent e) {
+                switch (e.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        return true;
+                    case MotionEvent.ACTION_MOVE: {
+                        int[] loc = new int[2];
+                        bar.getLocationOnScreen(loc);
+                        int w = bar.getWidth();
+                        if (w <= 0) return true;
+                        applySplit((e.getRawX() - loc[0]) / w);
+                        return true;
+                    }
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL:
+                        // 只松手时落盘：拖动过程每帧都写 SP 会一直触发 apply()
+                        getSharedPreferences(PREF_UI, MODE_PRIVATE).edit()
+                                .putFloat(KEY_SPLIT, splitRatio).apply();
+                        return true;
+                    default:
+                        return false;
+                }
+            }
+        });
+    }
+
+    /** 按比例分配两栏宽度；0.3–0.7 夹取，拖动时实时生效 */
+    private void applySplit(float ratio) {
+        splitRatio = Math.max(0.3f, Math.min(0.7f, ratio));
+        if (left.pull == null || right.pull == null) return;
+        setWeight(left.pull, splitRatio);
+        setWeight(right.pull, 1f - splitRatio);
+        ViewGroup parent = (ViewGroup) left.pull.getParent();
+        if (parent != null) parent.requestLayout();
+    }
+
+    private static void setWeight(View v, float w) {
+        ViewGroup.LayoutParams lp = v.getLayoutParams();
+        if (!(lp instanceof LinearLayout.LayoutParams)) return;
+        ((LinearLayout.LayoutParams) lp).weight = w;
+        v.setLayoutParams(lp);
+    }
+
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration c) {
+        super.onConfigurationChanged(c);
+        // 旋转 / 分屏改变窗口宽度：重新决定单栏还是双栏。
+        // 夜间模式切换由 BaseActivity 那边 recreate，不在这里处理。
+        applyViewMode();
     }
 
     // ---- 目录加载 / 刷新 / 历史：实现搬去 DirectoryController（v2.0.0 O-15 刀2）----

@@ -112,9 +112,10 @@
                 android:visibility="gone"/>
         </com.hex91.file.ui.PullRefreshLayout>
 
+        <!-- v2.3.0（F-15）：宽度由资源决定 —— 手机 1dp 装饰线，平板 6dp 可拖 -->
         <View
             android:id="@+id/pane_divider"
-            android:layout_width="1dp"
+            android:layout_width="@dimen/pane_divider_width"
             android:layout_height="match_parent"
             android:background="?attr/hfDivider"/>
 

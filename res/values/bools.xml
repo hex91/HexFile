@@ -4,4 +4,7 @@
      用资源限定符只在 23+ 打开，老设备完全看不到这个 provider。 -->
 <resources>
     <bool name="shizuku_provider_enabled">false</bool>
+    <!-- v2.3.0（F-15）：手机上的分隔条只是 1dp 装饰线，不挂拖拽；
+         平板/大屏由 values-sw600dp/bools.xml 覆盖为 true。 -->
+    <bool name="pane_divider_draggable">false</bool>
 </resources>

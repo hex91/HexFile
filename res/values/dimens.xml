@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  v2.3.0（F-15）：尺寸资源。
+  手机上是 1dp 的装饰线；sw600dp（平板 / 大屏）覆盖成 6dp 的可拖条，
+  见 res/values-sw600dp/dimens.xml。两份布局只差这一根线，不值得各存 756 行。
+-->
+<resources>
+    <dimen name="pane_divider_width">1dp</dimen>
+</resources>
