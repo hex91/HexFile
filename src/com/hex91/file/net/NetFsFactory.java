@@ -1,5 +1,6 @@
-package com.hex91.file;
+package com.hex91.file.net;
 
+import com.hex91.file.*;
 import android.content.Context;
 
 import org.json.JSONObject;

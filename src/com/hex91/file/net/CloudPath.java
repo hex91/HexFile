@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.net;
 
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;

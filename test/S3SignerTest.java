@@ -1,4 +1,4 @@
-import com.hex91.file.S3Signer;
+import com.hex91.file.net.S3Signer;
 
 import java.util.HashMap;
 import java.util.Map;

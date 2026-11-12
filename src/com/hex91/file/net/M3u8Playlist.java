@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.net;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -379,7 +379,7 @@ public final class M3u8Playlist {
     }
 
     /** 码率人类可读：4200000 → "4.2 Mbps"，800000 → "800 Kbps" */
-    static String mbpsText(long bps) {
+    public static String mbpsText(long bps) {
         if (bps <= 0) return "码率未知";
         if (bps >= 1000000L) {
             double m = bps / 1000000.0;

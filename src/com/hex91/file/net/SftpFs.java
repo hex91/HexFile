@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.net;
 
 import com.jcraft.jsch.ChannelSftp;
 import com.jcraft.jsch.JSch;

@@ -1,8 +1,8 @@
 import com.hex91.file.core.CodecCore;
 import com.hex91.file.core.CryptoCore;
-import com.hex91.file.HlsCrypto;
-import com.hex91.file.HlsDownloader;
-import com.hex91.file.HlsPlaylist;
+import com.hex91.file.net.HlsCrypto;
+import com.hex91.file.net.HlsDownloader;
+import com.hex91.file.net.HlsPlaylist;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;

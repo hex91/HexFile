@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.net;
 
 /**
  * HLS 分片加密信息（{@code #EXT-X-KEY}）—— v1.92.0，纯 Java。

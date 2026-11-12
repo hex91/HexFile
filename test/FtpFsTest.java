@@ -1,5 +1,5 @@
-import com.hex91.file.FtpFs;
-import com.hex91.file.NetFs;
+import com.hex91.file.net.FtpFs;
+import com.hex91.file.net.NetFs;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;

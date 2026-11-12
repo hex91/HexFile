@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.net;
 
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;

@@ -1,6 +1,6 @@
-import com.hex91.file.HlsCrypto;
-import com.hex91.file.HlsKey;
-import com.hex91.file.HlsPlaylist;
+import com.hex91.file.net.HlsCrypto;
+import com.hex91.file.net.HlsKey;
+import com.hex91.file.net.HlsPlaylist;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;

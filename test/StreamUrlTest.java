@@ -1,4 +1,4 @@
-import com.hex91.file.StreamUrl;
+import com.hex91.file.net.StreamUrl;
 
 /**
  * v1.91.0 流地址识别与清洗。

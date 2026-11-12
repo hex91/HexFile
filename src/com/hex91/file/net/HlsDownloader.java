@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.net;
 
 import com.hex91.file.fs.*;
 import java.io.File;
@@ -522,7 +522,7 @@ public final class HlsDownloader {
         return u;
     }
 
-    static boolean isLocal(String url) {
+    public static boolean isLocal(String url) {
         if (url == null) return false;
         return url.startsWith("file://") || url.startsWith("/")
                 || url.matches("^[A-Za-z]:[\\\\/].*");
@@ -581,7 +581,7 @@ public final class HlsDownloader {
     }
 
     /** 从地址推导文件名（最后一段去扩展名），去掉 URL 编码与非法字符 */
-    static String deriveName(String url) {
+    public static String deriveName(String url) {
         if (url == null) return "";
         String u = url;
         int q = u.indexOf('?');

@@ -1,4 +1,4 @@
-import com.hex91.file.CloudPath;
+import com.hex91.file.net.CloudPath;
 
 /**
  * v1.89.0 云盘路径规范化与 Graph 路径构造。

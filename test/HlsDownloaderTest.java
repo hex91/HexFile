@@ -1,5 +1,5 @@
-import com.hex91.file.HlsDownloader;
-import com.hex91.file.HlsPlaylist;
+import com.hex91.file.net.HlsDownloader;
+import com.hex91.file.net.HlsPlaylist;
 
 import java.io.BufferedReader;
 import java.io.File;

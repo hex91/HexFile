@@ -1,4 +1,4 @@
-import com.hex91.file.OAuthToken;
+import com.hex91.file.net.OAuthToken;
 
 /**
  * v1.89.0 OAuth 令牌解析与刷新语义。
