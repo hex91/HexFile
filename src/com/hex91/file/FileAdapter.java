@@ -9,6 +9,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import java.io.File;
@@ -35,8 +36,13 @@ public class FileAdapter extends BaseAdapter {
     /** 应用根目录（v1.40.0）：当前目录等于它时不显示 .. 返回项；null = 只要有上级就显示 */
     public File rootDir = null;
 
+    /** v2.0.1：图标方块的圆角（px）。原来每次绑定都算一次 applyDimension。 */
+    private final float iconCorner;
+
     public FileAdapter(Context ctx) {
         this.ctx = ctx;
+        iconCorner = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 7,
+                ctx.getResources().getDisplayMetrics());
     }
 
     /**
@@ -111,6 +117,46 @@ public class FileAdapter extends BaseAdapter {
         if (mirror != null) mirror.notifyDataSetChanged();
     }
 
+    // ---------- 单行局部刷新（v2.0.1，F-16）----------
+
+    /** 列表本体（下拉刷新容器里的那个 ListView）；setAdapter 之后 bind 一次 */
+    private android.widget.AbsListView boundList;
+    /** 网格本体；与列表共用同一份数据，单行刷新时两个都刷（只有一个在显示） */
+    private android.widget.AbsListView boundGrid;
+
+    public void bindList(android.widget.AbsListView v) { boundList = v; }
+
+    public void bindGrid(android.widget.AbsListView v) { boundGrid = v; }
+
+    /**
+     * 只重画一行：勾选 / 取消勾选走这里，不再整表 {@link #notifyDataSetChanged()}。
+     *
+     * <p>三个要点：</p>
+     * <ol>
+     *   <li>行不可见（滚出屏幕）时直接返回 —— 它滚回来本来就会重新绑定，不必为看不见的行刷表；</li>
+     *   <li>仍然复用 {@code getView(pos, 那个 View, 父容器)}，渲染逻辑只有一份，选中态不可能走样；</li>
+     *   <li>列表与网格互为镜像：谁在显示刷谁，另一个是 GONE 会被跳过。</li>
+     * </ol>
+     */
+    public void refreshRow(int pos) {
+        if (pos < 0 || pos >= items.size()) return;
+        boolean painted = repaintRow(boundList, this, pos);
+        if (mirror instanceof FileGridAdapter) {
+            painted |= ((FileGridAdapter) mirror).refreshRow(pos);
+        }
+        // 还没 bind 过任何视图（构造后、setAdapter 前）就走老路，别让调用方以为刷了
+        if (!painted && boundList == null && boundGrid == null) notifyDataSetChanged();
+    }
+
+    /** 把 pos 对应的子 View 重画一遍；视图未绑定 / 不可见 / 下标越界都返回 false */
+    static boolean repaintRow(android.widget.AbsListView av, BaseAdapter ad, int pos) {
+        if (av == null || av.getVisibility() != View.VISIBLE) return false;
+        int idx = pos - av.getFirstVisiblePosition();
+        if (idx < 0 || idx >= av.getChildCount()) return false;
+        ad.getView(pos, av.getChildAt(idx), av);
+        return true;
+    }
+
     // ---------- 多选模式 ----------
 
     /** 是否处于多选模式（点击 = 勾选/取消） */
@@ -125,7 +171,8 @@ public class FileAdapter extends BaseAdapter {
     public void toggle(int i) {
         FileItem it = items.get(i);
         it.selected = !it.selected;
-        notifyDataSetChanged();
+        // v2.0.1（F-16）：只重画这一行；以前点一下 10,000 项的目录要整表重绑
+        refreshRow(i);
     }
 
     public void selectAll(boolean all) {
@@ -169,30 +216,61 @@ public class FileAdapter extends BaseAdapter {
 
     public long getItemId(int i) { return i; }
 
+    /**
+     * 行视图引用缓存（v2.0.1，F-16）。
+     *
+     * <p>原来每次 {@code getView} 都要 5 次 {@code findViewById}（icon / thumb / badge / name /
+     * detail），每次都是在视图树里递归查找；滚动时每帧几十行，查找次数就上千。缓存到
+     * {@code convert.setTag(vh)} 之后，绑定只剩属性赋值。</p>
+     *
+     * <p><b>注意</b>：这里的 {@code convert.setTag(vh)} 与缩略图防串图用的
+     * {@code thumb.setTag(key)} 是两个不同的 View，互不影响，别合并成一个。</p>
+     */
+    private static final class VH {
+        TextView icon, badge, name, detail;
+        ImageView thumb;
+    }
+
+    /** 新行 inflate 后（或 tag 不是 VH 时）把 5 个引用找一遍并塞进 VH */
+    private static void bindRow(View row, VH vh) {
+        vh.icon = (TextView) row.findViewById(R.id.icon);
+        vh.thumb = (ImageView) row.findViewById(R.id.thumb);
+        vh.badge = (TextView) row.findViewById(R.id.badge);
+        vh.name = (TextView) row.findViewById(R.id.name);
+        vh.detail = (TextView) row.findViewById(R.id.detail);
+    }
+
     public View getView(int i, View convert, ViewGroup parent) {
+        final VH vh;
         if (convert == null) {
             convert = LayoutInflater.from(ctx).inflate(R.layout.item_file, parent, false);
+            vh = new VH();
+            bindRow(convert, vh);
+            convert.setTag(vh);
+        } else {
+            Object tag = convert.getTag();
+            if (tag instanceof VH) {
+                vh = (VH) tag;
+            } else {
+                // 防御：万一拿到不是本适配器 inflate 的行，重找一遍也不会崩
+                vh = new VH();
+                bindRow(convert, vh);
+                convert.setTag(vh);
+            }
         }
         FileItem it = get(i);
-        TextView icon = (TextView) convert.findViewById(R.id.icon);
         if (it.loadingRow) {
             // 读取中占位行：复用条目布局，只留一行灰字，缩略图/角标全部隐藏
-            android.widget.ImageView tv =
-                    (android.widget.ImageView) convert.findViewById(R.id.thumb);
-            icon.setVisibility(View.GONE);
-            tv.setTag(null);
-            tv.setImageDrawable(null);
-            tv.setVisibility(View.GONE);
-            ((TextView) convert.findViewById(R.id.badge)).setVisibility(View.GONE);
-            ((TextView) convert.findViewById(R.id.name)).setText("读取中…");
-            ((TextView) convert.findViewById(R.id.detail)).setText("");
+            vh.icon.setVisibility(View.GONE);
+            vh.thumb.setTag(null);
+            vh.thumb.setImageDrawable(null);
+            vh.thumb.setVisibility(View.GONE);
+            vh.badge.setVisibility(View.GONE);
+            vh.name.setText("读取中…");
+            vh.detail.setText("");
             convert.setBackgroundColor(0);
             return convert;
         }
-        android.widget.ImageView thumb = (android.widget.ImageView) convert.findViewById(R.id.thumb);
-        TextView badge = (TextView) convert.findViewById(R.id.badge);
-        TextView name = (TextView) convert.findViewById(R.id.name);
-        TextView detail = (TextView) convert.findViewById(R.id.detail);
 
         String low = it.name().toLowerCase();
         // v1.39.0：真实文件的图片缩略图 / APK 应用图标（压缩包内条目不做，需解包太重）
@@ -207,16 +285,17 @@ public class FileAdapter extends BaseAdapter {
 
         if (isImg || isApk || isVid) {
             // 缩略图模式：隐藏彩色角标，异步加载（回调以 tag 校验，回收复用安全）
-            icon.setVisibility(View.GONE);
-            badge.setVisibility(isGif ? View.VISIBLE : View.GONE);
+            vh.icon.setVisibility(View.GONE);
+            vh.badge.setVisibility(isGif ? View.VISIBLE : View.GONE);
             final String key = ThumbLoader.key(it.file);
-            final android.widget.ImageView tv = thumb;
+            final ImageView tv = vh.thumb;
             if (key.equals(tv.getTag())) {
                 // 复用中且 tag 未变：已有内容先保留，避免闪烁
             } else {
                 tv.setTag(key);
                 tv.setImageBitmap(null);
-                Bitmap mem = ThumbLoader.getMem(key);                if (mem != null) {
+                Bitmap mem = ThumbLoader.getMem(key);
+                if (mem != null) {
                     tv.setImageBitmap(mem);
                 } else {
                     final int px = (int) (38 * ctx.getResources().getDisplayMetrics().density) * 2;
@@ -231,37 +310,35 @@ public class FileAdapter extends BaseAdapter {
                 }
             }
         } else {
-            icon.setVisibility(View.VISIBLE);
-            badge.setVisibility(View.GONE);
-            thumb.setTag(null);
-            thumb.setVisibility(View.GONE);
+            vh.icon.setVisibility(View.VISIBLE);
+            vh.badge.setVisibility(View.GONE);
+            vh.thumb.setTag(null);
+            vh.thumb.setVisibility(View.GONE);
             // v1.69.0：签名文件 → 🔑 图标（含魔数判定：改了扩展名的 keystore 也认得）
             boolean ks = isKeystoreItem(it, low, isRealFile);
             if (ks) {
-                icon.setText(FileItem.KEY_ICON);
-                icon.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 19f);
+                vh.icon.setText(FileItem.KEY_ICON);
+                vh.icon.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 19f);
                 GradientDrawable bg = new GradientDrawable();
                 bg.setColor(0xFF6D4C41);
-                bg.setCornerRadius(TypedValue.applyDimension(
-                        TypedValue.COMPLEX_UNIT_DIP, 7, ctx.getResources().getDisplayMetrics()));
-                icon.setBackground(bg);
+                bg.setCornerRadius(iconCorner);
+                vh.icon.setBackground(bg);
             } else {
                 // 复用 convert 时必须把字号还原，否则滚动后普通条目会残留大号 emoji 字号
-                icon.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 10f);
+                vh.icon.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 10f);
                 // MT 式类型图标：圆角彩色方块 + 缩写
-                icon.setText(it.typeLabel());
+                vh.icon.setText(it.typeLabel());
                 GradientDrawable bg = new GradientDrawable();
                 bg.setColor(it.typeColor());
-                bg.setCornerRadius(TypedValue.applyDimension(
-                        TypedValue.COMPLEX_UNIT_DIP, 7, ctx.getResources().getDisplayMetrics()));
-                icon.setBackground(bg);
+                bg.setCornerRadius(iconCorner);
+                vh.icon.setBackground(bg);
             }
         }
-        if (isImg || isApk || isVid) thumb.setVisibility(View.VISIBLE);
+        if (isImg || isApk || isVid) vh.thumb.setVisibility(View.VISIBLE);
 
         boolean sel = selectionMode && it.selected;
-        name.setText(styledName(it, sel));
-        detail.setText((sel ? "已选中 · " : "") + detailWithPerm(it));
+        vh.name.setText(styledName(it, sel));
+        vh.detail.setText((sel ? "已选中 · " : "") + detailWithPerm(it));
         convert.setBackgroundColor(sel ? ThemeManager.selected(ctx) : 0x00000000);
         return convert;
     }

@@ -88,10 +88,35 @@ public class FileItem implements Serializable {
         return file.getName().isEmpty() ? file.getPath() : file.getName();
     }
 
+    /**
+     * v2.0.1（F-16）：目录判定缓存。-1 未知 / 0 不是 / 1 是。
+     *
+     * <p>{@link #isDir()} 会被排序、图标、点击、详情行反复问到，以前每次都
+     * {@code file.isDirectory()} —— 那就是一次 stat。万级目录滚动时这几次叠加起来很可观。</p>
+     *
+     * <p>条目对象每次读目录都是新建的（{@link DirReader} 里逐条 new），目录内容变了会整表重建，
+     * 所以缓存不需要失效逻辑。<b>但 {@code forceDir} 不进缓存</b>：它可能在本对象构造之后
+     * 才被 {@code fillLink} 置上，缓存会把「先问过、后被标记」的那条答错。</p>
+     */
+    private int dirCache = -1;
+
     public boolean isDir() {
         if (loadingRow) return false;
         if (isArchEntry()) return archDir;
-        return forceDir || file.isDirectory();
+        if (forceDir) return true;          // root 的 ls -p 结论 / 链接指向目录：直接短路
+        int c = dirCache;
+        if (c < 0) {
+            c = (file != null && file.isDirectory()) ? 1 : 0;
+            dirCache = c;
+        }
+        return c == 1;
+    }
+
+    /** 反序列化不走字段初始化（dirCache 会是 0 = 「不是目录」），这里显式回到未知 */
+    private void readObject(java.io.ObjectInputStream in)
+            throws java.io.IOException, ClassNotFoundException {
+        in.defaultReadObject();
+        dirCache = -1;
     }
 
     /** 压缩包内条目路径 = 完整条目名（去尾部 /） */

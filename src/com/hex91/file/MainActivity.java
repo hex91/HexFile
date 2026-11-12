@@ -635,6 +635,8 @@ public class MainActivity extends BaseActivity {
         p.adapter.sortMode = sp.getInt(KEY_SORT, FileAdapter.SORT_NAME);
         p.adapter.showHidden = sp.getBoolean(KEY_HIDDEN, false);
         p.list.setAdapter(p.adapter);
+        // v2.0.1（F-16）：告诉适配器「你画在哪个列表上」，勾选一行才能只重画那一行
+        p.adapter.bindList(p.list);
 
         // v1.79.0：下拉刷新。adb push / 其他应用写入文件后，目录列表不会收到任何通知，
         // 以前只能退出再进一次目录；现在下拉一下就重读（两栏各管自己）。
@@ -685,7 +687,7 @@ public class MainActivity extends BaseActivity {
                                 FileItem it = p.adapter.get(pos);
                                 if (!it.upEntry && !it.selected) {
                                     it.selected = true;
-                                    p.adapter.notifyDataSetChanged();
+                                    p.adapter.refreshRow(pos);
                                     updateSelDone();
                                 }
                             }
@@ -732,6 +734,7 @@ public class MainActivity extends BaseActivity {
         setupDropTarget(p);
         if (p.grid != null) {
             p.grid.setAdapter(p.gridAdapter);
+            p.adapter.bindGrid(p.grid);   // v2.0.1：网格侧的单行刷新入口
             p.grid.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                 public void onItemClick(AdapterView<?> av, View v, int i, long id) {
                     handleItemClick(p, i);
@@ -3842,7 +3845,7 @@ public class MainActivity extends BaseActivity {
                 FileItem it = p.adapter.get(pos);
                 if (!it.upEntry && !it.selected) {
                     it.selected = true;
-                    p.adapter.notifyDataSetChanged();
+                    p.adapter.refreshRow(pos);   // v2.0.1：只重画这一行
                     updateSelDone();
                     if (!alreadySelMode) toast("多选模式：下滑连选，右滑取消");
                 }
@@ -3856,7 +3859,7 @@ public class MainActivity extends BaseActivity {
             if (pos != AdapterView.INVALID_POSITION && p.adapter.get(pos).selected) {
                 FileItem it = p.adapter.get(pos);
                 it.selected = false;
-                p.adapter.notifyDataSetChanged();
+                p.adapter.refreshRow(pos);   // v2.0.1：只重画这一行
                 updateSelDone();
             } else {
                 exitSelection(p);

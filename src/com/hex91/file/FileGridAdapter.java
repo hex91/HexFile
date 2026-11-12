@@ -44,6 +44,34 @@ public class FileGridAdapter extends BaseAdapter {
         checkBg.setColor(ThemeManager.accent(c));
     }
 
+    /**
+     * 单元格视图引用缓存（v2.0.1，F-16）：5 次 findViewById 降到 1 次。
+     * 与列表侧同理，{@code v.setTag(vh)} 和 {@code thumb.setTag(key)} 不冲突。
+     */
+    private static final class VH {
+        View frame;
+        ImageView thumb;
+        TextView icon, check, name;
+    }
+
+    private static void bindCell(View cell, VH vh) {
+        vh.frame = cell.findViewById(R.id.grid_frame);
+        vh.thumb = (ImageView) cell.findViewById(R.id.grid_thumb);
+        vh.icon = (TextView) cell.findViewById(R.id.grid_icon);
+        vh.check = (TextView) cell.findViewById(R.id.grid_check);
+        vh.name = (TextView) cell.findViewById(R.id.grid_name);
+    }
+
+    /** 网格本体（GridView）：单行刷新时由 FileAdapter.refreshRow 调过来 */
+    private android.widget.AbsListView bound;
+
+    public void bindGrid(android.widget.AbsListView v) { bound = v; }
+
+    /** 只重画一个格子；不可见返回 false（含义同 FileAdapter.repaintRow） */
+    public boolean refreshRow(int pos) {
+        return FileAdapter.repaintRow(bound, this, pos);
+    }
+
     public int getCount() { return data.getCount(); }
 
     public Object getItem(int i) { return data.get(i); }
@@ -51,16 +79,31 @@ public class FileGridAdapter extends BaseAdapter {
     public long getItemId(int i) { return i; }
 
     public View getView(int i, View convert, ViewGroup parent) {
-        View v = convert;
-        if (v == null) {
+        final View v;
+        final VH vh;
+        if (convert == null) {
             v = LayoutInflater.from(ctx).inflate(R.layout.item_grid, parent, false);
+            vh = new VH();
+            bindCell(v, vh);
+            v.setTag(vh);
+        } else {
+            v = convert;
+            Object tag = v.getTag();
+            if (tag instanceof VH) {
+                vh = (VH) tag;
+            } else {
+                // 防御：tag 不是本适配器放的，就重找一遍
+                vh = new VH();
+                bindCell(v, vh);
+                v.setTag(vh);
+            }
         }
         FileItem it = data.get(i);
-        View frame = v.findViewById(R.id.grid_frame);
-        ImageView thumb = (ImageView) v.findViewById(R.id.grid_thumb);
-        TextView icon = (TextView) v.findViewById(R.id.grid_icon);
-        TextView check = (TextView) v.findViewById(R.id.grid_check);
-        TextView name = (TextView) v.findViewById(R.id.grid_name);
+        final View frame = vh.frame;
+        final ImageView thumb = vh.thumb;
+        final TextView icon = vh.icon;
+        final TextView check = vh.check;
+        final TextView name = vh.name;
 
         if (it.loadingRow) {
             // v1.96.0：目录读取中占位格（列表侧同一状态见 FileAdapter.getView）
