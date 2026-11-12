@@ -254,7 +254,7 @@ public class MainActivity extends BaseActivity {
         setupPanel(left);
         setupPanel(right);
         restorePanesOrLoad(b);
-        setupTaskJournal();
+        taskCtl.setupJournal();
         // v1.80.0：视图模式也持久化（和排序/隐藏文件同一份偏好），重启保持
         viewMode = getSharedPreferences(PREF_UI, MODE_PRIVATE).getInt(KEY_VIEW, VIEW_LIST);
         applyViewMode();
@@ -290,7 +290,7 @@ public class MainActivity extends BaseActivity {
         setupDrawer();
 
         setupSelectionBar();
-        setupTaskBar();
+        taskCtl.setup();
         setupPasteButton();
         handleJump(getIntent());
     }
@@ -347,195 +347,35 @@ public class MainActivity extends BaseActivity {
 
     // ============================================================ 文件任务条（v1.77.0）
 
-    private View taskBar;
-    private TextView taskText, taskAction;
-    private android.widget.ProgressBar taskProgress;
+    /** 主线程 Handler：任务条与读目录的 20 秒看门狗共用（v2.0.0 O-15 刀4 起两个控制器共享） */
     private final android.os.Handler taskUi =
             new android.os.Handler(android.os.Looper.getMainLooper());
-    /** 已结束任务计数：变化时才刷新窗格，避免每次进度回调都重列目录 */
-    private int taskDoneSeen;
-
-    /** 任务条自动收起：全部结束后停留 8 秒，让用户看得见结果 */
-    private final Runnable hideTaskBar = new Runnable() {
-        public void run() {
-            if (taskBar != null && !FileTaskEngine.get().isBusy()) {
-                taskBar.setVisibility(View.GONE);
-            }
-        }
-    };
-
-    private final FileTaskEngine.Listener taskListener = new FileTaskEngine.Listener() {
-        public void onTasksChanged() {
-            // v1.98.0：有活动任务就进前台服务 —— 用户切到别的应用后进程会被冻结/回收，
-            // 大文件复制、压缩会在后台静默失败；前台服务同时给通知栏进度（可取消）。
-            // start() 内部有 running 判断，进度回调再频繁也只启动一次。
-            if (FileTaskEngine.get().hasActive()) TaskService.start(MainActivity.this);
-            taskUi.post(new Runnable() {
-                public void run() { renderTaskBar(); }
-            });
-        }
-    };
-
-    private void setupTaskBar() {
-        taskBar = findViewById(R.id.task_bar);
-        if (taskBar == null) return;
-        taskText = (TextView) findViewById(R.id.task_text);
-        taskAction = (TextView) findViewById(R.id.task_action);
-        taskProgress = (android.widget.ProgressBar) findViewById(R.id.task_progress);
-        UiDecor.paintPill(taskAction, this, UiDecor.KIND_SOFT);
-        taskAction.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                // v1.77.1：这里原来先判断 isBusy()，而 isBusy() 在「正在拷贝」时返回 false
-                // （worker 已把任务从 pending 取走），于是点「取消」反而打开了任务面板。
-                // 现在用 hasActive()，并且一点就取消，不再弹二次确认。
-                if (FileTaskEngine.get().hasActive()) {
-                    FileTaskEngine.get().cancelAll();
-                    renderTaskBar();                 // 立刻把「取消中」画出来
-                } else {
-                    showTaskPanel();
-                }
-            }
-        });
-        findViewById(R.id.task_body).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { showTaskPanel(); }
-        });
-        // root 区（/data 等）File API 无权限时的兜底，注入给引擎，引擎本身保持纯 Java
-        FileTaskEngine.get().setRootFallback(new FileTaskEngine.RootFallback() {
-            public boolean copy(File src, File dstDir) { return RootIO.copyInto(src, dstDir); }
-
-            public boolean move(File src, File dstDir) { return RootIO.moveInto(src, dstDir); }
-
-            public boolean delete(File f) { return RootIO.delete(f); }
-        });
-    }
-
-    /** 任务条：一个活动任务显示「正在复制 3 项 · 42% · 12 MB/s」，全部结束显示结果 */
-    private void renderTaskBar() {
-        if (taskBar == null) return;
-        List<FileTask> list = FileTaskEngine.get().tasks();
-        FileTask running = null, last = null;
-        int active = 0, done = 0;
-        for (FileTask t : list) {
-            if (t.cancelable()) {
-                active++;
-                if (running == null || t.state == FileTask.RUNNING) running = t;
-            } else {
-                done++;
-                last = t;
-            }
-        }
-        if (done != taskDoneSeen) {
-            taskDoneSeen = done;
-            if (active == 0) refreshAll();     // 收尾刷新：新文件立刻出现在对面窗格
-        }
-        if (active == 0 && last == null) {
-            taskBar.setVisibility(View.GONE);
-            return;
-        }
-        taskBar.setVisibility(View.VISIBLE);
-        if (active > 0) {
-            taskUi.removeCallbacks(hideTaskBar);
-            int pct = running.percent();
-            taskProgress.setProgress(pct);
-            if (running.cancelRequested) {
-                // 取消标志每 128KB 才检查一次，写大块数据时还会晚几百毫秒；
-                // 这段时间必须给出反馈，否则按钮看起来「点了没反应」，用户会连点。
-                taskText.setText("正在取消 " + running.title + "…");
-                taskAction.setText("取消中");
-                taskAction.setEnabled(false);
-                taskAction.setAlpha(0.45f);
-            } else {
-                StringBuilder sb = new StringBuilder("正在").append(running.title)
-                        .append(" · ").append(pct).append('%');
-                long sp = running.speed(System.currentTimeMillis());
-                if (sp > 0) sb.append(" · ").append(FileOps.formatSize(sp)).append("/s");
-                if (active > 1) sb.append(" · 另 ").append(active - 1).append(" 项排队");
-                taskText.setText(sb.toString());
-                taskAction.setText("取消");
-                taskAction.setEnabled(true);
-                taskAction.setAlpha(1f);
-            }
-        } else {
-            taskProgress.setProgress(100);
-            taskText.setText(resultLine(last));
-            taskAction.setText("查看");
-            taskAction.setEnabled(true);
-            taskAction.setAlpha(1f);
-            taskUi.removeCallbacks(hideTaskBar);
-            taskUi.postDelayed(hideTaskBar, 8000);
-        }
-    }
-
-    private String resultLine(FileTask t) {
-        switch (t.state) {
-            case FileTask.DONE:
-                return "✓ " + t.title + "完成 · " + FileOps.formatSize(t.totalBytes);
-            case FileTask.PARTIAL:
-                return "⚠ " + t.title + "，失败 " + t.failedFiles + " 项";
-            case FileTask.FAILED:
-                return "✗ " + t.title + "失败";
-            case FileTask.CANCELLED:
-                return "已取消 " + t.title;
-            default:
-                return t.title;
-        }
-    }
-
-    /** 任务面板：所有任务的进度、速度、目标目录，可逐个取消 */
-    // ============================================================ 未完成任务（v1.99.2 R-07）
 
     /**
-     * v1.99.3：任务账本（{@code SharedPreferences} 的 {@code running_task_json}）。
-     *
-     * <p>启动时键还在，就说明上个进程没跑完 —— 被系统清了，或者用户强退了。
-     * 先 toast 一句（用户可能根本没注意应用被重启过），再弹详情问要不要重试。
-     * 用户点「忽略」只移除这一个键，不碰同一份偏好里的其它设置，更不会删任何文件。</p>
+     * v2.0.0（O-15 刀4）：任务条 / 任务中心入口 / 「上次有任务被中断」提示。
+     * 监听器的接上与摘下改成 {@code attach()/detach()}，销毁时 {@code destroy()} 收队列。
      */
-    private void setupTaskJournal() {
-        final TaskStore store = TaskStore.get(this);
-        // 先读再设：setJournalStore 不写盘，顺序本身不致命，但读在前总是对的
-        final List<TaskJournal.Entry> pending = store.load();
-        FileTaskEngine.get().setJournalStore(store);
-        if (pending.isEmpty()) return;
-        toast("上次有任务被中断");
-        listLeft.post(new Runnable() {
-            public void run() { showInterrupted(pending, store); }
-        });
-    }
+    private final TaskUiController taskCtl = new TaskUiController(new TaskUiController.Host() {
+        public android.app.Activity activity() { return MainActivity.this; }
 
-    private void showInterrupted(final List<TaskJournal.Entry> pending, final TaskStore store) {
-        if (isFinishing()) return;
-        int items = 0;
-        for (TaskJournal.Entry e : pending) items += e.srcs.size();
-        StringBuilder sb = new StringBuilder();
-        sb.append(pending.size()).append(" 个任务（共 ").append(items)
-                .append(" 项文件）上次没有做完。\n\n可能是被系统清理，或应用被强制结束。\n\n");
-        sb.append("目标目录：").append(pending.get(0).dstDir.getPath());
-        if (pending.size() > 1) sb.append(" 等");
-        new HfDialogBuilder(this)
-                .setTitle("上次有任务没做完")
-                .setMessage(sb.toString())
-                .setPositiveButton("重试", new android.content.DialogInterface.OnClickListener() {
-                    public void onClick(android.content.DialogInterface d, int w) {
-                        int n = 0;
-                        for (TaskJournal.Entry e : pending) {
-                            if (FileTaskEngine.get().submit(e.kind, e.srcs, e.dstDir) != null) n++;
-                        }
-                        TaskService.start(MainActivity.this);
-                        toast("已重新提交 " + n + " 个任务");
-                    }
-                })
-                .setNegativeButton("忽略", new android.content.DialogInterface.OnClickListener() {
-                    public void onClick(android.content.DialogInterface d, int w) {
-                        store.clear();      // 只清 running_task_json 这一个键
-                    }
-                })
-                .show();
-    }
+        public android.content.Context ctx() { return MainActivity.this; }
 
-    private void showTaskPanel() {
-        startActivity(new Intent(MainActivity.this, TaskCenterActivity.class));
-    }
+        public View find(int id) { return findViewById(id); }
+
+        public void toast(String s) { MainActivity.this.toast(s); }
+
+        public void refreshAll() { MainActivity.this.refreshAll(); }
+
+        public android.os.Handler ui() { return taskUi; }
+
+        public void post(Runnable r) { listLeft.post(r); }
+
+        public boolean alive() { return !isFinishing() && !isDestroyed(); }
+
+        public void openPanel() {
+            startActivity(new Intent(MainActivity.this, TaskCenterActivity.class));
+        }
+    });
 
     // ============================================================ 左侧抽屉（v1.41.0）
 
@@ -5168,8 +5008,7 @@ public class MainActivity extends BaseActivity {
         // v1.85.0：回前台时顺手刷一下桌面小组件的存储数字（没有卡片会直接跳过）
         WidgetProvider.refreshIfExists(this);
         // v1.77.0：任务可能在后台继续，回到前台先接上进度回调再补一次刷新
-        FileTaskEngine.get().setListener(taskListener);
-        renderTaskBar();
+        taskCtl.attach();
         updatePasteButton();      // 剪贴板里的文件可能在本应用外被删了
         // v1.99.0（O-03）：onCreate 里 restorePanesOrLoad 已经把两栏读起来了，
         // 紧接着的第一次 onResume 不能再读一遍 —— 冷启动时同一个目录读两次，
@@ -5190,8 +5029,7 @@ public class MainActivity extends BaseActivity {
     protected void onPause() {
         super.onPause();
         // 不持有 Activity 引用，避免任务线程把已销毁的界面拖住
-        FileTaskEngine.get().setListener(null);
-        taskUi.removeCallbacks(hideTaskBar);
+        taskCtl.detach();
     }
 
     /** 冷启动恢复两栏（实现在 DirectoryController，v2.0.0 O-15 刀2） */
@@ -5218,8 +5056,7 @@ public class MainActivity extends BaseActivity {
         // 让回来的结果自己作废，别去碰已经拆掉的视图（也就是 1.5「生命周期没人收尾」那条）。
         left.dirGen++;
         right.dirGen++;
-        taskUi.removeCallbacksAndMessages(null);
-        FileTaskEngine.get().setListener(null);
+        taskCtl.destroy();
         super.onDestroy();
     }
 
