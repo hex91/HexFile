@@ -1,5 +1,6 @@
-package com.hex91.file;
+package com.hex91.file.controller;
 
+import com.hex91.file.*;
 import com.hex91.file.ui.*;
 import com.hex91.file.R;
 import com.hex91.file.fs.*;
@@ -21,9 +22,9 @@ import java.util.List;
  * <p>Handler 仍然用宿主那一个（{@link Host#ui()}，就是原来的 {@code taskUi}）：
  * 读目录的 20 秒看门狗也在用它，两个控制器共用一个主线程队列，不需要也不应该各开一个。</p>
  */
-final class TaskUiController {
+public final class TaskUiController {
 
-    interface Host {
+    public interface Host {
         android.app.Activity activity();
 
         android.content.Context ctx();
@@ -78,12 +79,12 @@ final class TaskUiController {
         }
     };
 
-    TaskUiController(Host host) {
+    public TaskUiController(Host host) {
         this.host = host;
     }
 
     /** 装配任务条（原 setupTaskBar），onCreate 里调一次 */
-    void setup() {
+    public void setup() {
         taskBar = host.find(R.id.task_bar);
         if (taskBar == null) return;
         taskText = (TextView) host.find(R.id.task_text);
@@ -117,19 +118,19 @@ final class TaskUiController {
     }
 
     /** 回前台：接上进度回调并补一次刷新（原 onResume 里的两行） */
-    void attach() {
+    public void attach() {
         FileTaskEngine.get().setListener(taskListener);
         renderTaskBar();
     }
 
     /** 离开前台：不持有 Activity 引用，避免任务线程把已销毁的界面拖住 */
-    void detach() {
+    public void detach() {
         FileTaskEngine.get().setListener(null);
         host.ui().removeCallbacks(hideTaskBar);
     }
 
     /** Activity 销毁：收掉队列与监听（原 onDestroy 里的两行） */
-    void destroy() {
+    public void destroy() {
         host.ui().removeCallbacksAndMessages(null);
         FileTaskEngine.get().setListener(null);
     }
@@ -213,7 +214,7 @@ final class TaskUiController {
      * 先 toast 一句（用户可能根本没注意应用被重启过），再弹详情问要不要重试。
      * 用户点「忽略」只移除这一个键，不碰同一份偏好里的其它设置，更不会删任何文件。</p>
      */
-    void setupJournal() {
+    public void setupJournal() {
         final TaskStore store = TaskStore.get(host.ctx());
         // 先读再设：setJournalStore 不写盘，顺序本身不致命，但读在前总是对的
         final List<TaskJournal.Entry> pending = store.load();

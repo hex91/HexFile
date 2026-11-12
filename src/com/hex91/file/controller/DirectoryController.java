@@ -1,5 +1,6 @@
-package com.hex91.file;
+package com.hex91.file.controller;
 
+import com.hex91.file.*;
 import com.hex91.file.fs.*;
 import android.os.Bundle;
 import android.os.Environment;
@@ -18,10 +19,10 @@ import java.io.File;
  * <p>为什么只搬这几个：{@code updateHeader()} 是纯 View 渲染，搬走反而要把
  * headerPath/headerStats/usageOf 全部透传；{@code setupPanel()} 是 UI 装配，靠 Activity 的生命周期。</p>
  */
-final class DirectoryController {
+public final class DirectoryController {
 
     /** 控制器只通过这组能力与宿主打交道（也方便以后脱离 Activity 做单测） */
-    interface Host {
+    public interface Host {
         android.content.Context ctx();
 
         Pane[] panes();
@@ -54,14 +55,14 @@ final class DirectoryController {
 
     private final Host host;
 
-    DirectoryController(Host host) {
+    public DirectoryController(Host host) {
         this.host = host;
     }
 
     /** v1.97.0：单次读目录的超时上限（超过即按失败收尾，见 loadDir 里的看门狗） */
     private static final long LOAD_TIMEOUT_MS = 20000L;
 
-    void loadDir(Pane p, File dir) {
+    public void loadDir(Pane p, File dir) {
         loadDir(p, dir, true);
     }
 
@@ -71,7 +72,7 @@ final class DirectoryController {
      * @return true = 已发起/正在进行的读取（调用方不必自己收下拉圈），
      *         false = 参数校验没过或被去重跳过（没有收尾回调会来）
      */
-    boolean loadDir(Pane p, File dir, boolean push) {
+    public boolean loadDir(Pane p, File dir, boolean push) {
         // v1.42.0：root 设备上 stat 可能被拒（ls 才需要 su），放行交给 DirReader 的 root 回退
         if (dir == null || (!dir.isDirectory() && !RootUtil.isRootAvailable())) {
             Toast.makeText(host.ctx(), "无法访问: " + dir, Toast.LENGTH_SHORT).show();
@@ -182,7 +183,7 @@ final class DirectoryController {
     }
 
     /** 两栏一起刷新（不进历史栈） */
-    void refreshAll() {
+    public void refreshAll() {
         for (Pane p : host.panes()) {
             if (p.archiveFile != null) host.showArchiveDir(p);
             // v1.79.0：push=false —— 刷新不是「进入新目录」，否则每刷一次就往历史栈里塞一条重复路径，
@@ -202,7 +203,7 @@ final class DirectoryController {
      * （压缩包重列失败 / dir 为空 / 路径校验没过）才用 220ms 兜底，其余由
      * {@code applyDirResult} / 20s 看门狗 / 失败回调统一收。</p>
      */
-    void refreshPanel(final Pane p) {
+    public void refreshPanel(final Pane p) {
         if (p == null || p.pull == null || p.adapter == null) return;
         p.pull.setRefreshing(true);
         final int pg = ++p.pullGen;
@@ -250,7 +251,7 @@ final class DirectoryController {
      *
      * <p>压缩包内浏览不恢复：重开一次归档要解目录、可能几秒，恢复个「上次在看 zip」不如让人重进。</p>
      */
-    void restorePanesOrLoad(Bundle b) {
+    public void restorePanesOrLoad(Bundle b) {
         File def = Environment.getExternalStorageDirectory();
         Pane[] ps = host.panes();
         String[] dk = {"left_dir", "right_dir"};
@@ -282,7 +283,7 @@ final class DirectoryController {
     }
 
     /** ‹ › 历史导航：沿活动栏自己的历史栈前进/后退；压缩包浏览中先逐级退回 */
-    void jumpHistory(int delta) {
+    public void jumpHistory(int delta) {
         Pane p = host.active();
         if (p.archiveFile != null) {          // 压缩包浏览中 → 先退压缩包（根则退出）
             host.archGoUp(p);

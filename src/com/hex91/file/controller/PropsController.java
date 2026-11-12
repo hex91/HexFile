@@ -1,5 +1,6 @@
-package com.hex91.file;
+package com.hex91.file.controller;
 
+import com.hex91.file.*;
 import com.hex91.file.ui.*;
 import com.hex91.file.fs.*;
 import android.app.AlertDialog;
@@ -26,9 +27,9 @@ import java.util.List;
  * → Host 转发。<b>不带任何行为改动</b> —— chmod/chown/mtime 的取值、八进制换算、
  * root 回退路径全部原样。</p>
  */
-final class PropsController {
+public final class PropsController {
 
-    interface Host {
+    public interface Host {
         android.content.Context ctx();
 
         void toast(String s);
@@ -49,14 +50,14 @@ final class PropsController {
 
     private final Host host;
 
-    PropsController(Host host) {
+    public PropsController(Host host) {
         this.host = host;
     }
 
     /** v1.43.0：MT 式属性弹窗——名称/目录/类型/大小/修改时间 + 权限·所有者·用户组（可更改）+ 更多/校验/关闭 */
     AlertDialog mPropsDialog;   // v1.43.1：当前属性弹窗引用（重开前先关旧的，避免叠两层）
 
-    void showProps(final File f) {
+    public void showProps(final File f) {
         final boolean isDir = f.isDirectory();
         final float d = host.ctx().getResources().getDisplayMetrics().density;
 

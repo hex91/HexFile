@@ -1,5 +1,6 @@
 package com.hex91.file;
 
+import com.hex91.file.controller.*;
 import com.hex91.file.ui.*;
 import com.hex91.file.net.*;
 import com.hex91.file.apk.*;
@@ -1483,7 +1484,7 @@ public class MainActivity extends BaseActivity {
     // ================================================================ 窗格内嵌压缩包浏览（v1.14）
 
     /** 该归档是否支持写回（ZIP/APK/JAR/TAR/TGZ/7Z；RAR 专有格式无写入器） */
-    static boolean writableArchive(File f) {
+    public static boolean writableArchive(File f) {
         return ArchiveWrite.canWrite(f);
     }
 
@@ -1589,7 +1590,7 @@ public class MainActivity extends BaseActivity {
     private void archDelete(Pane p, List<FileItem> items) { archCtl.archDelete(p, items); }
 
 
-    static byte[] readAllBytes(File f) throws Exception {
+    public static byte[] readAllBytes(File f) throws Exception {
         FileInputStream in = new FileInputStream(f);
         try {
             java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
@@ -1680,7 +1681,7 @@ public class MainActivity extends BaseActivity {
      * 这些路径记在 {@code lastError} 里 —— 必须拼进提示，否则用户只看到「写入失败」，
      * 同时在自己目录里发现一个不认识的 {@code xxx.bakrepl}。</p>
      */
-    static String writeFailMsg(String what) {
+    public static String writeFailMsg(String what) {
         String why = AtomicReplace.lastError;
         return why == null ? what : what + "（" + why + "）";
     }
@@ -3610,7 +3611,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 去掉文件名扩展名 */
-    static String stripExt(String name) {
+    public static String stripExt(String name) {
         int dot = name.lastIndexOf('.');
         return dot > 0 ? name.substring(0, dot) : name;
     }

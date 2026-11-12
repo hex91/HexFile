@@ -1,5 +1,6 @@
-package com.hex91.file;
+package com.hex91.file.controller;
 
+import com.hex91.file.*;
 import com.hex91.file.ui.*;
 import com.hex91.file.apk.*;
 import com.hex91.file.R;
@@ -33,10 +34,10 @@ import java.util.List;
  *   <li>{@code archPwError} 先 {@code ArchivePasswords.clear} 再弹框。</li>
  * </ol>
  */
-final class ArchiveController {
+public final class ArchiveController {
 
     /** 控制器只通过这组能力与宿主打交道 */
-    interface Host {
+    public interface Host {
         android.content.Context ctx();
 
         boolean alive();
@@ -77,11 +78,11 @@ final class ArchiveController {
     /** 当前显示中的密码弹窗（防叠加：新弹窗顶掉旧的） */
     private AlertDialog mPwDialog;
 
-    ArchiveController(Host host) {
+    public ArchiveController(Host host) {
         this.host = host;
     }
 
-    void closeArchiveQuiet(Pane p) {
+    public void closeArchiveQuiet(Pane p) {
         // v1.66.0：退出 APK 浏览时，有未签名修改版 → 统一弹窗（不签名/内置签名文件/自有签名文件）
         if (p.archiveFile != null && ApkEditSession.isApk(p.archiveFile)
                 && ApkEditSession.needsSignPrompt(p.archiveFile)) {
@@ -96,7 +97,7 @@ final class ArchiveController {
     }
 
     /** 在指定窗格内打开压缩包（替代全屏 ZipBrowserActivity）；加密时弹密码框重试 */
-    void openArchiveInPane(final Pane p, final File f) {
+    public void openArchiveInPane(final Pane p, final File f) {
         host.toast("正在打开压缩包…");
         new Thread(new Runnable() {
             public void run() {
@@ -154,14 +155,14 @@ final class ArchiveController {
     }
 
     /** 只记密码并自动重试转存（转存流程用） */
-    void promptArchivePasswordSave(final File f) {
+    public void promptArchivePasswordSave(final File f) {
         promptArchivePassword(null, f, ArchivePasswords.get(f) != null, new Runnable() {
             public void run() { host.convertRarToZip(f); }   // 密码记住后自动重试转存
         });
     }
 
     /** 提取/编辑等后台操作密码类失败 → 弹密码框重开归档，返回 true 表示已处理 */
-    boolean archPwError(final Pane p, Throwable t) {
+    public boolean archPwError(final Pane p, Throwable t) {
         if (t == null) return false;
         if (ArchiveUtil.cryptoError(t)) {
             final boolean wrong = p.archiveFile != null && ArchivePasswords.get(p.archiveFile) != null;
@@ -177,7 +178,7 @@ final class ArchiveController {
     }
 
     /** 刷新窗格当前压缩包子级列表（后台列条目，回主线程渲染） */
-    void showArchiveDir(final Pane p) {
+    public void showArchiveDir(final Pane p) {
         final ArchiveUtil.Archive a = p.archive;
         final File zf = p.archiveFile;
         final String prefix = p.archPrefix == null ? "" : p.archPrefix;
@@ -214,7 +215,7 @@ final class ArchiveController {
     }
 
     /** 压缩包内返回上级；已到根则退回普通目录模式 */
-    void archGoUp(Pane p) {
+    public void archGoUp(Pane p) {
         String pre = p.archPrefix == null ? "" : p.archPrefix;
         if (pre.isEmpty()) {
             closeArchiveQuiet(p);
@@ -295,7 +296,7 @@ final class ArchiveController {
     }
 
     /** 点击压缩包内条目：目录进入 / 文本直接编辑 / 其它弹提取菜单 */
-    void onArchItemClick(final Pane p, final FileItem it) {
+    public void onArchItemClick(final Pane p, final FileItem it) {
         if (it.archDir) {
             p.archPrefix = it.archFull;
             showArchiveDir(p);
@@ -444,7 +445,7 @@ final class ArchiveController {
     }
 
     /** 解压整个压缩包到当前窗格目录（压缩包所在文件夹，即"此目录"），一步到位 */
-    void extractArchAll(final Pane p) {
+    public void extractArchAll(final Pane p) {
         if (p.archive == null || p.archiveFile == null) return;
         final File outDir = p.dir;
         host.toast("解压全部中…");
@@ -809,7 +810,7 @@ final class ArchiveController {
     }
 
     /** 压缩包条目长按菜单（MT 式双列宫格） */
-    void showArchOpsMenu(final Pane p, final FileItem it) {
+    public void showArchOpsMenu(final Pane p, final FileItem it) {
         final boolean canWrite = MainActivity.writableArchive(p.archiveFile);
         final boolean isText = MainActivity.isTextName(it.archShort.toLowerCase(), it.archSize);
         final boolean canToArch = host.other().archiveFile != null;
@@ -911,7 +912,7 @@ final class ArchiveController {
     }
 
     /** 执行「压缩包条目 → 对面压缩包」：提取到缓存 → 逐文件写入 → 可选删源条目 */
-    void addEntriesToArchive(final Pane src, final List<FileItem> entries,
+    public void addEntriesToArchive(final Pane src, final List<FileItem> entries,
             final Pane dst, final String nameOverride, final boolean move) {
         AtomicReplace.lastError = null;      // R-06：旧失败原因不能安到这次头上
         host.toast("写入压缩包…");
@@ -994,7 +995,7 @@ final class ArchiveController {
     }
 
     /** 从压缩包删除条目（重建 zip；APK 删除后询问自动签名） */
-    void archDelete(final Pane p, final List<FileItem> items) {
+    public void archDelete(final Pane p, final List<FileItem> items) {
         final List<String> names = new ArrayList<String>();
         for (FileItem it : items) names.add(it.archPath());
         new HfDialogBuilder(host.ctx())

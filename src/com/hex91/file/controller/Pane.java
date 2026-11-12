@@ -1,5 +1,6 @@
-package com.hex91.file;
+package com.hex91.file.controller;
 
+import com.hex91.file.*;
 import com.hex91.file.ui.*;
 import com.hex91.file.apk.*;
 import java.io.File;
@@ -13,27 +14,29 @@ import java.io.File;
  * 那样拆出来的控制器等于没拆。</p>
  *
  * <p>包内可见（不是 public）：只有 com.hex91.file 里的类需要它，别让外部包扩散引用。
- * 字段同样保持包内可见，控制器与宿主直接读写，不额外造 getter/setter 噪音。</p>
+ * 字段一律 public：MainActivity 与各控制器都在别的包，给 16 个字段造 getter/setter
+ * 只会多出六十行样板。<b>约定：只有 MainActivity 与 controller 包内的类可以碰 Pane 的字段</b>，
+ * 其余包请走控制器方法。</p>
  */
-final class Pane {
-    android.widget.ListView list;
+public final class Pane {
+    public android.widget.ListView list;
     /** v1.80.0：网格/大图视图（与 list 共用同一份数据，同一时刻只有一个可见） */
-    android.widget.GridView grid;
-    FileGridAdapter gridAdapter;
+    public android.widget.GridView grid;
+    public FileGridAdapter gridAdapter;
     /** v1.79.0：列表外层的下拉刷新容器 */
-    PullRefreshLayout pull;
-    FileAdapter adapter;
-    File dir;
-    boolean active;
+    public PullRefreshLayout pull;
+    public FileAdapter adapter;
+    public File dir;
+    public boolean active;
 
     // ---------- 窗格内嵌压缩包浏览（v1.14） ----------
-    File archiveFile;                 // 非空 = 该窗格正在浏览压缩包
-    ArchiveUtil.Archive archive;
-    String archPrefix = "";           // 压缩包内当前路径前缀
+    public File archiveFile;                 // 非空 = 该窗格正在浏览压缩包
+    public ArchiveUtil.Archive archive;
+    public String archPrefix = "";           // 压缩包内当前路径前缀
 
     /** 目录历史栈（‹ › 前进后退用） */
-    final java.util.List<String> history = new java.util.ArrayList<String>();
-    int hIndex = -1;
+    public final java.util.List<String> history = new java.util.ArrayList<String>();
+    public int hIndex = -1;
 
     /**
      * v1.96.0：目录读取代次。读目录移到后台线程后，用户可能在结果回来之前
@@ -45,9 +48,9 @@ final class Pane {
      * 每条都要跑完整的 stat / su ls，把 3 条 IO 线程占满，新目录反而更慢。
      * 主线程写、工作线程读，没有 volatile 时这个判断可能读到旧值。</p>
      */
-    volatile int dirGen;
+    public volatile int dirGen;
     /** v1.99.0（O-01）：下拉刷新的代次，延迟收圈时用来确认「收的是自己那次」 */
-    int pullGen;
+    public int pullGen;
     /** v1.96.0：最近一次读取统计（顶栏用，避免每次 O(n) 遍历适配器） */
-    int dirCount, fileCount;
+    public int dirCount, fileCount;
 }

@@ -1,5 +1,6 @@
-package com.hex91.file;
+package com.hex91.file.controller;
 
+import com.hex91.file.*;
 import com.hex91.file.ui.*;
 import com.hex91.file.R;
 import com.hex91.file.fs.*;
@@ -17,9 +18,9 @@ import java.io.File;
  * {@code this} → {@link Host#ctx()}、{@code startActivity} → {@link Host#open}。
  * 抽屉的两个视图引用（drawer / drawerMask）跟着方法一起搬走，Activity 不再持有。</p>
  */
-final class DrawerController {
+public final class DrawerController {
 
-    interface Host {
+    public interface Host {
         android.content.Context ctx();
 
         /** activity.findViewById(id) */
@@ -44,17 +45,17 @@ final class DrawerController {
 
     private View drawer, drawerMask;
 
-    DrawerController(Host host) {
+    public DrawerController(Host host) {
         this.host = host;
     }
 
     /** 返回键用：抽屉是否正在显示（原来在 MainActivity 直接看 drawer 的可见性） */
-    boolean isOpen() {
+    public boolean isOpen() {
         return drawer != null && drawer.getVisibility() == View.VISIBLE;
     }
 
     /** 抽屉初始化：☰ 打开 / 遮罩点击关闭 / 菜单项分发 */
-    void setupDrawer() {
+    public void setupDrawer() {
         drawer = host.find(R.id.drawer);
         drawerMask = host.find(R.id.drawer_mask);
         try {
@@ -249,7 +250,7 @@ final class DrawerController {
         });
     }
 
-    void closeDrawer() {
+    public void closeDrawer() {
         drawer.animate().translationX(-drawer.getWidth() - 20).setDuration(180)
                 .withEndAction(new Runnable() {
                     public void run() {
