@@ -33,7 +33,9 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_search.xml / item_result.xml
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
-│   ├── values/                  # colors / strings
+│   ├── values/                  # colors / strings / themes / attrs / bools / dimens
+│   ├── values-en/               # 英文：目前只有设置页与工具栏（未迁移页面回退中文）
+│   ├── values-sw600dp/          # 平板：pane_divider 从 1dp 装饰线变 6dp 可拖
 │   └── drawable/                # 矢量图标（ic_launcher / ic_folder / ic_file）
 └── src/com/hex91/file
     ├── MainActivity.java        # 唯一的顶层类：主界面装配 / 菜单分发 / 多选批量 / 跨模块编排
@@ -1708,6 +1710,58 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.3.0（versionCode 186）—— 设置页英文 + 平板分屏
+
+两件事都按「小步、可单独回滚」做，各自一个提交。
+
+### F-14/1：设置页 i18n（`i18n: 设置页迁移（F-14/1）`）
+
+不做一次性全量机翻（3,676 条会翻出大量不认识的术语），按页迁移：
+
+- 新增 `res/values-en/strings.xml`，**只放已完成迁移的键**。未迁移的页面在英文系统下
+  回退中文 —— 这是预期行为，不是漏翻。
+- 已有的 24 条（工具栏 `up/home/refresh`、终端按键条、选区菜单、小组件与无障碍说明）
+  一并补英文：这 24 条早就抽取完成，成本为零；不补的话切英文后主界面按钮仍是中文，
+  「逐页截图验收」无从谈起。
+- 设置页 85 处硬编码中文全部改为 `getString(R.string.x)`，新增 93 条键，
+  前缀 `settings_` / `leftover_` / `workdir_` / `root_status_` / `theme_mode_`。
+- 8 处字符串拼接改成位置参数格式串（`%1$s` / `%1$d`），例如
+  `「已删除 N 个缩略图缓存文件」`、`「共 N 个，合计 X」`；
+  `bytesText()` 由 static 改实例方法（要调 `getString`）。
+- 不动：代码注释、`Log`、异常消息、`su` 命令 —— 这些不进翻译。
+- 遗留：`ThemeSchemes.NAMES`（主题方案名）仍是中文数组，属于主题体系的资源化，
+  留给主题页那一批。
+
+**下一批怎么加**（照这个顺序）：主界面顶栏/抽屉 → 常用对话框（删除/复制/重命名/属性）
+→ 任务面板 → 其它页面。每批只碰一页，提交前切英文看按钮有没有被截断（英文平均长 30%）。
+
+### F-15：平板 / 分屏
+
+- **不复制布局**：没有新建 `layout-sw600dp/activity_main.xml`。两份 756 行的布局只差
+  一根分隔条，以后每次改布局都要记得改两处，迟早漂移。改用资源限定符：
+  `values/dimens.xml` 的 `pane_divider_width=1dp` 与 `values-sw600dp/dimens.xml` 的 `6dp`，
+  再用 `values/bools.xml` 的 `pane_divider_draggable=false` / `values-sw600dp` 的 `true`
+  决定要不要挂拖拽监听。
+- 拖拽把两栏 `weight` 按比例分配，夹取 **0.3–0.7**（不让某一栏拖到看不见），
+  松手时才写 `SharedPreferences`（`hf_view/split_ratio`），拖动过程每帧写会一直触发 apply()。
+- **窄屏单栏**：`screenWidthDp < 400` 时只显示活动栏，另一栏 GONE（复用 `setActive`
+  已有的显隐路径）。分屏把窗口压到 400dp 以下时同样自动单栏，不会两栏重叠。
+- **单栏下的 ⬄**：屏幕上只有一栏可见，点击只能落在可见那栏，「交换两栏内容」没有意义，
+  于是改为「切到另一栏」—— 否则另一栏永远够不着。双栏时行为不变。
+- `onConfigurationChanged` 里重新判定单/双栏（Manifest 已声明 `orientation|screenSize`，
+  旋转与分屏都不重建 Activity）。
+
+### 验收
+
+- `./build.sh` 通过；`aapt2 dump resources` 确认
+  `settings_title` 同时有 `()` 与 `(en)`、`pane_divider_width` 有 `1dp`/`sw600dp 6dp`、
+  `pane_divider_draggable` 有 `false`/`true`；
+- `QUICK=1 ./test/run_core.sh` **53/53**（两项各跑一次）；
+- 需要真机确认：切英文后设置页无截断、平板横屏双栏可拖且重启保持、分屏不重叠、
+  手机竖屏单栏可用 ⬄ 来回切。
 
 ---
 
