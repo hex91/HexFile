@@ -1675,6 +1675,48 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.0.1（versionCode 183）—— 列表性能：行视图缓存 + 单行刷新
+
+目标不是「换 RecyclerView」，而是把每行重复做的活砍掉。三处都是同一套渲染逻辑，
+**显示结果零变化**，只是少做了重复工作。
+
+### 1. ViewHolder：每行 5 次 `findViewById` 归零
+
+`FileAdapter` / `FileGridAdapter` 各加静态 `VH`，新行 inflate 后把
+`icon / thumb / badge / name / detail` 找一遍存进 `convert.setTag(vh)`，
+滚动复用时直接读字段。以前每帧几十行 × 5 次视图树递归查找，现在只有 inflate 那一次。
+
+> 缩略图防串图用的 `thumb.setTag(key)` 是**另一个 View**，与 `convert.setTag(vh)` 互不影响——
+> 代码注释里点明了，别再合并。
+
+### 2. `FileItem.isDir()` 缓存：一个条目只 stat 一次
+
+`isDir()` 会被排序、图标、点击、详情行反复问到，以前每次都 `file.isDirectory()` = 一次 stat。
+加 `dirCache`（-1 未知 / 0 否 / 1 是）后只算一次。三个边界：
+
+- `forceDir`（root 的 `ls -p` 结论、指向目录的链接）**直接短路、不进缓存** —— 它可能在对象构造
+  之后才被 `fillLink` 置上，进缓存会把「先问过、后被标记」的那条答错；
+- `file == null` 的占位条目不再有可能 NPE；
+- `FileItem` 是 `Serializable`，反序列化不走字段初始化，`readObject` 里显式把 `dirCache` 重置为 -1。
+
+### 3. 单行选中局部刷新
+
+`FileAdapter` 增 `bindList()` / `bindGrid()` 与 `refreshRow(pos)`；`toggle()` 与 `MainActivity`
+三处直接改 `selected` 的地方（纵向刷选、左滑选中、右滑取消）改走它。
+
+- 勾一行只重画那一行，不再整表 `notifyDataSetChanged()`（万级目录点一下重绑一万行）；
+- 仍然复用 `getView(pos, 该行 View, 父容器)`，渲染只有一份，选中态不可能走样；
+- 行滚出屏幕 / 未 bind 时直接跳过——滚回来本来就会重绑；
+- 列表与网格互为镜像：谁在显示刷谁，另一个是 GONE 会被跳过，所以网格里点选也立刻出勾。
+
+### 验收
+
+- `QUICK=1 ./test/run_core.sh` **53/53 PASS**（新增 `FileItemCacheTest` 16 条断言）；
+- `out/HexFile-2.0.1.apk`（13.1 MB，V3 签名），dex 含 `repaintRow` / `refreshRow` /
+  `bindList` / `bindGrid` / `dirCache`。
+
+---
+
 ## v2.0.0（versionCode 182）—— MainActivity 拆分：6,518 行 → 4,465 行
 
 纯搬运，**零行为改动**：不碰布局、不动文案、不改排序/过滤规则、不换线程模型、不引第三方库。
