@@ -172,28 +172,20 @@ fi
 echo "[4/7] javac..."
 # v1.96.0：先清掉「源码已不存在」的 class。javac -d 只覆盖不清理，删掉的类会一直留在
 # build/obj 里被打进 dex —— 删 FeatureRegistry 时才发现：源码删了，APK 里还查得到它。
+#
+# v2.1.0（O-16）：改为「编译前整个自研包清空」。原因有三，前两条都是实测踩到的：
+#   1) 拆子包后，X.java 从 com/hex91/file/ 搬到 core/ 下，源码还在、简单名还在，
+#      按「类名」判孤儿永远发现不了顶层那份旧 X.class，同一类两份进 dex
+#      （d8 不报错，但包里同时有 Lcom/hex91/file/X; 与 Lcom/hex91/file/core/X;）。
+#   2) 匿名内部类根本无法静态枚举：MainActivity 从 6574 行拆到 4465 行后，
+#      旧的 MainActivity$105/$108/$127… 再也不会重新生成，但它们的外部类还在，
+#      任何「折算成外部类名」的判据都会把它们当合法类保留 —— 实测这些幽灵 class
+#      里还带着搬家前的 Lcom/hex91/file/ZipUtil; 之类引用，一路打进 APK。
+#   3) 反正 javac 每次都是全量编译（命令行给了全部源文件），删掉这些 class 不增加
+#      任何编译时间，只是把「脏」变「净」。
+# 只清自研包：jadx / termux / androidx / io 是 vendored，源码不变，留着重用以省时间。
 if [ -d "$BUILD/obj/com/hex91/file" ]; then
-  # v2.1.0（O-16）：源码改成子包结构（core/fs/apk/net/ui）后，这一步必须递归 ——
-  # 原先只看顶层目录、只认顶层 $outer.java，会把子包里的 class 一律当孤儿删掉。
-  # 判据必须用「完整类路径」而不是简单类名：类从 com/hex91/file/X.java 搬到
-  # com/hex91/file/core/X.java 后，源码还在、简单名还在，只比名字永远发现不了
-  # 顶层那份陈旧 X.class —— 结果同一类两份进 dex（实测 d8 不报错，但包里同时有
-  # Lcom/hex91/file/HexCore; 与 Lcom/hex91/file/core/HexCore;，加载哪份看运气）。
-  # 做法：一次性索引「期望存在的类路径」，再按纯字符串匹配，避免每个 class fork 一次。
-  EXPECTED="|com/hex91/file/R|"
-  while IFS= read -r srcf; do
-    rel=${srcf#"$ROOT/src/"}
-    EXPECTED="$EXPECTED${rel%.java}|"
-  done < <(find "$ROOT/src/com/hex91/file" -type f -name '*.java')
-  while IFS= read -r cf; do
-    rel=${cf#"$BUILD/obj/"}
-    rel=${rel%.class}
-    rel=${rel%%\$*}
-    case "$EXPECTED" in
-      *"|$rel|"*) ;;
-      *) rm -f "$cf"; echo "      清理残留 class: $rel" ;;
-    esac
-  done < <(find "$BUILD/obj/com/hex91/file" -type f -name '*.class')
+  find "$BUILD/obj/com/hex91/file" -type f -name '*.class' -delete
 fi
 # libs = apksigner.jar + baksmali/dexlib2 等（smali 反编译引擎），供编译期引用
 # classpath 分隔符：Windows 为 ;，其它(Unix/Linux)为 :
