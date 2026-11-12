@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.fs;
 
 import com.hex91.file.core.*;
 import android.os.Handler;

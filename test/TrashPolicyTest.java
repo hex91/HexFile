@@ -1,5 +1,5 @@
-import com.hex91.file.Trash;
-import com.hex91.file.TrashPolicy;
+import com.hex91.file.fs.Trash;
+import com.hex91.file.fs.TrashPolicy;
 
 import java.io.File;
 import java.io.FileOutputStream;

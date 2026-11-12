@@ -1,4 +1,4 @@
-import com.hex91.file.DiskScanUtil;
+import com.hex91.file.fs.DiskScanUtil;
 import java.io.*;
 import java.util.List;
 public class DiskScanTest {

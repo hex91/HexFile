@@ -1,4 +1,4 @@
-import com.hex91.file.FileItem;
+import com.hex91.file.fs.FileItem;
 
 import java.io.File;
 import java.io.FileOutputStream;

@@ -1,4 +1,4 @@
-import com.hex91.file.WorkDir;
+import com.hex91.file.fs.WorkDir;
 
 import java.io.File;
 

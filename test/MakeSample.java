@@ -1,6 +1,6 @@
 package bin.HexFile;
 
-import com.hex91.file.ZstdUtil;
+import com.hex91.file.fs.ZstdUtil;
 
 import java.io.File;
 import java.io.FileOutputStream;

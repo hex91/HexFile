@@ -1,5 +1,6 @@
 package com.hex91.file;
 
+import com.hex91.file.fs.*;
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;

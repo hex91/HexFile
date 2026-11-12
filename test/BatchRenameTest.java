@@ -1,4 +1,4 @@
-import com.hex91.file.BatchRenameCore;
+import com.hex91.file.fs.BatchRenameCore;
 
 import java.io.File;
 import java.util.ArrayList;

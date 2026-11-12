@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.fs;
 
 /**
  * v1.82.0 回收站自动清理的触发点。

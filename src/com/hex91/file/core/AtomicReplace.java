@@ -1,5 +1,7 @@
 package com.hex91.file.core;
 
+import com.hex91.file.*;
+import com.hex91.file.fs.*;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;

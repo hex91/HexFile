@@ -1,4 +1,4 @@
-import com.hex91.file.FileClipboard;
+import com.hex91.file.fs.FileClipboard;
 
 import java.io.File;
 import java.io.FileOutputStream;

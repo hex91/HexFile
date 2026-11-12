@@ -1,6 +1,6 @@
-import com.hex91.file.FileOps;
-import com.hex91.file.RootIO;
-import com.hex91.file.RootUtil;
+import com.hex91.file.fs.FileOps;
+import com.hex91.file.fs.RootIO;
+import com.hex91.file.fs.RootUtil;
 
 import java.io.File;
 

@@ -1,7 +1,7 @@
 import com.hex91.file.ApkEditSession;
-import com.hex91.file.FileOps;
+import com.hex91.file.fs.FileOps;
 import com.hex91.file.SmaliTool;
-import com.hex91.file.ZipUtil;
+import com.hex91.file.fs.ZipUtil;
 
 import java.io.File;
 import java.io.FileInputStream;

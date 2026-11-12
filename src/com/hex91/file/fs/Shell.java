@@ -1,5 +1,6 @@
-package com.hex91.file;
+package com.hex91.file.fs;
 
+import com.hex91.file.*;
 /**
  * v1.86.0：统一的「特权 shell」后端选择器。
  *

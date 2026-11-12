@@ -1,6 +1,6 @@
 package bin.HexFile;
 
-import com.hex91.file.FileOps;
+import com.hex91.file.fs.FileOps;
 
 import java.io.File;
 import java.io.FileInputStream;

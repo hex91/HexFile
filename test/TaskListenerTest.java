@@ -1,5 +1,5 @@
-import com.hex91.file.FileTask;
-import com.hex91.file.FileTaskEngine;
+import com.hex91.file.fs.FileTask;
+import com.hex91.file.fs.FileTaskEngine;
 
 import java.io.File;
 import java.io.FileOutputStream;

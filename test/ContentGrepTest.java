@@ -1,4 +1,4 @@
-import com.hex91.file.ContentGrep;
+import com.hex91.file.fs.ContentGrep;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;

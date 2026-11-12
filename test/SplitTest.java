@@ -1,6 +1,6 @@
 package bin.HexFile;
 
-import com.hex91.file.FileSplit;
+import com.hex91.file.fs.FileSplit;
 
 import java.io.File;
 import java.io.FileInputStream;

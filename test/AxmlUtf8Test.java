@@ -1,7 +1,7 @@
 import com.hex91.file.AxmlFile;
 import com.hex91.file.AxmlWriter;
 import com.hex91.file.core.ArscDefs;
-import com.hex91.file.ZipUtil;
+import com.hex91.file.fs.ZipUtil;
 
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;

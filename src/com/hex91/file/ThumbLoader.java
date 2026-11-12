@@ -1,5 +1,6 @@
 package com.hex91.file;
 
+import com.hex91.file.fs.*;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;

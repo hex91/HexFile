@@ -1,5 +1,6 @@
 package com.hex91.file;
 
+import com.hex91.file.fs.*;
 /*#######################################################
  *
  *   HexFile 自研（v1.28）。桥接层：把 SyntaxHighlight 的 12 语言正则规则

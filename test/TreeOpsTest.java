@@ -1,5 +1,5 @@
-import com.hex91.file.FileOps;
-import com.hex91.file.TreeOps;
+import com.hex91.file.fs.FileOps;
+import com.hex91.file.fs.TreeOps;
 
 import java.io.File;
 import java.io.FileOutputStream;

@@ -1,5 +1,6 @@
-package com.hex91.file;
+package com.hex91.file.fs;
 
+import com.hex91.file.*;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.util.ArrayList;

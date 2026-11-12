@@ -1,7 +1,7 @@
 import com.hex91.file.ArchiveUtil;
 import com.hex91.file.ArchiveUtil.Archive;
 import com.hex91.file.ArchiveUtil.Entry;
-import com.hex91.file.ZipUtil;
+import com.hex91.file.fs.ZipUtil;
 
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile;

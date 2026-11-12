@@ -1,4 +1,4 @@
-import com.hex91.file.LeftoverScan;
+import com.hex91.file.fs.LeftoverScan;
 
 import java.io.File;
 import java.io.FileOutputStream;

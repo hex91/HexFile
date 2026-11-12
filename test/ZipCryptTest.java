@@ -1,6 +1,6 @@
 package bin.HexFile;
 
-import com.hex91.file.ZipUtil;
+import com.hex91.file.fs.ZipUtil;
 
 import java.io.*;
 import java.util.*;
