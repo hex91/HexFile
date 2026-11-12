@@ -1,5 +1,6 @@
 import com.hex91.file.FileTask;
 import com.hex91.file.FileTaskEngine;
+import com.hex91.file.TaskJournal;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -227,6 +228,49 @@ public class FileTaskTest {
                 waitDone(t, 20000);
             }
             ok(!eng.hasActive(), "全部结束后：hasActive() 为 false");
+        }
+
+        // ---------------------------------------------------------- 重试（v1.99.3：retry(int)）
+        {
+            File src = dir("retry_src");
+            File f = file(new File(src, "r.bin"), 64 * 1024);
+            File dst = dir("retry_dst");
+            FileTask t = eng.submit(FileTask.COPY, list(f), dst);
+            waitDone(t, 20000);
+            ok(t.state == FileTask.DONE, "重试用例：先成功复制一次");
+            // 已完成的不该能重试：那等于把做完的事再做一遍（目标里会多出同名副本）
+            ok(eng.retry(t.id) == null, "DONE 任务不允许重试");
+            // 伪造失败状态：真造一个失败要依赖不可写目录，跨平台不稳定
+            t.state = FileTask.FAILED;
+            FileTask nt = eng.retry(t.id);
+            ok(nt != null, "失败任务可以重试");
+            ok(nt != null && nt.id > t.id, "重试得到新 id，不复用原 id");
+            waitDone(nt, 20000);
+            ok(nt != null && nt.state == FileTask.DONE, "重试后任务成功");
+            ok(eng.retry(999999) == null, "不存在的 id 返回 null");
+            // 源被删掉后不该再排队：只会再产生一次注定失败的记录
+            t.state = FileTask.FAILED;
+            del(src);
+            ok(eng.retry(t.id) == null, "源已不存在时拒绝重试");
+        }
+
+        // ---------------------------------------------------------- 账本（v1.99.3：Store 注入）
+        {
+            eng.clearFinished();
+            final String[] box = new String[1];
+            eng.setJournalStore(new TaskJournal.Store() {
+                public void save(List<TaskJournal.Entry> es) {
+                    box[0] = TaskJournal.encode(es);      // 与 TaskStore 写进偏好的是同一段文本
+                }
+            });
+            File src = dir("journal_src");
+            File f = file(new File(src, "j.bin"), 32 * 1024);
+            File dst = dir("journal_dst");
+            FileTask jt = eng.submit(FileTask.COPY, list(f), dst);
+            ok(box[0] != null && box[0].contains("S\t"), "提交即写账本（含来源路径）");
+            waitDone(jt, 20000);
+            ok(box[0] == null, "任务结束后账本清空（encode 空列表返回 null）");
+            eng.setJournalStore((TaskJournal.Store) null);
         }
 
         eng.clearFinished();

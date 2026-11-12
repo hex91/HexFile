@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hex91.file"
-    android:versionCode="180"
-    android:versionName="1.99.2">
+    android:versionCode="181"
+    android:versionName="1.99.3">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
 
@@ -94,6 +94,12 @@
 
         <activity
             android:name="com.hex91.file.TrashActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <!-- v1.99.3：独立任务中心（进度 / 逐条重试 / 取消 / 清理记录） -->
+        <activity
+            android:name="com.hex91.file.TaskCenterActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 

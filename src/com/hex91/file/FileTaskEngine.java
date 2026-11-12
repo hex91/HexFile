@@ -108,18 +108,36 @@ public final class FileTaskEngine {
 
     // ------------------------------------------------------------------ 未完成任务账本（R-07）
 
-    /** 账本文件；null = 不记账（桌面单测、只关心拷贝行为的调用方） */
-    private File journalFile;
+    /** 账本容器；null = 不记账（桌面单测、只关心拷贝行为的调用方） */
+    private TaskJournal.Store journalStore;
 
     /**
-     * v1.99.2（R-07）：设置账本位置。
+     * v1.99.2（R-07）：设置账本容器。
      *
      * <p><b>刻意不在这里写一次</b>：启动时 {@code all} 是空的，一写就把上个进程留下的账本
      * 清成「没有未完成任务」—— 而那份内容正是这次要读的东西。账本由 submit 与
      * 任务结束时的 {@link #writeJournal()} 维护。</p>
+     *
+     * <p>v1.99.3：参数从 {@code File} 换成 {@link TaskJournal.Store} —— 生产用
+     * {@link TaskStore}（SharedPreferences），单测可注入内存实现。</p>
      */
-    public void setJournalFile(File f) {
-        journalFile = f;
+    public void setJournalStore(TaskJournal.Store store) {
+        journalStore = store;
+    }
+
+    /** 兼容旧调用点：直接给一个文件当账本 */
+    public void setJournalFile(final File f) {
+        journalStore = f == null ? null : new TaskJournal.Store() {
+            public void save(java.util.List<TaskJournal.Entry> es) {
+                TaskJournal.save(f, es);
+            }
+        };
+    }
+
+    /** v1.99.3：按 id 找任务；找不到返回 null */
+    private FileTask findLocked(int id) {
+        for (FileTask t : all) if (t.id == id) return t;
+        return null;
     }
 
     /**
@@ -129,7 +147,8 @@ public final class FileTaskEngine {
      * <p>已请求取消的任务不记：用户按了取消，重启后再劝他重试是反直觉的。</p>
      */
     private void writeJournal() {
-        if (journalFile == null) return;
+        final TaskJournal.Store store = journalStore;
+        if (store == null) return;
         java.util.List<TaskJournal.Entry> es = new java.util.ArrayList<TaskJournal.Entry>();
         synchronized (lock) {
             for (FileTask t : all) {
@@ -138,13 +157,38 @@ public final class FileTaskEngine {
                 es.add(new TaskJournal.Entry(t.kind, t.dstDir, t.srcs));
             }
         }
-        TaskJournal.save(journalFile, es);
+        store.save(es);
     }
 
-    /** v1.99.2（R-07）：按同一个来源与目标再提交一次，用于任务面板的「重试」 */
-    public FileTask retry(FileTask old) {
-        if (old == null || old.srcs == null || old.srcs.isEmpty() || old.dstDir == null) return null;
+    /**
+     * v1.99.2（R-07）：按同一个来源与目标再提交一次，用于任务面板的「重试」。
+     *
+     * <p>v1.99.3：改为按 id 重试 —— 面板 / 任务中心拿到的只有列表里的快照，
+     * 传对象会让人以为「重试的是那个旧对象」，其实提交的是新任务。</p>
+     */
+    public FileTask retry(int id) {
+        FileTask old;
+        synchronized (lock) {
+            old = findLocked(id);
+            if (old == null) return null;
+            // 只在「跑完了但没成功」时允许：还在队列里再提一遍就是重复拷两份；
+            // DONE 再重试则是把已经做完的事再做一次（用户要的是失败行上的按钮）
+            if (!old.finished() || old.state == FileTask.DONE) return null;
+            if (old.srcs == null || old.srcs.isEmpty() || old.dstDir == null) return null;
+        }
+        // 源可能已被用户删掉/移走：这时重提一个注定失败的任务，只会再报一次失败。
+        // 目录里至少还剩一项就允许（部分成功的场景：失败的往往是其中几个）
+        boolean any = false;
+        for (java.io.File f : old.srcs) {
+            if (f != null && f.exists()) { any = true; break; }
+        }
+        if (!any) return null;
         return submit(old.kind, old.srcs, old.dstDir);
+    }
+
+    /** 兼容旧调用点 */
+    public FileTask retry(FileTask old) {
+        return old == null ? null : retry(old.id);
     }
 
     /**

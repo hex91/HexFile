@@ -437,22 +437,25 @@ public class MainActivity extends BaseActivity {
     // ============================================================ 未完成任务（v1.99.2 R-07）
 
     /**
-     * 任务账本：未完成的任务写在应用私有目录。启动时还有内容，就说明上个进程没跑完 ——
-     * 被系统清了，或者用户强退了。这里问一句「要不要重试」，而不是让用户对着
-     * 目标目录里的一堆 {@code .part} 自己猜发生过什么。
+     * v1.99.3：任务账本（{@code SharedPreferences} 的 {@code running_task_json}）。
+     *
+     * <p>启动时键还在，就说明上个进程没跑完 —— 被系统清了，或者用户强退了。
+     * 先 toast 一句（用户可能根本没注意应用被重启过），再弹详情问要不要重试。
+     * 用户点「忽略」只移除这一个键，不碰同一份偏好里的其它设置，更不会删任何文件。</p>
      */
     private void setupTaskJournal() {
-        final File jf = new File(getFilesDir(), TaskJournal.FILE_NAME);
-        // 先读再设：setJournalFile 不写盘，顺序本身不致命，但读在前总是对的
-        final List<TaskJournal.Entry> pending = TaskJournal.load(jf);
-        FileTaskEngine.get().setJournalFile(jf);
+        final TaskStore store = TaskStore.get(this);
+        // 先读再设：setJournalStore 不写盘，顺序本身不致命，但读在前总是对的
+        final List<TaskJournal.Entry> pending = store.load();
+        FileTaskEngine.get().setJournalStore(store);
         if (pending.isEmpty()) return;
+        toast("上次有任务被中断");
         listLeft.post(new Runnable() {
-            public void run() { showInterrupted(pending, jf); }
+            public void run() { showInterrupted(pending, store); }
         });
     }
 
-    private void showInterrupted(final List<TaskJournal.Entry> pending, final File jf) {
+    private void showInterrupted(final List<TaskJournal.Entry> pending, final TaskStore store) {
         if (isFinishing()) return;
         int items = 0;
         for (TaskJournal.Entry e : pending) items += e.srcs.size();
@@ -476,158 +479,14 @@ public class MainActivity extends BaseActivity {
                 })
                 .setNegativeButton("忽略", new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
-                        TaskJournal.save(jf, new java.util.ArrayList<TaskJournal.Entry>());
+                        store.clear();      // 只清 running_task_json 这一个键
                     }
                 })
                 .show();
     }
 
     private void showTaskPanel() {
-        final LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        int pad = UiDecor.dp(this, 14);
-        box.setPadding(pad, pad, pad, pad);
-        android.widget.ScrollView sv = new android.widget.ScrollView(this);
-        sv.addView(box);
-
-        final AlertDialog dlg = new HfDialogBuilder(this)
-                .setTitle("文件任务")
-                .setView(sv)
-                .setNeutralButton("清理已完成", new android.content.DialogInterface.OnClickListener() {
-                    public void onClick(android.content.DialogInterface d, int w) {
-                        FileTaskEngine.get().clearFinished();
-                    }
-                })
-                .setNegativeButton("全部取消", new android.content.DialogInterface.OnClickListener() {
-                    public void onClick(android.content.DialogInterface d, int w) {
-                        FileTaskEngine.get().cancelAll();
-                    }
-                })
-                .setPositiveButton("关闭", null)
-                .create();
-
-        // 面板开着时每 500ms 刷一次；不用引擎回调是因为弹窗里还要重算自己的行布局
-        final Runnable tick = new Runnable() {
-            public void run() {
-                fillTaskPanel(box);
-                if (dlg.isShowing()) taskUi.postDelayed(this, 500);
-            }
-        };
-        dlg.setOnDismissListener(new android.content.DialogInterface.OnDismissListener() {
-            public void onDismiss(android.content.DialogInterface d) {
-                taskUi.removeCallbacks(tick);
-            }
-        });
-        dlg.show();
-        tick.run();
-    }
-
-    private void fillTaskPanel(LinearLayout box) {
-        box.removeAllViews();
-        List<FileTask> list = FileTaskEngine.get().tasks();
-        if (list.isEmpty()) {
-            TextView empty = new TextView(this);
-            empty.setText("暂无任务\n\n复制 / 移动文件时会在这里显示进度，可随时取消。");
-            empty.setTextSize(12.5f);
-            empty.setTextColor(ThemeManager.textSub(this));
-            empty.setGravity(Gravity.CENTER);
-            empty.setPadding(0, UiDecor.dp(this, 16), 0, UiDecor.dp(this, 16));
-            box.addView(empty);
-            return;
-        }
-        for (int i = list.size() - 1; i >= 0; i--) {   // 最新在上
-            box.addView(taskRow(list.get(i)));
-        }
-    }
-
-    private View taskRow(final FileTask t) {
-        LinearLayout card = UiDecor.card(this);
-        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        clp.bottomMargin = UiDecor.dp(this, 8);
-        card.setLayoutParams(clp);
-
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        TextView name = new TextView(this);
-        name.setText(t.title);
-        name.setTextSize(13f);
-        name.setTextColor(ThemeManager.text(this));
-        name.setSingleLine(true);
-        name.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        top.addView(name, new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        TextView state = new TextView(this);
-        state.setText(t.stateText());
-        state.setTextSize(11.5f);
-        boolean bad = t.finished() && t.state != FileTask.DONE;
-        state.setTextColor(bad ? ThemeManager.err(this) : ThemeManager.accent(this));
-        top.addView(state);
-        card.addView(top);
-
-        android.widget.ProgressBar pb = new android.widget.ProgressBar(
-                this, null, android.R.attr.progressBarStyleHorizontal);
-        pb.setMax(100);
-        pb.setProgress(t.percent());
-        // 必须带 theme 解析：进度条颜色是 ?attr/hfAccent，无主题的 getDrawable 会解析失败
-        pb.setProgressDrawable(getResources().getDrawable(R.drawable.hf_task_progress, getTheme()));
-        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, UiDecor.dp(this, 4));
-        plp.topMargin = UiDecor.dp(this, 8);
-        card.addView(pb, plp);
-
-        LinearLayout foot = new LinearLayout(this);
-        foot.setOrientation(LinearLayout.HORIZONTAL);
-        foot.setGravity(Gravity.CENTER_VERTICAL);
-        TextView info = new TextView(this);
-        info.setText(taskDetail(t));
-        info.setTextSize(11f);
-        info.setTextColor(ThemeManager.textSub(this));
-        info.setPadding(0, UiDecor.dp(this, 7), UiDecor.dp(this, 6), 0);
-        foot.addView(info, new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        if (t.cancelable()) {
-            TextView cancel = UiDecor.action(this, "✕", "取消", ThemeManager.err(this));
-            cancel.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View v) { FileTaskEngine.get().cancel(t.id); }
-            });
-            foot.addView(cancel);
-        } else if (t.finished() && t.state != FileTask.DONE
-                && t.srcs != null && !t.srcs.isEmpty()) {
-            // v1.99.2（R-07）：失败 / 部分失败 / 取消过的任务一键重来 ——
-            // 源和目标都还在 FileTask 里，不需要用户再选一遍（大目录尤其折腾）
-            TextView again = UiDecor.action(this, "↻", "重试", ThemeManager.accent(this));
-            again.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View v) {
-                    FileTask nt = FileTaskEngine.get().retry(t);
-                    if (nt == null) toast("无法重试：原始来源已不可用");
-                    else {
-                        TaskService.start(MainActivity.this);
-                        toast("已重新提交");
-                    }
-                }
-            });
-            foot.addView(again);
-        }
-        card.addView(foot);
-        return card;
-    }
-
-    private String taskDetail(FileTask t) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(FileOps.formatSize(t.doneBytes)).append(" / ")
-                .append(FileOps.formatSize(t.totalBytes))
-                .append(" · ").append(t.doneFiles).append('/').append(t.totalFiles).append(" 个文件");
-        if (t.state == FileTask.RUNNING) {
-            long sp = t.speed(System.currentTimeMillis());
-            if (sp > 0) sb.append(" · ").append(FileOps.formatSize(sp)).append("/s");
-        }
-        if (t.message != null && t.finished() && t.state != FileTask.DONE) {
-            sb.append('\n').append(t.message);
-        }
-        sb.append('\n').append(t.dstPath);
-        return sb.toString();
+        startActivity(new Intent(MainActivity.this, TaskCenterActivity.class));
     }
 
     // ============================================================ 左侧抽屉（v1.41.0）

@@ -37,6 +37,7 @@ public class TaskJournalTest {
             t2EmptyDeletes(base);
             t3BadFile(base);
             t4Missing(base);
+            t5Encode(base);
         } finally {
             deleteTree(base);
         }
@@ -96,6 +97,36 @@ public class TaskJournalTest {
         eqi(0, TaskJournal.load(new File(base, "nope")).size(), "文件不存在返回空列表");
         eqi(0, TaskJournal.load(null).size(), "null 返回空列表");
         ok(!TaskJournal.save(null, null), "null 路径写入返回 false");
+    }
+
+    /**
+     * v1.99.3：{@code SharedPreferences} 存的就是 {@link TaskJournal#encode} 的输出，
+     * 所以这段文本必须能独立往返 —— 偏好里没有文件头以外的东西可以依靠。
+     */
+    static void t5Encode(File base) {
+        ok(TaskJournal.encode(null) == null, "encode(null) 返回 null（好让调用方 remove 掉键）");
+        ok(TaskJournal.encode(new ArrayList<TaskJournal.Entry>()) == null,
+                "encode(空) 返回 null");
+
+        List<TaskJournal.Entry> es = new ArrayList<TaskJournal.Entry>();
+        es.add(new TaskJournal.Entry(FileTask.MOVE, new File(base, "目标 目录"),
+                Arrays.asList(new File(base, "a.txt"), new File(base, "b\tc.txt"))));
+        String json = TaskJournal.encode(es);
+        ok(json != null && json.length() > 0, "encode 产出非空文本");
+        List<TaskJournal.Entry> back = TaskJournal.decode(json);
+        eqi(1, back.size(), "decode 条目数");
+        eqi(FileTask.MOVE, back.get(0).kind, "kind 往返");
+        ok(back.get(0).dstDir.getPath().endsWith("目标 目录"), "目标目录往返（含空格中文）");
+        eqi(2, back.get(0).srcs.size(), "来源条数往返");
+        ok(back.get(0).srcs.get(1).getName().equals("b\tc.txt"),
+                "路径里的制表符被转义后仍原样读回");
+
+        // 偏好的内容可能被截断、被旧版本写过、被系统降级 —— 都不能让启动崩
+        eqi(0, TaskJournal.decode(null).size(), "decode(null) 返回空");
+        eqi(0, TaskJournal.decode("").size(), "decode(空串) 返回空");
+        eqi(0, TaskJournal.decode("垃圾").size(), "decode(乱码) 返回空");
+        eqi(0, TaskJournal.decode("hexfile-journal-1\nT\t0").size(),
+                "只有任务头、没有来源 → 不产出半条记录");
     }
 
     static void deleteTree(File f) {
