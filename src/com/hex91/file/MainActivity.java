@@ -635,9 +635,11 @@ public class MainActivity extends BaseActivity {
     /**
      * v2.3.0（F-15）：⇄ 有两种语义。
      *
-     * <p>双栏并排时是「交换两栏内容」，和以前一样；单栏（窄屏）时屏幕上只有
-     * 一栏可见，交换无从谈起，改为「切到另一栏」—— 否则单栏模式下另一栏
-     * 永远够不着（点击只能落在可见的那一栏上）。</p>
+     * <p>双栏并排时是「交换两栏内容」，和以前一样；单栏时屏幕上只有一栏可见，
+     * 交换无从谈起，改为「切到另一栏」—— 否则单栏模式下另一栏永远够不着
+     * （点击只能落在可见的那一栏上）。</p>
+     *
+     * <p>默认双栏（{@link #SINGLE_PANE_MAX_DP} 为 0），因此手机上也一直走交换分支。</p>
      */
     private void toggleOrSwapPanes() {
         if (singlePane()) {
@@ -1044,15 +1046,26 @@ public class MainActivity extends BaseActivity {
     }
 
     /**
-     * v2.3.0（F-15）：窄屏只显示一栏。
+     * 单栏阈值（dp）：窗口宽度小于该值时只显示活动栏。
      *
-     * <p>360dp 的手机上双栏各 180dp，长文件名只能看到前几个字；这里按当前窗口宽度
-     * 切单栏，双栏留给平板、横屏与分屏后的宽窗口。阈值 400dp 对应 Material 的
-     * compact/medium 分界。切换复用 {@link #setActive} 已有的「显示活动栏、
-     * 收起另一栏」路径，不另写一套显隐逻辑。</p>
+     * <p>{@code <= 0} 表示永不切单栏 —— 手机竖屏也保持双栏。</p>
+     */
+    private static final int SINGLE_PANE_MAX_DP = 0;
+
+    /**
+     * v2.3.1：手机默认保持双栏。
+     *
+     * <p>v2.3.0 曾按 400dp 阈值在手机上切单栏，实际用起来双栏才是这工具的主场
+     * （左边找文件、右边看压缩包），所以默认关掉。机制整条保留，把
+     * {@link #SINGLE_PANE_MAX_DP} 改成 400（或其它 dp 值）即可恢复按宽度自动单栏，
+     * 供极窄的分屏窗口使用。</p>
+     *
+     * <p>返回 true 时的显隐复用 {@link #setActive} 已有的「显示活动栏、收起另一栏」
+     * 路径，不另写一套逻辑。</p>
      */
     private boolean singlePane() {
-        return getResources().getConfiguration().screenWidthDp < 400;
+        return SINGLE_PANE_MAX_DP > 0
+                && getResources().getConfiguration().screenWidthDp < SINGLE_PANE_MAX_DP;
     }
 
     // ---------------------------------------------------------------- 分隔条（v2.3.0 F-15）

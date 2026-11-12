@@ -1713,6 +1713,31 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.3.1（versionCode 187）—— 手机恢复双栏
+
+v2.3.0 给窄屏加了「一栏收起」的单栏模式，阈值 `screenWidthDp < 400`。真机一上手就不对：
+这工具的使用姿势是左边找文件、右边看压缩包，手机竖屏（360dp）被切成单栏后，
+「拖文件到对面」这个核心操作反而要来回点 ⬄，比双栏挤一点更难受。
+
+改法只有一处：`MainActivity.singlePane()` 的阈值从字面量 400 提成常量
+`SINGLE_PANE_MAX_DP`，取 `0` 表示永不单栏：
+
+```java
+private static final int SINGLE_PANE_MAX_DP = 0;   // <= 0：手机也保持双栏
+
+private boolean singlePane() {
+    return SINGLE_PANE_MAX_DP > 0
+            && getResources().getConfiguration().screenWidthDp < SINGLE_PANE_MAX_DP;
+}
+```
+
+- **不删代码**：`applyViewMode()` 的收起分支、`toggleOrSwapPanes()` 的「切到另一栏」语义、
+  `onConfigurationChanged` 的重判都留着 —— 哪天要给极窄分屏窗口用，把常量改成 400 即可，
+  不必重写一遍显隐逻辑（那部分复用的是 `setActive` 的既有路径，删了容易与网格模式纠缠）。
+- **行为**：手机竖屏双栏常显，⬄ 回到「交换两栏内容」；平板拖拽分隔条、比例记忆、
+  分屏不重叠均不受影响（与单栏判定是两条独立路径）。
+- 版本号 186→187、`2.3.0`→`2.3.1`，其余不动。
+
 ## v2.3.0（versionCode 186）—— 设置页英文 + 平板分屏
 
 两件事都按「小步、可单独回滚」做，各自一个提交。
@@ -1747,10 +1772,12 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
   决定要不要挂拖拽监听。
 - 拖拽把两栏 `weight` 按比例分配，夹取 **0.3–0.7**（不让某一栏拖到看不见），
   松手时才写 `SharedPreferences`（`hf_view/split_ratio`），拖动过程每帧写会一直触发 apply()。
-- **窄屏单栏**：`screenWidthDp < 400` 时只显示活动栏，另一栏 GONE（复用 `setActive`
-  已有的显隐路径）。分屏把窗口压到 400dp 以下时同样自动单栏，不会两栏重叠。
+- **单栏机制（v2.3.1 起默认关闭）**：`singlePane()` 依据常量 `SINGLE_PANE_MAX_DP`
+  判断是否只显示活动栏，另一栏 GONE（复用 `setActive` 已有的显隐路径）。
+  v2.3.0 曾设为 `400`，手机上竖屏即单栏；实测双栏才是本工具的主场（左找文件、右看压缩包），
+  v2.3.1 改为 `0` = 永不单栏，代码路径整条保留，改回 `400` 即恢复按宽度自动单栏。
 - **单栏下的 ⬄**：屏幕上只有一栏可见，点击只能落在可见那栏，「交换两栏内容」没有意义，
-  于是改为「切到另一栏」—— 否则另一栏永远够不着。双栏时行为不变。
+  于是改为「切到另一栏」—— 否则另一栏永远够不着。默认双栏时一直走原来的交换分支，行为不变。
 - `onConfigurationChanged` 里重新判定单/双栏（Manifest 已声明 `orientation|screenSize`，
   旋转与分屏都不重建 Activity）。
 
@@ -1761,7 +1788,7 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
   `pane_divider_draggable` 有 `false`/`true`；
 - `QUICK=1 ./test/run_core.sh` **53/53**（两项各跑一次）；
 - 需要真机确认：切英文后设置页无截断、平板横屏双栏可拖且重启保持、分屏不重叠、
-  手机竖屏单栏可用 ⬄ 来回切。
+  手机竖屏保持双栏且 ⬄ 仍是交换两栏内容。
 
 ---
 
