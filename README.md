@@ -36,7 +36,14 @@ adb install -r out/HexFile-*.apk
 │   ├── values/                  # colors / strings
 │   └── drawable/                # 矢量图标（ic_launcher / ic_folder / ic_file）
 └── src/com/hex91/file
-    ├── MainActivity.java        # 双栏主界面
+    ├── MainActivity.java        # 双栏主界面（UI 装配 / 菜单分发 / 多选批量 / 跨模块编排）
+    ├── Pane.java                # 单窗格状态（视图引用 + 目录 / 压缩包浏览 / 历史栈 / 代次）
+    ├── DirectoryController.java # 读目录 / 下拉刷新 / 历史栈 / 冷启动恢复
+    ├── ArchiveController.java   # 压缩包内浏览（打开、密码、条目操作、查看编辑、提取）
+    ├── TaskUiController.java    # 任务条 / 任务中心 / 「上次有任务被中断」
+    ├── DrawerController.java    # 左侧抽屉入口、存储容量、Root 状态
+    ├── PropsController.java     # 属性 / 权限 / 时间 / 所有者 / 哈希弹窗
+    ├── StorageStat.java         # 存储容量统计（顶栏与抽屉共用）
     ├── FileAdapter.java         # 目录优先排序的列表适配器
     ├── FileItem.java            # 文件条目模型
     ├── FileOps.java             # 复制/移动/删除/重命名/新建 + MD5/SHA256/CRC32
@@ -1665,6 +1672,49 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.0.0（versionCode 182）—— MainActivity 拆分：6,518 行 → 4,465 行
+
+纯搬运，**零行为改动**：不碰布局、不动文案、不改排序/过滤规则、不换线程模型、不引第三方库。
+动因是 `MainActivity` 已经 6,500 行、241 个方法，改一处要在上万行里找上下文；
+先把这个「上帝类」按住，后面拆包（198 个类同包）才有清晰的包边界。
+
+### 拆分结果
+
+| 文件 | 行数 | 职责 |
+|---|---|---|
+| `MainActivity.java` | 6,518 → **4,465** | 只留 UI 装配、菜单分发、多选/批量、跨模块编排 |
+| `Pane.java` | 51 | 单窗格的视图引用 + 浏览状态（原 `MainActivity.Panel`） |
+| `DirectoryController.java` | 305 | 读目录 / 下拉刷新 / 历史栈 / 冷启动恢复 |
+| `ArchiveController.java` | 1,031 | 压缩包内浏览：打开关闭、密码、条目操作、查看编辑、提取、DEX/ARSC |
+| `TaskUiController.java` | 255 | 任务条、任务中心入口、「上次有任务被中断」提示 |
+| `DrawerController.java` | 259 | 左侧抽屉 16 个入口、存储容量、Root 状态 |
+| `PropsController.java` | 654 | 属性 / 权限 / 修改时间 / 所有者 / 哈希弹窗 |
+| `StorageStat.java` | 82 | 路径 → 实际分区 → StatFs（顶栏与抽屉共用） |
+| `GridAction.java` | 12 | 双列宫格弹窗的动作回调 |
+
+### 怎么搬的（保证可回滚）
+
+- **一个控制器一个提交**：`git revert <sha>` 即可单独撤掉某一刀，不需要 squash；
+- **壳方法签名一字未改**：`loadDir(p, dir)`、`refreshAll()`、`showProps(f)` 等 25+ 个调用点零改动，
+  出问题时先怀疑搬运逻辑而不是「谁改了签名」；
+- **控制器只依赖 Host 接口**：`ctx()/toast()/ui()/loadDir()/refreshAll()/other()` 这些能力由 Activity 实现并转发，
+  控制器不持有 Activity 字段、不自己 `new Handler`（沿用主线程那个 `taskUi`，读目录的 20 秒看门狗也在用）；
+- **`ui(Runnable)` 统一判 `alive()`**：原来 Activity 销毁后仍会 `runOnUiThread` 的回调不再白跑。
+
+### 三个「改错就点不动」的地方，原样保留
+
+1. `showArchiveDir` 回主线程后校验 `p.archive != a || !prefix.equals(p.archPrefix)` —— 压缩包侧的代次；
+2. `openArchiveInPane` 同包重开时只 `close` 旧 `Archive`、不重置 `archPrefix`；
+3. `archPwError` 先 `ArchivePasswords.clear` 再弹框，否则密码错时永远拿旧密码重试。
+
+### 验收
+
+- `./build.sh` 0 error，`out/HexFile-2.0.0.apk`（13.1 MB，V3 签名）；
+- `QUICK=1 ./test/run_core.sh` **pass=52 fail=0 skip=0**（每刀都跑了一遍）；
+- `grep -c "\bPanel\b" MainActivity.java` → 0；`loadDir` 只剩两个壳方法。
 
 ---
 
