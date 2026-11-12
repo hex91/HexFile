@@ -119,6 +119,11 @@ public class SettingsActivity extends BaseActivity {
                 public void onClick(View v) { resetWorkDir(); }
             });
         }
+        // v1.99.2（R-06）：上次压缩/解压失败留下的 .bakrepl / .part 在这里能看见
+        row(files, "遗留文件", "上次失败留下的 .bakrepl（原内容备份）/ .part（半成品）。只列出，不动任何文件。",
+                "", new View.OnClickListener() {
+                    public void onClick(View v) { scanLeftovers(); }
+                });
 
         // ---- 权限 ----
         LinearLayout perm = section("权限");
@@ -394,6 +399,97 @@ public class SettingsActivity extends BaseActivity {
         } catch (Throwable t) {
             toast("当前系统没有文件选择器：" + t.getClass().getSimpleName());
         }
+    }
+
+    // ---------------------------------------------------------------- 遗留文件（v1.99.2 R-06）
+
+    /**
+     * 扫描工作目录里的遗留文件。
+     *
+     * <p>扫描只读（{@link LeftoverScan#scan} 不改任何东西）；列出后由用户点具体条目再确认删除 ——
+     * {@code .bakrepl} 里可能就是原文件的全部内容，自动清理等于替用户做决定。</p>
+     *
+     * <p>目录大时扫描要几秒，走 {@link Bg}，不占 UI 线程。</p>
+     */
+    private void scanLeftovers() {
+        final File root = new File(WorkDir.path());
+        toast("正在扫描 " + root.getPath());
+        Bg.io(new Runnable() {
+            public void run() {
+                final java.util.List<LeftoverScan.Hit> hits = LeftoverScan.scan(root);
+                Bg.ui(new Runnable() {
+                    public void run() { showLeftovers(hits); }
+                });
+            }
+        }, new Bg.Fail() {
+            public void onFail(Throwable t) {
+                toast("扫描失败：" + t.getClass().getSimpleName());
+            }
+        });
+    }
+
+    private void showLeftovers(java.util.List<LeftoverScan.Hit> hits) {
+        if (isFinishing()) return;
+        if (hits.isEmpty()) {
+            new HfDialogBuilder(this)
+                    .setTitle("没有遗留文件")
+                    .setMessage("工作目录里没有 .bakrepl / .replacebak / .part。\n\n"
+                            + "压缩包写回失败时才会留下备份，平时看不到是正常的。")
+                    .setPositiveButton("好", null)
+                    .show();
+            return;
+        }
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = dp(12);
+        box.setPadding(pad, pad, pad, pad);
+        long total = 0;
+        for (LeftoverScan.Hit h : hits) total += h.size;
+        TextView head = new TextView(this);
+        head.setText(hits.size() + " 个，共 " + FileOps.formatSize(total)
+                + "。点条目可单独删除。");
+        head.setTextSize(12f);
+        head.setTextColor(ThemeManager.textSub(this));
+        head.setPadding(0, 0, 0, dp(8));
+        box.addView(head);
+        for (final LeftoverScan.Hit h : hits) {
+            TextView t = new TextView(this);
+            t.setText(h.file.getName() + "\n" + h.file.getParent() + "  ·  "
+                    + FileOps.formatSize(h.size));
+            t.setTextSize(12.5f);
+            t.setTextColor(ThemeManager.text(this));
+            t.setPadding(dp(4), dp(9), dp(4), dp(9));
+            t.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { confirmDeleteLeftover(h); }
+            });
+            box.addView(t);
+        }
+        ScrollView sv = new ScrollView(this);
+        sv.addView(box);
+        new HfDialogBuilder(this)
+                .setTitle("遗留文件")
+                .setView(sv)
+                .setPositiveButton("关闭", null)
+                .show();
+    }
+
+    private void confirmDeleteLeftover(final LeftoverScan.Hit h) {
+        boolean isBak = h.file.getName().endsWith(LeftoverScan.BAK)
+                || h.file.getName().endsWith(LeftoverScan.BAK_LEGACY);
+        new HfDialogBuilder(this)
+                .setTitle(isBak ? "删除备份？" : "删除半成品？")
+                .setMessage(h.file.getPath() + "\n\n"
+                        + (isBak
+                        ? "这是 " + h.owner + " 的备份，里面可能装着上一次替换失败前的原内容。"
+                          + "删掉就无法从这里恢复了。"
+                        : "这是没写完的临时文件，删除不会影响已完成的文件。"))
+                .setPositiveButton("删除", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        toast(LeftoverScan.delete(h.file) ? "已删除" : "删除失败（可能被占用）");
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     private void pickWorkDir() {

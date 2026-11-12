@@ -76,6 +76,7 @@ public class TreeOpsTest {
             t4CopyDoesNotFollow(base);
             t5CopyLinkUnsupported(base);
             t6DepthGuard(base);
+            t7CopyLinkSource(base);
             // v1.99.1：临时文件替换的用例已迁到 AtomicReplaceTest（三处共用一份实现）
         } finally {
             deleteTree(base);
@@ -191,6 +192,47 @@ public class TreeOpsTest {
         }
         // 超过上限的那部分按 0 计，属预期行为；这里只要求「不崩、不无限递归」
         ok(TreeOps.MAX_DEPTH > 0, "深度上限已定义 = " + TreeOps.MAX_DEPTH);
+    }
+
+    /**
+     * v1.99.2（R-02）：<b>顶层</b>就是链接时同样不能跟进。
+     *
+     * <p>之前只在递归里判子项，入口直接 {@code dst.mkdirs() + src.listFiles()} ——
+     * 于是「复制一个看起来像目录的链接」会把链接目标的整棵树复制一份。
+     * 真机上这种「看起来像目录的链接」很常见（不少 ROM 的 /sdcard 本身就是链接）。</p>
+     */
+    static void t7CopyLinkSource(File base) throws Exception {
+        File root = mk(base, "t7");
+        File target = mk(root, "target");
+        write(new File(target, "secret.txt"), "不该被复制");
+        mk(target, "deep");
+
+        // 名字 ln- 开头 → 桩视为链接；这里让它「目标内容」与 target 同构
+        File srcLink = mk(root, "ln-src");
+        write(new File(srcLink, "secret.txt"), "不该被复制");
+        mk(srcLink, "deep");
+
+        File dst = new File(root, "dst");
+        TreeOps.copyDir(srcLink, dst, STUB, null);
+        ok(dst.exists(), "顶层链接在目标位置被复刻成链接");
+        ok(!new File(dst, "secret.txt").exists(), "链接指向的内容没有被复制过来");
+        ok(!new File(dst, "deep").exists(), "链接指向的子目录没有被复制过来");
+
+        // 文件系统不支持链接：有跳过出口 → 跳过并计数，不留空目录
+        File dst2 = new File(root, "dst2");
+        int[] skipped = new int[1];
+        TreeOps.copyDir(srcLink, dst2, STUB_NO_COPY, skipped);
+        ok(!dst2.exists(), "复刻不了时不留下空目录骗人");
+        eqi(1, skipped[0], "跳过数被记录");
+
+        // 没有跳过出口 → 必须明确失败，而不是悄悄返回一个空目录
+        boolean threw = false;
+        try {
+            TreeOps.copyDir(srcLink, new File(root, "dst3"), STUB_NO_COPY, null);
+        } catch (IOException e) {
+            threw = true;
+        }
+        ok(threw, "没有跳过出口时抛异常而不是静默成功");
     }
 
     // ------------------------------------------------------------------ 工具

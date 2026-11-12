@@ -130,6 +130,21 @@ public final class TreeOps {
      */
     public static void copyDir(File src, File dst, LinkProbe probe, int[] skipped)
             throws IOException {
+        if (src == null || dst == null) throw new IOException("路径为空");
+        // v1.99.2（R-02）：入口这一层也得判，之前只在递归里判子项。
+        // src 本身是链接时，下面的 dst.mkdirs() + src.listFiles() 全都会跟进到目标 ——
+        // 「复制一个链接目录」于是变成「把目标整棵树复制一份」，和 S-1 完全同一个失效模式，
+        // 只是因为少了一次判断就从后门漏了回来。
+        if (probe.isLink(src)) {
+            if (probe.copyLink(src, dst)) return;
+            if (skipped != null && skipped.length > 0) {
+                skipped[0]++;
+                return;
+            }
+            // 没有「跳过计数」出口就说明调用方要的是「要么成要么失败」，
+            // 不能悄悄返回一个空目录，让用户以为复制成功了
+            throw new IOException("目标文件系统不支持符号链接: " + src.getPath());
+        }
         copyDir(src, dst, probe, skipped, 0);
     }
 

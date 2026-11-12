@@ -106,6 +106,47 @@ public final class FileTaskEngine {
 
     public void setRootFallback(RootFallback r) { root = r; }
 
+    // ------------------------------------------------------------------ 未完成任务账本（R-07）
+
+    /** 账本文件；null = 不记账（桌面单测、只关心拷贝行为的调用方） */
+    private File journalFile;
+
+    /**
+     * v1.99.2（R-07）：设置账本位置。
+     *
+     * <p><b>刻意不在这里写一次</b>：启动时 {@code all} 是空的，一写就把上个进程留下的账本
+     * 清成「没有未完成任务」—— 而那份内容正是这次要读的东西。账本由 submit 与
+     * 任务结束时的 {@link #writeJournal()} 维护。</p>
+     */
+    public void setJournalFile(File f) {
+        journalFile = f;
+    }
+
+    /**
+     * 把「还没结束的任务」写回账本。任务进队列、每次结束各写一次 —— 都很短（几条路径），
+     * 相比拷贝几个 G 的耗时可以忽略；换来的是进程被清掉后能告诉用户「上次做到哪」。
+     *
+     * <p>已请求取消的任务不记：用户按了取消，重启后再劝他重试是反直觉的。</p>
+     */
+    private void writeJournal() {
+        if (journalFile == null) return;
+        java.util.List<TaskJournal.Entry> es = new java.util.ArrayList<TaskJournal.Entry>();
+        synchronized (lock) {
+            for (FileTask t : all) {
+                if (t.finished() || t.cancelRequested) continue;
+                if (t.srcs == null || t.dstDir == null) continue;
+                es.add(new TaskJournal.Entry(t.kind, t.dstDir, t.srcs));
+            }
+        }
+        TaskJournal.save(journalFile, es);
+    }
+
+    /** v1.99.2（R-07）：按同一个来源与目标再提交一次，用于任务面板的「重试」 */
+    public FileTask retry(FileTask old) {
+        if (old == null || old.srcs == null || old.srcs.isEmpty() || old.dstDir == null) return null;
+        return submit(old.kind, old.srcs, old.dstDir);
+    }
+
     /**
      * 提交一批文件/目录到 dstDir。
      * 立即返回任务对象（此时状态 QUEUED），真正的量体积与拷贝在工作线程里做。
@@ -117,7 +158,9 @@ public final class FileTaskEngine {
             t = new FileTask(seq++, kind,
                     (kind == FileTask.MOVE ? "移动 " : "复制 ") + srcs.size() + " 项",
                     dstDir.getPath());
-            pending.add(new Job(t, new ArrayList<File>(srcs), dstDir));
+            t.srcs = new ArrayList<File>(srcs);      // R-07：留一份给「重试」与账本
+            t.dstDir = dstDir;
+            pending.add(new Job(t, t.srcs, dstDir));
             all.add(t);
             // 淘汰策略：只从头部删「已结束」的，绝不碰队列里的
             while (all.size() > HISTORY_MAX) {
@@ -134,6 +177,7 @@ public final class FileTaskEngine {
             }
             lock.notifyAll();
         }
+        writeJournal();
         fire();
         return t;
     }
@@ -255,6 +299,7 @@ public final class FileTaskEngine {
                 t.doneBytes = Math.max(t.doneBytes, t.totalBytes);
                 t.doneFiles = Math.max(t.doneFiles, t.totalFiles - t.failedFiles);
             }
+            writeJournal();      // R-07：这个任务结束了，账本里就不该再有它
             fire();
         }
     }
@@ -431,6 +476,15 @@ public final class FileTaskEngine {
         // 期间点取消却毫无反应，用户会以为按钮坏了。
         if (t.cancelRequested) throw new Cancel();
         if (depth > MAX_DEPTH) return;
+        // v1.99.2（R-03）：量分母时链接不跟进。
+        // 进度是 doneBytes/totalBytes，分母把链接目标的整棵树算进来、分子却只在
+        // copyNode 里给复刻成功的链接 +1 —— 只要目录里有一条指向大目录的链接，
+        // 百分比就会停在一个永远到不了的值上（链接成环时还会量到上限 64 层）。
+        // 链接在复制时被复刻成「一条链接」，所以这里按 1 个条目计，分子分母才对得上。
+        if (LinkUtil.isLink(f)) {
+            t.totalFiles++;
+            return;
+        }
         if (f.isDirectory()) {
             File[] kids = f.listFiles();
             if (kids == null) return;

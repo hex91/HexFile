@@ -1668,6 +1668,95 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.99.2（versionCode 180）—— 三处同类软链漏网 + 两个服务语义
+
+第五轮审查。前三条是 S-1 同一个失效模式从后门漏回来的（都发生在**入口**而不是递归里），
+后两条是前台服务的语义与实现不一致。
+
+### 一、R-01 压缩「添加目录」仍跟随软链
+
+`ZipUtil.addToZip` 直接 `file.isDirectory()` + `file.listFiles()`，两个都会跟随链接：
+
+- 压缩一个指向大目录的链接 → 目标整棵树被打进 zip（体积与耗时都爆）；
+- 链接成环 → 递归没有深度上限，直接 `StackOverflowError`（`Error`，`catch (Exception)` 都接不住）。
+
+`addToZip` / `walk`（加密 zip 的 `flatten` 路径）现在都带两条防线：`probe.isLink()` 跳过 +
+`depth > TreeOps.MAX_DEPTH` 截断。zip 条目里没有「软链接」这个概念，所以链接本身也跳过；
+选中项**全是**链接时不再返回 true 给出一个空包，而是删掉产物返回 false。
+
+顺带给 `createZip` 加了 `LinkProbe` 重载：真机用 `TreeOps.SYSTEM`（`lstat`），桌面单测注入桩，
+于是这条规则第一次有了自动化用例（`test/ZipUtilTest.java`）。
+
+### 二、R-02 `TreeOps.copyDir` 只判 dst、没判 src
+
+递归里判了每个子项 `probe.isLink(k)`，但**入口这一层没判**：
+
+```java
+// 之前：src 本身是链接时，下面两行全都跟进到目标
+if (!dst.isDirectory() && !dst.mkdirs() ...) throw ...;
+File[] kids = src.listFiles();
+```
+
+「复制一个看起来像目录的链接」于是变成「把目标整棵树复制一份」。真机上这种链接很常见
+（不少 ROM 的 `/sdcard` 本身就是链接）。现在入口先判：能复刻就复刻一条链接，
+复刻不了按 `skipped` 计数跳过，没有跳过出口则明确抛异常（不悄悄返回一个空目录骗人）。
+
+### 三、R-03 进度分母统计跟随软链
+
+`measure` 是进度条的**分母**（`doneBytes/totalBytes`），它跟进链接而 `copyNode` 只给复刻成功的
+链接 `doneFiles++`（分子 +1）。于是目录里只要有一条指向大目录的链接，百分比就停在一个永远到不了 100
+的值上。现在 `measure` 遇链接按「1 个条目、0 字节」计，与 `copyNode` 的计数口径对齐。
+
+### 四、R-04 `startForeground` 失败只记日志
+
+原来 catch 里只 `Log.w`，注释却写着「失败则停掉自己」。实际后果比注释更严重：
+`startForegroundService` 之后没在 5 秒内落地前台状态，API 26+ 会抛
+`ForegroundServiceDidNotStartInTimeException` 把**整个进程**带走（正在跑的任务一起死）。
+
+现在：失败 → `stopSelf()` + `return`（不订阅引擎、不置 `running`），并记一个 60 秒退避
+`retryAfter` —— 否则引擎每 120ms 一次进度回调就会重新 `startForegroundService` 再崩一次。
+`refresh` 也加了 `foreground` 守卫：状态没落地就不再碰通知栏。
+
+### 五、R-05 通知栏「取消」等于 `cancelAll()`
+
+通知上那条「取消」对着的是**当前正在跑的任务**，原来却调 `cancelAll()` —— 用户排在后面的
+复制任务一起被干掉，而通知上没有任何「全部取消」的暗示。现在 `PendingIntent` 带
+`task_id`（`FLAG_UPDATE_CURRENT` 让 extra 随通知刷新），服务按 id 调 `cancel(id)`；
+没有 id（老版本发的 Intent）才退回 `cancelAll()`。
+
+### 六、R-06 失败后的 `.bakrepl` / `.part` 无提示、无清理入口
+
+替换失败时保留备份与临时文件是**对的**（可能是唯一完好的副本），但之前没人告诉用户它们在哪：
+
+- `AtomicReplace.replaceWith()` 把失败原因连同「原内容备份在 …」「新内容保留在 …」一起返回，
+  同时记进 `lastError`；`ZipUtil` / `ArchiveWrite` 写回失败会打日志，
+  `MainActivity.writeFailMsg()` 把这段拼进「写入失败 / 删除失败」的提示里；
+- 设置页新增「遗留文件」：递归扫描工作目录（不跟进链接、深度上限），列出
+  `.bakrepl` / `.replacebak` / `.part` 的大小与所属原文件。**扫描只读**，删除要点进具体条目再确认 ——
+  备份里可能装着原文件的全部内容，自动清理等于替用户做决定。
+
+### 七、R-07 任务无重试、被杀后无解释
+
+- **账本**：新增 `TaskJournal`（纯 Java，可单测）。任务进队列时把「类型 + 源列表 + 目标目录」
+  写进应用私有目录的 `task_journal`，任务结束重写，全部结束就删文件。取消过的任务不记
+  （用户按了取消，重启后再劝他重试是反直觉的）。
+- **启动提示**：主界面启动时账本非空 → 「上次有任务没做完」，说明可能是被系统清理或强退，
+  给「重试 / 忽略」两个选择。重试就是把每条按原来源与目标重新提交。
+- **面板重试**：`FileTask` 现在留着 `srcs` / `dstDir`，失败、部分失败、被取消的任务在任务面板里
+  多一个「↻ 重试」，不用让用户重新选一遍（大目录尤其折腾）。
+
+### 测试
+
+| 用例 | 覆盖 |
+|---|---|
+| `ZipUtilTest`（新增 13 项） | 普通目录结构完整；链接目录整条跳过、目标内容不入包；全链接 → false 且不留空包；70 层不爆栈 |
+| `TreeOpsTest`（新增 5 项） | 顶层链接复刻成链接、目标内容不复制；复刻不支持时跳过并计数；无跳过出口时抛异常 |
+| `TaskJournalTest`（新增 12 项） | 含空格/中文/反斜杠的路径原样往返；空列表删文件；文件头不对返回空且不抛 |
+| `LeftoverScanTest`（新增 13 项） | 三种后缀识别、普通文件不混入、`ownerOf` 反推原文件、`delete` 拒绝正经文件 |
+| `AtomicReplaceTest`（新增 5 项） | 失败消息含临时文件路径、`lastError` 与返回一致、原文件内容不变 |
+
+`QUICK=1 ./test/run_core.sh` → **52/52 PASS**。
+
 ## v1.99.1（versionCode 179）—— 原子替换收成一处、软链判断收进 LinkUtil
 
 ### 一、`AtomicReplace`：三处共用一份「失败不让原文件消失」

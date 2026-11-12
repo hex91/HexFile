@@ -43,6 +43,15 @@ public final class FileTask {
     public volatile int doneFiles;
     public volatile int failedFiles;
 
+    /**
+     * v1.99.2（R-07）：原始来源与目标目录，供「重试」重建同一个任务。
+     *
+     * <p>只存在内存里（由引擎在 submit 时填），界面拿它做重试；序列化那部分在
+     * {@link TaskJournal} —— 进程被杀时内存里的这些都随进程消失了，靠账本恢复。</p>
+     */
+    public volatile java.util.List<java.io.File> srcs;
+    public volatile java.io.File dstDir;
+
     public volatile boolean cancelRequested;
     /** 最近一次错误（含文件名），失败/部分失败时展示 */
     public volatile String message;

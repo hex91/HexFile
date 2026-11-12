@@ -31,16 +31,57 @@ public final class AtomicReplace {
     public static final String BAK_SUFFIX = ".bakrepl";
 
     /**
+     * v1.99.2（R-06）：最近一次失败的完整说明（含遗留文件路径）。
+     *
+     * <p>压缩包写回的调用链是「boolean 上去 + 界面弹一句『压缩失败』」，
+     * 中间没有地方放文字；用户磁盘上多了个 {@code xxx.bakrepl} 却不知道它是什么。
+     * 这里留一份最近失败原因，界面在弹失败提示时拼上。并发写只有一个赢家，
+     * 而失败场景下用户一次只做一件事，够用。</p>
+     */
+    public static volatile String lastError;
+
+    /** 替换结果（成功 {@code message} 为 null） */
+    public static final class Result {
+        public final boolean ok;
+        public final String message;
+
+        Result(boolean ok, String message) {
+            this.ok = ok;
+            this.message = message;
+        }
+    }
+
+    /**
      * 用 {@code tmp} 覆盖 {@code target}，成功返回 true。
      *
-     * <p>失败不抛异常，供「失败 = 返回 false + 界面提示」的调用方使用。</p>
+     * <p>失败不抛异常，供「失败 = 返回 false + 界面提示」的调用方使用；
+     * 具体原因见 {@link #lastError}。</p>
      */
     public static boolean tryReplace(File tmp, File target) {
+        return replaceWith(tmp, target).ok;
+    }
+
+    /**
+     * 同 {@link #tryReplace}，但把失败原因带回来（含备份与临时文件的路径），
+     * 让上层能把「东西去哪了」告诉用户，而不是只说一句失败。
+     */
+    public static Result replaceWith(File tmp, File target) {
         try {
             replace(tmp, target);
-            return true;
+            lastError = null;
+            return new Result(true, null);
         } catch (IOException e) {
-            return false;
+            StringBuilder sb = new StringBuilder(
+                    e.getMessage() == null ? "替换失败" : e.getMessage());
+            // R-06：把可能留在原目录里的文件点出来 —— 用户在自己文件夹里看到它们时能对上号
+            File parent = target == null ? null : target.getParentFile();
+            if (parent != null && target != null) {
+                File bak = new File(parent, target.getName() + BAK_SUFFIX);
+                if (bak.exists()) sb.append("；原内容备份在 ").append(bak.getPath());
+            }
+            if (tmp != null && tmp.exists()) sb.append("；新内容保留在 ").append(tmp.getPath());
+            lastError = sb.toString();
+            return new Result(false, lastError);
         }
     }
 
@@ -65,7 +106,7 @@ public final class AtomicReplace {
         File bak = new File(parent, target.getName() + BAK_SUFFIX);
         if (bak.exists() && !bak.delete()) {
             // 旧备份清不掉（被占用）：不硬来，原文件一个字节都不动
-            throw new IOException("旧备份无法清理: " + bak.getName());
+            throw new IOException("旧备份无法清理: " + bak.getPath());
         }
         boolean hadOld = target.exists();
         if (hadOld && !target.renameTo(bak)) {
@@ -74,7 +115,7 @@ public final class AtomicReplace {
             copy(target, bak);
             if (!target.delete()) {
                 bak.delete();
-                throw new IOException("原文件无法挪开: " + target.getName());
+                throw new IOException("原文件无法挪开（复制出的备份也删不掉）: " + target.getPath());
             }
         }
 

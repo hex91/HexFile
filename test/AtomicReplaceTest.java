@@ -33,6 +33,7 @@ public class AtomicReplaceTest {
             sameVolume(base);
             noTarget(base);
             missingTmp(base);
+            messageOnFailure(base);
             crossVolume(base);
         } finally {
             deleteTree(base);
@@ -113,6 +114,26 @@ public class AtomicReplaceTest {
         } finally {
             tmp.delete();
         }
+    }
+
+    /**
+     * v1.99.2（R-06）：失败必须能说清「东西去哪了」。
+     *
+     * <p>界面上的提示原来只有一句「压缩失败」，而磁盘上多了一个 {@code .bakrepl} ——
+     * 用户既不知道它是什么，也不敢删。这里要求失败消息里带上临时文件路径。</p>
+     */
+    static void messageOnFailure(File base) throws Exception {
+        File target = new File(base, "msg.txt");
+        write(target, "old");
+        File tmp = new File(base, "msg.txt.tmp");      // 故意不创建
+        AtomicReplace.Result r = AtomicReplace.replaceWith(tmp, target);
+        ok(!r.ok, "临时文件不存在 → 替换失败");
+        ok(r.message != null && r.message.length() > 0, "失败消息非空");
+        ok(r.message != null && r.message.contains("msg.txt.tmp"),
+                "失败消息带上临时文件路径（" + r.message + "）");
+        ok(AtomicReplace.lastError != null && AtomicReplace.lastError.equals(r.message),
+                "lastError 与返回消息一致（界面可直接拼进提示）");
+        ok("old".equals(read(target)), "失败时原文件内容未变");
     }
 
     // ------------------------------------------------------------------ 工具

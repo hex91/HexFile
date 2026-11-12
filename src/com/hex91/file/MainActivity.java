@@ -206,6 +206,7 @@ public class MainActivity extends BaseActivity {
         setupPanel(left);
         setupPanel(right);
         restorePanesOrLoad(b);
+        setupTaskJournal();
         // v1.80.0：视图模式也持久化（和排序/隐藏文件同一份偏好），重启保持
         viewMode = getSharedPreferences(PREF_UI, MODE_PRIVATE).getInt(KEY_VIEW, VIEW_LIST);
         applyViewMode();
@@ -433,6 +434,54 @@ public class MainActivity extends BaseActivity {
     }
 
     /** 任务面板：所有任务的进度、速度、目标目录，可逐个取消 */
+    // ============================================================ 未完成任务（v1.99.2 R-07）
+
+    /**
+     * 任务账本：未完成的任务写在应用私有目录。启动时还有内容，就说明上个进程没跑完 ——
+     * 被系统清了，或者用户强退了。这里问一句「要不要重试」，而不是让用户对着
+     * 目标目录里的一堆 {@code .part} 自己猜发生过什么。
+     */
+    private void setupTaskJournal() {
+        final File jf = new File(getFilesDir(), TaskJournal.FILE_NAME);
+        // 先读再设：setJournalFile 不写盘，顺序本身不致命，但读在前总是对的
+        final List<TaskJournal.Entry> pending = TaskJournal.load(jf);
+        FileTaskEngine.get().setJournalFile(jf);
+        if (pending.isEmpty()) return;
+        listLeft.post(new Runnable() {
+            public void run() { showInterrupted(pending, jf); }
+        });
+    }
+
+    private void showInterrupted(final List<TaskJournal.Entry> pending, final File jf) {
+        if (isFinishing()) return;
+        int items = 0;
+        for (TaskJournal.Entry e : pending) items += e.srcs.size();
+        StringBuilder sb = new StringBuilder();
+        sb.append(pending.size()).append(" 个任务（共 ").append(items)
+                .append(" 项文件）上次没有做完。\n\n可能是被系统清理，或应用被强制结束。\n\n");
+        sb.append("目标目录：").append(pending.get(0).dstDir.getPath());
+        if (pending.size() > 1) sb.append(" 等");
+        new HfDialogBuilder(this)
+                .setTitle("上次有任务没做完")
+                .setMessage(sb.toString())
+                .setPositiveButton("重试", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        int n = 0;
+                        for (TaskJournal.Entry e : pending) {
+                            if (FileTaskEngine.get().submit(e.kind, e.srcs, e.dstDir) != null) n++;
+                        }
+                        TaskService.start(MainActivity.this);
+                        toast("已重新提交 " + n + " 个任务");
+                    }
+                })
+                .setNegativeButton("忽略", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        TaskJournal.save(jf, new java.util.ArrayList<TaskJournal.Entry>());
+                    }
+                })
+                .show();
+    }
+
     private void showTaskPanel() {
         final LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
@@ -544,6 +593,22 @@ public class MainActivity extends BaseActivity {
                 public void onClick(View v) { FileTaskEngine.get().cancel(t.id); }
             });
             foot.addView(cancel);
+        } else if (t.finished() && t.state != FileTask.DONE
+                && t.srcs != null && !t.srcs.isEmpty()) {
+            // v1.99.2（R-07）：失败 / 部分失败 / 取消过的任务一键重来 ——
+            // 源和目标都还在 FileTask 里，不需要用户再选一遍（大目录尤其折腾）
+            TextView again = UiDecor.action(this, "↻", "重试", ThemeManager.accent(this));
+            again.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) {
+                    FileTask nt = FileTaskEngine.get().retry(t);
+                    if (nt == null) toast("无法重试：原始来源已不可用");
+                    else {
+                        TaskService.start(MainActivity.this);
+                        toast("已重新提交");
+                    }
+                }
+            });
+            foot.addView(again);
         }
         card.addView(foot);
         return card;
@@ -2984,9 +3049,22 @@ public class MainActivity extends BaseActivity {
         }
     }
 
+    /**
+     * v1.99.2（R-06）：写回失败的说明。
+     *
+     * <p>压缩包写回失败时 {@link AtomicReplace} 会把原内容挪成 {@code .bakrepl}、把新内容留在临时文件，
+     * 这些路径记在 {@code lastError} 里 —— 必须拼进提示，否则用户只看到「写入失败」，
+     * 同时在自己目录里发现一个不认识的 {@code xxx.bakrepl}。</p>
+     */
+    private static String writeFailMsg(String what) {
+        String why = AtomicReplace.lastError;
+        return why == null ? what : what + "（" + why + "）";
+    }
+
     /** 执行「压缩包条目 → 对面压缩包」：提取到缓存 → 逐文件写入 → 可选删源条目 */
     private void addEntriesToArchive(final Panel src, final List<FileItem> entries,
             final Panel dst, final String nameOverride, final boolean move) {
+        AtomicReplace.lastError = null;      // R-06：旧失败原因不能安到这次头上
         toast("写入压缩包…");
         new Thread(new Runnable() {
             public void run() {
@@ -3017,7 +3095,7 @@ public class MainActivity extends BaseActivity {
                                 if (dstApk) {
                                     ApkEditSession.stageAdd(MainActivity.this, dst.archiveFile, root, extracted);
                                 } else if (!ArchiveWrite.writeEntry(dst.archiveFile, root, extracted)) {
-                                    throw new RuntimeException("写入失败: " + root);
+                                    throw new RuntimeException(writeFailMsg("写入失败: " + root));
                                 }
                             } else {
                                 throw new RuntimeException("提取失败: " + it.archPath());
@@ -3033,7 +3111,8 @@ public class MainActivity extends BaseActivity {
                             if (ApkEditSession.isApk(src.archiveFile)) {
                                 ApkEditSession.putRemove(MainActivity.this, src.archiveFile, names);
                             } else if (!ArchiveWrite.removeEntries(src.archiveFile, names)) {
-                                throw new RuntimeException("源归档删除失败（内容已复制）");
+                                throw new RuntimeException(
+                                        writeFailMsg("源归档删除失败（内容已复制）"));
                             }
                         }
                     } catch (Throwable t) {
@@ -3084,7 +3163,7 @@ public class MainActivity extends BaseActivity {
                                 // v1.66.8：APK 删除条目 → 会话登记 + 重打包写回原包
                                 ApkEditSession.putRemove(MainActivity.this, p.archiveFile, names);
                             } else if (!ArchiveWrite.removeEntries(p.archiveFile, names)) {
-                                err = "删除失败";
+                                err = writeFailMsg("删除失败");
                             }
                         } catch (Throwable t) {
                             err = t.getMessage();
@@ -3655,7 +3734,7 @@ public class MainActivity extends BaseActivity {
                                     archPane.archiveFile, root, f);
                         } else {
                             if (!ArchiveWrite.writeEntry(archPane.archiveFile, root, f)) {
-                                err = "写入失败: " + root;
+                                err = writeFailMsg("写入失败: " + root);
                                 break;
                             }
                         }
@@ -3706,7 +3785,7 @@ public class MainActivity extends BaseActivity {
                 ApkEditSession.stageAdd(MainActivity.this, archive, entry, k);
             } else {
                 if (!ArchiveWrite.writeEntry(archive, entry, k)) {
-                    throw new RuntimeException("写入失败: " + entry);
+                    throw new RuntimeException(writeFailMsg("写入失败: " + entry));
                 }
             }
         }
@@ -5710,7 +5789,13 @@ public class MainActivity extends BaseActivity {
                         } else {
                             ok = ZipUtil.createZipEncrypted(out, src, p, 3 - sel[0]); // 0→256,1→192,2→128
                         }
-                        toast(ok ? "已压缩: " + out.getName() : "压缩失败");
+                        if (ok) {
+                            toast("已压缩: " + out.getName());
+                        } else {
+                            // 压缩是「新建文件」，不经过原子替换，所以这里没有 lastError 可用；
+                            // 最常见的两种失败：源全是软链接（会被跳过，不写进包）、目标不可写
+                            toast("压缩失败（全是软链接/无法读取，或目标不可写）");
+                        }
                         refreshAll();
                     }
                 })

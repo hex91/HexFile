@@ -203,7 +203,10 @@ public class ZipUtil {
                 }
                 putData(zos, cos.count, entryName, data);
             }
-            return AtomicReplace.tryReplace(tmp, zip);
+            // v1.99.2（R-06）：失败原因（含备份/临时文件路径）写日志，界面提示里也会带上
+            AtomicReplace.Result r = AtomicReplace.replaceWith(tmp, zip);
+            if (!r.ok) android.util.Log.w("ZipUtil", "写回压缩包失败: " + r.message);
+            return r.ok;
         } catch (Exception e) {
             return false;
         }
@@ -336,12 +339,28 @@ public class ZipUtil {
     }
 
     /** 把 sources 中的文件/目录打包成 zip（相对路径基于各自父目录） */
-    public static boolean createZip(File outZip, List<File> sources) {        try {
+    public static boolean createZip(File outZip, List<File> sources) {
+        return createZip(outZip, sources, TreeOps.SYSTEM);
+    }
+
+    /**
+     * 同上，链接探测可注入 —— 桌面没有 lstat，单测只能靠桩验证「不跟进链接」这条规则
+     * （与 {@link TreeOps.LinkProbe} 同一套设计，见 TreeOps 类注释「可测性」）。
+     */
+    public static boolean createZip(File outZip, List<File> sources, TreeOps.LinkProbe probe) {
+        try {
             outZip.getParentFile().mkdirs();
+            int written = 0;
             try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(outZip))) {
                 for (File s : sources) {
-                    addToZip(zos, s, s.getParentFile());
+                    written += addToZip(zos, s, s.getParentFile(), probe, 0);
                 }
+            }
+            // 选中项全是软链接时一个条目都写不进去：空 zip 不能算成功，
+            // 否则用户看到「压缩完成」却打不开任何东西
+            if (written == 0) {
+                outZip.delete();
+                return false;
             }
             return true;
         } catch (Exception e) {
@@ -349,14 +368,28 @@ public class ZipUtil {
         }
     }
 
-    private static void addToZip(ZipOutputStream zos, File file, File base) throws IOException {
+    /**
+     * @return 实际写入的条目数（0 表示这个源被整条跳过）
+     */
+    private static int addToZip(ZipOutputStream zos, File file, File base,
+            TreeOps.LinkProbe probe, int depth) throws IOException {
+        // v1.99.2（R-01）：两条防线，缺一不可。
+        // 1) 软链接不能跟：isDirectory()/listFiles() 都会跟进，压缩「一个指向大目录的链接」
+        //    等于把目标整棵树打进 zip（体积爆掉），链接成环时更是直接 StackOverflow；
+        // 2) 深度上限：即使真机上一条链接都没被识别出来（lstat 被拒），也不会无限递归。
+        // zip 条目里没有「软链接」这个概念，链接本身也一并跳过（不写成坏条目）。
+        if (file == null || depth > TreeOps.MAX_DEPTH) return 0;
+        if (probe.isLink(file)) return 0;
+        int written = 1;
         String rel = relativePath(file, base);
         if (file.isDirectory()) {
             if (!rel.endsWith("/")) rel += "/";
             zos.putNextEntry(new ZipEntry(rel));
             zos.closeEntry();
             File[] kids = file.listFiles();
-            if (kids != null) for (File k : kids) addToZip(zos, k, base);
+            if (kids != null) {
+                for (File k : kids) written += addToZip(zos, k, base, probe, depth + 1);
+            }
         } else {
             zos.putNextEntry(new ZipEntry(rel));
             FileInputStream fis = new FileInputStream(file);
@@ -364,6 +397,7 @@ public class ZipUtil {
             fis.close();
             zos.closeEntry();
         }
+        return written;
     }
 
     /** 计算 file 相对 base 的路径（minSdk 21 安全，不依赖 File.toPath） */
@@ -479,8 +513,10 @@ public class ZipUtil {
             java.util.Map<File, String> names) {
         java.util.List<File> out = new java.util.ArrayList<File>();
         for (File s : sources) {
+            // v1.99.2（R-01）：与 createZip 同一条规则 —— 链接不跟进，也不算作内容
+            if (TreeOps.SYSTEM.isLink(s)) continue;
             if (s.isDirectory()) {
-                walk(s, "", out, names);
+                walk(s, "", out, names, 0);
             } else {
                 out.add(s);
                 names.put(s, s.getName());
@@ -489,14 +525,18 @@ public class ZipUtil {
         return out;
     }
 
+    /** @see #addToZip 的两条防线（软链不跟进 + 深度上限） */
     private static void walk(File dir, String rel, java.util.List<File> out,
-            java.util.Map<File, String> names) {
+            java.util.Map<File, String> names, int depth) {
+        if (depth > TreeOps.MAX_DEPTH) return;
         File[] kids = dir.listFiles();
         if (kids == null) return;
         for (File k : kids) {
+            // 加密 zip 同样存不了链接，跟进只会把目标内容加密进包
+            if (TreeOps.SYSTEM.isLink(k)) continue;
             String childRel = rel.isEmpty() ? k.getName() : rel + "/" + k.getName();
             if (k.isDirectory()) {
-                walk(k, childRel, out, names);
+                walk(k, childRel, out, names, depth + 1);
             } else {
                 out.add(k);
                 names.put(k, childRel);
