@@ -1,4 +1,4 @@
-import com.hex91.file.AppManagerActivity;
+import com.hex91.file.ui.AppManagerActivity;
 
 /** v1.45.0 应用管理桌面测试：导出文件名清洗（纯静态逻辑，不依赖 Android 运行时） */
 public class AppExportTest {

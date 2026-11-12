@@ -81,7 +81,7 @@
         android:orientation="horizontal">
 
         <!-- v1.79.0：外包一层下拉刷新容器（adb 推送/其他应用写入后不必再退出重进目录） -->
-        <com.hex91.file.PullRefreshLayout
+        <com.hex91.file.ui.PullRefreshLayout
             android:id="@+id/pull_left"
             android:layout_width="0dp"
             android:layout_weight="1"
@@ -110,7 +110,7 @@
                 android:paddingBottom="4dp"
                 android:scrollbars="vertical"
                 android:visibility="gone"/>
-        </com.hex91.file.PullRefreshLayout>
+        </com.hex91.file.ui.PullRefreshLayout>
 
         <View
             android:id="@+id/pane_divider"
@@ -118,7 +118,7 @@
             android:layout_height="match_parent"
             android:background="?attr/hfDivider"/>
 
-        <com.hex91.file.PullRefreshLayout
+        <com.hex91.file.ui.PullRefreshLayout
             android:id="@+id/pull_right"
             android:layout_width="0dp"
             android:layout_weight="1"
@@ -146,7 +146,7 @@
                 android:paddingBottom="4dp"
                 android:scrollbars="vertical"
                 android:visibility="gone"/>
-        </com.hex91.file.PullRefreshLayout>
+        </com.hex91.file.ui.PullRefreshLayout>
     </LinearLayout>
 
     <!-- 多选批量操作栏（手势触发时显示） -->

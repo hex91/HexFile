@@ -277,12 +277,12 @@
             android:baselineAligned="false"
             android:background="?attr/hfSurface">
 
-            <com.hex91.file.LineNumbersView
+            <com.hex91.file.ui.LineNumbersView
                 android:id="@+id/editor_lines"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent" />
 
-            <com.hex91.file.HighlightingEditor
+            <com.hex91.file.ui.HighlightingEditor
                 android:id="@+id/editor_text"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"

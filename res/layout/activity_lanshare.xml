@@ -144,7 +144,7 @@
                 android:minHeight="150dp"
                 android:padding="10dp">
 
-                <com.hex91.file.RadarView
+                <com.hex91.file.ui.RadarView
                     android:id="@+id/lan_radar"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"/>

@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 调用方自己要用代次（generation）或 isFinishing 判断界面是否还该更新——
  * 池里的线程是进程级的，Activity 销毁后任务仍会跑完。</p>
  */
-final class Bg {
+public final class Bg {
 
     private static final String TAG = "HexFile";
 
@@ -51,7 +51,7 @@ final class Bg {
     private Bg() {}
 
     /** 后台任务失败回调（在主线程执行） */
-    interface Fail {
+    public interface Fail {
         void onFail(Throwable t);
     }
 
@@ -63,11 +63,11 @@ final class Bg {
      * loading 永远 true → 该窗格点击永久被拦）。需要收尾的调用方请用
      * {@link #io(Runnable, Fail)}，保证失败也有一条回主线程的路。</p>
      */
-    static void io(final Runnable r) {
+    public static void io(final Runnable r) {
         io(r, null);
     }
 
-    static void io(final Runnable r, final Fail onFail) {
+    public static void io(final Runnable r, final Fail onFail) {
         IO.execute(new Runnable() {
             public void run() {
                 try {
@@ -88,13 +88,13 @@ final class Bg {
     }
 
     /** 回主线程（已在主线程则直接执行，避免多绕一圈消息队列、也便于单测） */
-    static void ui(Runnable r) {
+    public static void ui(Runnable r) {
         if (Looper.myLooper() == Looper.getMainLooper()) r.run();
         else UI.post(r);
     }
 
     /** 当前是否在主线程（少数需要提前分支的场景用） */
-    static boolean onUi() {
+    public static boolean onUi() {
         return Looper.myLooper() == Looper.getMainLooper();
     }
 }

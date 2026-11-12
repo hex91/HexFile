@@ -1,5 +1,6 @@
 package com.hex91.file;
 
+import com.hex91.file.ui.*;
 import com.hex91.file.fs.*;
 import android.app.AlertDialog;
 import android.content.ClipboardManager;

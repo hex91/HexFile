@@ -1,4 +1,4 @@
-import com.hex91.file.UiDecor;
+import com.hex91.file.ui.UiDecor;
 
 /**
  * v1.75.0 视觉组件的颜色计算回归。

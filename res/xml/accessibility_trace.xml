@@ -7,4 +7,4 @@
     android:canRetrieveWindowContent="false"
     android:description="@string/activity_trace_desc"
     android:notificationTimeout="200"
-    android:settingsActivity="com.hex91.file.ActivityLogActivity"/>
+    android:settingsActivity="com.hex91.file.ui.ActivityLogActivity"/>

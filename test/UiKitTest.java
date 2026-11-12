@@ -1,4 +1,4 @@
-import com.hex91.file.UiKit;
+import com.hex91.file.ui.UiKit;
 
 /** v1.73.0 全局字号收敛：系统 fontScale 必须被限制在 [0.90, 1.10]，非法值回落 1.0 */
 public class UiKitTest {

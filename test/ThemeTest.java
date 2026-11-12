@@ -1,6 +1,6 @@
 package com.hex91.file;
 
-import com.hex91.file.ThemeManager;
+import com.hex91.file.ui.ThemeManager;
 import com.hex91.file.core.ThemeSchemes;
 
 import java.util.ArrayList;

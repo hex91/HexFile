@@ -66,7 +66,7 @@
 
         <!-- v1.66.0 统一签名弹窗（透明，退出 APK 浏览时弹出） -->
         <activity
-            android:name="com.hex91.file.SignPromptActivity"
+            android:name="com.hex91.file.ui.SignPromptActivity"
             android:exported="false"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
 
@@ -82,120 +82,120 @@
         </activity>
 
         <activity
-            android:name="com.hex91.file.SearchActivity"
+            android:name="com.hex91.file.ui.SearchActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <!-- v1.87.0 云同步（WebDAV 双向） -->
         <activity
-            android:name="com.hex91.file.SyncActivity"
+            android:name="com.hex91.file.ui.SyncActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <activity
-            android:name="com.hex91.file.TrashActivity"
+            android:name="com.hex91.file.ui.TrashActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <!-- v1.99.3：独立任务中心（进度 / 逐条重试 / 取消 / 清理记录） -->
         <activity
-            android:name="com.hex91.file.TaskCenterActivity"
+            android:name="com.hex91.file.ui.TaskCenterActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <!-- v1.83.0：统一设置页（主题 / 工作目录 / Root / 回收站策略 / 版本） -->
         <activity
-            android:name="com.hex91.file.SettingsActivity"
+            android:name="com.hex91.file.ui.SettingsActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <activity
-            android:name="com.hex91.file.ZipBrowserActivity"
+            android:name="com.hex91.file.ui.ZipBrowserActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <activity
-            android:name="com.hex91.file.TextEditorActivity"
+            android:name="com.hex91.file.ui.TextEditorActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:windowSoftInputMode="adjustResize"/>
 
         <activity
-            android:name="com.hex91.file.HexViewerActivity"
+            android:name="com.hex91.file.ui.HexViewerActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <activity
-            android:name="com.hex91.file.ImageViewerActivity"
+            android:name="com.hex91.file.ui.ImageViewerActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <activity
-            android:name="com.hex91.file.DexEditorActivity"
+            android:name="com.hex91.file.ui.DexEditorActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <!-- v1.67.0：签名管理（导入 JKS/BKS/PKCS12 到应用内部 + 查看证书信息 + 默认密钥） -->
         <activity
-            android:name="com.hex91.file.SignKeyManagerActivity"
+            android:name="com.hex91.file.ui.SignKeyManagerActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <!-- v1.63.0：smali → Java 源码查看（dex2jar + CFR，全离线插件化） -->
         <activity
-            android:name="com.hex91.file.DecompileActivity"
+            android:name="com.hex91.file.ui.DecompileActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <activity
-            android:name="com.hex91.file.ManifestEditorActivity"
+            android:name="com.hex91.file.ui.ManifestEditorActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:windowSoftInputMode="adjustResize"/>
 
         <activity
-            android:name="com.hex91.file.ArscEditorActivity"
+            android:name="com.hex91.file.ui.ArscEditorActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:windowSoftInputMode="adjustResize"/>
 
         <!-- v1.64.0：ARSC++ 编辑（包→类型→配置 树 + values XML 源码编辑写回） -->
         <activity
-            android:name="com.hex91.file.ArscPlusActivity"
+            android:name="com.hex91.file.ui.ArscPlusActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:windowSoftInputMode="adjustResize"/>
 
         <activity
-            android:name="com.hex91.file.CompareActivity"
+            android:name="com.hex91.file.ui.CompareActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <activity
-            android:name="com.hex91.file.StringsViewerActivity"
+            android:name="com.hex91.file.ui.StringsViewerActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <activity
-            android:name="com.hex91.file.BatchRenameActivity"
+            android:name="com.hex91.file.ui.BatchRenameActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:windowSoftInputMode="adjustResize"/>
 
         <activity
-            android:name="com.hex91.file.AppManagerActivity"
+            android:name="com.hex91.file.ui.AppManagerActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <!-- v1.54.0：备份管理（列出所有备份，支持已卸载应用还原） -->
         <activity
-            android:name="com.hex91.file.BackupManagerActivity"
+            android:name="com.hex91.file.ui.BackupManagerActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <!-- v1.48.0：主题设置页（22 套色板 + 跟随系统明暗） -->
         <activity
-            android:name="com.hex91.file.ThemeActivity"
+            android:name="com.hex91.file.ui.ThemeActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
@@ -204,105 +204,105 @@
              之前留 true 是自动化冒烟测试图方便，等于任何应用都能拉起一个终端页面（命令虽以本应用
              uid 执行，不等于提权，但没必要留这个口子）。需要再冒烟就用 debug 源集的 manifest 覆盖。 -->
         <activity
-            android:name="com.hex91.file.TerminalActivity"
+            android:name="com.hex91.file.ui.TerminalActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|keyboard|navigation|uiMode"
             android:windowSoftInputMode="adjustResize"/>
 
         <!-- v1.50.0：远程管理（局域网 HTTP 服务器，服务随页面开启/关闭） -->
         <activity
-            android:name="com.hex91.file.RemoteActivity"
+            android:name="com.hex91.file.ui.RemoteActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
         <!-- v1.57.0：APK 信息查看（权限/组件/ABI/DEX/签名一览） -->
         <activity
-            android:name="com.hex91.file.ApkInfoActivity"
+            android:name="com.hex91.file.ui.ApkInfoActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
         <!-- v1.58.0：PDF 预览（PdfRenderer 渲染/翻页/导出 PNG） -->
         <activity
-            android:name="com.hex91.file.PdfPreviewActivity"
+            android:name="com.hex91.file.ui.PdfPreviewActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
         <!-- v1.58.0：字体预览（ttf/otf 样张实时渲染） -->
         <activity
-            android:name="com.hex91.file.FontPreviewActivity"
+            android:name="com.hex91.file.ui.FontPreviewActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
         <!-- v1.59.0：存储分析（目录占用树下钻 + 大文件清理） -->
         <activity
-            android:name="com.hex91.file.StorageAnalysisActivity"
+            android:name="com.hex91.file.ui.StorageAnalysisActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
         <!-- v1.59.0：重复文件查找（三阶段内容级查重） -->
         <activity
-            android:name="com.hex91.file.DupFinderActivity"
+            android:name="com.hex91.file.ui.DupFinderActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <!-- v1.56.0：网络存储（SMB/WebDAV 客户端，直连电脑共享） -->
         <activity
-            android:name="com.hex91.file.NetStorageActivity"
+            android:name="com.hex91.file.ui.NetStorageActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <!-- v1.90.0：云盘网页登录（内嵌官方登录页，登录完自动取回凭证） -->
         <activity
-            android:name="com.hex91.file.CloudLoginActivity"
+            android:name="com.hex91.file.ui.CloudLoginActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:windowSoftInputMode="adjustResize"/>
 
         <!-- v1.62.0：Java → Smali 转换（ECJ + dx + baksmali） -->
         <activity
-            android:name="com.hex91.file.Java2SmaliActivity"
+            android:name="com.hex91.file.ui.Java2SmaliActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <!-- v1.61.0：Smali 语法查询（指令中文解析 + 搜索） -->
         <activity
-            android:name="com.hex91.file.SmaliDocActivity"
+            android:name="com.hex91.file.ui.SmaliDocActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <!-- v1.69.0：Activity 记录页（开关 + 权限 + 完整记录列表） -->
         <activity
-            android:name="com.hex91.file.ActivityLogActivity"
+            android:name="com.hex91.file.ui.ActivityLogActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
         <!-- v1.70.0：工具箱 —— 编码转换 / 加解密 / 进制 / 网络请求 / 时间戳 -->
         <activity
-            android:name="com.hex91.file.ToolboxActivity"
+            android:name="com.hex91.file.ui.ToolboxActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
         <!-- v1.71.0：测试数据生成（身份证 / 银行卡） -->
         <activity
-            android:name="com.hex91.file.TestDataActivity"
+            android:name="com.hex91.file.ui.TestDataActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
         <activity
-            android:name="com.hex91.file.CodecActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
-        <activity
-            android:name="com.hex91.file.CipherActivity"
+            android:name="com.hex91.file.ui.CodecActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
         <activity
-            android:name="com.hex91.file.RadixActivity"
+            android:name="com.hex91.file.ui.CipherActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
         <activity
-            android:name="com.hex91.file.HttpToolActivity"
+            android:name="com.hex91.file.ui.RadixActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
         <activity
-            android:name="com.hex91.file.TimeToolActivity"
+            android:name="com.hex91.file.ui.HttpToolActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+        <activity
+            android:name="com.hex91.file.ui.TimeToolActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
@@ -317,7 +317,7 @@
              configChanges 必须带上 orientation|screenSize，否则转屏会重建 Activity → 播放中断。
              launchMode=singleTop：连点两个视频不会堆出两层播放器。 -->
         <activity
-            android:name="com.hex91.file.VideoPlayerActivity"
+            android:name="com.hex91.file.ui.VideoPlayerActivity"
             android:label="视频播放"
             android:exported="true"
             android:launchMode="singleTop"
@@ -373,7 +373,7 @@
              不挂任何 intent-filter：它接受 http 地址与本地路径，exported=false 才不会
              被第三方应用塞一个 URL 触发下载（那会变成一个「后台偷偷下东西」的入口）。 -->
         <activity
-            android:name="com.hex91.file.HlsDownloadActivity"
+            android:name="com.hex91.file.ui.HlsDownloadActivity"
             android:label="下载视频"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
@@ -381,13 +381,13 @@
 
         <!-- v1.69.0：Activity 记录浮窗（前台服务，TYPE_APPLICATION_OVERLAY） -->
         <service
-            android:name="com.hex91.file.ActivityFloatService"
+            android:name="com.hex91.file.ui.ActivityFloatService"
             android:label="Activity 记录浮窗"
             android:exported="false"/>
 
         <!-- v1.69.0：Activity 记录（无障碍服务，只读包名/类名，不读窗口内容） -->
         <service
-            android:name="com.hex91.file.ActivityTraceService"
+            android:name="com.hex91.file.ui.ActivityTraceService"
             android:label="Activity 记录"
             android:exported="true"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
@@ -401,7 +401,7 @@
 
         <!-- v1.74.0：局域网快传（雷达扫描同网设备，点击直接传文件） -->
         <activity
-            android:name="com.hex91.file.LanShareActivity"
+            android:name="com.hex91.file.ui.LanShareActivity"
             android:label="局域网快传"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
@@ -409,14 +409,14 @@
         <!-- v1.98.0：文件任务前台服务。复制/移动大文件时把进程钉在前台，
              否则切到别的应用后进程被冻结/回收，任务静默失败；同时承载进度通知 -->
         <service
-            android:name="com.hex91.file.TaskService"
+            android:name="com.hex91.file.ui.TaskService"
             android:label="文件任务"
             android:exported="false"
             android:foregroundServiceType="dataSync"/>
 
         <!-- v1.74.0：后台接收（前台服务，锁屏/切后台仍可收文件） -->
         <service
-            android:name="com.hex91.file.LanShareService"
+            android:name="com.hex91.file.ui.LanShareService"
             android:label="局域网快传"
             android:exported="false"
             android:foregroundServiceType="dataSync"/>
@@ -424,7 +424,7 @@
         <!-- 迷你文件共享 Provider：安装 APK 时向系统安装器提供文件 -->
         <!-- v1.85.0 桌面小组件：常用目录 + 存储概览 -->
         <receiver
-            android:name="com.hex91.file.WidgetProvider"
+            android:name="com.hex91.file.ui.WidgetProvider"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
@@ -435,7 +435,7 @@
         </receiver>
 
         <provider
-            android:name="com.hex91.file.ApkFileProvider"
+            android:name="com.hex91.file.ui.ApkFileProvider"
             android:authorities="com.hex91.file.files"
             android:exported="false"
             android:grantUriPermissions="true"/>
@@ -444,7 +444,7 @@
              「打开文件 / 选择位置」能直接浏览本机目录。MANAGE_DOCUMENTS 是系统权限，
              只有系统文档 UI 能直接查询；普通应用拿到的是系统授予的临时 URI 权限。 -->
         <provider
-            android:name="com.hex91.file.HfDocumentsProvider"
+            android:name="com.hex91.file.ui.HfDocumentsProvider"
             android:authorities="com.hex91.file.documents"
             android:exported="true"
             android:grantUriPermissions="true"

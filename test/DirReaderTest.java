@@ -1,5 +1,5 @@
 import com.hex91.file.fs.DirReader;
-import com.hex91.file.FileAdapter;
+import com.hex91.file.ui.FileAdapter;
 import com.hex91.file.fs.FileItem;
 
 import java.io.File;
