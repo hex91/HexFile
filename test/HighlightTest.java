@@ -1,4 +1,4 @@
-import com.hex91.file.SyntaxHighlight;
+import com.hex91.file.utils.SyntaxHighlight;
 
 import java.util.List;
 import java.util.regex.Matcher;

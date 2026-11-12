@@ -1,5 +1,5 @@
 import com.hex91.file.fs.FileTask;
-import com.hex91.file.TaskJournal;
+import com.hex91.file.utils.TaskJournal;
 
 import java.io.File;
 import java.io.FileOutputStream;

@@ -1,4 +1,4 @@
-import com.hex91.file.SyncPlan;
+import com.hex91.file.utils.SyncPlan;
 
 import java.util.ArrayList;
 import java.util.List;

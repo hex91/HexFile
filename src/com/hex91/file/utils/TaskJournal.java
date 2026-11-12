@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.utils;
 
 import com.hex91.file.fs.*;
 import java.io.BufferedReader;

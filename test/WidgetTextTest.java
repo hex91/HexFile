@@ -1,4 +1,4 @@
-import com.hex91.file.WidgetText;
+import com.hex91.file.utils.WidgetText;
 
 /**
  * v1.85.0 小组件的容量文案与进度。

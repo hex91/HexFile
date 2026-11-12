@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.utils;
 
 /**
  * 轻量 Markdown → HTML 渲染器（v1.26），用于编辑器内「预览 Markdown」功能。

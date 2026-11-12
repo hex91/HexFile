@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.utils;
 
 /**
  * v1.85.0 小组件的文案与进度计算（纯 Java，可桌面单测）。

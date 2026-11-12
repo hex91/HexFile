@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.utils;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;

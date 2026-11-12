@@ -1,4 +1,4 @@
-import com.hex91.file.ResumePlan;
+import com.hex91.file.utils.ResumePlan;
 
 import java.io.File;
 
