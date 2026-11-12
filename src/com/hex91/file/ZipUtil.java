@@ -203,7 +203,7 @@ public class ZipUtil {
                 }
                 putData(zos, cos.count, entryName, data);
             }
-            return replaceOriginal(zip, tmp);
+            return AtomicReplace.tryReplace(tmp, zip);
         } catch (Exception e) {
             return false;
         }
@@ -239,7 +239,7 @@ public class ZipUtil {
                     copyEntry(zf, ze, zos, cos.count);
                 }
             }
-            return replaceOriginal(zip, tmp);
+            return AtomicReplace.tryReplace(tmp, zip);
         } catch (Exception e) {
             return false;
         }
@@ -333,16 +333,6 @@ public class ZipUtil {
         try (FileInputStream fis = new FileInputStream(file)) {
             return readAll(fis);
         }
-    }
-
-    /**
-     * 临时文件替换原 zip。
-     *
-     * <p>v1.97.0：原来「先删旧再改名」，第二次 rename 再失败就把新文件也删掉 ——
-     * 原包与写好的新包一起消失。改为 {@link FileOps#replaceFile}：失败时原包一定还在。</p>
-     */
-    private static boolean replaceOriginal(File zip, File tmp) {
-        return FileOps.replaceFile(tmp, zip);
     }
 
     /** 把 sources 中的文件/目录打包成 zip（相对路径基于各自父目录） */

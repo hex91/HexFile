@@ -164,7 +164,7 @@ public class ArchiveWrite {
                         out.closeArchiveEntry();
                     }
                 }
-                return replaceOriginal(sz, tmp);
+                return AtomicReplace.tryReplace(tmp, sz);
             } catch (Exception e) {
                 // 加密 7z（SevenZFile 打不开）等都会落到这里，返回 false 由 UI 提示
                 return false;
@@ -182,11 +182,6 @@ public class ArchiveWrite {
         private static File tempFile(File sz) {
             return new File(sz.getParentFile(),
                     sz.getName() + ".reb" + System.currentTimeMillis() + ".tmp");
-        }
-
-        /** v1.97.0：同 ZipUtil —— 原来的「先删旧再改名」在两个都失败时会把原包一起弄丢 */
-        private static boolean replaceOriginal(File sz, File tmp) {
-            return FileOps.replaceFile(tmp, sz);
         }
 
         private static void closeQuiet(InputStream in) {
@@ -242,7 +237,7 @@ public class ArchiveWrite {
                     }
                     putData(out, entryName, data, size);
                 }
-                return replaceOriginal(tar, tmp);
+                return AtomicReplace.tryReplace(tmp, tar);
             } catch (Exception e) {
                 return false;
             }
@@ -272,7 +267,7 @@ public class ArchiveWrite {
                         copyEntry(in, e, out);
                     }
                 }
-                return replaceOriginal(tar, tmp);
+                return AtomicReplace.tryReplace(tmp, tar);
             } catch (Exception e) {
                 return false;
             }
@@ -314,11 +309,6 @@ public class ArchiveWrite {
         private static File tempFile(File tar) {
             return new File(tar.getParentFile(),
                     tar.getName() + ".reb" + System.currentTimeMillis() + ".tmp");
-        }
-
-        /** v1.97.0：同上 */
-        private static boolean replaceOriginal(File tar, File tmp) {
-            return FileOps.replaceFile(tmp, tar);
         }
 
         private static void closeQuiet(InputStream in) {

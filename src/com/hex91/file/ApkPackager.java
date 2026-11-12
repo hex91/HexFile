@@ -126,6 +126,9 @@ public final class ApkPackager {
         File[] children = dir.listFiles();
         if (children != null) {
             for (File c : children) {
+                // v1.99.1（S-1 同类）：打包递归不能跟进链接 —— 否则把链接目标整棵树打进 zip
+                //（链接成环时爆栈）。链接本身无法写进 zip，直接跳过。
+                if (LinkUtil.isLink(c)) continue;
                 String rel = prefix.isEmpty() ? c.getName() : prefix + "/" + c.getName();
                 if (c.isDirectory()) {
                     for (RelFile r : collect(c, rel)) out.add(r);

@@ -1668,6 +1668,54 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v1.99.1（versionCode 179）—— 原子替换收成一处、软链判断收进 LinkUtil
+
+### 一、`AtomicReplace`：三处共用一份「失败不让原文件消失」
+
+O-19 修完之后，替换实现其实有三份：`FileOps.replaceFile`（boolean）、
+`ApkEditSession.safeReplace`（throws IOException）、以及 ZipUtil / ArchiveWrite 各自的
+`replaceOriginal` 包装。三份的备份后缀还不一样（`.bakrepl` / `.replacebak`），
+失败时对临时文件的处理也不一样（一个删掉，一个保留）。
+
+现在只有 `AtomicReplace` 一份：
+
+| 步骤 | 行为 |
+|---|---|
+| 1 | 同挂载点 `renameTo(target)` —— 原子替换，无中间态 |
+| 2 | 让不开时把原文件改名成 `<name>.bakrepl` 备份；rename 也不行则**复制**出完整备份再删原文件 |
+| 3 | 原文件让位后再试一次 `rename`（同目录内几乎必成功，比整份复制快一个数量级） |
+| 4 | 只能复制时：成功 → 删备份、删 tmp；失败 → 删半成品、备份改回原名、抛异常 |
+
+两个入口共用同一核心：`replace(...) throws IOException` 与 `tryReplace(...) -> boolean`。
+`ApkEditSession.safeReplace` 保留签名（6 个调用点不动），内部只剩一行委托。
+
+**失败时 tmp 不删**：它可能是唯一完好的新包，留着让用户手工改名恢复；备份与 tmp 一起留在原目录。
+
+### 二、软链判断收进 `LinkUtil.listNoFollow`
+
+「遍历不跟进链接」是全局规则，之前 6 个递归入口各写一遍 `if (isLink(c)) continue`，漏一处就回到
+「磁盘占用翻倍 / 删链删光目标」。新增 `LinkUtil.listNoFollow(dir)` 作为唯一遍历入口：返回已剔除链接的
+子项，读不到目录返回 `null`（与 `listFiles` 约定一致）。
+
+`DiskScanUtil` 三处（`scanSize` / Top N `collect` / 判重 `collectFiles`）改用它；
+`countEntries` 与 `walk` 两处需要把链接**本身**计入条目数，仍保留 `isLink` 并注明这是计数策略。
+
+顺着这条规则又清掉 6 处重复或漏网（都是 S-1 同一类）：
+
+| 位置 | 问题 | 处理 |
+|---|---|---|
+| `FileTaskEngine.deleteTree` | 与 `TreeOps.delete` 逐行同义 | 删除，改调 `TreeOps.delete` |
+| `FileAttrs.chmodTree` | 递归改权限会 `chmod` 到链接目标上（改到 `/system` 权限） | 链接直接跳过 |
+| `HfDocumentsProvider.copyRecursive` | SAF 复制跟随链接，复制出目标整棵树 | 复刻链接本身 |
+| `ApkPackager.collect` | 打包目录时把链接目标打进 zip | 跳过链接 |
+| `HlsDownloader.deleteDir`、`DexEditorActivity.deleteR`、`DecompileActivity.deleteR`、`BackupManagerActivity.deleteDir` | 各自实现递归删除，跟随链接 | 统一 `TreeOps.delete` |
+
+### 三、测试
+
+新增 `test/AtomicReplaceTest`（9 项）：同卷替换、目标不存在、tmp 缺失（原文件一字不动）、
+跨卷（`/dev/shm` → tmpdir，逼出备份+复制路径；Windows 上自动 SKIP）。`LinkUtilTest` 补 3 项
+`listNoFollow` 契约（null / 读不到 / 普通条目不丢）。`QUICK=1` → **49/49 PASS**。
+
 ## v1.99.0（versionCode 178）—— 目录加载的六个收尾缺口（O-01 ~ O-06）
 
 第四轮审查把「异步读目录」又翻了一遍，这次盯的不是「读得慢」，而是**读的状态没有收尾**：

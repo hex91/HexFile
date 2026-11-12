@@ -290,7 +290,9 @@ public final class FileTaskEngine {
             return;
         }
         copyTree(src, dstDir, t, sink);   // 跨分区：拷贝后删源
-        if (!deleteTree(src, 0)) {
+        // v1.99.1：递归删除已统一在 TreeOps（链接只删链、深度上限、失败不外抛）——
+        // 原来这里又实现了一份，与 TreeOps.delete 逐行同义，改一处漏一处
+        if (!TreeOps.delete(src)) {
             RootFallback r = root;
             if (r == null || !r.delete(src))
                 throw new IOException("已复制，但源删除失败: " + src.getPath());
@@ -446,17 +448,6 @@ public final class FileTaskEngine {
         measure(src, tmp, 0);
         t.doneBytes += tmp.totalBytes;
         t.doneFiles += tmp.totalFiles;
-    }
-
-    private static boolean deleteTree(File f, int depth) {
-        if (depth > MAX_DEPTH) return false;
-        // v1.97.0：链接只删链本身，不进入目标（见 TreeOps 类注释）
-        if (LinkUtil.isLink(f)) return f.delete();
-        if (f.isDirectory()) {
-            File[] kids = f.listFiles();
-            if (kids != null) for (File k : kids) deleteTree(k, depth + 1);
-        }
-        return f.delete();
     }
 
     private static boolean samePath(File a, File b) {

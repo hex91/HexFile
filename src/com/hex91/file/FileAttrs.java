@@ -172,6 +172,9 @@ public final class FileAttrs {
     }
 
     private static int chmodTree(File f, int octal, int depth) {
+        // v1.99.1（S-1 同类）：chmod 本身会跟随链接改到目标上。递归改权限时只要子树里
+        // 有一条指向 /system 或别的应用数据的链接，就等于把对方的权限改了 —— 链接既不改也不进。
+        if (LinkUtil.isLink(f)) return 0;
         int rc = chmod(f, octal);
         if (depth >= 64 || !f.isDirectory()) return rc;
         File[] kids = f.listFiles();

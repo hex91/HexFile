@@ -115,7 +115,8 @@ public final class DiskScanUtil {
         if (cs == null) return;
         for (File c : cs) {
             if (p != null && p.isCancelled()) throw new Cancelled();
-            // v1.97.0：链接不跟进（目标会被另一个入口统计到，跟进等于重复计数 + 环）
+            // v1.97.0：链接不跟进（目标会被另一个入口统计到，跟进等于重复计数 + 环）。
+            // 这里是「分母」，链接本身要计入条目数 —— 属于计数策略，不能套 LinkUtil.listNoFollow
             if (LinkUtil.isLink(c)) { out[0]++; continue; }
             if (c.isDirectory()) {
                 out[1]++;
@@ -143,7 +144,8 @@ public final class DiskScanUtil {
         for (File c : cs) {
             if (p != null && p.isCancelled()) throw new Cancelled();
             if (LinkUtil.isLink(c)) {
-                // v1.97.0：链接不进递归，按「0 字节文件」计入条目数（真实大小归目标所有）
+                // v1.97.0：链接不进递归，按「0 字节文件」计入条目数（真实大小归目标所有）。
+                // 同 countEntries：这是计数策略而非遍历策略，所以不用 listNoFollow
                 r.fileCount++;
                 files++;
                 done[0]++;
@@ -197,13 +199,13 @@ public final class DiskScanUtil {
 
     private static long scanSize(File dir, DirVisitor v, int depth) {
         if (depth > TreeOps.MAX_DEPTH) return 0;
-        File[] cs = dir.listFiles();
+        // v1.99.1：遍历一律不跟进链接，规则收在 LinkUtil（见 listNoFollow 注释）
+        File[] cs = LinkUtil.listNoFollow(dir);
         if (cs == null) return 0;
         long total = 0;
         int files = 0;
         List<File> subDirs = new ArrayList<File>();
         for (File c : cs) {
-            if (LinkUtil.isLink(c)) continue;    // v1.97.0：不跟进链接（环 / 重复计数）
             if (c.isDirectory()) {
                 subDirs.add(c);
                 total += scanSize(c, v, depth + 1);
@@ -240,10 +242,9 @@ public final class DiskScanUtil {
 
     private static void collect(File dir, java.util.PriorityQueue<FileSize> pq, int n, int depth) {
         if (depth > TreeOps.MAX_DEPTH) return;
-        File[] cs = dir.listFiles();
+        File[] cs = LinkUtil.listNoFollow(dir);
         if (cs == null) return;
         for (File c : cs) {
-            if (LinkUtil.isLink(c)) continue;    // v1.97.0：链接不跟进
             if (c.isDirectory()) {
                 collect(c, pq, n, depth + 1);
             } else {
@@ -354,10 +355,10 @@ public final class DiskScanUtil {
 
     private static void collectFiles(File dir, List<File> out, int depth) {
         if (depth > TreeOps.MAX_DEPTH) return;
-        File[] cs = dir.listFiles();
+        // 链接不跟进，否则同一文件会被判重（规则见 LinkUtil.listNoFollow）
+        File[] cs = LinkUtil.listNoFollow(dir);
         if (cs == null) return;
         for (File c : cs) {
-            if (LinkUtil.isLink(c)) continue;    // v1.97.0：链接不跟进（否则同一文件会被判重）
             if (c.isDirectory()) collectFiles(c, out, depth + 1);
             else if (c.isFile()) out.add(c);
         }

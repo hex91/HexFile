@@ -41,6 +41,35 @@ public class LinkUtilTest {
                 "绝对目标：忽略链接所在目录");
         eq("/x/y", LinkUtil.resolve("/sdcard", "/x/./y"), "绝对目标：同样做规范化");
 
+        // ---------------------------------------------------------- listNoFollow（v1.99.1）
+        // 桌面 JVM 上 Os.lstat 是桩，isLink 恒为 false —— 这里只验证「不该丢条目」的契约：
+        // 真机上被剔除的是链接，普通文件/目录一个都不能少。
+        eq("true", String.valueOf(LinkUtil.listNoFollow(null) == null),
+                "listNoFollow：null 目录返回 null");
+        eq("true", String.valueOf(
+                        LinkUtil.listNoFollow(new java.io.File("/no/such/dir/hexfile")) == null),
+                "listNoFollow：读不到返回 null");
+        java.io.File d = new java.io.File(System.getProperty("java.io.tmpdir"),
+                "hexfile_linkutil_" + System.nanoTime());
+        d.mkdirs();
+        try {
+            new java.io.File(d, "a.txt").createNewFile();
+            new java.io.File(d, "sub").mkdirs();
+            java.io.File[] kids = LinkUtil.listNoFollow(d);
+            eq("2", String.valueOf(kids == null ? -1 : kids.length),
+                    "listNoFollow：普通条目全部保留");
+        } catch (Exception e) {
+            eq("no-exception", "exception:" + e, "listNoFollow：建目录出错");
+        } finally {
+            java.io.File[] kids = d.listFiles();
+            if (kids != null) for (java.io.File k : kids) {
+                java.io.File[] sub = k.listFiles();
+                if (sub != null) for (java.io.File x : sub) x.delete();
+                k.delete();
+            }
+            d.delete();
+        }
+
         // ---------------------------------------------------------- 边界
         eq(null, LinkUtil.resolve("/sdcard", null), "空目标：返回 null");
         eq(null, LinkUtil.resolve("/sdcard", ""), "空串目标：返回 null");

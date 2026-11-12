@@ -3173,7 +3173,7 @@ public class MainActivity extends BaseActivity {
                     } finally {
                         ks.close();
                     }
-                    // v1.66.4：safeReplace 先原子 rename（Linux 可替换已存在文件），
+                    // v1.66.4 / v1.99.1：原子替换统一在 AtomicReplace（先 rename，失败才备份+复制）
                     // 失败才备份+复制——不再「先 delete」，避免写失败丢原包
                     ApkEditSession.safeReplace(tmp, apk);
                     try { ApkEditSession.markSigned(apk); } catch (Throwable ignored) {}
@@ -6365,7 +6365,7 @@ public class MainActivity extends BaseActivity {
                                     ApkSignerTool.signAutoAlias(ksBytes, pwd.toCharArray(),
                                             apk, out, 21);
                                     if (inPlace) {
-                                        // v1.66.4：safeReplace 先原子 rename，失败才
+                                        // v1.66.4 / v1.99.1：AtomicReplace 先 rename，失败才
                                         // 备份+复制，不再先 delete 防写失败丢原包
                                         ApkEditSession.safeReplace(out, apk);
                                         try { ApkEditSession.markSigned(apk); }

@@ -321,34 +321,17 @@ public final class ApkEditSession {
     }
 
     /**
-     * 用 tmp 安全替换 target（签名原地覆盖用）：
-     * Linux/Android 的 rename 本可【原子替换】已存在文件，所以先直接 rename——
-     * 不要「先 delete 后 rename」：delete 成功而 rename 失败会丢原文件。
-     * rename 失败（跨挂载点等）才降级为 备份→复制→失败恢复：
-     * 原文件先 rename 成 .replacebak，复制失败时尝试还原，还原失败保留备份不删。
+     * 用 tmp 安全替换 target（签名 / 重打包原地覆盖用）。
+     *
+     * <p>v1.99.1：实现移到 {@link AtomicReplace} —— 压缩包写回（ZipUtil / ArchiveWrite）
+     * 原来各有一份同源实现，三处的失败姿态还不一致（有的失败会顺手删掉临时文件，
+     * 有的备份后缀不同）。现在只有一份代码、一个备份后缀 {@code .bakrepl}。</p>
+     *
+     * <p>语义保持不变：<b>任何一步失败都不让原文件消失</b>；成功时才消费 tmp，
+     * 失败时 tmp 与备份一起留着供人工恢复。</p>
      */
     public static void safeReplace(File tmp, File target) throws IOException {
-        if (tmp.renameTo(target)) return;
-        File bak = new File(target.getParentFile(), target.getName() + ".replacebak");
-        if (bak.exists()) bak.delete();
-        boolean hasOld = target.exists();
-        if (hasOld) {
-            if (!target.renameTo(bak)) {
-                // rename 失败（目标被锁/跨卷等）→ copy 兜底，仍保住原文件内容
-                copy(target, bak);
-                if (!target.delete())
-                    throw new IOException("无法备份或删除原文件: " + target.getName());
-            }
-        }
-        try {
-            copy(tmp, target);
-            bak.delete();                       // 成功 → 备份使命完成
-        } catch (IOException e) {
-            if (hasOld && !target.exists() && bak.exists()) bak.renameTo(target);
-            throw e;                            // 还原失败时保留 .replacebak 供手工恢复
-        } finally {
-            if (tmp.exists()) tmp.delete();     // 可能被 mmap 锁住删不掉，容忍
-        }
+        AtomicReplace.replace(tmp, target);
     }
 
     private static byte[] readAll(File f) throws IOException {

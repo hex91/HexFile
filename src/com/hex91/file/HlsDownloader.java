@@ -693,12 +693,8 @@ public final class HlsDownloader {
     }
 
     private static void deleteDir(File dir) {
-        if (dir == null || !dir.isDirectory()) return;
-        File[] fs = dir.listFiles();
-        if (fs != null) for (File f : fs) {
-            if (f.isDirectory()) deleteDir(f);
-            else f.delete();
-        }
-        dir.delete();
+        // v1.99.1：清理分片目录统一走 TreeOps —— 链接只删链（自写递归会把链接目标删掉）、
+        // 带深度上限（自写递归遇到链接环会 StackOverflow）
+        TreeOps.delete(dir);
     }
 }

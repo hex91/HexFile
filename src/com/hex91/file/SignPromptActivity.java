@@ -307,7 +307,7 @@ public class SignPromptActivity extends Activity {
         void sign(File out) throws Exception;
     }
 
-    /** 签名到临时文件 → 原子覆盖 _edit.apk（safeReplace：先 rename，失败才备份+复制） */
+    /** 签名到临时文件 → 原子覆盖 _edit.apk（AtomicReplace：先 rename，失败才备份+复制） */
     private void signInPlace(Signer signer) throws Exception {
         File tmp = new File(apk.getParentFile(), apk.getName() + ".signtmp");
         if (tmp.exists()) tmp.delete();

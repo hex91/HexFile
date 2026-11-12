@@ -519,12 +519,9 @@ public class DecompileActivity extends BaseActivity {
     }
 
     private static void deleteR(File f) {
-        if (f == null || !f.exists()) return;
-        if (f.isDirectory()) {
-            File[] fs = f.listFiles();
-            if (fs != null) for (File c : fs) deleteR(c);
-        }
-        f.delete();
+        // v1.99.1：清理临时目录统一走 TreeOps（链接只删链、深度上限）
+        if (f == null) return;
+        TreeOps.delete(f);
     }
 
     private static String readText(File f) throws Exception {

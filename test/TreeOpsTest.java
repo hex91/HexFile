@@ -76,7 +76,7 @@ public class TreeOpsTest {
             t4CopyDoesNotFollow(base);
             t5CopyLinkUnsupported(base);
             t6DepthGuard(base);
-            t7ReplaceFile(base);
+            // v1.99.1：临时文件替换的用例已迁到 AtomicReplaceTest（三处共用一份实现）
         } finally {
             deleteTree(base);
         }
@@ -191,24 +191,6 @@ public class TreeOpsTest {
         }
         // 超过上限的那部分按 0 计，属预期行为；这里只要求「不崩、不无限递归」
         ok(TreeOps.MAX_DEPTH > 0, "深度上限已定义 = " + TreeOps.MAX_DEPTH);
-    }
-
-    /** O-19：写回替换失败时，原文件不能消失 */
-    static void t7ReplaceFile(File base) throws Exception {
-        File root = mk(base, "t7");
-        File target = new File(root, "a.zip");
-        write(target, "旧内容");
-        File tmp = new File(root, "a.reb.tmp");
-        write(tmp, "新内容");
-
-        ok(FileOps.replaceFile(tmp, target), "替换成功");
-        ok(read(target).equals("新内容"), "目标已是新内容");
-        ok(!tmp.exists(), "临时文件已清理");
-        ok(!new File(root, "a.zip.bakrepl").exists(), "备份已清理");
-
-        // 临时文件不存在 → 明确失败，且原文件内容一字不动
-        ok(!FileOps.replaceFile(new File(root, "nope.tmp"), target), "临时文件缺失时返回失败");
-        ok(read(target).equals("新内容"), "失败时原文件内容不变");
     }
 
     // ------------------------------------------------------------------ 工具

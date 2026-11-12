@@ -940,9 +940,8 @@ public class DexEditorActivity extends BaseActivity {
     }
 
     private static void deleteR(File f) {
-        if (f == null || !f.exists()) return;
-        File[] fs = f.listFiles();
-        if (fs != null) for (File c : fs) deleteR(c);
-        f.delete();
+        // v1.99.1：清理工作目录统一走 TreeOps（链接只删链、深度上限）
+        if (f == null) return;
+        TreeOps.delete(f);
     }
 }

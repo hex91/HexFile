@@ -139,15 +139,8 @@ public class BackupManagerActivity extends BaseActivity {
     }
 
     private static boolean deleteDir(File dir) {
-        if (dir == null) return false;
-        File[] files = dir.listFiles();
-        if (files != null) {
-            for (File f : files) {
-                if (f.isDirectory()) deleteDir(f);
-                else f.delete();
-            }
-        }
-        return dir.delete();
+        // v1.99.1：备份目录清理统一走 TreeOps（链接只删链、深度上限）
+        return dir != null && TreeOps.delete(dir);
     }
 
     private class BackupAdapter extends BaseAdapter {

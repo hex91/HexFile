@@ -516,6 +516,13 @@ public class HfDocumentsProvider extends DocumentsProvider {
     }
 
     private static boolean copyRecursive(File src, File dst) {
+        // v1.99.1（S-1 同类）：src.isDirectory() 会跟随链接 —— 复制一个链接目录等于把目标
+        // 整棵树复制一份（链接成环时直接爆栈）。这里按原样复刻链接本身；
+        // 目标文件系统不支持链接（FAT32 等）就跳过这一条，不判整单失败。
+        if (LinkUtil.isLink(src)) {
+            TreeOps.SYSTEM.copyLink(src, dst);
+            return true;
+        }
         if (src.isDirectory()) {
             if (!dst.exists() && !dst.mkdirs()) return false;
             File[] kids = src.listFiles();

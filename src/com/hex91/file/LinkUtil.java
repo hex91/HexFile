@@ -72,6 +72,33 @@ public final class LinkUtil {
         return kind(f) != NONE;
     }
 
+    /**
+     * v1.99.1：遍历目录时用这个，而不是自己写 {@code for (c : listFiles()) if (isLink(c)) continue}。
+     *
+     * <p>「不跟进链接」是全局规则，不是每个调用点的自由选择：{@code File.isDirectory()} 与
+     * {@code listFiles()} 都会跟随链接，跟进一次就是重复计数，链接成环还会递归爆栈。
+     * 之前 6 个递归入口各写一遍判断，谁漏写一次就会重新出现「磁盘占用翻倍 / 删链删光目标」。</p>
+     *
+     * <p>需要区分「链接本身也计入条目数」的场景（磁盘分析的分母、Top N 的条数），
+     * 仍应自行 {@link #isLink} 判断 —— 那是计数策略，不是遍历策略。</p>
+     *
+     * @return 已剔除符号链接的子项；目录读不到（无权限 / 已删除）返回 {@code null}，
+     *         与 {@link File#listFiles()} 的约定一致
+     */
+    public static File[] listNoFollow(File dir) {
+        if (dir == null) return null;
+        File[] all = dir.listFiles();
+        if (all == null) return null;
+        // 一次遍历完成判断与收集（isLink 内部有 lstat + 缓存，但每次调用仍要拼 key，别做两遍）
+        File[] buf = new File[all.length];
+        int n = 0;
+        for (File f : all) if (!isLink(f)) buf[n++] = f;
+        if (n == all.length) return all;      // 常见路径：没有链接，不额外分配
+        File[] out = new File[n];
+        System.arraycopy(buf, 0, out, 0, n);
+        return out;
+    }
+
     /** 读取链接目标原文；失败返回 null */
     public static String target(File f) {
         if (f == null) return null;
