@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.apk;
 
 import org.jf.baksmali.Baksmali;
 import org.jf.baksmali.BaksmaliOptions;

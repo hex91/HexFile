@@ -3,9 +3,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.hex91.file.core.ArscDefs;
-import com.hex91.file.ArscFile;
-import com.hex91.file.ArscWriter;
-import com.hex91.file.ArscWriter.Edit;
+import com.hex91.file.apk.ArscFile;
+import com.hex91.file.apk.ArscWriter;
+import com.hex91.file.apk.ArscWriter.Edit;
 import jadx.core.xmlgen.BinaryXMLStrings;
 import jadx.core.xmlgen.entry.RawNamedValue;
 import jadx.core.xmlgen.entry.RawValue;

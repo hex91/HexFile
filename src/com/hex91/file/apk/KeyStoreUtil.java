@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.apk;
 
 import java.io.ByteArrayInputStream;
 import java.security.KeyStore;

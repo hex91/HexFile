@@ -1,6 +1,6 @@
 import java.io.File;
 
-import com.hex91.file.FileInspect;
+import com.hex91.file.apk.FileInspect;
 
 /**
  * FileInspect 桌面回归（v1.68.0）：魔数识别 + ELF 头/节表解析 + ZIP 签名信息。

@@ -1,5 +1,5 @@
-import com.hex91.file.ApkSignCheck;
-import com.hex91.file.ApkSignerTool;
+import com.hex91.file.apk.ApkSignCheck;
+import com.hex91.file.apk.ApkSignerTool;
 
 import java.io.File;
 import java.io.FileInputStream;

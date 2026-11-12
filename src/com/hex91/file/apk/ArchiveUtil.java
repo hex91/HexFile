@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.apk;
 
 import com.hex91.file.fs.*;
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
@@ -124,7 +124,7 @@ public class ArchiveUtil {
     }
 
     /** 异常是否与密码/加密相关（用于提取失败时决定弹密码框） */
-    static boolean cryptoError(Throwable t) {
+    public static boolean cryptoError(Throwable t) {
         while (t != null) {
             String cls = t.getClass().getSimpleName().toLowerCase();
             String m = t.getMessage() == null ? "" : t.getMessage().toLowerCase();

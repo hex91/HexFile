@@ -1,5 +1,5 @@
-import com.hex91.file.ApkEditSession;
-import com.hex91.file.ApkRepack;
+import com.hex91.file.apk.ApkEditSession;
+import com.hex91.file.apk.ApkRepack;
 
 import java.io.*;
 import java.util.Arrays;
@@ -78,7 +78,7 @@ public class SessionTest {
         // 8) 签名 apk（模拟统一弹窗签名后的原地覆盖）→ 对齐保持
         File signed = new File(work, "signed_out.apk");
         InputStream ks = new FileInputStream(args[1]);
-        com.hex91.file.ApkSignerTool.sign(ks, com.hex91.file.ApkSignerTool.KEY_PASSWORD, apk, signed, 21);
+        com.hex91.file.apk.ApkSignerTool.sign(ks, com.hex91.file.apk.ApkSignerTool.KEY_PASSWORD, apk, signed, 21);
         ks.close();
         chk("8.1 签名产物生成", signed.exists() && signed.length() > 0);
 

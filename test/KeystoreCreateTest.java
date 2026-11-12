@@ -5,9 +5,9 @@ import java.security.Signature;
 import java.security.cert.X509Certificate;
 import java.util.List;
 
-import com.hex91.file.ApkSignerTool;
-import com.hex91.file.KeyStoreUtil;
-import com.hex91.file.KeystoreCreate;
+import com.hex91.file.apk.ApkSignerTool;
+import com.hex91.file.apk.KeyStoreUtil;
+import com.hex91.file.apk.KeystoreCreate;
 
 /**
  * KeystoreCreate 桌面回归（v1.68.0）：
@@ -83,8 +83,8 @@ public class KeystoreCreateTest {
                 check(out.isFile() && out.length() > 0, "apksig 用新 keystore 签名成功（"
                         + out.length() + " 字节）");
                 // 从签名产物里回读证书（签名方案串 + 证书主题）
-                String schemes = com.hex91.file.ApkSignCheck.schemes(out);
-                List<String[]> rows = com.hex91.file.ApkSignCheck.detailRows(out);
+                String schemes = com.hex91.file.apk.ApkSignCheck.schemes(out);
+                List<String[]> rows = com.hex91.file.apk.ApkSignCheck.detailRows(out);
                 StringBuilder sb = new StringBuilder(String.valueOf(schemes));
                 for (String[] row : rows) sb.append(" | ").append(row[0]).append('=').append(row[1]);
                 check(schemes != null && schemes.length() > 0, "签名产物可被校验: " + sb);

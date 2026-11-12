@@ -1,6 +1,6 @@
-import com.hex91.file.AxmlFile;
-import com.hex91.file.AxmlWriter;
-import com.hex91.file.ApkRepack;
+import com.hex91.file.apk.AxmlFile;
+import com.hex91.file.apk.AxmlWriter;
+import com.hex91.file.apk.ApkRepack;
 import java.io.*;
 import java.util.*;
 import java.util.zip.ZipEntry;

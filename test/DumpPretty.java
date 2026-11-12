@@ -1,5 +1,5 @@
-import com.hex91.file.AxmlFile;
-import com.hex91.file.AxmlTextSync;
+import com.hex91.file.apk.AxmlFile;
+import com.hex91.file.apk.AxmlTextSync;
 import java.io.*;
 import java.util.zip.*;
 public class DumpPretty {

@@ -1,5 +1,5 @@
-import com.hex91.file.ArscFile;
-import com.hex91.file.ArscValues;
+import com.hex91.file.apk.ArscFile;
+import com.hex91.file.apk.ArscValues;
 import java.io.File;
 import jadx.core.xmlgen.entry.ResourceEntry;
 

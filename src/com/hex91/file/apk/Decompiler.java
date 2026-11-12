@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.apk;
 
 import android.content.Context;
 
@@ -244,7 +244,7 @@ public final class Decompiler {
         if (!out.exists() || out.length() == 0) throw new java.io.IOException("插件释放失败: " + asset);
     }
 
-    static byte[] readAll(File f) throws Exception {
+    public static byte[] readAll(File f) throws Exception {
         byte[] b = new byte[(int) f.length()];
         DataInputStream in = new DataInputStream(new java.io.FileInputStream(f));
         try {
@@ -256,7 +256,7 @@ public final class Decompiler {
     }
 
     /** 递归展开异常链，便于定位反射调用的真实失败原因。 */
-    static String err(Throwable t) {
+    public static String err(Throwable t) {
         StringBuilder sb = new StringBuilder();
         Throwable c = t;
         int d = 0;

@@ -1,7 +1,7 @@
 package bin.HexFile;
 
-import com.hex91.file.SigKill;
-import com.hex91.file.SmaliTool;
+import com.hex91.file.apk.SigKill;
+import com.hex91.file.apk.SmaliTool;
 
 import java.io.File;
 import java.util.List;

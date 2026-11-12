@@ -1,5 +1,6 @@
 package com.hex91.file;
 
+import com.hex91.file.R;
 import com.hex91.file.core.*;
 import android.content.Intent;
 import android.os.Bundle;

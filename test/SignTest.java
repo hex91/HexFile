@@ -1,9 +1,9 @@
 import com.hex91.file.core.ArscDefs;
-import com.hex91.file.ArscFile;
-import com.hex91.file.ArscWriter;
-import com.hex91.file.ArscWriter.Edit;
-import com.hex91.file.ApkRepack;
-import com.hex91.file.ApkSignerTool;
+import com.hex91.file.apk.ArscFile;
+import com.hex91.file.apk.ArscWriter;
+import com.hex91.file.apk.ArscWriter.Edit;
+import com.hex91.file.apk.ApkRepack;
+import com.hex91.file.apk.ApkSignerTool;
 import jadx.core.xmlgen.entry.RawValue;
 import jadx.core.xmlgen.entry.ResourceEntry;
 

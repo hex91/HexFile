@@ -1,6 +1,6 @@
-import com.hex91.file.ApkRepack;
-import com.hex91.file.ApkSignerTool;
-import com.hex91.file.SmaliTool;
+import com.hex91.file.apk.ApkRepack;
+import com.hex91.file.apk.ApkSignerTool;
+import com.hex91.file.apk.SmaliTool;
 
 import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.Opcodes;

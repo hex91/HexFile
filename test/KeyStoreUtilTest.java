@@ -1,5 +1,5 @@
-import com.hex91.file.ApkSignerTool;
-import com.hex91.file.KeyStoreUtil;
+import com.hex91.file.apk.ApkSignerTool;
+import com.hex91.file.apk.KeyStoreUtil;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -91,7 +91,7 @@ public class KeyStoreUtilTest {
         ApkSignerTool.signAutoAlias(jksb, "jkspass".toCharArray(), null, null,
                 srcApk, out, 21, true, true, true);
         chk("JKS 签名产物生成", out.isFile() && out.length() > 0);
-        String sc = com.hex91.file.ApkSignCheck.schemes(out);
+        String sc = com.hex91.file.apk.ApkSignCheck.schemes(out);
         chk("JKS 签名 v2 验证", sc.contains("V2"), sc);
 
         // 显式别名 + 独立私钥密码
@@ -99,7 +99,7 @@ public class KeyStoreUtilTest {
         ApkSignerTool.signAutoAlias(jks2b, "sp1234".toCharArray(), "kp5678".toCharArray(), "jk2",
                 srcApk, out2, 21, false, true, false);
         chk("JKS 双密码签名（显式 keyPass+别名）", out2.isFile() && out2.length() > 0
-                && com.hex91.file.ApkSignCheck.schemes(out2).contains("V2"));
+                && com.hex91.file.apk.ApkSignCheck.schemes(out2).contains("V2"));
 
         // 双密码不传 keyPass → 应报清晰错误
         try {

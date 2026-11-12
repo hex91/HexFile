@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.apk;
 
 import java.util.ArrayList;
 import java.util.HashMap;

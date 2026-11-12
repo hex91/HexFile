@@ -8,8 +8,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 import com.hex91.file.core.ArscDefs;
-import com.hex91.file.ArscFile;
-import com.hex91.file.ArscValues;
+import com.hex91.file.apk.ArscFile;
+import com.hex91.file.apk.ArscValues;
 import jadx.core.xmlgen.entry.RawNamedValue;
 import jadx.core.xmlgen.entry.RawValue;
 import jadx.core.xmlgen.entry.ResourceEntry;

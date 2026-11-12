@@ -1,5 +1,6 @@
 package com.hex91.file;
 
+import com.hex91.file.R;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;

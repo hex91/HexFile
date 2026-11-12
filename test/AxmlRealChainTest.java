@@ -1,8 +1,8 @@
-import com.hex91.file.ApkRepack;
-import com.hex91.file.ApkSignerTool;
-import com.hex91.file.AxmlFile;
-import com.hex91.file.AxmlTextSync;
-import com.hex91.file.AxmlWriter;
+import com.hex91.file.apk.ApkRepack;
+import com.hex91.file.apk.ApkSignerTool;
+import com.hex91.file.apk.AxmlFile;
+import com.hex91.file.apk.AxmlTextSync;
+import com.hex91.file.apk.AxmlWriter;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;

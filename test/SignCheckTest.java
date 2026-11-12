@@ -1,4 +1,4 @@
-import com.hex91.file.ApkSignCheck;
+import com.hex91.file.apk.ApkSignCheck;
 
 import java.io.File;
 import java.util.List;
