@@ -53,7 +53,9 @@ CP="build/obj${SEP}libs/*${SEP}$BT/lib/apksigner.jar${SEP}$ANDJ"
 OUT="test/bin_core"
 
 # 依赖 build/obj 里的编译产物：先确保 src 已构建（否则会出现「找不到符号」的假失败）
-if [ ! -f build/obj/com/hex91/file/HexCore.class ]; then
+# v2.1.0（O-16）：原来探针盯死 build/obj/com/hex91/file/HexCore.class，拆包后它搬到
+# core/ 子目录就探不到了，测试脚本会误报「build/obj 缺失」。改为递归找任意一个 class。
+if [ -z "$(find build/obj/com/hex91/file -name '*.class' -print -quit 2>/dev/null)" ]; then
   echo "build/obj 缺失，先跑 ./build.sh"
   exit 2
 fi

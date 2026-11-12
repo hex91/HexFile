@@ -175,20 +175,23 @@ echo "[4/7] javac..."
 if [ -d "$BUILD/obj/com/hex91/file" ]; then
   # v2.1.0（O-16）：源码改成子包结构（core/fs/apk/net/ui）后，这一步必须递归 ——
   # 原先只看顶层目录、只认顶层 $outer.java，会把子包里的 class 一律当孤儿删掉。
-  # 做法：先把现存源码的顶层类名一次性索引成一个字符串（R 是 aapt2 生成的，seed 进去），
-  # 再按纯字符串匹配，避免每个 class 都 fork 一次 find（Windows 上会等好几分钟）。
-  SRC_OUTERS=" R "
+  # 判据必须用「完整类路径」而不是简单类名：类从 com/hex91/file/X.java 搬到
+  # com/hex91/file/core/X.java 后，源码还在、简单名还在，只比名字永远发现不了
+  # 顶层那份陈旧 X.class —— 结果同一类两份进 dex（实测 d8 不报错，但包里同时有
+  # Lcom/hex91/file/HexCore; 与 Lcom/hex91/file/core/HexCore;，加载哪份看运气）。
+  # 做法：一次性索引「期望存在的类路径」，再按纯字符串匹配，避免每个 class fork 一次。
+  EXPECTED="|com/hex91/file/R|"
   while IFS= read -r srcf; do
-    b=${srcf##*/}
-    SRC_OUTERS="$SRC_OUTERS${b%.java} "
+    rel=${srcf#"$ROOT/src/"}
+    EXPECTED="$EXPECTED${rel%.java}|"
   done < <(find "$ROOT/src/com/hex91/file" -type f -name '*.java')
   while IFS= read -r cf; do
-    base=${cf##*/}
-    base=${base%.class}
-    outer=${base%%\$*}
-    case "$SRC_OUTERS" in
-      *" $outer "*) ;;
-      *) rm -f "$cf"; echo "      清理残留 class: $base" ;;
+    rel=${cf#"$BUILD/obj/"}
+    rel=${rel%.class}
+    rel=${rel%%\$*}
+    case "$EXPECTED" in
+      *"|$rel|"*) ;;
+      *) rm -f "$cf"; echo "      清理残留 class: $rel" ;;
     esac
   done < <(find "$BUILD/obj/com/hex91/file" -type f -name '*.class')
 fi
