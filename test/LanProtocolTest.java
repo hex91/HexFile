@@ -1,4 +1,4 @@
-import com.hex91.file.LanProtocol;
+import com.hex91.file.net.LanProtocol;
 
 import java.util.HashSet;
 import java.util.Map;

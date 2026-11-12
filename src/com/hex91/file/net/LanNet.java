@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.net;
 
 import android.content.Context;
 import android.net.wifi.WifiManager;
