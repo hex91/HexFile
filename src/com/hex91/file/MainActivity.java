@@ -287,7 +287,7 @@ public class MainActivity extends BaseActivity {
         findViewById(R.id.btn_more).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { showMoreMenu(); }
         });
-        setupDrawer();
+        drawerCtl.setupDrawer();
 
         setupSelectionBar();
         taskCtl.setup();
@@ -379,263 +379,39 @@ public class MainActivity extends BaseActivity {
 
     // ============================================================ 左侧抽屉（v1.41.0）
 
-    private View drawer, drawerMask;
+    /** v2.0.0（O-15 刀5）：抽屉的视图引用与 16 个入口都搬进 DrawerController，Activity 只管转发 */
+    private final DrawerController drawerCtl = new DrawerController(new DrawerController.Host() {
+        public android.content.Context ctx() { return MainActivity.this; }
 
-    /** 抽屉初始化：☰ 打开 / 遮罩点击关闭 / 菜单项分发 */
-    private void setupDrawer() {
-        drawer = findViewById(R.id.drawer);
-        drawerMask = findViewById(R.id.drawer_mask);
-        try {
-            String ver = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
-            ((TextView) findViewById(R.id.drawer_version)).setText("v" + ver);
-        } catch (Exception ignored) {}
-        findViewById(R.id.btn_drawer).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { openDrawer(); }
-        });
-        drawerMask.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { closeDrawer(); }
-        });
-        findViewById(R.id.drawer_bookmark).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { closeDrawer(); showBookmarks(); }
-        });
-        // v1.42.0：本地存储区（根目录 / 内部存储）
-        findViewById(R.id.drawer_root).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                closeDrawer();
-                loadDir(active(), new File("/"));
-                if (!RootUtil.isRootAvailable())
-                    toast("未获取 Root，仅能浏览可读部分（/data 等目录不可见）");
-            }
-        });
-        findViewById(R.id.drawer_sd).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                closeDrawer();
-                loadDir(active(), Environment.getExternalStorageDirectory());
-            }
-        });
-        refreshDrawerStorage();
-        checkRootAsync();
-        findViewById(R.id.drawer_trash).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                closeDrawer();
-                startActivity(new Intent(MainActivity.this, TrashActivity.class));
-            }
-        });
-        // v1.45.0：应用管理（已安装应用列表 + 提取安装包）
-        findViewById(R.id.drawer_apps).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                closeDrawer();
-                startActivity(new Intent(MainActivity.this, AppManagerActivity.class));
-            }
-        });
-        findViewById(R.id.drawer_backups).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                closeDrawer();
-                // v1.54.0：备份管理（列出所有备份，支持已卸载应用还原）
-                startActivity(new Intent(MainActivity.this, BackupManagerActivity.class));
-            }
-        });
-        // v1.68.0：签名管理（导入 / 创建 / 查看 / 重命名 / 删除 / 设为默认）
-        findViewById(R.id.drawer_signkeys).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                closeDrawer();
-                startActivity(new Intent(MainActivity.this, SignKeyManagerActivity.class));
-            }
-        });
-        // v1.69.0：Activity 记录（无障碍监听页面切换 + 透明浮窗）
-        findViewById(R.id.drawer_activity_log).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                closeDrawer();
-                startActivity(new Intent(MainActivity.this, ActivityLogActivity.class));
-            }
-        });
-        // v1.70.0：工具箱（编码 / 加解密 / 进制 / 网络 / 时间戳）
-        findViewById(R.id.drawer_toolbox).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                closeDrawer();
-                startActivity(new Intent(MainActivity.this, ToolboxActivity.class));
-            }
-        });
-        // v1.74.0：局域网快传（雷达扫描同网设备，点光点传文件）
-        findViewById(R.id.drawer_lan).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                closeDrawer();
-                startActivity(new Intent(MainActivity.this, LanShareActivity.class));
-            }
-        });
-        // v1.91.0：抽屉里的「设置」已删除（⋮ 菜单同一入口足够），见 showMoreMenu
-        findViewById(R.id.drawer_theme).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                closeDrawer();
-                // v1.48.0：主题设置页（22 套色板 + 明暗模式）
-                startActivity(new Intent(MainActivity.this, ThemeActivity.class));
-            }
-        });
-        findViewById(R.id.drawer_remote).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                closeDrawer();
-                // v1.50.0：远程管理（局域网 HTTP 服务器 + 浏览器管理手机文件）
-                startActivity(new Intent(MainActivity.this, RemoteActivity.class));
-            }
-        });
-        findViewById(R.id.drawer_net).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                closeDrawer();
-                // v1.56.0：网络存储（SMB/WebDAV 客户端，直连电脑共享）
-                startActivity(new Intent(MainActivity.this, NetStorageActivity.class));
-            }
-        });
-        findViewById(R.id.drawer_storage).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                closeDrawer();
-                // v1.59.0：存储分析（目录占用树下钻 + 大文件清理 + 重复文件查找）
-                startActivity(new Intent(MainActivity.this, StorageAnalysisActivity.class));
-            }
-        });
-        findViewById(R.id.drawer_smali).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                closeDrawer();
-                // v1.61.0：Smali 语法查询（红色语法 + 中文注释解析 + 搜索，数据可扩展）
-                startActivity(new Intent(MainActivity.this, SmaliDocActivity.class));
-            }
-        });
-        findViewById(R.id.drawer_java2smali).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                closeDrawer();
-                // v1.62.0：Java → Smali（nb-javac 编译 + dx 打包 + baksmali 反汇编，全离线）
-                startActivity(new Intent(MainActivity.this, Java2SmaliActivity.class));
-            }
-        });
-        findViewById(R.id.drawer_terminal).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                closeDrawer();
-                // v1.49.0：内置终端模拟器，开局即当前浏览目录
-                String cwd = null;
-                try {
-                    File d = active().dir;
-                    if (d != null) cwd = d.getAbsolutePath();
-                } catch (Throwable ignore) {
-                }
-                if (cwd == null || cwd.isEmpty()) {
-                    cwd = android.os.Environment.getExternalStorageDirectory().getAbsolutePath();
-                }
-                Intent it = new Intent(MainActivity.this, TerminalActivity.class);
-                it.putExtra(TerminalActivity.EXTRA_CWD, cwd);
-                startActivity(it);
-            }
-        });
-    }
+        public View find(int id) { return findViewById(id); }
 
-    /** v1.42.0：抽屉存储容量统计（根目录 / 内部存储），后台线程 StatFs */
-    private void refreshDrawerStorage() {
-        new Thread(new Runnable() {
-            public void run() {
-                final String rootStat = statFs("/");
-                // 内部存储与根目录同属 /data 分区，数值必然一样；这行只报可用量，避免两行完全重复
-                final String sdStat = statFree(Environment.getExternalStorageDirectory().getPath());
-                runOnUiThread(new Runnable() {
-                    public void run() {
-                        ((TextView) findViewById(R.id.drawer_root_usage)).setText(rootStat);
-                        ((TextView) findViewById(R.id.drawer_sd_usage)).setText(sdStat);
-                    }
-                });
-            }
-        }, "drawer-storage").start();
-    }
+        public Pane active() { return MainActivity.this.active(); }
 
-    /**
-     * v1.72.0：把任意路径映射到「真正存放数据的可写分区」。
-     *
-     * 以前直接 StatFs("/")，拿到的是 system 分区（只读、约 1G、getAvailableBytes 恒为 0），
-     * 于是抽屉里根目录显示「987M 已用 / 987M（100%）」，和 MT 等管理器显示的可用空间对不上。
-     * 根目录下真正可写的是 /data，所以 / 与各系统只读挂载点统一按 /data 统计。
-     */
-    private static String statPathFor(String path) {
-        String data = Environment.getDataDirectory().getAbsolutePath();
-        if (path == null || path.isEmpty() || path.equals("/")) return data;
-        String[] ro = {"/system", "/vendor", "/product", "/odm", "/apex", "/sbin", "/etc", "/init"};
-        for (String p : ro) {
-            if (path.equals(p) || path.startsWith(p + "/")) return data;
+        public void loadDir(Pane p, File dir, boolean push) { dirCtl.loadDir(p, dir, push); }
+
+        public void toast(String s) { MainActivity.this.toast(s); }
+
+        public void showBookmarks() { MainActivity.this.showBookmarks(); }
+
+        public void open(Intent i) { startActivity(i); }
+
+        public void ui(Runnable r) {
+            if (isFinishing() || isDestroyed()) return;
+            runOnUiThread(r);
         }
-        return path;
-    }
+    });
 
-    /** 返回 {总量, 可用}；路径自身拿不到就逐级回退（→ /data → 外部存储），全失败返回 null */
-    private static long[] usageOf(String path) {
-        String data = Environment.getDataDirectory().getAbsolutePath();
-        String ext = Environment.getExternalStorageDirectory().getAbsolutePath();
-        String[] tries = {statPathFor(path), data, ext};
-        for (String t : tries) {
-            try {
-                android.os.StatFs sf = new android.os.StatFs(t);
-                long total = sf.getTotalBytes();
-                if (total > 0) return new long[]{total, sf.getAvailableBytes()};
-            } catch (Throwable ignored) {
-            }
-        }
-        return null;
-    }
+    /** 返回键先关抽屉（实现在 DrawerController） */
+    private void closeDrawer() { drawerCtl.closeDrawer(); }
 
-    private String statFs(String path) {
-        long[] u = usageOf(path);
-        if (u == null) return "容量不可用";
-        long total = u[0], avail = u[1];
-        long used = total > avail ? total - avail : 0;
-        int pct = total > 0 ? (int) (used * 100 / total) : 0;
-        return FileOps.formatSize(used) + " 已用 / " + FileOps.formatSize(total)
-                + "（" + pct + "%）  可用 " + FileOps.formatSize(avail);
-    }
 
-    private String statFree(String path) {
-        long[] u = usageOf(path);
-        if (u == null) return "容量不可用";
-        return "可用 " + FileOps.formatSize(u[1]) + " / 共 " + FileOps.formatSize(u[0]);
-    }
 
-    /** v1.42.0：root 检测（su -c id），结果落 RootUtil 缓存并更新抽屉状态行 */
-    private void checkRootAsync() {
-        new Thread(new Runnable() {
-            public void run() {
-                final boolean ok = RootUtil.detect();
-                runOnUiThread(new Runnable() {
-                    public void run() {
-                        TextView tv = (TextView) findViewById(R.id.drawer_rootstat);
-                        tv.setText(ok ? "Root: 已授权 ✓" : "Root: 未获取");
-                        tv.setTextColor(ok ? 0xFFAED581 : 0xFF90A4AE);
-                    }
-                });
-            }
-        }, "root-detect").start();
-    }
 
-    private void openDrawer() {
-        drawerMask.setVisibility(View.VISIBLE);
-        drawerMask.setAlpha(0f);
-        drawerMask.animate().alpha(1f).setDuration(220).start();
-        drawer.setVisibility(View.VISIBLE);
-        // GONE 期间宽度为 0，等布局完成后再从屏外滑入
-        drawer.post(new Runnable() {
-            public void run() {
-                drawer.setTranslationX(-drawer.getWidth() - 20);
-                drawer.animate().translationX(0).setDuration(220).start();
-                // v1.73.1：每次打开回到菜单顶部。此前滚到中间再关掉，
-                // 下次打开会停在半截位置，看不到「本地」区和前几个入口。
-                View scroll = findViewById(R.id.drawer_scroll);
-                if (scroll != null) scroll.scrollTo(0, 0);
-            }
-        });
-    }
 
-    private void closeDrawer() {
-        drawer.animate().translationX(-drawer.getWidth() - 20).setDuration(180)
-                .withEndAction(new Runnable() {
-                    public void run() {
-                        drawer.setVisibility(View.GONE);
-                        drawerMask.setVisibility(View.GONE);
-                    }
-                }).start();
-        drawerMask.animate().alpha(0f).setDuration(180).start();
-    }
+
+
+
+
 
     /** ⋮ 主菜单（对标 MT 溢出菜单，锚定在右上角 ⋮ 按钮往下弹出） */
     private void showMoreMenu() {
@@ -1248,7 +1024,7 @@ public class MainActivity extends BaseActivity {
         int dirs = p.dirCount, files = p.fileCount;
         String store = "";
         // v1.72.0：根目录/系统分区统一按 /data 统计，避免顶层显示「987M/987M」
-        long[] u = usageOf(p.dir.getAbsolutePath());
+        long[] u = StorageStat.usageOf(p.dir.getAbsolutePath());
         if (u != null) {
             long used = u[0] > u[1] ? u[0] - u[1] : 0;
             store = "  储存: " + FileOps.formatSize(used) + "/" + FileOps.formatSize(u[0]);
@@ -5157,7 +4933,7 @@ public class MainActivity extends BaseActivity {
     /** 返回键/系统返回手势：先退多选 → 压缩包逐级/退出 → 再逐级返回目录 → 根目录需再按一次才退出 */
     @Override
     public void onBackPressed() {
-        if (drawer != null && drawer.getVisibility() == View.VISIBLE) {
+        if (drawerCtl.isOpen()) {
             closeDrawer();
             return;
         }
