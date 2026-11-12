@@ -36,48 +36,69 @@ adb install -r out/HexFile-*.apk
 │   ├── values/                  # colors / strings
 │   └── drawable/                # 矢量图标（ic_launcher / ic_folder / ic_file）
 └── src/com/hex91/file
-    ├── MainActivity.java        # 双栏主界面（UI 装配 / 菜单分发 / 多选批量 / 跨模块编排）
-    ├── Pane.java                # 单窗格状态（视图引用 + 目录 / 压缩包浏览 / 历史栈 / 代次）
-    ├── DirectoryController.java # 读目录 / 下拉刷新 / 历史栈 / 冷启动恢复
-    ├── ArchiveController.java   # 压缩包内浏览（打开、密码、条目操作、查看编辑、提取）
-    ├── TaskUiController.java    # 任务条 / 任务中心 / 「上次有任务被中断」
-    ├── DrawerController.java    # 左侧抽屉入口、存储容量、Root 状态
-    ├── PropsController.java     # 属性 / 权限 / 时间 / 所有者 / 哈希弹窗
-    ├── core/                    # 基础工具（25）
-    │   ├── Base64Codec Json Iso8601 FormatUtil HexCore Sm3 Sm4
-    │   ├── CryptoCore CodecCore AtomicReplace MimeUtil TimeCore TextDiffUtil Contrast
-    │   └── ScreenPolicy CredentialCodec ScanCache LinkUtil StringExtract RadixCore
-    │       ThemeSchemes RegionTable PlaySpeed TestDataCore ArscDefs
-    ├── fs/                      # 文件系统（25）
+    ├── MainActivity.java        # 唯一的顶层类：主界面装配 / 菜单分发 / 多选批量 / 跨模块编排
+    ├── controller/  (6)         # 主界面的状态与行为，MainActivity 只负责装配与转发
+    │   ├── Pane.java            单窗格状态：视图引用 / 目录 / 压缩包 / 历史栈 / 读取代次
+    │   ├── DirectoryController  读目录 / 下拉刷新 / 历史栈 / 冷启动恢复
+    │   ├── ArchiveController    压缩包内浏览：打开、密码、条目操作、查看编辑、提取
+    │   ├── TaskUiController     任务条 / 任务中心 / 「上次有任务被中断」
+    │   ├── DrawerController     抽屉 16 个入口 / 存储容量 / Root 状态
+    │   └── PropsController      属性 / 权限 / 时间 / 所有者 / 哈希
+    ├── core/        (25)        # 基础工具：编码、加密、格式化、时间、十六进制、颜色对比
+    │   ├── Base64Codec Json Iso8601 FormatUtil HexCore Sm3 Sm4 CryptoCore CodecCore
+    │   ├── AtomicReplace MimeUtil TimeCore TextDiffUtil Contrast ScreenPolicy
+    │   └── CredentialCodec ScanCache LinkUtil StringExtract RadixCore ThemeSchemes
+    │       RegionTable PlaySpeed TestDataCore ArscDefs
+    ├── fs/          (25)        # 文件系统：读目录、复制移动、回收站、压缩包、Root/Shell
     │   ├── FileItem FileOps FileAttrs FileClipboard DirReader DiskScanUtil
     │   ├── FileTask FileTaskEngine FileSplit FileCrypt Trash TrashJanitor TrashPolicy
     │   ├── ZipUtil ZstdUtil WorkDir DocPath BatchRenameCore CompareUtil ContentGrep
     │   └── LeftoverScan TreeOps RootIO RootUtil Shell
-    ├── apk/                     # APK / 压缩包 / 资源二进制（27）
+    ├── apk/         (27)        # APK / 压缩包 / 资源二进制：重打包、签名、ARSC、AXML、smali
     │   ├── ApkUtil ApkInfoUtil ApkPackager ApkRepack ApkEditSession ApkSignCheck
     │   ├── ApkSignerTool ApkCloneTool ApkCompareUtil ArchiveUtil ArchiveWrite ArchivePasswords
     │   ├── FileInspect ArscEditor ArscFile ArscPlus ArscValues ArscWriter
     │   └── AxmlFile AxmlTextSync AxmlWriter Decompiler SmaliTool SmaliDocs
     │       KeyStoreUtil KeystoreCreate SigKill
-    ├── net/                     # 网络 / 云盘 / HLS（20）
+    ├── net/         (26)        # 网络：云盘 / FTP / SFTP / SMB / WebDAV / S3 / HLS / 局域网
     │   ├── NetFs NetFsFactory FtpFs SftpFs SmbFs WebDavFs S3Fs S3Signer
     │   ├── OneDriveFs AliyunDriveFs OAuthClient OAuthToken CloudPath StreamUrl
-    │   └── HlsPlaylist HlsCrypto HlsKey M3u8Playlist HlsDownloader TsRemuxer
-    ├── ui/                      # 界面（72）：44 Activity + 7 Service/Provider + 视图/适配器/对话框
+    │   ├── HlsPlaylist HlsCrypto HlsKey M3u8Playlist HlsDownloader TsRemuxer
+    │   └── LanNet LanNode LanProtocol LanSender RemoteServer TokenHarvest
+    ├── ui/          (72)        # 界面：44 Activity + 7 Service/Provider + 视图/适配器/对话框
     │   ├── *Activity（除 MainActivity 外全部）、ActivityFloatService / ActivityTraceService
     │   ├── ApkFileProvider / HfDocumentsProvider / WidgetProvider / LanShareService / TaskService
     │   ├── FileAdapter / FileGridAdapter / ZipAdapter、PullRefreshLayout / RadarView
     │   ├── LineNumbersView / HighlightingEditor、BaseActivity / ThemeManager / ThumbLoader
     │   └── ToolUi / UiKit / UiDecor / TaskRows / 三个对话框 / PlayerPrefs / BookmarkStore / RecentStore
+    ├── utils/       (29)        # 横切工具：与界面、文件系统都无关的可复用能力
+    │   ├── Bg HashUtil StorageStat WidgetText GridAction ColorUnderlineSpan
+    │   ├── CredentialVault KeyCipher ShizukuBridge TaskJournal TaskStore
+    │   ├── SyncPlan SyncRunner ResumePlan DragPlan BackupRestore OpenWith
+    │   ├── ActivityLog ImageBatchUtil ApkSignHelper
+    │   └── AutoTextFormatter MdFormatPatterns MarkdownRender MtTextUtils
+    │       SyntaxHighlight SyntaxHighlighterBase MtSyntaxHighlighter
+    │       MarkdownSyntaxHighlighter PlaintextSyntaxHighlighter
     └── libs/                    # baksmali 2.5.2 + dexlib2 + guava-31.1-android + jsr305 + failureaccess
 ```
 
-> 顶层包还剩 42 个类：`MainActivity` 与它的 5 个控制器（`Pane` 是状态载体）、`GridAction`，
-> 以及尚未归属的横切件（`ActivityLog` / `Bg` / `HashUtil` / `ShizukuBridge` / `CredentialVault` /
-> `KeyCipher` / `Lan*` / `RemoteServer` / `TokenHarvest` / `StorageStat` / `OpenWith` /
-> `SyncPlan` / `SyncRunner` / `DragPlan` / `ResumePlan` / `TaskJournal` / `TaskStore` /
-> `BackupRestore` / 四个高亮器 / `MarkdownRender` / `AutoTextFormatter` / `MdFormatPatterns` /
-> `MtTextUtils` / `WidgetText` / `ImageBatchUtil` / `ApkSignHelper` / `ColorUnderlineSpan`）。
+### 依赖方向（单向，不回头）
+
+```
+MainActivity  →  controller  →  ui / fs / apk / net
+                    ↓              ↓
+                  utils  ←──────── ┘
+                    ↓
+                  core
+```
+
+- `core` 不依赖任何自研包（纯 JDK）；
+- `utils` 只依赖 `core`（`Bg` 用 Handler、`ShizukuBridge` 用 Context，但没有业务依赖）；
+- `fs` / `apk` / `net` 依赖 `core` + `utils`，彼此之间按需引用；
+- `ui` 可以用下面所有层；`controller` 只依赖 `ui` 的少数装配工具（`UiDecor` / `PullRefreshLayout` / 适配器）与 `fs`/`apk`/`net` 的能力；
+- `MainActivity` 在包根，只做装配、菜单分发与跨模块编排，不写具体业务。
+
+> 211 个类，与拆包前完全一致：core 25 / fs 25 / apk 27 / net 26 / ui 72 / utils 29 / controller 6 / 顶层 1。
 
 ## 已实现功能（v1.6.0，手机上全部可用）
 
@@ -1687,6 +1708,50 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.2.0（versionCode 185）—— 拆包收口：controller / utils，顶层只剩 MainActivity
+
+v2.1.0 把 211 个类按「技术分层」分成了 core / fs / apk / net / ui，但顶层还压着 42 个类：
+6 个控制器、几十个横切工具，还有 `Lan*` 这种明显属于网络的实现。这一版把它们各自归位：
+
+| 包 | 变化 | 内容 |
+|---|---|---|
+| `controller` | **新增（6）** | `Pane` + `DirectoryController` / `ArchiveController` / `TaskUiController` / `DrawerController` / `PropsController` |
+| `utils` | **新增（29）** | `Bg` / `HashUtil` / `StorageStat` / `TaskJournal` / `SyncPlan` / `SyncRunner` / `ResumePlan` / `DragPlan` / `BackupRestore` / `OpenWith` / `CredentialVault` / `KeyCipher` / `ShizukuBridge` / `ActivityLog` / `ImageBatchUtil` / `ApkSignHelper` / 四个语法高亮器 + `SyntaxHighlight` / `SyntaxHighlighterBase` / `MarkdownRender` / `AutoTextFormatter` / `MdFormatPatterns` / `MtTextUtils` / `WidgetText` / `ColorUnderlineSpan` / `GridAction` |
+| `net` | 20 → **26** | 补入 `LanNet` / `LanNode` / `LanProtocol` / `LanSender`（局域网发现与传输）、`RemoteServer`（内置 HTTP 服务）、`TokenHarvest`（网页 token 提取） |
+| 顶层 | 42 → **1** | 只剩 `MainActivity` |
+
+### 为什么 MainActivity 还留在包根
+
+它是 `AndroidManifest.xml` 里的启动组件（`com.hex91.file.MainActivity`），也是整个 App 的
+装配入口：把 `Pane`×2、五个控制器、抽屉、顶栏接起来，再向外分发菜单与批量操作。
+放进 `ui` 会和 72 个 Activity 混在一起，反而不容易找到「从哪开始读代码」；
+留在包根 + 只有它一个类，打开目录一眼就能看出程序入口。
+
+### 控制器包带来的可见性变化（只放宽，逻辑零改动）
+
+同一包时靠包内可见就够，拆开后 `MainActivity` 是唯一外部调用方，于是把契约面显式化：
+
+- 6 个类声明 `public`、构造 `public`、`Host` 接口 `public`；
+- 26 个被 `MainActivity` 调用的方法 `public`（`loadDir` 两个重载、`refreshAll`、`archGoUp`、
+  `showArchiveDir`、`attach/detach/destroy`、`setupDrawer`…）；
+- `Pane` 的 15 个字段全 `public` —— 宿主与各控制器直接读写目录 / 压缩包 / 历史栈 / 读取代次；
+  注释里写明「只有 MainActivity 与 controller 包内的类可以碰 Pane 的字段」；
+- 顺带：`GridAction`、`StorageStat`（+4 个静态方法）、`MainActivity` 的
+  `readAllBytes/writableArchive/stripExt/writeFailMsg` 提 `public`。
+
+### 依赖方向
+
+`MainActivity → controller → ui / fs / apk / net → utils → core`，单向不回环。
+`core` 是纯 JDK；`utils` 只碰 `core`；`ui` 可以用下面所有层。
+
+### 验收
+
+- `./build.sh` 通过；顶层 1 个类、`controller` 6 个、`utils` 29 个，总数仍是 211；
+- `QUICK=1 ./test/run_core.sh` **53/53**（B6 / B7 / B8 每批各跑一次，均全绿）；
+- 每批单独提交，可按批 `git revert`。
 
 ---
 
