@@ -26,7 +26,7 @@ adb install -r out/HexFile-*.apk
 
 ```
 /
-├── AndroidManifest.xml          # minSdk 21 / targetSdk 30 / 存储权限 / 4 Activity
+├── AndroidManifest.xml          # minSdk 21 / targetSdk 30 / 存储权限 / 53 个组件（44 Activity + Service/Provider/Receiver）
 ├── build.sh                     # 一键构建（7 步：aapt2 compile→link→NDK→javac→d8→zipalign→sign，带版本守卫）
 ├── res/
 │   ├── layout/activity_main.xml # 格双栏布局（深色顶栏+统计行、底部 ‹ › ＋ ⇄ ↑ 工具栏）
@@ -43,26 +43,41 @@ adb install -r out/HexFile-*.apk
     ├── TaskUiController.java    # 任务条 / 任务中心 / 「上次有任务被中断」
     ├── DrawerController.java    # 左侧抽屉入口、存储容量、Root 状态
     ├── PropsController.java     # 属性 / 权限 / 时间 / 所有者 / 哈希弹窗
-    ├── StorageStat.java         # 存储容量统计（顶栏与抽屉共用）
-    ├── FileAdapter.java         # 目录优先排序的列表适配器
-    ├── FileItem.java            # 文件条目模型
-    ├── FileOps.java             # 复制/移动/删除/重命名/新建 + MD5/SHA256/CRC32
-    ├── ApkUtil.java             # APK 信息解析
-    ├── ApkSignCheck.java        # APK 签名校验（apksig：schemes 方案串 + detailRows 详情行）
-    ├── ApkFileProvider.java     # 迷你 content:// 文件共享（安装 APK 用，零 AndroidX）
-    ├── TextEditorActivity.java  # 文本编辑器（UTF-8/GBK 自动识别、未保存防丢、二进制检测）
-    ├── HexViewerActivity.java   # HEX 查看器（偏移+HEX+ASCII、点行复制、偏移跳转、4MB 截断）
-    ├── SmaliTool.java           # smali 反编译（org.smali:baksmali:2.5.2 编程 API 封装）
+    ├── core/                    # 基础工具（25）
+    │   ├── Base64Codec Json Iso8601 FormatUtil HexCore Sm3 Sm4
+    │   ├── CryptoCore CodecCore AtomicReplace MimeUtil TimeCore TextDiffUtil Contrast
+    │   └── ScreenPolicy CredentialCodec ScanCache LinkUtil StringExtract RadixCore
+    │       ThemeSchemes RegionTable PlaySpeed TestDataCore ArscDefs
+    ├── fs/                      # 文件系统（25）
+    │   ├── FileItem FileOps FileAttrs FileClipboard DirReader DiskScanUtil
+    │   ├── FileTask FileTaskEngine FileSplit FileCrypt Trash TrashJanitor TrashPolicy
+    │   ├── ZipUtil ZstdUtil WorkDir DocPath BatchRenameCore CompareUtil ContentGrep
+    │   └── LeftoverScan TreeOps RootIO RootUtil Shell
+    ├── apk/                     # APK / 压缩包 / 资源二进制（27）
+    │   ├── ApkUtil ApkInfoUtil ApkPackager ApkRepack ApkEditSession ApkSignCheck
+    │   ├── ApkSignerTool ApkCloneTool ApkCompareUtil ArchiveUtil ArchiveWrite ArchivePasswords
+    │   ├── FileInspect ArscEditor ArscFile ArscPlus ArscValues ArscWriter
+    │   └── AxmlFile AxmlTextSync AxmlWriter Decompiler SmaliTool SmaliDocs
+    │       KeyStoreUtil KeystoreCreate SigKill
+    ├── net/                     # 网络 / 云盘 / HLS（20）
+    │   ├── NetFs NetFsFactory FtpFs SftpFs SmbFs WebDavFs S3Fs S3Signer
+    │   ├── OneDriveFs AliyunDriveFs OAuthClient OAuthToken CloudPath StreamUrl
+    │   └── HlsPlaylist HlsCrypto HlsKey M3u8Playlist HlsDownloader TsRemuxer
+    ├── ui/                      # 界面（72）：44 Activity + 7 Service/Provider + 视图/适配器/对话框
+    │   ├── *Activity（除 MainActivity 外全部）、ActivityFloatService / ActivityTraceService
+    │   ├── ApkFileProvider / HfDocumentsProvider / WidgetProvider / LanShareService / TaskService
+    │   ├── FileAdapter / FileGridAdapter / ZipAdapter、PullRefreshLayout / RadarView
+    │   ├── LineNumbersView / HighlightingEditor、BaseActivity / ThemeManager / ThumbLoader
+    │   └── ToolUi / UiKit / UiDecor / TaskRows / 三个对话框 / PlayerPrefs / BookmarkStore / RecentStore
     └── libs/                    # baksmali 2.5.2 + dexlib2 + guava-31.1-android + jsr305 + failureaccess
-    ├── FeatureRegistry.java     # 功能注册表
-    ├── BookmarkStore.java       # 书签持久化（SharedPreferences）
-    ├── Trash.java               # 回收站（meta 记录原路径，可恢复/彻底删除/清空）
-    ├── SearchActivity.java      # 递归搜索（* ? 通配符，后台线程，上限 1000）
-    ├── TrashActivity.java       # 回收站管理（恢复/彻底删除/清空）
-    ├── ZipUtil.java             # ZIP 引擎（浏览/解压/打包，零依赖，防 zip-slip）
-    ├── ZipAdapter.java          # 压缩包条目适配器（复用 item_file 布局）
-    └── ZipBrowserActivity.java  # 压缩包浏览器（进子目录/解压全部/解压单条）
 ```
+
+> 顶层包还剩 42 个类：`MainActivity` 与它的 5 个控制器（`Pane` 是状态载体）、`GridAction`，
+> 以及尚未归属的横切件（`ActivityLog` / `Bg` / `HashUtil` / `ShizukuBridge` / `CredentialVault` /
+> `KeyCipher` / `Lan*` / `RemoteServer` / `TokenHarvest` / `StorageStat` / `OpenWith` /
+> `SyncPlan` / `SyncRunner` / `DragPlan` / `ResumePlan` / `TaskJournal` / `TaskStore` /
+> `BackupRestore` / 四个高亮器 / `MarkdownRender` / `AutoTextFormatter` / `MdFormatPatterns` /
+> `MtTextUtils` / `WidgetText` / `ImageBatchUtil` / `ApkSignHelper` / `ColorUnderlineSpan`）。
 
 ## 已实现功能（v1.6.0，手机上全部可用）
 
@@ -1672,6 +1687,59 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.1.0（versionCode 184）—— 拆包：core / fs / apk / net / ui
+
+`src/com/hex91/file/` 从「211 个类平铺」变成 **5 个子包 + 42 个顶层类**。
+这一版**只有包名与 import 的变化**，功能、文案、排序过滤、线程模型一律不动：
+
+| 包 | 类数 | 职责 |
+|---|---|---|
+| `core` | 25 | 基础工具：Base64/JSON/ISO8601/格式化/哈希/SM3/SM4/十六进制/颜色对比/区域表 |
+| `fs` | 25 | 文件系统：读目录、复制移动、回收站、压缩包读写、Root/Shell、磁盘扫描 |
+| `apk` | 27 | APK 与资源：重打包、签名、ARSC、AXML、smali 反编译、密钥库 |
+| `net` | 20 | 网络：云盘/FTP/SFTP/SMB/WebDAV/S3、OAuth、HLS/m3u8/TS |
+| `ui` | 72 | 界面：44 个 Activity、7 个 Service/Provider、4 个自定义 View、3 个适配器、对话框、主题 |
+| 顶层 | 42 | `MainActivity` + 5 个控制器 + `Pane` + 适配器之外的编排类 + `Bg`/`ToolUi` 等共享工具 |
+
+### 三个「改错就装上崩」的点（都已逐一校验）
+
+1. **Manifest 组件名**：44 个 Activity/Service/Provider 的 `android:name` 全部改成
+   `com.hex91.file.ui.*`（共 51 处，含 `activity-alias` 与 `targetActivity`）。
+   入口 `MainActivity` 仍是 `com.hex91.file.MainActivity`。
+2. **`res/xml/accessibility_trace.xml`** 的 `android:settingsActivity` 1 处。
+3. **布局里的自定义 View**：`activity_main.xml`（PullRefreshLayout ×2 开闭标签）、
+   `activity_editor.xml`（LineNumbersView / HighlightingEditor）、`activity_lanshare.xml`（RadarView）共 7 处。
+   校验方式：把 Manifest 里的 52 个组件名逐个转成 dex 类描述符比对，缺失 0。
+
+### 顺手根治的一个隐形缺陷：幽灵内部类
+
+`javac -d` 只覆盖不清理，旧逻辑按「类名」判孤儿，而匿名内部类无法静态枚举——
+`MainActivity` 从 6,574 行拆到 4,465 行后，`MainActivity$105/$108/$127…` 再也不会重新生成，
+但外部类还在，于是被当成合法类一路打进 dex，且**里面还带着搬家前的旧类引用**（如
+`Lcom/hex91/file/ZipUtil;`）。现在改成编译前整目录清空自研 class（javac 本来就是全量编译，零成本），
+`build/obj/com/hex91/file` 不再有幽灵类。
+
+### 跨包可见性放宽（只放宽，逻辑零改动）
+
+`Bg`（+`Fail`/`ui`/`io`/`onUi`）、`UiDecor` 的 `barButton/gap/barBg/dp/paintPill/pill`、
+`HexCore.hexVal`、`ArchiveUtil.cryptoError`、`Decompiler.readAll/err`、
+`HlsDownloader.isLocal/deriveName`、`M3u8Playlist.mbpsText`、
+`SignKeyManagerActivity.KeyEntry`（含 9 个字段与 `broken()`）及 `loadEntry/defaultEntry/
+loadKeyBytes/friendlyKsError/signPrefs`、四个 Activity 的 `EXTRA_*` 常量。
+
+### 未做（按计划留到下一刀）
+
+`Fs` 抽象（统一本地/云盘/压缩包的读写接口）**等 F-04 真机验证后**再动——
+那是真正改调用约定的一刀，不适合和「纯搬家」混在一起。
+
+### 验收
+
+- `./build.sh` 通过；dex 里旧包名的 4 个类描述符（HexCore/ZipUtil/ApkUtil/Json）全部消失；
+- `QUICK=1 ./test/run_core.sh` **53/53**（中途 MSYS 进程回收卡死一次，分 38+8+7 三批跑完）；
+- Manifest 52 个组件与 dex 类一一对应，缺失 0。
 
 ---
 
