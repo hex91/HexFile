@@ -173,19 +173,24 @@ echo "[4/7] javac..."
 # v1.96.0：先清掉「源码已不存在」的 class。javac -d 只覆盖不清理，删掉的类会一直留在
 # build/obj 里被打进 dex —— 删 FeatureRegistry 时才发现：源码删了，APK 里还查得到它。
 if [ -d "$BUILD/obj/com/hex91/file" ]; then
-  for cf in "$BUILD/obj/com/hex91/file"/*.class; do
-    [ -e "$cf" ] || continue
-    # 纯 shell 字符串操作：这里不要用 basename，1800+ 次 fork 在 Windows 上要等好几分钟
+  # v2.1.0（O-16）：源码改成子包结构（core/fs/apk/net/ui）后，这一步必须递归 ——
+  # 原先只看顶层目录、只认顶层 $outer.java，会把子包里的 class 一律当孤儿删掉。
+  # 做法：先把现存源码的顶层类名一次性索引成一个字符串（R 是 aapt2 生成的，seed 进去），
+  # 再按纯字符串匹配，避免每个 class 都 fork 一次 find（Windows 上会等好几分钟）。
+  SRC_OUTERS=" R "
+  while IFS= read -r srcf; do
+    b=${srcf##*/}
+    SRC_OUTERS="$SRC_OUTERS${b%.java} "
+  done < <(find "$ROOT/src/com/hex91/file" -type f -name '*.java')
+  while IFS= read -r cf; do
     base=${cf##*/}
     base=${base%.class}
     outer=${base%%\$*}
-    # R.java 不在 src 里（aapt2 link 生成到 build/gen），别把它当成孤儿删掉
-    if [ ! -f "$ROOT/src/com/hex91/file/$outer.java" ] \
-       && [ ! -f "$BUILD/gen/com/hex91/file/$outer.java" ]; then
-      rm -f "$cf"
-      echo "      清理残留 class: $base"
-    fi
-  done
+    case "$SRC_OUTERS" in
+      *" $outer "*) ;;
+      *) rm -f "$cf"; echo "      清理残留 class: $base" ;;
+    esac
+  done < <(find "$BUILD/obj/com/hex91/file" -type f -name '*.class')
 fi
 # libs = apksigner.jar + baksmali/dexlib2 等（smali 反编译引擎），供编译期引用
 # classpath 分隔符：Windows 为 ;，其它(Unix/Linux)为 :
@@ -194,17 +199,24 @@ if [ -n "$EXE" ]; then SEP=";"; fi
 LIBS_CP="$BT/lib/apksigner.jar"
 for j in "$ROOT"/libs/*.jar; do LIBS_CP="$LIBS_CP$SEP$j"; done
 # 源码集：
-#   src/com/hex91/file/*            HexFile 自有
+#   src/com/hex91/file/**          HexFile 自有（v2.1.0 起分 core/fs/apk/net/ui 子包，递归收）
 #   src/jadx/...                   vendored jadx ARSC 解析器（Apache-2.0）
 #   src/com/termux/terminal|view   vendored Termux 终端引擎（Apache-2.0）
 #   src/androidx/annotation/*      本地桩（编译期注解）
 #   src/io/nayuki/qrcodegen/*      vendored Nayuki QR Code 生成器（MIT）
+#
+# 自有源码为什么要显式列成数组而不是 `*.java` 通配：拆包后文件分散在多级子目录，
+# 通配只匹配顶层；这里用 find 递归收集并按路径排序（顺序稳定，编译报错顺序才不会飘）。
+APP_SRCS=()
+while IFS= read -r f; do APP_SRCS+=("$f"); done \
+  < <(find "$ROOT/src/com/hex91/file" -type f -name '*.java' | sort)
+
 "$JAVAC" -J-Dfile.encoding=UTF-8 -source 8 -target 8 -encoding UTF-8 -nowarn \
     -bootclasspath "$PLATFORM" \
     -classpath "$LIBS_CP" \
     -d "$BUILD/obj" \
     "$BUILD/gen/com/hex91/file/R.java" \
-    "$ROOT"/src/com/hex91/file/*.java \
+    "${APP_SRCS[@]}" \
     "$ROOT"/src/jadx/jadx/core/xmlgen/*.java \
     "$ROOT"/src/jadx/jadx/core/xmlgen/entry/*.java \
     "$ROOT"/src/com/termux/terminal/*.java \
