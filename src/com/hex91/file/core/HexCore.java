@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.core;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -135,7 +135,7 @@ public final class HexCore {
         return b;
     }
 
-    static int hexVal(char c) {
+    public static int hexVal(char c) {
         if (c >= '0' && c <= '9') return c - '0';
         if (c >= 'A' && c <= 'F') return c - 'A' + 10;
         return -1;

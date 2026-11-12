@@ -1,5 +1,5 @@
-import com.hex91.file.CodecCore;
-import com.hex91.file.CryptoCore;
+import com.hex91.file.core.CodecCore;
+import com.hex91.file.core.CryptoCore;
 import com.hex91.file.HlsCrypto;
 import com.hex91.file.HlsDownloader;
 import com.hex91.file.HlsPlaylist;

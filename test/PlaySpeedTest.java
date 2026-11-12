@@ -1,4 +1,4 @@
-import com.hex91.file.PlaySpeed;
+import com.hex91.file.core.PlaySpeed;
 
 /** v1.91.0 倍速档位表：上下限、吸附、边界步进、显示文案。 */
 public class PlaySpeedTest {

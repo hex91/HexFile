@@ -1,5 +1,5 @@
-import com.hex91.file.RegionTable;
-import com.hex91.file.TestDataCore;
+import com.hex91.file.core.RegionTable;
+import com.hex91.file.core.TestDataCore;
 
 import java.io.File;
 import java.io.IOException;

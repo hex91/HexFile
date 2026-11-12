@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.core;
 
 /**
  * 文本格式化引擎（v1.29.0）：JSON / XML(HTML) / 大括号语言（java/c/cpp/js）。

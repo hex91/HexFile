@@ -1,4 +1,4 @@
-import com.hex91.file.HexCore;
+import com.hex91.file.core.HexCore;
 
 /**
  * Hex 编辑器排版回归（v1.68.0）：列头与行文本必须严格对齐

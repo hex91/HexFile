@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.core;
 
 /**
  * v1.83.0 极简 Base64（标准字母表 + = 填充）。

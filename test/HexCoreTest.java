@@ -1,7 +1,7 @@
 package bin.HexFile;
 
-import com.hex91.file.HexCore;
-import com.hex91.file.HexCore.Type;
+import com.hex91.file.core.HexCore;
+import com.hex91.file.core.HexCore.Type;
 
 public class HexCoreTest {
     static int pass = 0, fail = 0;

@@ -1,5 +1,5 @@
-import com.hex91.file.FormatUtil;
-import com.hex91.file.FormatUtil.FormatException;
+import com.hex91.file.core.FormatUtil;
+import com.hex91.file.core.FormatUtil.FormatException;
 
 /** FormatUtil 桌面验证：JSON 美化/压缩/异常/字面量保留、XML 缩进、代码 beautify */
 public class FormatTest {

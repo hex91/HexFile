@@ -1,7 +1,7 @@
 package com.hex91.file;
 
 import com.hex91.file.ThemeManager;
-import com.hex91.file.ThemeSchemes;
+import com.hex91.file.core.ThemeSchemes;
 
 import java.util.ArrayList;
 import java.util.List;

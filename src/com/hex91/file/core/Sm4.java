@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.core;
 
 /**
  * v1.70.0 国密 SM4 分组密码（GB/T 32907-2016），纯 Java 实现。

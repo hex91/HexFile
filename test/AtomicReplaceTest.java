@@ -1,4 +1,4 @@
-import com.hex91.file.AtomicReplace;
+import com.hex91.file.core.AtomicReplace;
 
 import java.io.File;
 import java.io.FileInputStream;

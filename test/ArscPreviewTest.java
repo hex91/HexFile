@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-import com.hex91.file.ArscDefs;
+import com.hex91.file.core.ArscDefs;
 import com.hex91.file.ArscFile;
 import com.hex91.file.ArscValues;
 import jadx.core.xmlgen.entry.RawNamedValue;

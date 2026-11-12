@@ -1,4 +1,4 @@
-import com.hex91.file.Contrast;
+import com.hex91.file.core.Contrast;
 
 /**
  * v1.83.0 颜色对比度回归。

@@ -1,5 +1,6 @@
 package com.hex91.file;
 
+import com.hex91.file.core.*;
 import android.Manifest;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;

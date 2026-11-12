@@ -1,4 +1,4 @@
-import com.hex91.file.ScreenPolicy;
+import com.hex91.file.core.ScreenPolicy;
 
 /**
  * v1.94.0 画面方向与等比比例。

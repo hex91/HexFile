@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.core;
 
 /**
  * v1.70.0 国密 SM3 杂凑算法（GB/T 32905-2016），纯 Java 实现。

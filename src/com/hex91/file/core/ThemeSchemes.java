@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.core;
 
 /**
  * v1.48.0 主题色板定义 —— 由 tools/gen_themes.py 与 res/values/themes.xml 同步生成。

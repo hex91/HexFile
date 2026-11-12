@@ -1,6 +1,6 @@
 import com.hex91.file.AxmlFile;
 import com.hex91.file.AxmlWriter;
-import com.hex91.file.ArscDefs;
+import com.hex91.file.core.ArscDefs;
 
 import java.io.*;
 import java.util.*;

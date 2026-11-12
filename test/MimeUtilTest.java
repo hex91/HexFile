@@ -1,4 +1,4 @@
-import com.hex91.file.MimeUtil;
+import com.hex91.file.core.MimeUtil;
 
 /**
  * v1.72.0 分享功能的 MIME 映射回归。

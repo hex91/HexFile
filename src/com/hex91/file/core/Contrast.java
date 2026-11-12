@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.core;
 
 /**
  * 颜色对比度工具（纯 Java，可桌面单测）。

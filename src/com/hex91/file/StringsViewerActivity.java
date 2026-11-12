@@ -1,5 +1,6 @@
 package com.hex91.file;
 
+import com.hex91.file.core.*;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.os.Bundle;

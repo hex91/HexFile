@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.core;
 
 import java.util.Locale;
 

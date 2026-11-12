@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.core;
 
 /**
  * resources.arsc structure constants (AOSP ResourceTypes.h) and little-endian helpers.

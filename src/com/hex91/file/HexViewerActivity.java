@@ -1,5 +1,6 @@
 package com.hex91.file;
 
+import com.hex91.file.core.*;
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -33,7 +34,7 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Locale;
 
-import com.hex91.file.HexCore.Type;
+import com.hex91.file.core.HexCore.Type;
 
 /**
  * HEX 编辑器（v1.68.2）：

@@ -1,6 +1,6 @@
 package bin.HexFile;
 
-import com.hex91.file.StringExtract;
+import com.hex91.file.core.StringExtract;
 
 import java.io.File;
 import java.io.FileOutputStream;

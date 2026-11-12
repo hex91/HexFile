@@ -1,4 +1,4 @@
-import com.hex91.file.ScanCache;
+import com.hex91.file.core.ScanCache;
 
 import java.io.File;
 

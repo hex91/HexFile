@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.core;
 
 import java.io.ByteArrayOutputStream;
 import java.util.Locale;

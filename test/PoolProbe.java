@@ -1,4 +1,4 @@
-import com.hex91.file.ArscDefs;
+import com.hex91.file.core.ArscDefs;
 import java.io.*;
 import java.util.zip.*;
 public class PoolProbe {

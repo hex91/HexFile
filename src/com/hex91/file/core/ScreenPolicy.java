@@ -1,4 +1,4 @@
-package com.hex91.file;
+package com.hex91.file.core;
 
 /**
  * 画面方向与显示比例策略 —— v1.94.0。

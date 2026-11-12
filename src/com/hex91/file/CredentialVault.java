@@ -1,5 +1,6 @@
 package com.hex91.file;
 
+import com.hex91.file.core.*;
 import android.content.Context;
 import android.os.Build;
 import android.provider.Settings;

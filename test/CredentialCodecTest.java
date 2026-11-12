@@ -1,5 +1,5 @@
-import com.hex91.file.Base64Codec;
-import com.hex91.file.CredentialCodec;
+import com.hex91.file.core.Base64Codec;
+import com.hex91.file.core.CredentialCodec;
 
 import java.util.Arrays;
 

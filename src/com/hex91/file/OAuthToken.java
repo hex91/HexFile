@@ -1,5 +1,6 @@
 package com.hex91.file;
 
+import com.hex91.file.core.*;
 /**
  * v1.89.0 OAuth 令牌（纯 Java，可单测）。
  *

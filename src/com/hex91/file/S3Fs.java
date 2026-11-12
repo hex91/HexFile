@@ -1,5 +1,6 @@
 package com.hex91.file;
 
+import com.hex91.file.core.*;
 import android.util.Xml;
 
 import org.xmlpull.v1.XmlPullParser;

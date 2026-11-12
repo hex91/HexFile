@@ -1,4 +1,4 @@
-import com.hex91.file.ArscDefs;
+import com.hex91.file.core.ArscDefs;
 import com.hex91.file.ArscFile;
 import com.hex91.file.ArscWriter;
 import com.hex91.file.ArscWriter.Edit;

@@ -1,4 +1,4 @@
-import com.hex91.file.LinkUtil;
+import com.hex91.file.core.LinkUtil;
 
 /**
  * v1.81.0 符号链接目标解析（桌面 JVM）。
