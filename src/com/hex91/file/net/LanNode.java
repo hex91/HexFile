@@ -239,7 +239,8 @@ public final class LanNode {
         try {
             File dir = new File(WorkDir.base(), "LanShare");
             if (dir.isDirectory() || dir.mkdirs()) return dir;
-        } catch (Throwable ignored) {
+        } catch (Throwable t) {
+            Log.w(TAG, "saveDir: 外部根不可用，回退到应用目录", t);
         }
         File appExt = app.getExternalFilesDir("LanShare");
         if (appExt != null && (appExt.isDirectory() || appExt.mkdirs())) return appExt;
@@ -253,7 +254,8 @@ public final class LanNode {
         try {
             File dl = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
             if (dl != null) return new File(new File(dl, "HexFile"), "LanShare");
-        } catch (Throwable ignored) {
+        } catch (Throwable t) {
+            Log.w(TAG, "saveDir: 应用外部私有目录不可用，回退到内部目录", t);
         }
         return null;
     }
@@ -359,7 +361,8 @@ public final class LanNode {
                 for (int i = 0; i < copy.size(); i++) {
                     try {
                         copy.get(i).onDevices(snapshot);
-                    } catch (Throwable ignored) {
+                    } catch (Throwable t) {
+                        Log.w(TAG, "设备列表回调失败（不影响接收）", t);
                     }
                 }
             }
@@ -376,7 +379,8 @@ public final class LanNode {
                 for (int i = 0; i < copy.size(); i++) {
                     try {
                         copy.get(i).onReceiveProgress(name, got, total);
-                    } catch (Throwable ignored) {
+                    } catch (Throwable t) {
+                        Log.w(TAG, "接收进度回调失败（不影响接收）", t);
                     }
                 }
             }
@@ -393,7 +397,8 @@ public final class LanNode {
                 for (int i = 0; i < copy.size(); i++) {
                     try {
                         copy.get(i).onReceived(name, size, saved);
-                    } catch (Throwable ignored) {
+                    } catch (Throwable t) {
+                        Log.w(TAG, "接收完成回调失败（文件已落盘）", t);
                     }
                 }
             }
@@ -410,7 +415,8 @@ public final class LanNode {
                 for (int i = 0; i < copy.size(); i++) {
                     try {
                         copy.get(i).onNotice(text);
-                    } catch (Throwable ignored) {
+                    } catch (Throwable t) {
+                        Log.w(TAG, "提示回调失败", t);
                     }
                 }
             }
