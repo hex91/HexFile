@@ -1,7 +1,7 @@
 package com.hex91.file.controller;
 
 import com.hex91.file.utils.StorageStat;
-import com.hex91.file.*;
+import com.hex91.file.R;
 import com.hex91.file.ui.ActivityLogActivity;
 import com.hex91.file.ui.AppManagerActivity;
 import com.hex91.file.ui.BackupManagerActivity;
@@ -16,7 +16,6 @@ import com.hex91.file.ui.TerminalActivity;
 import com.hex91.file.ui.ThemeActivity;
 import com.hex91.file.ui.ToolboxActivity;
 import com.hex91.file.ui.TrashActivity;
-import com.hex91.file.R;
 import com.hex91.file.fs.RootUtil;
 import android.content.Intent;
 import android.os.Environment;

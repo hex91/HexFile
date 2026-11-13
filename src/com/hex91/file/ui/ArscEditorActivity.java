@@ -1,11 +1,10 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.*;
+import com.hex91.file.R;
 import com.hex91.file.apk.ApkEditSession;
 import com.hex91.file.apk.ArscFile;
 import com.hex91.file.apk.ArscValues;
 import com.hex91.file.apk.ArscWriter;
-import com.hex91.file.R;
 import com.hex91.file.core.ArscDefs;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;

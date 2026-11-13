@@ -1,6 +1,9 @@
 package com.hex91.file.net;
+import com.hex91.file.fs.TempFiles;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -272,6 +275,32 @@ public final class LanProtocol {
     }
 
     /**
+     * 原子占名（v2.5.0 R-19）：给正在接收的文件抢一个不与任何人冲突的临时名。
+     *
+     * <p>原来走的是「列目录 → {@link #uniqueName} → new FileOutputStream」：两个同名请求
+     * 同时看到目录里没有 {@code X}，于是都选中 {@code X}，共写同一个 {@code X.part}。
+     * 先完成的一方 rename 走文件，另一方 rename 失败后改为复制「此刻的共享 .part」——
+     * 拿到的可能是两份数据交错的内容；它随后 delete 掉 .part，还可能删掉对方正在写的文件。</p>
+     *
+     * <p>{@code createNewFile} 是原子的，能跨线程与跨进程消除 check-then-create 窗口；
+     * 占名失败就换下一个编号。<b>调用方负责清理</b>：请求失败/中断时必须删掉这个 0 字节占位文件。</p>
+     *
+     * @return 已创建的 0 字节临时文件，名字形如 {@code 名字.part} 或 {@code 名字 (1).part}
+     */
+    public static File reserve(File dir, String rawName) throws IOException {
+        String name = safeFileName(rawName);
+        int dot = name.lastIndexOf('.');
+        String base = dot > 0 ? name.substring(0, dot) : name;
+        String ext = dot > 0 ? name.substring(dot) : "";
+        for (int i = 0; i < 10000; i++) {
+            String cand = i == 0 ? name : base + " (" + i + ")" + ext;
+            File part = new File(dir, cand + TempFiles.PART);
+            if (part.createNewFile()) return part;
+        }
+        throw new IOException("无法分配唯一临时文件名: " + name);
+    }
+
+    /**
      * 解析 HTTP 的 query（也接受整条 URI）。用于 {@code /send?name=..&size=..}。
      * 值里可能有中文文件名，同样按 UTF-8 百分号解码。
      */
@@ -320,7 +349,7 @@ public final class LanProtocol {
             java.io.File f = fs[i];
             if (f == null || !f.isFile()) continue;
             String n = f.getName();
-            if (n.endsWith(".part") || n.startsWith(".")) continue;
+            if (n.endsWith(TempFiles.PART) || n.startsWith(".")) continue;
             out.add(f);
         }
         java.util.Collections.sort(out, new java.util.Comparator<java.io.File>() {

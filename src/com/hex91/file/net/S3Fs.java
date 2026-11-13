@@ -1,4 +1,5 @@
 package com.hex91.file.net;
+import com.hex91.file.fs.TempFiles;
 
 import com.hex91.file.core.Iso8601;
 import android.util.Xml;
@@ -338,7 +339,7 @@ public final class S3Fs implements NetFs {
         if (dir == null) throw new IOException("缺少上传临时目录");
         if (!dir.isDirectory() && !dir.mkdirs() && !dir.isDirectory())
             throw new IOException("无法创建上传临时目录: " + dir.getAbsolutePath());
-        final File tmp = File.createTempFile("s3up", ".part", dir);
+        final File tmp = File.createTempFile("s3up", TempFiles.PART, dir);
         return new SpoolOut(tmp, path);
     }
 

@@ -2,7 +2,6 @@ package com.hex91.file.ui;
 
 import com.hex91.file.utils.Bg;
 import com.hex91.file.utils.ShizukuBridge;
-import com.hex91.file.*;
 import com.hex91.file.R;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.fs.LeftoverScan;
@@ -451,40 +450,58 @@ public class SettingsActivity extends BaseActivity {
                     .show();
             return;
         }
-        LinearLayout box = new LinearLayout(this);
+        final LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         int pad = dp(12);
         box.setPadding(pad, pad, pad, pad);
-        long total = 0;
-        for (LeftoverScan.Hit h : hits) total += h.size;
-        TextView head = new TextView(this);
-        head.setText(getString(R.string.leftover_head, hits.size(), FileOps.formatSize(total)));
+        final long[] total = new long[]{0};
+        for (LeftoverScan.Hit h : hits) total[0] += h.size;
+        final TextView head = new TextView(this);
+        head.setText(getString(R.string.leftover_head, hits.size(), FileOps.formatSize(total[0])));
         head.setTextSize(12f);
         head.setTextColor(ThemeManager.textSub(this));
         head.setPadding(0, 0, 0, dp(8));
         box.addView(head);
+        // v2.5.0（R-15）：按行记账。删掉一个就把那一行移除、总数重算 —— 原实现只弹 toast，
+        // 列表照旧显示，用户会再点一次，第二次仍然提示「已删除」，而磁盘上早已没有该文件。
+        // 清理工具在这个细节上一说谎，用户就不敢再信它的结论。
+        final java.util.Map<File, TextView> rows = new java.util.HashMap<File, TextView>();
+        final android.app.AlertDialog[] holder = new android.app.AlertDialog[1];
         for (final LeftoverScan.Hit h : hits) {
-            TextView t = new TextView(this);
+            final TextView t = new TextView(this);
             t.setText(h.file.getName() + "\n" + h.file.getParent() + "  ·  "
                     + FileOps.formatSize(h.size));
             t.setTextSize(12.5f);
             t.setTextColor(ThemeManager.text(this));
             t.setPadding(dp(4), dp(9), dp(4), dp(9));
             t.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View v) { confirmDeleteLeftover(h); }
+                public void onClick(View v) {
+                    confirmDeleteLeftover(h, rows, total, head, box, holder);
+                }
             });
             box.addView(t);
+            rows.put(h.file, t);
         }
         ScrollView sv = new ScrollView(this);
         sv.addView(box);
-        new HfDialogBuilder(this)
+        holder[0] = new HfDialogBuilder(this)
                 .setTitle(getString(R.string.settings_leftovers))
                 .setView(sv)
                 .setPositiveButton(getString(R.string.common_close), null)
                 .show();
     }
 
-    private void confirmDeleteLeftover(final LeftoverScan.Hit h) {
+    /**
+     * 确认并删除一条，成功后同步界面（R-15）。
+     *
+     * <p>界面状态用参数传进来而不是存字段：这个列表只活在一个对话框实例里，
+     * 存字段会跟着 Activity 一起活到下次扫描，反而要额外清理。</p>
+     */
+    private void confirmDeleteLeftover(final LeftoverScan.Hit h,
+                                       final java.util.Map<File, TextView> rows,
+                                       final long[] total, final TextView head,
+                                       final LinearLayout box,
+                                       final android.app.AlertDialog[] holder) {
         boolean isBak = h.file.getName().endsWith(LeftoverScan.BAK)
                 || h.file.getName().endsWith(LeftoverScan.BAK_LEGACY);
         new HfDialogBuilder(this)
@@ -499,7 +516,21 @@ public class SettingsActivity extends BaseActivity {
                             toast(getString(R.string.leftover_delete_active));
                             return;
                         }
-                        toast(LeftoverScan.delete(h.file) ? getString(R.string.leftover_deleted) : getString(R.string.leftover_delete_failed));
+                        if (!LeftoverScan.delete(h.file)) {
+                            toast(getString(R.string.leftover_delete_failed));
+                            return;
+                        }
+                        TextView row = rows.remove(h.file);
+                        if (row != null) box.removeView(row);
+                        total[0] -= h.size;
+                        toast(getString(R.string.leftover_deleted));
+                        if (rows.isEmpty()) {
+                            if (holder[0] != null) holder[0].dismiss();
+                            toast(getString(R.string.leftover_all_cleared));
+                            return;
+                        }
+                        head.setText(getString(R.string.leftover_head, rows.size(),
+                                FileOps.formatSize(Math.max(0, total[0]))));
                     }
                 })
                 .setNegativeButton(getString(R.string.common_cancel), null)

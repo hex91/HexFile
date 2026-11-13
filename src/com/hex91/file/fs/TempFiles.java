@@ -1,9 +1,12 @@
 package com.hex91.file.fs;
 
+import com.hex91.file.core.AtomicReplace;
+
 import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
@@ -33,21 +36,26 @@ public final class TempFiles {
     /** 覆盖写回留下的临时名：{@code 名字.reb<时间戳>.tmp}（ZipUtil / ArchiveWrite） */
     private static final Pattern REB = Pattern.compile("\\.reb\\d+\\.tmp$");
 
-    /** 备份后缀（与 {@link com.hex91.file.core.AtomicReplace} 共用，避免两处各写一遍字符串） */
-    public static final String BAK = ".bakrepl";
+    /**
+     * 写回备份后缀。真定义在 {@link AtomicReplace#BAK_SUFFIX}（生产端是它），
+     * 这里只是同包外的引用别名 —— 改后缀只改那一处。
+     */
+    public static final String BAK = AtomicReplace.BAK_SUFFIX;
     /** 旧版 ApkEditSession 的备份后缀 */
     public static final String BAK_LEGACY = ".replacebak";
     /** 流式写入的半成品后缀（复制、下载、接收、分片统一用它） */
     public static final String PART = ".part";
 
     /**
-     * 正在写的临时文件（规范化绝对路径）。
+     * 正在写的临时文件（规范化绝对路径 → 写者数量）。
      *
-     * <p>用 {@code ConcurrentHashMap} 的 keySet 做并发集合：注册/注销只发生在文件级
-     * 起止处（一次拷贝一次），不在每个块上，代价可忽略。</p>
+     * <p>v2.5.0（R-19）：以前是 {@code Set}，同名路径被两个写者登记时没有计数 ——
+     * 先结束的一方直接 remove，仍在写的那一个从注册表里消失，遗留扫描又能把它列出来删掉。
+     * 现在改成引用计数：{@code begin} 自增、{@code end} 自减到 0 才移除。</p>
+     *
+     * <p>登记/注销只发生在文件级起止处（一次拷贝一次），不在每个块上，加锁代价可忽略。</p>
      */
-    private static final Set<String> ACTIVE =
-            Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
+    private static final Map<String, Integer> ACTIVE = new ConcurrentHashMap<String, Integer>();
 
     private TempFiles() {}
 
@@ -55,7 +63,12 @@ public final class TempFiles {
 
     /** 开始写 f（f 是临时路径）。调用方必须保证配对的 {@link #end}，最好放在 finally 里 */
     public static void begin(File f) {
-        if (f != null) ACTIVE.add(key(f));
+        if (f == null) return;
+        String k = key(f);
+        synchronized (ACTIVE) {
+            Integer n = ACTIVE.get(k);
+            ACTIVE.put(k, Integer.valueOf(n == null ? 1 : n.intValue() + 1));
+        }
     }
 
     /**
@@ -65,17 +78,27 @@ public final class TempFiles {
      * 留在注册表里只会挡住下一次同名写入（同一目标连拷两次）。</p>
      */
     public static void end(File f) {
-        if (f != null) ACTIVE.remove(key(f));
+        if (f == null) return;
+        String k = key(f);
+        synchronized (ACTIVE) {
+            Integer n = ACTIVE.get(k);
+            if (n == null || n.intValue() <= 1) ACTIVE.remove(k);
+            else ACTIVE.put(k, Integer.valueOf(n.intValue() - 1));
+        }
     }
 
-    /** 这个路径是否正被本进程写入 */
+    /** 这个路径是否正被本进程写入（还有至少一个写者） */
     public static boolean isActive(File f) {
-        return f != null && ACTIVE.contains(key(f));
+        if (f == null) return false;
+        Integer n = ACTIVE.get(key(f));
+        return n != null && n.intValue() > 0;
     }
 
     /** 当前活动集合的快照（传给扫描器，避免扫描过程中集合变动导致误判） */
     public static Set<String> snapshot() {
-        return new HashSet<String>(ACTIVE);
+        synchronized (ACTIVE) {
+            return new HashSet<String>(ACTIVE.keySet());
+        }
     }
 
     /** 规范化路径作为键；canonical 失败（路径不存在、权限）时退回绝对路径 */

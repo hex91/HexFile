@@ -1,7 +1,6 @@
 package com.hex91.file.ui;
 
 import com.hex91.file.net.LanProtocol;
-import com.hex91.file.*;
 import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;

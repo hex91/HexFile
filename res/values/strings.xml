@@ -115,6 +115,7 @@
     <string name="leftover_delete_bak_msg">%1$s\n\n这是 %2$s 的备份，里面可能装着上一次替换失败前的原内容。删掉就无法从这里恢复了。</string>
     <string name="leftover_delete_part_msg">%1$s\n\n这是没写完的临时文件，删除不会影响已完成的文件。</string>
     <string name="leftover_deleted">已删除</string>
+    <string name="leftover_all_cleared">遗留文件已全部清理</string>
     <string name="leftover_delete_failed">删除失败（可能被占用）</string>
     <string name="leftover_delete_active">任务进行中，暂时不能删除这个文件</string>
     <string name="workdir_missing_title">目录不存在</string>

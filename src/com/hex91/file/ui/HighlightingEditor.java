@@ -2,7 +2,7 @@ package com.hex91.file.ui;
 
 import com.hex91.file.utils.MtTextUtils;
 import com.hex91.file.utils.SyntaxHighlighterBase;
-import com.hex91.file.*;
+import com.hex91.file.R;
 /*#######################################################
  *
  *   Maintained 2017-2025 by Gregor Santner <gsantner AT mailbox DOT org>

@@ -1,7 +1,6 @@
 package com.hex91.file.ui;
 
 import com.hex91.file.utils.ActivityLog;
-import com.hex91.file.*;
 import android.accessibilityservice.AccessibilityService;
 import android.content.Intent;
 import android.content.SharedPreferences;

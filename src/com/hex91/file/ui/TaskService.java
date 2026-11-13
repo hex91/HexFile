@@ -1,11 +1,10 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.*;
 import com.hex91.file.R;
+import com.hex91.file.MainActivity;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.fs.FileTask;
 import com.hex91.file.fs.FileTaskEngine;
-import com.hex91.file.MainActivity;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;

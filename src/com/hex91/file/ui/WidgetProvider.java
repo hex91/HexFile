@@ -1,10 +1,9 @@
 package com.hex91.file.ui;
 
 import com.hex91.file.utils.WidgetText;
-import com.hex91.file.*;
 import com.hex91.file.R;
-import com.hex91.file.fs.WorkDir;
 import com.hex91.file.MainActivity;
+import com.hex91.file.fs.WorkDir;
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;

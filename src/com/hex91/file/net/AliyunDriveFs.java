@@ -1,4 +1,5 @@
 package com.hex91.file.net;
+import com.hex91.file.fs.TempFiles;
 
 import com.hex91.file.core.Iso8601;
 import com.hex91.file.core.Json;
@@ -338,7 +339,7 @@ public final class AliyunDriveFs implements NetFs {
         if (dir == null) throw new IOException("缺少上传临时目录");
         if (!dir.isDirectory() && !dir.mkdirs() && !dir.isDirectory())
             throw new IOException("无法创建上传临时目录: " + dir.getAbsolutePath());
-        return new SpoolOut(File.createTempFile("aliup", ".part", dir), path);
+        return new SpoolOut(File.createTempFile("aliup", TempFiles.PART, dir), path);
     }
 
     private final class SpoolOut extends OutputStream {

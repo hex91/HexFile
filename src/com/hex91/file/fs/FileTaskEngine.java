@@ -485,7 +485,7 @@ public final class FileTaskEngine {
         File parent = dst.getParentFile();
         if (parent != null && !parent.isDirectory() && !parent.mkdirs() && !parent.isDirectory())
             throw new IOException("无法创建: " + parent);
-        File part = new File(parent, dst.getName() + ".part");
+        File part = new File(parent, dst.getName() + TempFiles.PART);
         // v2.4.0（R-08）：登记为「本进程正在写的临时文件」，遗留扫描就不会把它列出来
         // 让用户删掉 —— 删了之后 rename 必然失败，几 GB 的拷贝白跑。
         // end 必须在 rename 之前：改名之后这个路径已不存在，留在注册表里只会挡住下一次

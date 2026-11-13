@@ -1,7 +1,6 @@
 package com.hex91.file.ui;
 
 import com.hex91.file.utils.KeyCipher;
-import com.hex91.file.*;
 import com.hex91.file.apk.KeyStoreUtil;
 import com.hex91.file.apk.KeystoreCreate;
 import android.app.AlertDialog;

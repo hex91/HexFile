@@ -1,7 +1,6 @@
 package com.hex91.file.ui;
 
 import com.hex91.file.net.TokenHarvest;
-import com.hex91.file.*;
 import com.hex91.file.R;
 import android.app.Activity;
 import android.content.Context;

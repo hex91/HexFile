@@ -202,7 +202,7 @@ public final class SyncRunner {
         if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
             throw new IOException("无法创建本地目录");
         }
-        File part = new File(dst.getAbsolutePath() + ".part");
+        File part = new File(dst.getAbsolutePath() + TempFiles.PART);
         // v2.4.0（R-08）：下载期间登记为活动临时文件，遗留扫描不会把它列出来
         // 让用户删掉 —— .part 是这个任务唯一的进度载体，删了等于丢已下载的字节
         TempFiles.begin(part);

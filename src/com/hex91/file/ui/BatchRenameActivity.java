@@ -1,6 +1,5 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.*;
 import com.hex91.file.R;
 import com.hex91.file.fs.BatchRenameCore;
 import android.os.Bundle;

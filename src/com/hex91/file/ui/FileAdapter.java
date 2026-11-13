@@ -1,8 +1,7 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.*;
-import com.hex91.file.apk.FileInspect;
 import com.hex91.file.R;
+import com.hex91.file.apk.FileInspect;
 import com.hex91.file.fs.DirReader;
 import com.hex91.file.fs.FileAttrs;
 import com.hex91.file.fs.FileItem;

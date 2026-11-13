@@ -1,15 +1,14 @@
 package com.hex91.file.ui;
 
 import com.hex91.file.utils.OpenWith;
-import com.hex91.file.*;
+import com.hex91.file.R;
+import com.hex91.file.MainActivity;
 import com.hex91.file.net.M3u8Playlist;
 import com.hex91.file.net.StreamUrl;
 import com.hex91.file.apk.FileInspect;
-import com.hex91.file.R;
 import com.hex91.file.core.MimeUtil;
 import com.hex91.file.core.PlaySpeed;
 import com.hex91.file.core.ScreenPolicy;
-import com.hex91.file.MainActivity;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;

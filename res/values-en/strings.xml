@@ -110,6 +110,7 @@
     <string name="leftover_delete_bak_msg">%1$s\n\nThis is the backup of %2$s and may hold the original content from before a failed replacement. Once deleted, it cannot be recovered here.</string>
     <string name="leftover_delete_part_msg">%1$s\n\nThis is an unfinished temporary file; deleting it does not affect completed files.</string>
     <string name="leftover_deleted">Deleted</string>
+    <string name="leftover_all_cleared">All leftover files cleaned up.</string>
     <string name="leftover_delete_failed">Delete failed (file may be in use)</string>
     <string name="leftover_delete_active">A task is running — this file can\'t be deleted right now</string>
     <string name="workdir_missing_title">Folder Does Not Exist</string>

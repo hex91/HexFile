@@ -2,9 +2,8 @@ package com.hex91.file.ui;
 
 import com.hex91.file.fs.FileKind;
 import com.hex91.file.utils.HashUtil;
-import com.hex91.file.*;
-import com.hex91.file.apk.ApkCompareUtil;
 import com.hex91.file.R;
+import com.hex91.file.apk.ApkCompareUtil;
 import com.hex91.file.fs.CompareUtil;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.core.TextDiffUtil;

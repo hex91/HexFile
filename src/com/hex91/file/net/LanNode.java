@@ -480,9 +480,12 @@ public final class LanNode {
                 return NanoHTTPD.newFixedLengthResponse(Response.Status.INTERNAL_ERROR,
                         "text/plain; charset=utf-8", "cannot create save dir");
             }
-            String safe = LanProtocol.safeFileName(rawName);
-            String finalName = LanProtocol.uniqueName(safe, existingNames(dir));
-            File part = new File(dir, finalName + ".part");
+            // v2.5.0（R-19）：占名必须原子。原来「列目录 + uniqueName」在两个同名请求
+            // 并发时都选中同一个名字，共写一个 .part；先完成的一方 rename 走后，
+            // 另一方复制到的是交错数据，还会 delete 掉对方正在写的文件。
+            File part = LanProtocol.reserve(dir, rawName);
+            String partName = part.getName();
+            String finalName = partName.substring(0, partName.length() - TempFiles.PART.length());
             File dst = new File(dir, finalName);
             // v2.4.0（R-08）：整个接收期间都算活动临时文件。局域网接收的 .part
             // 就是唯一进度载体，被遗留扫描列出来删掉 = 已接收的字节全丢
@@ -534,17 +537,6 @@ public final class LanNode {
             return NanoHTTPD.newFixedLengthResponse(Response.Status.OK,
                     "text/plain; charset=utf-8", "OK " + dst.getAbsolutePath());
         }
-    }
-
-    private static Set<String> existingNames(File dir) {
-        Set<String> out = new HashSet<String>();
-        File[] fs = dir.listFiles();
-        if (fs != null) {
-            for (int i = 0; i < fs.length; i++) {
-                out.add(fs[i].getName());
-            }
-        }
-        return out;
     }
 
     private static boolean copyThenDelete(File src, File dst) {
