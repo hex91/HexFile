@@ -208,4 +208,29 @@ public final class TreeOps {
             in.close();
         }
     }
+
+    /**
+     * 目录树中是否含 {@code .smali} 文件（O-22 刀2：从 MainActivity 下沉）。
+     *
+     * <p>用于判断一个目录是不是「smali 源目录」，从而提供「编译为 dex」的动作。
+     * 限制遍历规模：遇到超大目录（>5000 项）直接判否，宁可少一个动作入口，
+     * 也不要在长按菜单里卡半秒。遍历不跟软链，理由同本类其余方法。</p>
+     */
+    public static boolean hasSmali(File dir) {
+        if (dir == null) return false;
+        java.util.ArrayDeque<File> queue = new java.util.ArrayDeque<File>();
+        queue.add(dir);
+        int visited = 0;
+        while (!queue.isEmpty()) {
+            File d = queue.poll();
+            File[] kids = LinkUtil.listNoFollow(d);
+            if (kids == null) continue;
+            for (File k : kids) {
+                if (++visited > 5000) return false;   // 目录太大，放弃检测
+                if (k.isDirectory()) queue.add(k);
+                else if (k.getName().toLowerCase().endsWith(".smali")) return true;
+            }
+        }
+        return false;
+    }
 }

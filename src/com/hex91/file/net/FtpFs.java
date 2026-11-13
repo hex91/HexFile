@@ -1,5 +1,7 @@
 package com.hex91.file.net;
 
+import android.util.Log;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,6 +31,8 @@ import java.util.Locale;
  * <p>远程路径约定与 {@link NetFs} 一致：'/' 分隔、空串表示登录后的起始目录。</p>
  */
 public final class FtpFs implements NetFs {
+
+    private static final String TAG = "FtpFs";
 
     private final String host;
     private final int port;
@@ -84,7 +88,13 @@ public final class FtpFs implements NetFs {
         }
         lastReply = line;
         int code = 0;
-        try { code = Integer.parseInt(line.substring(0, 3)); } catch (Exception ignore) {}
+        try {
+            code = Integer.parseInt(line.substring(0, 3));
+        } catch (Exception e) {
+            // 服务器回了非标准状态行（有些嵌入式 FTP 会多打几行横幅）。往下走会当未知码处理，
+            // 但排查「连上了却列不出目录」时，只有这条日志能看出是回复格式的问题
+            Log.w(TAG, "状态行无法解析: " + (line.length() > 40 ? line.substring(0, 40) : line), e);
+        }
         return code;
     }
 

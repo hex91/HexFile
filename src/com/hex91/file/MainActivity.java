@@ -1,6 +1,5 @@
 package com.hex91.file;
 
-import com.hex91.file.core.AtomicReplace;
 import com.hex91.file.core.ByteIO;
 import com.hex91.file.fs.FileKind;
 import com.hex91.file.utils.DragPlan;
@@ -9,6 +8,7 @@ import com.hex91.file.utils.ImageBatchUtil;
 import com.hex91.file.utils.KeyCipher;
 import com.hex91.file.utils.OpenWith;
 import com.hex91.file.utils.StorageStat;
+import com.hex91.file.controller.ArchiveAddController;
 import com.hex91.file.controller.ArchiveController;
 import com.hex91.file.controller.DirectoryController;
 import com.hex91.file.controller.DrawerController;
@@ -73,7 +73,6 @@ import com.hex91.file.fs.FileOps;
 import com.hex91.file.fs.FileSplit;
 import com.hex91.file.fs.FileTask;
 import com.hex91.file.fs.FileTaskEngine;
-import com.hex91.file.fs.LinkUtil;
 import com.hex91.file.fs.RootIO;
 import com.hex91.file.fs.RootUtil;
 import com.hex91.file.fs.Trash;
@@ -82,7 +81,6 @@ import com.hex91.file.fs.TreeOps;
 import com.hex91.file.fs.WorkDir;
 import com.hex91.file.fs.ZipUtil;
 import com.hex91.file.fs.ZstdUtil;
-import com.hex91.file.core.AtomicReplace;
 import com.hex91.file.core.MimeUtil;
 import android.Manifest;
 import android.app.AlertDialog;
@@ -92,7 +90,6 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
@@ -109,7 +106,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.CheckBox;
-import android.widget.CompoundButton;
 import android.widget.PopupMenu;
 import android.widget.BaseAdapter;
 import android.widget.Button;
@@ -230,11 +226,32 @@ public class MainActivity extends BaseActivity {
 
         public void convertRarToZip(File f) { MainActivity.this.convertRarToZip(f); }
 
-        public void writeTree(File dir, String prefix, File archive, boolean apkMode)
-                throws java.io.IOException {
-            MainActivity.this.writeTree(dir, prefix, archive, apkMode);
-        }
     });
+
+    /**
+     * 「往压缩包里加东西」控制器（O-22 刀2）。
+     *
+     * <p>与 {@link #archCtl} 分开：那一簇是「包内浏览/条目操作」，这一簇是「把外部文件塞进去」。
+     * 两者共用 {@code Pane} 与压缩包写回工具，但调用时机与失败提示完全不同。</p>
+     */
+    private final ArchiveAddController archiveAdd = new ArchiveAddController(
+            new ArchiveAddController.Host() {
+                public android.content.Context ctx() { return MainActivity.this; }
+
+                public void toast(String s) { MainActivity.this.toast(s); }
+
+                public void ui(Runnable r) { runOnUiThread(r); }
+
+                public Pane active() { return MainActivity.this.active(); }
+
+                public void showArchiveDir(Pane p) { archCtl.showArchiveDir(p); }
+
+                public void refreshAll() { MainActivity.this.refreshAll(); }
+
+                public boolean ensureArchiveWritable(File f) {
+                    return MainActivity.this.ensureArchiveWritable(f);
+                }
+            });
 
     /** v1.78.0：窗格显示偏好（排序方式 / 是否显示 . 文件 / 列表or网格），两栏共用 */
     private static final String PREF_UI = "hf_view";
@@ -2359,116 +2376,6 @@ public class MainActivity extends BaseActivity {
         }, "apk-pack").start();
     }
 
-    /** 写文件/目录进压缩包（nameOverride 非空 = 单源自定义条目名/目录前缀；move = 成功后删源） */
-    private void addToArchive(final File[] sources, final Pane archPane,
-            final String nameOverride, final boolean move) {
-        if (!ensureArchiveWritable(archPane.archiveFile)) return;
-        toast("写入压缩包…");
-        final boolean apkMode = ApkEditSession.isApk(archPane.archiveFile);
-        new Thread(new Runnable() {
-            public void run() {
-                String err = null;
-                for (File f : sources) {
-                    String root = sources.length == 1 && nameOverride != null
-                            ? nameOverride : f.getName();
-                    try {
-                        if (f.isDirectory()) {
-                            // 目录整树写入：root 作为压缩包内前缀
-                            writeTree(f, root, archPane.archiveFile, apkMode);
-                        } else if (apkMode) {
-                            // v1.66.8：APK → 会话登记（加 lib/assets 文件等），重打包写回原包
-                            ApkEditSession.stageAdd(MainActivity.this,
-                                    archPane.archiveFile, root, f);
-                        } else {
-                            if (!ArchiveWrite.writeEntry(archPane.archiveFile, root, f)) {
-                                err = AtomicReplace.failMessage("写入失败: " + root);
-                                break;
-                            }
-                        }
-                    } catch (Throwable t) {
-                        err = root + ": " + t.getMessage();
-                        break;
-                    }
-                }
-                if (apkMode && err == null) {
-                    try {
-                        ApkEditSession.flushRegen(MainActivity.this, archPane.archiveFile);
-                    } catch (Throwable t) {
-                        err = t.getClass().getSimpleName() + ": " + t.getMessage();
-                    }
-                }
-                final String ferr = err;
-                runOnUiThread(new Runnable() {
-                    public void run() {
-                        if (ferr != null) { toast("失败: " + ferr); return; }
-                        if (apkMode) {
-                            toast((move ? "已移动进压缩包" : "已复制进压缩包")
-                                    + "（已写回原包，首次修改自动备份 _bak.apk）");
-                        } else {
-                            toast(move ? "已移动进压缩包" : "已复制进压缩包");
-                        }
-                        if (move) {
-                            // R-09：必须走 TreeOps —— 它先判 isLink 再判 isDirectory，
-                            // 源目录里的软链只删链本身，不会顺着链接删掉目标内容
-                            for (File f : sources) TreeOps.deleteOrTrash(f);
-                        }
-                        showArchiveDir(archPane);
-                        refreshAll();
-                    }
-                });
-            }
-        }, "arch-add").start();
-    }
-
-    /** 把目录 dir 整树写入归档，条目前缀 = prefix（如 "myfolder" → myfolder/a.txt）；
-     *  apkMode = APK 目标：条目登记进 ApkEditSession（调用方随后 flushRegen），否则原地写入 */
-    private void writeTree(File dir, String prefix, File archive, boolean apkMode)
-            throws java.io.IOException {
-        // R-09：与 R-01 的打包策略一致 —— 链接不进压缩包，遍历时直接过滤
-        File[] kids = LinkUtil.listNoFollow(dir);
-        if (kids == null) return;
-        for (File k : kids) {
-            String entry = prefix + "/" + k.getName();
-            if (k.isDirectory()) {
-                writeTree(k, entry, archive, apkMode);
-            } else if (apkMode) {
-                ApkEditSession.stageAdd(MainActivity.this, archive, entry, k);
-            } else {
-                if (!ArchiveWrite.writeEntry(archive, entry, k)) {
-                    throw new RuntimeException(AtomicReplace.failMessage("写入失败: " + entry));
-                }
-            }
-        }
-    }
-
-    /** 复制/移动文件或目录进压缩包：可自定义目标条目名（含后缀，支持子目录路径） */
-    private void askAddToArchive(final File src, final Pane archPane, final boolean move) {
-        if (!ensureArchiveWritable(archPane.archiveFile)) return;
-        final EditText et = new EditText(this);
-        et.setText(src.getName());
-        et.setInputType(InputType.TYPE_CLASS_TEXT);
-        new HfDialogBuilder(this)
-                .setTitle((move ? "移动" : "复制") + "到压缩包: "
-                        + archPane.archiveFile.getName())
-                .setMessage(src.isDirectory()
-                        ? "将整目录写入，目标条目前缀（含后缀；可写 a/b 加入子目录）"
-                        : "目标条目名（含后缀；可写 a/b/c.txt 加入子目录）")
-                .setView(et)
-                .setPositiveButton(move ? "移动" : "复制",
-                        new android.content.DialogInterface.OnClickListener() {
-                            public void onClick(android.content.DialogInterface d, int w) {
-                                String target = et.getText().toString().trim()
-                                        .replace("\\", "/");
-                                while (target.startsWith("/")) target = target.substring(1);
-                                while (target.endsWith("/")) target = target.substring(0, target.length() - 1);
-                                if (target.isEmpty()) { toast("条目名不能为空"); return; }
-                                addToArchive(new File[]{src}, archPane, target, move);
-                            }
-                        })
-                .setNegativeButton("取消", null)
-                .show();
-    }
-
     /** 双列宫格动作回调（文件动作 / 压缩包条目动作共用同一宫格 UI） */
     private void openEditor(File f) {
         Intent i = new Intent(MainActivity.this, TextEditorActivity.class);
@@ -2653,7 +2560,7 @@ public class MainActivity extends BaseActivity {
         final boolean isFile = f.isFile();
         final boolean isDex = isFile && f.getName().toLowerCase().endsWith(".dex");
         final boolean isKs = isFile && isKeystoreFile(f, f.getName().toLowerCase());
-        final boolean isSmaliDir = !isFile && hasSmali(f);
+        final boolean isSmaliDir = !isFile && TreeOps.hasSmali(f);
         // 动作码
         final int A_SMALI = 0, A_EDIT = 1, A_HEX = 2, A_COPY = 3, A_MOVE = 4,
                 A_REN = 5, A_ZIP = 6, A_DEL = 7, A_PROP = 8, A_ASSEMBLE = 9, A_DEXPP = 14,
@@ -2826,7 +2733,7 @@ public class MainActivity extends BaseActivity {
                 toast("已加入移动队列");
                 break;
             case 5: askRename(f); break;
-            case 6: askCompress(f); break;
+            case 6: archiveAdd.askCompress(f); break;
             case 7: confirmDelete(f); break;
             case 24: askEncryptFile(f); break;       // 加密文件（自家格式 .enc）
             case 25: askDecryptFile(f); break;       // 解密 .enc 文件
@@ -2857,10 +2764,10 @@ public class MainActivity extends BaseActivity {
                         .putExtra(ManifestEditorActivity.EXTRA_APK, f.getAbsolutePath()));
                 break;
             case 18:                              // 复制到对面窗格已打开的压缩包
-                if (dst.archiveFile != null) askAddToArchive(f, dst, false);
+                if (dst.archiveFile != null) archiveAdd.askAddToArchive(f, dst, false);
                 break;
             case 19:                              // 移动到对面窗格已打开的压缩包
-                if (dst.archiveFile != null) askAddToArchive(f, dst, true);
+                if (dst.archiveFile != null) archiveAdd.askAddToArchive(f, dst, true);
                 break;
             case 21:                              // 对比…（自动判别 目录/文本/哈希）
                 askCompareTarget(f, false);
@@ -3587,25 +3494,6 @@ public class MainActivity extends BaseActivity {
                 .putExtra(CompareActivity.EXTRA_VERIFY_HASH, verifyHash));
     }
 
-    /** 目录树中是否含 .smali 文件（限制遍历规模防止大目录卡顿） */
-    private static boolean hasSmali(File dir) {
-        java.util.ArrayDeque<File> queue = new java.util.ArrayDeque<File>();
-        queue.add(dir);
-        int visited = 0;
-        while (!queue.isEmpty()) {
-            File d = queue.poll();
-            // R-09：不跟进软链，免得顺着 ln-xxx -> /sdcard 把整片存储扫一遍
-            File[] kids = LinkUtil.listNoFollow(d);
-            if (kids == null) continue;
-            for (File k : kids) {
-                if (++visited > 5000) return false;   // 目录太大，放弃检测
-                if (k.isDirectory()) queue.add(k);
-                else if (k.getName().toLowerCase().endsWith(".smali")) return true;
-            }
-        }
-        return false;
-    }
-
     /** smali 目录后台编译为 dex → 输出到同级 <目录名>.dex */
     private void assembleDexDir(final File dir) {
         final File out = new File(dir.getParentFile(), dir.getName() + ".dex");
@@ -3748,75 +3636,6 @@ public class MainActivity extends BaseActivity {
                         } else {
                             toast("重命名失败");
                         }
-                    }
-                })
-                .setNegativeButton("取消", null)
-                .show();
-    }
-
-    private void askCompress(final File f) {
-        final File out = new File(active().dir, f.getName() + ".zip");
-        final float den = getResources().getDisplayMetrics().density;
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding((int) (24 * den), (int) (8 * den), (int) (24 * den), (int) (8 * den));
-        final EditText pw = new EditText(this);
-        pw.setHint("留空=普通 ZIP；输入密码=加密 ZIP（AES 或 兼容 ZipCrypto，见下方选择）");
-        pw.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        root.addView(pw);
-        // 加密方式选择：AES（需 7-Zip/ZArchiver）或 兼容 ZipCrypto（系统可直接解）
-        final String[] modes = {
-                "AES-256（需 7-Zip / ZArchiver，推荐）",
-                "AES-192",
-                "AES-128",
-                "兼容 ZipCrypto（Windows/系统可直接解，弱加密）"};
-        final int[] sel = {0};
-        final TextView stv = new TextView(this);
-        stv.setText("加密方式: " + modes[sel[0]]);
-        stv.setTextSize(15);
-        stv.setTextColor(ThemeManager.text(this));
-        stv.setPadding(0, (int) (10 * den), 0, (int) (4 * den));
-        stv.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                new HfDialogBuilder(MainActivity.this)
-                        .setTitle("选择加密方式")
-                        .setSingleChoiceItems(modes, sel[0],
-                                new android.content.DialogInterface.OnClickListener() {
-                                    public void onClick(android.content.DialogInterface d, int which) {
-                                        sel[0] = which;
-                                        stv.setText("加密方式: " + modes[which]);
-                                        d.dismiss();
-                                    }
-                                })
-                        .show();
-            }
-        });
-        root.addView(stv);
-        new HfDialogBuilder(this)
-                .setTitle("压缩为 ZIP")
-                .setMessage("将 " + f.getName() + " 打包为:\n" + out.getPath())
-                .setView(root)
-                .setPositiveButton("压缩", new android.content.DialogInterface.OnClickListener() {
-                    public void onClick(android.content.DialogInterface d, int w) {
-                        java.util.List<File> src = new java.util.ArrayList<File>();
-                        src.add(f);
-                        String p = pw.getText().toString();
-                        boolean ok;
-                        if (p.isEmpty()) {
-                            ok = ZipUtil.createZip(out, src);
-                        } else if (sel[0] == 3) {
-                            ok = ZipUtil.createZipEncryptedCompat(out, src, p);
-                        } else {
-                            ok = ZipUtil.createZipEncrypted(out, src, p, 3 - sel[0]); // 0→256,1→192,2→128
-                        }
-                        if (ok) {
-                            toast("已压缩: " + out.getName());
-                        } else {
-                            // 压缩是「新建文件」，不经过原子替换，所以这里没有 lastError 可用；
-                            // 最常见的两种失败：源全是软链接（会被跳过，不写进包）、目标不可写
-                            toast("压缩失败（全是软链接/无法读取，或目标不可写）");
-                        }
-                        refreshAll();
                     }
                 })
                 .setNegativeButton("取消", null)
@@ -4141,7 +3960,7 @@ public class MainActivity extends BaseActivity {
             }
             if (!realFiles.isEmpty()) {
                 exitSelection(selPanel);
-                addToArchive(realFiles.toArray(new File[0]), dst, null, isMove);
+                archiveAdd.addToArchive(realFiles.toArray(new File[0]), dst, null, isMove);
                 return;
             }
             toast("未选中任何项");

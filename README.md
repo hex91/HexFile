@@ -36,13 +36,15 @@ adb install -r out/HexFile-*.apk
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
 │   ├── values-en/               # 英文：设置页 / 任务中心 / 通知 / 工具栏（未迁移页面回退中文）
 │   ├── values-sw600dp/          # 平板：pane_divider 从 1dp 装饰线变 6dp 可拖
-│   └── drawable/                # 矢量图标（ic_launcher / ic_folder / ic_file）
+│   ├── drawable/                # 矢量图标（ic_folder / ic_file）+ 自适应底板 ic_launcher_background
+│   └── mipmap-*/                # 启动图标：ic_launcher / ic_launcher_round / ic_launcher_foreground
 └── src/com/hex91/file
     ├── MainActivity.java        # 唯一的顶层类：主界面装配 / 菜单分发 / 多选批量 / 跨模块编排
-    ├── controller/  (6)         # 主界面的状态与行为，MainActivity 只负责装配与转发
+    ├── controller/  (7)         # 主界面的状态与行为，MainActivity 只负责装配与转发
     │   ├── Pane.java            单窗格状态：视图引用 / 目录 / 压缩包 / 历史栈 / 读取代次
     │   ├── DirectoryController  读目录 / 下拉刷新 / 历史栈 / 冷启动恢复
     │   ├── ArchiveController    压缩包内浏览：打开、密码、条目操作、查看编辑、提取
+    │   ├── ArchiveAddController 往压缩包里加东西：整树写入 / 条目名 / 压缩为 ZIP
     │   ├── TaskUiController     任务条 / 任务中心 / 「上次有任务被中断」
     │   ├── DrawerController     抽屉 16 个入口 / 存储容量 / Root 状态
     │   └── PropsController      属性 / 权限 / 时间 / 所有者 / 哈希
@@ -105,21 +107,33 @@ MainActivity  →  controller  →  ui / fs / apk / net
 自有包还禁止通配 `import`（`import com.hex91.file.fs.*` 会让「javadoc 提过一个类」
 看起来像「依赖了整个包」，审计和门脚本都没法据此判断）。
 
-> 216 个类：core 25 / fs 29 / apk 27 / net 27 / ui 73 / utils 28 / controller 6 / 顶层 1。
-> v2.4.0 的 O-17 归位后各包数量有增减（`LinkUtil` 进 fs、`SyncRunner` 进 net、
-> `ApkSignHelper` 进 ui、新增 `SortMode`/`TempFiles`/`FileKind`/`ByteIO`/`SyntaxPalette`），
-> 类总数从 211 增到 216，都是新增的小工具类，没有重复实现。
+> 217 个类：core 25 / fs 29 / apk 27 / net 27 / ui 73 / utils 28 / controller 7 / 顶层 1。
+> 从 211 增到 217 的过程：v2.4.0 的 O-17 归位（`LinkUtil` 进 fs、`SyncRunner` 进 net、
+> `ApkSignHelper` 进 ui）加了 `SortMode`/`TempFiles`/`FileKind`/`ByteIO`/`SyntaxPalette`；
+> v2.5.0 的 O-22 刀2 加了 `ArchiveAddController`。都是新增的小工具类/控制器，没有重复实现。
 
-### 质量门（每次构建与 CI 都跑）
+### 质量门
 
 ```bash
-bash test/deps_check.sh    # 依赖方向 + 自有包禁止通配 import
-bash test/catch_check.sh   # 空 catch 不增长（当前基线 339）
+./build.sh                 # 构建时自动跑 deps_check + catch_check（SKIP_GATES=1 可绕过）
+bash test/deps_check.sh    # 依赖方向 + 自有包禁止通配 + 全限定名越层
+bash test/catch_check.sh   # 空 catch 不增长（当前基线 338）
 ./test/jc.sh               # 只编译自研包，约 40 秒（改 import / 搬包时的快速校验）
+./test/jres.sh             # 只重生成 R.java（改了 res/values 后不必等完整构建）
 ```
 
-`catch_check.sh` 只拦「比基线多」，不清零：`close()` / `stopForeground()` 这类收尾吞异常
-本来就是对的，硬加日志只是噪音；真正要治的是网络与写入路径。清理一批就把基线调低一格。
+v2.5.0 起 `build.sh` 在 aapt2 之前就跑这两道门：以前只有 CI 跑，本地出一条
+「分层已破 / 新增空 catch」的 APK 完全不受阻，README 的口径与可执行行为对不上。
+两道门合计 1-2 秒，相对 5 分钟出包可忽略。
+
+`jc.sh` 与 `run_core.sh` 共用 `test/toolchain.sh` 定位 JDK / build-tools / android.jar
+（环境变量优先 → 常见位置探测 → 明确报错），不再写死盘符，Linux/macOS 不需要 cygpath。
+`jc.sh` 与 `jres.sh` 都要求先完整跑过一次 `./build.sh`（需要 `build/obj` 里的 vendored
+class 与 `build/gen/R.java`），缺了会直接提示而不是丢一堆「cannot find symbol」。
+
+`catch_check.sh` 只拦「比基线多」，不清零：当前 338 个空 catch 里 321 个的变量名是
+`ignore`/`ignored` —— 也就是作者明确决定吞掉（`close()` / `disconnect()` / `QUIT` 这类
+收尾）。脚本会把「变量名 ignore」与「留空但变量名不是 ignore」分开报，后者才真正欠理由。
 
 ## 已实现功能（v1.6.0，手机上全部可用）
 
@@ -1731,6 +1745,93 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - versionCode 109，APK 约 13MB。
 
 ---
+
+## v2.5.0（versionCode 196）—— 新图标 + 第二轮审计（并发、门禁、清理界面）
+
+### 启动图标
+
+源图 `tools/icon-source.svg`（青绿渐变底 + 白纸文件夹 + HF 连字），生成脚本
+`tools/gen_icons.js` 一起入库 —— 改图只要重跑一次脚本，不用再手工导出七种尺寸。
+
+- **自适应图标的前景层必须单独缩小**：原图前景横向已占 628/1024，四角落在 66dp 安全圆外，
+  直接当 foreground 会被系统蒙版切掉角。脚本统一缩到 0.80 并以内容包围盒中心对齐画布中心。
+- 顺带修正尺寸：原来的 `ic_launcher_foreground` 是 108/144/192/288/432，hdpi 起全都偏小
+  （应是 108/162/216/324/432）。
+- 底板从纯白 `@color/ic_launcher_bg` 换成 `#06B6D4 → #10B981` 渐变 drawable；抽屉头部改用
+  完整 `@mipmap/ic_launcher`，删掉只为旧图标准备的白底板 `bg_drawer_logo`。
+
+### R-19：局域网同名并发接收共写一个 `.part`（P1）
+
+`LanNode` 收文件是「列目录 → `uniqueName` → `new FileOutputStream`」。两个同名请求同时进来，
+都看到目录里没有 `X`，于是都选中 `X`，共写同一个 `X.part`。先完成的一方 `renameTo` 成功，
+另一方 rename 失败后改用 `copyThenDelete` 复制「此刻的共享 `.part`」—— 拿到的可能是两份数据
+交错的内容；它随后 `delete` 掉 `.part`，还可能删掉对方正在写的文件。
+
+现在改 `LanProtocol.reserve(dir, name)`：用 `createNewFile` 原子占名，失败就换
+`名字 (1).ext`。`createNewFile` 的原子性能跨线程与跨进程消除 check-then-create 窗口。
+`TempFiles.ACTIVE` 同时从 `Set` 改成「路径 → 写者数」的引用计数：两个写者登记同一路径时，
+先结束的那一个不再把仍在写的路径从注册表里注销（否则遗留扫描又会把它列出来）。
+
+### R-15：遗留文件删掉后列表不刷新（P2）
+
+删一条只弹 toast，行还在、总数不变，用户会再点一次；第二次仍然提示「已删除」，
+而磁盘上早已没有该文件。清理工具在这个细节上一说谎，用户就不敢再信它的结论。
+现在按行记账：删成功就移除那一行、重算「共 N 个 / 合计 X」，删完最后一条自动关闭对话框。
+
+### R-16 / R-17：两处「注释说共用、实际各写一遍」
+
+- `TempFiles.BAK` 指向 `AtomicReplace.BAK_SUFFIX`；六处 `".part"` 字面量改 `TempFiles.PART`
+  （`FileTaskEngine`、`LanNode`、`SyncRunner`、`AliyunDriveFs`、`OneDriveFs`、`S3Fs`，
+  以及 `LanProtocol` 的列表过滤）。现在两个后缀各只有一处定义。
+- 35 处 `import com.hex91.file.*` 展开为精确 import（其中 7 处是纯死 import，直接删）。
+  `deps_check` 的正则原来要求 `file.` 后还有一段才跟 `.*`，恰好放过了根包通配 —— 一并修正。
+
+### R-18：依赖门的两条盲区
+
+`import static com.hex91.file.ui.X.y;` 以 `import static` 开头，旧正则不匹配；
+源码里直接写全限定名 `com.hex91.file.ui.UiKit.dp(1)` 更是完全绕过。两条都补上了，
+并各自做过反向验证（临时注入一行越层代码 → 门失败 → 删掉 → 归零）。
+
+### R-12 / R-13 / R-14：门禁与工具链
+
+- `test/toolchain.sh`：JDK / build-tools / android.jar 的定位只维护一份，
+  `run_core.sh` 与 `jc.sh` 共用；`cygpath` 只在 Windows 分支调用。
+- `catch_check.sh` 自己探测 Python（`python3 → python → py`，用 `-c pass` 真跑一次，
+  Windows Store 存根会被跳过），找不到就 `rc=2` 明确报错。以前硬编码 `python3`，
+  在 Git Bash 上命中的是 Store 存根，脚本静默退出 49、一行输出都没有，看起来像通过。
+- `build.sh` 在 aapt2 之前就跑依赖门与空 catch 门（`SKIP_GATES=1` 可绕过）。
+- 新增 `test/jres.sh`：只重生成 `R.java`，改一个资源键不必等 5 分钟完整构建。
+
+### R-20：`ALL` 测试默认变红
+
+缺 `test/huangguo.apk` 时，只有 4 个用例会 SKIP；`SessionTest`、`SignPromptFlowTest`、
+`CustomSignE2ETest` 走 `*)` 分支拿到同一个样本路径，内部直接调 `ApkSignerTool.sign`，
+于是 `bash test/run_core.sh`（`ALL=57`）在新机器上无条件变红。现在这三个也 SKIP，
+`SessionTest` 还单独判 `assets/hexfile.p12`。
+
+### O-22 刀2：`ArchiveAddController`
+
+`addToArchive`（62 行）、`writeTree`（20）、`askAddToArchive`（28）、`askCompress`（70）
+整段搬到 `controller/ArchiveAddController`，`hasSmali` 下沉到 `fs/TreeOps`。
+`MainActivity` 4,592 → 4,415 行。搬动时保持三条硬约束：删源必须在写入成功后且只走
+`TreeOps.deleteOrTrash`；`writeTree` 遍历只用 `LinkUtil.listNoFollow`；APK 目标循环结束后
+统一 `flushRegen`。
+
+**刀1（签名流程）不在本版**：`askCustomSign` / `askCustomKeyPassword` / `parseKeystore` /
+`doSigKill` 的耦合点是 `onActivityResult` 里的密钥选择分支与 `mCustomSignSrc` 状态，
+搬动会同时改到「选密钥 / 输密码 / 取消 / 签成功」四条路径。它与本版的 R-09、R-19 真机
+验证路径（移动进压缩包、局域网接收）不同，混在一个包里出问题难定位，留作单独一轮。
+
+### O-23 批次 1：空 catch 的真相
+
+审计报告按「空块」机械计数，得出 `FtpFs` 12 / `S3Fs` 10 / `HlsDownloader` 10。逐条核对后
+只有 1 处真的吞掉了原因（FTP 状态行无法解析时 `code=0`，排查「连上了却列不出目录」时
+只有这一条线索）；其余全是 `close()` / `disconnect()` / `QUIT` 收尾，或 `URLDecoder` 失败
+保留原值这类降级容错。
+
+于是 `catch_check.sh` 增加了一行分类统计：**338 个空 catch 里 321 个的变量名是
+`ignore`/`ignored`** —— 作者当时明确决定吞掉；只有 17 个是「留空但变量名不是 ignore」，
+后者才是真正欠理由的地方。后续批次按这 17 个走，比按目录走准。
 
 ## v2.4.0（versionCode 194）—— 审计修复：三处数据风险 + 分层收口
 

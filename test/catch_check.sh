@@ -24,9 +24,14 @@
 set -u
 cd "$(dirname "$0")/.."
 
-# 基线：2026-11-13 实测 339（审计报告写的 315 是当时的时点，之后 O-16 拆包与
-# F-14/F-15 又加了一些；口径为「只统计自研包」）。清理一批就把这个数下调，永不上调。
-BASE=339
+# 基线：2026-11-13 实测。审计报告写的 315 是当时的时点，之后 O-16 拆包与 F-14/F-15
+# 又加了一些；口径为「只统计自研包」。
+#   v2.4.0 首测 345 → 治 LanNode 6 处 → 339
+#   v2.5.0 治 FtpFs 状态码解析 1 处 → 338（O-23 批次 1 实测：FtpFs/S3Fs/HlsDownloader
+#   的其余 31 处全是 close/disconnect/QUIT 这类收尾，或 URLDecoder 失败保留原值这类
+#   降级容错，硬加日志只是噪音，故本批只补 1 处）
+# 清理一批就把这个数下调，永不上调。
+BASE=338
 
 LIST=0
 [ "${1:-}" = "--list" ] && LIST=1
@@ -98,22 +103,29 @@ for root, dirs, files in os.walk('src/com/hex91/file'):
             body=clean[i+1:j]
             if body.strip()=='':
                 line=clean.count('\n',0,m.start())+1
-                hits.append((p.replace('\\','/'), line))
+                # 变量名叫 ignore/ignored = 作者明确决定吞掉；叫 t/e/ex 却留空块，
+                # 通常是「本来想记但忘了」，这一类才是要治的
+                decl=m.group(1).strip()
+                var=decl.split()[-1] if decl.split() else ''
+                hits.append((p.replace('\\','/'), line, var in ('ignore','ignored')))
 
 total=len(hits)
 print('空 catch 总数：%d（基线 %d）' % (total, base))
 if show_list:
-    for p,l in hits:
+    for p,l,_d in hits:
         print('  %s:%d' % (p,l))
 else:
     # 不列全部，只按目录汇总，方便看清理进度
     from collections import Counter
     c=Counter()
-    for p,_ in hits:
+    for p,_,_d in hits:
         parts=p.split('/')
         c[parts[4] if len(parts)>5 else '<root>'] += 1
     for k,v in sorted(c.items(), key=lambda kv:-kv[1]):
         print('  %-12s %d' % (k, v))
+    # 「明确忽略」与「留空但变量名不是 ignore」分开报：后者才是真正欠理由的地方
+    deliberate=sum(1 for _,_,d in hits if d)
+    print('  其中「变量名 ignore」= %d，其余 = %d' % (deliberate, total-deliberate))
 
 if total > base:
     print('FAIL  空 catch 比基线多了 %d 个：新增代码里不要留空 catch' % (total-base))

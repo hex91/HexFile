@@ -88,9 +88,6 @@ public final class ArchiveController {
         boolean ensureArchiveWritable(File f);
 
         void convertRarToZip(File f);
-
-        void writeTree(File dir, String prefix, File archive, boolean apkMode)
-                throws java.io.IOException;
     }
 
     private final Host host;
@@ -960,7 +957,8 @@ public final class ArchiveController {
                                     ? nameOverride : it.archShort;
                             File extracted = new File(tmp, it.archPath());
                             if (extracted.isDirectory()) {
-                                host.writeTree(extracted, root, dst.archiveFile, dstApk);
+                                ArchiveAddController.writeTree(host.ctx(), extracted, root,
+                                        dst.archiveFile, dstApk);
                             } else if (extracted.isFile()) {
                                 if (dstApk) {
                                     ApkEditSession.stageAdd(host.ctx(), dst.archiveFile, root, extracted);
