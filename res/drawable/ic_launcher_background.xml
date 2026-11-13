@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 自适应图标底板：与 tools/icon-source.svg 的 bgG 同色（左上 #06B6D4 → 右下 #10B981）。
+     用 drawable 而不是纯色，是为了让系统把任意蒙版（圆/方/方圆形）裁出来的底板都保持
+     同一个渐变方向；这两色也决定了下面前景白纸的明度对比。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="315"
+        android:endColor="#10B981"
+        android:startColor="#06B6D4"
+        android:type="linear"/>
+</shape>

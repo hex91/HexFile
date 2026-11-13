@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bgG" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#06B6D4"/>
+      <stop offset="1" stop-color="#10B981"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.62">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vignette" cx="0.5" cy="0.5" r="0.72">
+      <stop offset="0" stop-color="#064E5A" stop-opacity="0"/>
+      <stop offset="1" stop-color="#064E5A" stop-opacity="0.20"/>
+    </radialGradient>
+    <linearGradient id="backG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E4FDF6"/>
+      <stop offset="1" stop-color="#A8EEDB"/>
+    </linearGradient>
+    <linearGradient id="frontG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E9F7F1"/>
+    </linearGradient>
+    <linearGradient id="hfG" gradientUnits="userSpaceOnUse" x1="392" y1="466" x2="632" y2="734">
+      <stop offset="0" stop-color="#06C2B0"/>
+      <stop offset="0.5" stop-color="#10CE9A"/>
+      <stop offset="1" stop-color="#34D399"/>
+    </linearGradient>
+    <filter id="shG" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#064E5A" flood-opacity="0.28"/>
+    </filter>
+    <filter id="hfSh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#065F46" flood-opacity="0.26"/>
+    </filter>
+    <clipPath id="round">
+      <rect width="1024" height="1024" rx="224"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#round)">
+    <rect width="1024" height="1024" fill="url(#bgG)"/>
+    <rect width="1024" height="1024" fill="url(#glow)"/>
+    <rect width="1024" height="1024" fill="url(#vignette)"/>
+  </g>
+  <rect x="2" y="2" width="1020" height="1020" rx="222" fill="none" stroke="#FFFFFF" stroke-opacity="0.24" stroke-width="4"/>
+
+  <rect x="232" y="356" width="560" height="404" rx="46" fill="url(#backG)"/>
+  <path d="M436 356 l24 -40 h104 l24 40 z" fill="#8FE3CD"/>
+  <path d="M198 470 h628 a38 38 0 0 1 38 38 v218 a38 38 0 0 1 -38 38 h-628 a38 38 0 0 1 -38 -38 v-218 a38 38 0 0 1 38 -38 z" fill="url(#frontG)" filter="url(#shG)"/>
+
+  <!-- 180-degree rotational-symmetric monogram about (512,600); geometry preserved -->
+  <g fill="url(#hfG)" filter="url(#hfSh)">
+    <rect x="392" y="466" width="48" height="268" rx="24"/>
+    <rect x="584" y="466" width="48" height="268" rx="24"/>
+    <rect x="392" y="466" width="176" height="48" rx="24"/>
+    <rect x="456" y="686" width="176" height="48" rx="24"/>
+    <rect x="392" y="576" width="240" height="48" rx="24"/>
+  </g>
+</svg>

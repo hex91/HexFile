@@ -400,12 +400,12 @@
             android:background="?attr/hfTopBar"
             android:padding="16dp">
 
+            <!-- 用完整图标（青绿渐变底 + 白纸 + HF）而不是 adaptive 的 foreground 层：
+                 foreground 是透明底且只占 108dp 安全区的 80%，单独摆出来会小一圈。 -->
             <ImageView
                 android:layout_width="44dp"
                 android:layout_height="44dp"
-                android:padding="5dp"
-                android:background="@drawable/bg_drawer_logo"
-                android:src="@mipmap/ic_launcher_foreground"
+                android:src="@mipmap/ic_launcher"
                 android:scaleType="fitCenter"
                 android:contentDescription="HexFile 图标"/>
 
