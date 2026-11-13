@@ -302,7 +302,10 @@ public final class HlsDownloader {
 
         // ---- 按序拼接
         File merged = new File(outDir, base + (playlist.likelyFmp4() ? ".mp4" : ".ts"));
-        File tmp = new File(outDir, "." + base + ".merging");
+        // v2.4.0（R-11）：原来叫 .merging，遗留扫描不认识，中断后那坨几百 MB 永远躺在那里
+        File tmp = new File(outDir, "." + base + com.hex91.file.fs.TempFiles.PART);
+        // v2.4.0（R-08）：拼接期间是活动文件，避免被「遗留文件」列表当成垃圾
+        com.hex91.file.fs.TempFiles.begin(tmp);
         OutputStream os = null;
         try {
             os = new FileOutputStream(tmp);
@@ -327,6 +330,8 @@ public final class HlsDownloader {
             os.flush();
         } finally {
             if (os != null) try { os.close(); } catch (IOException ignore) {}
+            // 写完即注销：下面无论 rename 成功还是失败，这个路径都不再是「正在写」
+            com.hex91.file.fs.TempFiles.end(tmp);
         }
         if (merged.exists() && !merged.delete()) {
             // 目标被占用（同名文件正在被别的应用播放），换一个名字而不是失败
@@ -399,7 +404,11 @@ public final class HlsDownloader {
                     throw new IOException("服务器未按 Range 返回（期望 " + s.rangeLength
                             + " 字节，实际 " + data.length + "）");
                 }
-                File tmp = new File(out.getParentFile(), out.getName() + ".tmp");
+                // v2.4.0（R-11）：分片临时名统一 .part。这里刻意不登记 TempFiles：
+                // 文件落在 .parts 恢复目录里，而遗留扫描跳过以 .parts 结尾的目录
+                // （里面几百个分片是断点续传的数据，不是垃圾）；每片登记反而白花两次
+                // canonical 系统调用。
+                File tmp = new File(out.getParentFile(), out.getName() + com.hex91.file.fs.TempFiles.PART);
                 FileOutputStream fo = new FileOutputStream(tmp);
                 try {
                     fo.write(data);

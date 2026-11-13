@@ -1,4 +1,5 @@
 import com.hex91.file.fs.LeftoverScan;
+import com.hex91.file.fs.TempFiles;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -32,6 +33,8 @@ public class LeftoverScanTest {
             t1Scan(base);
             t2Owner(base);
             t3DeleteGuard(base);
+            t4RebTmpAndFunctionalData(base);   // v2.4.0（R-11）
+            t5ActiveWriting(base);            // v2.4.0（R-08）
         } finally {
             deleteTree(base);
         }
@@ -93,6 +96,58 @@ public class LeftoverScanTest {
         ok(LeftoverScan.delete(part), "遗留文件可以删除");
         ok(!part.exists(), "遗留文件已删除");
         ok(LeftoverScan.delete(new File(root, "gone.part")), "删除不存在的遗留文件视为成功");
+    }
+
+    /**
+     * v2.4.0（R-11）：压缩包写回留下的 {@code .reb<ts>.tmp} 必须能扫出来；
+     * 同时把功能数据明确排除 —— {@code .parts}（断点续传清单与分片）、
+     * {@code .merged}（合并输出）都是要用的东西，列出来只会诱导用户删掉。
+     */
+    static void t4RebTmpAndFunctionalData(File base) throws Exception {
+        File root = new File(base, "t4");
+        write(new File(root, "a.zip.reb1699999999999.tmp"), "tmp");
+        write(new File(root, "notes.tmp"), "名字里有 tmp 但不是我们写的");
+        write(new File(root, "a.merged"), "合并输出，不是临时文件");
+        File parts = new File(root, "a.parts");
+        parts.mkdirs();
+        write(new File(parts, "000001.part"), "分片");
+        write(new File(parts, "000002.part"), "分片");
+
+        List<LeftoverScan.Hit> hits = LeftoverScan.scan(root);
+        eqi(1, hits.size(), "只扫出 .reb<ts>.tmp 这一个");
+        ok("a.zip".equals(hits.get(0).owner), "owner 剥掉 .reb<ts>.tmp 得到 a.zip（"
+                + hits.get(0).owner + "）");
+        ok(!LeftoverScan.isLeftover(new File(root, "notes.tmp")), "普通 .tmp 不算遗留");
+        ok(!LeftoverScan.isLeftover(new File(root, "a.merged")), ".merged 不算遗留");
+        ok(!LeftoverScan.isLeftover(new File(root, "a.parts")), ".parts 目录名不算遗留");
+    }
+
+    /**
+     * v2.4.0（R-08）：正在写的临时文件不能被列出来、更不能被删。
+     *
+     * <p>真实后果：1 GB 复制进行中打开「设置 → 遗留文件」，列表里出现了那个
+     * {@code .part}；用户确认删除后，写线程仍持有已 unlink 的句柄，
+     * rename 必然失败，拷贝在几百 MB 处报错。</p>
+     */
+    static void t5ActiveWriting(File base) throws Exception {
+        File root = new File(base, "t5");
+        File part = new File(root, "big.bin.part");
+        write(part, "正在写");
+
+        TempFiles.begin(part);
+        try {
+            eqi(0, LeftoverScan.scan(root).size(), "写入中：扫描结果不含该 .part");
+            eqi(0, LeftoverScan.scan(root, TempFiles.snapshot()).size(),
+                    "写入中：按活动快照扫描同样不含");
+            ok(!LeftoverScan.delete(part), "写入中：delete 返回 false");
+            ok(part.isFile(), "写入中：文件仍在（关键：任务没被打断）");
+        } finally {
+            TempFiles.end(part);
+        }
+
+        eqi(1, LeftoverScan.scan(root).size(), "写完之后才算遗留文件");
+        ok(LeftoverScan.delete(part), "写完之后可以正常删");
+        ok(!part.exists(), "写完之后删除生效");
     }
 
     static void write(File f, String s) throws Exception {

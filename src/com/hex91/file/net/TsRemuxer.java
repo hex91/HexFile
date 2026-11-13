@@ -62,7 +62,10 @@ public final class TsRemuxer {
         }
         MediaExtractor ex = new MediaExtractor();
         MediaMuxer mux = null;
-        File tmp = new File(dst.getParentFile(), dst.getName() + ".tmp");
+        // v2.4.0（R-11）：临时名统一为 .part，遗留扫描才认得出转封装中断留下的半成品
+        File tmp = new File(dst.getParentFile(), dst.getName() + com.hex91.file.fs.TempFiles.PART);
+        // v2.4.0（R-08）：转封装期间登记为活动文件，别让「遗留文件」把它列出来删掉
+        com.hex91.file.fs.TempFiles.begin(tmp);
         try {
             ex.setDataSource(src.getAbsolutePath());
 
@@ -200,6 +203,8 @@ public final class TsRemuxer {
             String m = t.getMessage();
             throw new IOException("转封装失败：" + (m == null ? t.getClass().getSimpleName() : m));
         } finally {
+            // 注销要最先做：无论成功、失败还是异常退出，注册表里都不能留这个路径
+            com.hex91.file.fs.TempFiles.end(tmp);
             try { ex.release(); } catch (Throwable ignore) {}
             if (mux != null) {
                 try { mux.stop(); } catch (Throwable ignore) {}

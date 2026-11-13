@@ -1,6 +1,7 @@
 package com.hex91.file.utils;
 
 import com.hex91.file.net.*;
+import com.hex91.file.fs.*;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -202,6 +203,9 @@ public final class SyncRunner {
             throw new IOException("无法创建本地目录");
         }
         File part = new File(dst.getAbsolutePath() + ".part");
+        // v2.4.0（R-08）：下载期间登记为活动临时文件，遗留扫描不会把它列出来
+        // 让用户删掉 —— .part 是这个任务唯一的进度载体，删了等于丢已下载的字节
+        TempFiles.begin(part);
         InputStream in = null;
         OutputStream out = null;
         try {
@@ -229,6 +233,8 @@ public final class SyncRunner {
                 out.close();
             } catch (IOException ignored) {
             }
+            // 先注销再删：即便这次下载失败、.part 要删掉，注册表里也不能留残留
+            TempFiles.end(part);
             if (part.exists()) part.delete();
         }
     }

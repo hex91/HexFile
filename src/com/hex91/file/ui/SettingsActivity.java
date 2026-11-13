@@ -420,7 +420,10 @@ public class SettingsActivity extends BaseActivity {
         toast(getString(R.string.leftover_scanning, root.getPath()));
         Bg.io(new Runnable() {
             public void run() {
-                final java.util.List<LeftoverScan.Hit> hits = LeftoverScan.scan(root);
+                // v2.4.0（R-08）：排除正在写的临时文件 —— 否则大文件复制/局域网接收
+                // 进行中扫一次，用户会把任务正在写的 .part 当垃圾删掉
+                final java.util.List<LeftoverScan.Hit> hits =
+                        LeftoverScan.scan(root, TempFiles.snapshot());
                 Bg.ui(new Runnable() {
                     public void run() { showLeftovers(hits); }
                 });
@@ -485,6 +488,11 @@ public class SettingsActivity extends BaseActivity {
                         : getString(R.string.leftover_delete_part_msg, h.file.getPath()))
                 .setPositiveButton(getString(R.string.common_delete), new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
+                        // 扫描之后任务才启动的窗口也要挡住：删掉活动 .part 等于让任务白跑
+                        if (TempFiles.isActive(h.file)) {
+                            toast(getString(R.string.leftover_delete_active));
+                            return;
+                        }
                         toast(LeftoverScan.delete(h.file) ? getString(R.string.leftover_deleted) : getString(R.string.leftover_delete_failed));
                     }
                 })

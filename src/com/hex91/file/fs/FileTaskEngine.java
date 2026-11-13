@@ -488,6 +488,27 @@ public final class FileTaskEngine {
         if (parent != null && !parent.isDirectory() && !parent.mkdirs() && !parent.isDirectory())
             throw new IOException("无法创建: " + parent);
         File part = new File(parent, dst.getName() + ".part");
+        // v2.4.0（R-08）：登记为「本进程正在写的临时文件」，遗留扫描就不会把它列出来
+        // 让用户删掉 —— 删了之后 rename 必然失败，几 GB 的拷贝白跑。
+        // end 必须在 rename 之前：改名之后这个路径已不存在，留在注册表里只会挡住下一次
+        // 同名写入（同一个目标连拷两次的场景）。
+        TempFiles.begin(part);
+        try {
+            writePart(src, part, t, sink);
+            if (!part.renameTo(dst)) {
+                // 少数文件系统不支持覆盖式 rename（目标已存在时）
+                if (!dst.delete() || !part.renameTo(dst)) {
+                    part.delete();
+                    throw new IOException("写入失败: " + dst.getPath());
+                }
+            }
+        } finally {
+            TempFiles.end(part);
+        }
+    }
+
+    /** 把 src 写进 part；取消/失败时清掉半截文件，成功时只 flush，不负责 rename */
+    private static void writePart(File src, File part, FileTask t, Sink sink) throws IOException {
         InputStream in = null;
         OutputStream out = null;
         try {
@@ -522,13 +543,6 @@ public final class FileTaskEngine {
         }
         closeQuietly(in);
         closeQuietly(out);
-        if (!part.renameTo(dst)) {
-            // 少数文件系统不支持覆盖式 rename（目标已存在时）
-            if (!dst.delete() || !part.renameTo(dst)) {
-                part.delete();
-                throw new IOException("写入失败: " + dst.getPath());
-            }
-        }
     }
 
     /** 递归量体积：字节进 totalBytes、文件进 totalFiles（目录本身不计） */

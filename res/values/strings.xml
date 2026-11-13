@@ -116,6 +116,7 @@
     <string name="leftover_delete_part_msg">%1$s\n\n这是没写完的临时文件，删除不会影响已完成的文件。</string>
     <string name="leftover_deleted">已删除</string>
     <string name="leftover_delete_failed">删除失败（可能被占用）</string>
+    <string name="leftover_delete_active">任务进行中，暂时不能删除这个文件</string>
     <string name="workdir_missing_title">目录不存在</string>
     <string name="workdir_missing_msg">%1$s\n\n是否创建该目录并设为工作目录？</string>
     <string name="workdir_create_use">创建并使用</string>

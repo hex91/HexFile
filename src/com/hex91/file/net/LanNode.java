@@ -477,6 +477,9 @@ public final class LanNode {
             String finalName = LanProtocol.uniqueName(safe, existingNames(dir));
             File part = new File(dir, finalName + ".part");
             File dst = new File(dir, finalName);
+            // v2.4.0（R-08）：整个接收期间都算活动临时文件。局域网接收的 .part
+            // 就是唯一进度载体，被遗留扫描列出来删掉 = 已接收的字节全丢
+            TempFiles.begin(part);
 
             long got = 0;
             long lastTick = 0;
@@ -500,6 +503,9 @@ public final class LanNode {
                 out.flush();
             } finally {
                 try { if (out != null) out.close(); } catch (Throwable ignored) { }
+                // 写完即注销：下面无论走「不完整 → 删掉」还是「rename 成功」，
+                // 注册表里都不该再留着这个路径
+                TempFiles.end(part);
             }
 
             if (got != declared) {
