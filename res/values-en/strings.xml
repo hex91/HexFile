@@ -122,4 +122,37 @@
     <string name="workdir_reset_msg">Will switch back to %1$s\n\nThe recycle bin and backups in the current folder are not moved; they stay where they are.</string>
     <string name="workdir_reset_action">Restore Default</string>
     <string name="workdir_reset_done">Restored to default.</string>
+
+    <!-- ======================== Task center & file task notification (F-14/2) ======================== -->
+    <string name="task_center_title">File tasks</string>
+    <string name="task_center_none_finished">No finished tasks</string>
+    <string name="task_center_none_active">No tasks running</string>
+    <string name="task_center_cancel_all_title">Cancel all tasks</string>
+    <string name="task_center_cancel_all_msg">This stops every queued and running task. Files already copied are kept.</string>
+    <string name="task_center_cancel_all_ok">Cancel all</string>
+    <string name="task_center_continue">Continue</string>
+    <string name="task_center_empty">No tasks\n\nCopy, move and archive jobs show their progress here — you can cancel or retry at any time.</string>
+
+    <plurals name="task_center_cleared">
+        <item quantity="one">Cleared %d record</item>
+        <item quantity="other">Cleared %d records</item>
+    </plurals>
+    <plurals name="task_center_title_active">
+        <item quantity="one">File tasks · %d running</item>
+        <item quantity="other">File tasks · %d running</item>
+    </plurals>
+    <plurals name="task_noti_queued">
+        <item quantity="one"> · %d queued</item>
+        <item quantity="other"> · %d queued</item>
+    </plurals>
+    <plurals name="task_noti_queued_short">
+        <item quantity="one">%d queued</item>
+        <item quantity="other">%d queued</item>
+    </plurals>
+
+    <string name="task_noti_channel_name">File tasks</string>
+    <string name="task_noti_channel_desc">Progress of copy, move and archive jobs</string>
+    <string name="task_noti_files">%1$d/%2$d files</string>
+    <string name="task_noti_preparing">Preparing file task…</string>
+    <string name="task_noti_counting">Counting files</string>
 </resources>

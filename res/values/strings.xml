@@ -127,4 +127,34 @@
     <string name="workdir_reset_msg">将改回 %1$s\n\n当前目录里的回收站、备份不会被移动，仍留在原处。</string>
     <string name="workdir_reset_action">恢复默认</string>
     <string name="workdir_reset_done">已恢复默认</string>
+
+    <!-- ======================== 任务中心与文件任务通知（F-14/2） ======================== -->
+    <string name="task_center_title">文件任务</string>
+    <string name="task_center_none_finished">没有已结束的任务</string>
+    <string name="task_center_none_active">没有进行中的任务</string>
+    <string name="task_center_cancel_all_title">取消全部任务</string>
+    <string name="task_center_cancel_all_msg">将停止所有排队与进行中的任务，已经复制完成的部分会保留。</string>
+    <string name="task_center_cancel_all_ok">全部取消</string>
+    <string name="task_center_continue">继续</string>
+    <string name="task_center_empty">暂无任务\n\n复制 / 移动 / 压缩时会在这里显示进度，可随时取消或重试失败的项。</string>
+
+    <!-- 带数字的用 plurals：中文只有 other，英文区分 one/other -->
+    <plurals name="task_center_cleared">
+        <item quantity="other">已清理 %d 条记录</item>
+    </plurals>
+    <plurals name="task_center_title_active">
+        <item quantity="other">文件任务 · %d 个进行中</item>
+    </plurals>
+    <plurals name="task_noti_queued">
+        <item quantity="other"> · 还有 %d 项排队</item>
+    </plurals>
+    <plurals name="task_noti_queued_short">
+        <item quantity="other">排队 %d 项</item>
+    </plurals>
+
+    <string name="task_noti_channel_name">文件任务</string>
+    <string name="task_noti_channel_desc">复制 / 移动 / 压缩等文件任务的进度</string>
+    <string name="task_noti_files">%1$d/%2$d 个文件</string>
+    <string name="task_noti_preparing">准备文件任务…</string>
+    <string name="task_noti_counting">正在统计文件</string>
 </resources>

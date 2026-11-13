@@ -65,9 +65,9 @@ public class TaskCenterActivity extends BaseActivity {
             public void onClick(View v) {
                 int n = 0;
                 for (FileTask t : FileTaskEngine.get().tasks()) if (t.finished()) n++;
-                if (n == 0) { toast("没有已结束的任务"); return; }
+                if (n == 0) { toast(getString(R.string.task_center_none_finished)); return; }
                 FileTaskEngine.get().clearFinished();
-                toast("已清理 " + n + " 条记录");
+                toast(getResources().getQuantityString(R.plurals.task_center_cleared, n, n));
                 reload(true);
             }
         });
@@ -76,17 +76,17 @@ public class TaskCenterActivity extends BaseActivity {
         UiDecor.barButtonOnBar(cancelAll, this, UiDecor.KIND_DANGER, 11.5f);
         cancelAll.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                if (!FileTaskEngine.get().hasActive()) { toast("没有进行中的任务"); return; }
+                if (!FileTaskEngine.get().hasActive()) { toast(getString(R.string.task_center_none_active)); return; }
                 new HfDialogBuilder(TaskCenterActivity.this)
-                        .setTitle("取消全部任务")
-                        .setMessage("将停止所有排队与进行中的任务，已经复制完成的部分会保留。")
-                        .setPositiveButton("全部取消", new android.content.DialogInterface.OnClickListener() {
+                        .setTitle(getString(R.string.task_center_cancel_all_title))
+                        .setMessage(getString(R.string.task_center_cancel_all_msg))
+                        .setPositiveButton(getString(R.string.task_center_cancel_all_ok), new android.content.DialogInterface.OnClickListener() {
                             public void onClick(android.content.DialogInterface d, int w) {
                                 FileTaskEngine.get().cancelAll();
                                 reload(true);
                             }
                         })
-                        .setNegativeButton("继续", null)
+                        .setNegativeButton(getString(R.string.task_center_continue), null)
                         .show();
             }
         });
@@ -131,10 +131,12 @@ public class TaskCenterActivity extends BaseActivity {
 
         int active = 0;
         for (FileTask t : list) if (t.cancelable()) active++;
-        title.setText(active > 0 ? "文件任务 · " + active + " 个进行中" : "文件任务");
+        title.setText(active > 0
+                ? getResources().getQuantityString(R.plurals.task_center_title_active, active, active)
+                : getString(R.string.task_center_title));
         empty.setVisibility(list.isEmpty() ? View.VISIBLE : View.GONE);
         if (list.isEmpty()) {
-            empty.setText("暂无任务\n\n复制 / 移动 / 压缩时会在这里显示进度，可随时取消或重试失败的项。");
+            empty.setText(getString(R.string.task_center_empty));
         }
     }
 

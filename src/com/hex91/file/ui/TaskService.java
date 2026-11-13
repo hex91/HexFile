@@ -190,10 +190,10 @@ public class TaskService extends Service {
             NotificationManager nm =
                     (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm != null && nm.getNotificationChannel(CHANNEL) == null) {
-                NotificationChannel ch = new NotificationChannel(CHANNEL, "文件任务",
+                NotificationChannel ch = new NotificationChannel(CHANNEL, getString(R.string.task_noti_channel_name),
                         NotificationManager.IMPORTANCE_LOW);
                 ch.setShowBadge(false);
-                ch.setDescription("复制 / 移动 / 压缩等文件任务的进度");
+                ch.setDescription(getString(R.string.task_noti_channel_desc));
                 nm.createNotificationChannel(ch);
             }
             b = new Notification.Builder(this, CHANNEL);
@@ -229,16 +229,19 @@ public class TaskService extends Service {
             }
             if (run.totalFiles > 0) {
                 if (text.length() > 0) text.append(" · ");
-                text.append(run.doneFiles).append('/').append(run.totalFiles).append(" 个文件");
+                text.append(getString(R.string.task_noti_files, run.doneFiles, run.totalFiles));
             }
-            if (queued > 0) text.append(" · 还有 ").append(queued).append(" 项排队");
+            if (queued > 0) text.append(getResources()
+                    .getQuantityString(R.plurals.task_noti_queued, queued, queued));
             b.setContentTitle(run.title + "  " + pct + "%");
             b.setContentText(text.length() == 0 ? run.title : text.toString());
             // totalBytes 为 0（全是空文件/空目录）时用不确定进度，避免卡在 0%
             b.setProgress(100, pct, run.totalBytes <= 0 && run.totalFiles <= 0);
         } else {
-            b.setContentTitle("准备文件任务…");
-            b.setContentText(queued > 0 ? "排队 " + queued + " 项" : "正在统计文件");
+            b.setContentTitle(getString(R.string.task_noti_preparing));
+            b.setContentText(queued > 0
+                    ? getResources().getQuantityString(R.plurals.task_noti_queued_short, queued, queued)
+                    : getString(R.string.task_noti_counting));
             b.setProgress(0, 0, true);
         }
 
@@ -249,7 +252,7 @@ public class TaskService extends Service {
         PendingIntent cp = PendingIntent.getService(this, 2, cancel,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         b.addAction(new Notification.Action.Builder(
-                android.R.drawable.ic_menu_close_clear_cancel, "取消", cp).build());
+                android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.common_cancel), cp).build());
         return b.build();
     }
 
