@@ -100,6 +100,31 @@ public final class TreeOps {
         return f.delete();
     }
 
+    /**
+     * v2.4.0（R-09）：删除，删不掉再落回收站。
+     *
+     * <p><b>为什么要有这个入口</b>：{@code MainActivity} 曾自己写了一份
+     * {@code deleteRecursiveOrTrash}，用 {@code f.isFile()} 判文件、{@code f.listFiles()}
+     * 递归 —— 两处都会<b>跟随软链接</b>。「移动进压缩包」成功后调它删源，
+     * 若源目录里有个 {@code backup -> /sdcard/DCIM}，删的是相册内容，链接本身反而留着。
+     * 现在所有「删了就没了」的递归路径统一走这里，链接只删链。</p>
+     *
+     * <p>回收站兜底只在 {@link #delete} 真的删不掉（只读挂载、属主不符）时才发生；
+     * {@link Trash#moveToTrash} 自身也做了链接判断（跨卷回退时复刻链接而非跟进），
+     * 所以两条分支都不会钻进链接目标。</p>
+     */
+    public static boolean deleteOrTrash(File f) {
+        return deleteOrTrash(f, SYSTEM);
+    }
+
+    public static boolean deleteOrTrash(File f, LinkProbe probe) {
+        if (f == null) return false;
+        if (delete(f, probe)) return true;
+        // 已被别的进程删掉：落盘结果符合预期，不必再进回收站
+        if (!f.exists()) return true;
+        return Trash.moveToTrash(f) != null;
+    }
+
     // ------------------------------------------------------------------ 统计
 
     /** 递归求大小（不进入链接，链接本身按 0 计） */

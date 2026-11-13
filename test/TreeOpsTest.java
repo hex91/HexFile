@@ -77,6 +77,8 @@ public class TreeOpsTest {
             t5CopyLinkUnsupported(base);
             t6DepthGuard(base);
             t7CopyLinkSource(base);
+            // v2.4.0（R-09）：移动进压缩包后的删除入口
+            t8DeleteOrTrashKeepsLinkTarget(base);
             // v1.99.1：临时文件替换的用例已迁到 AtomicReplaceTest（三处共用一份实现）
         } finally {
             deleteTree(base);
@@ -233,6 +235,31 @@ public class TreeOpsTest {
             threw = true;
         }
         ok(threw, "没有跳过出口时抛异常而不是静默成功");
+    }
+
+    /**
+     * v2.4.0（R-09）：移动进压缩包后的删除入口。
+     *
+     * <p>「移动进 zip 成功 → 删源」曾走 {@code MainActivity} 自己写的
+     * {@code deleteRecursiveOrTrash}（{@code isFile()} + {@code listFiles()} 递归，
+     * 两者都跟随链接），源目录里若有 {@code backup -> /sdcard/DCIM}，
+     * 删掉的是相册内容。现在统一到 {@code TreeOps.deleteOrTrash}：
+     * 删除成功分支与 {@link TreeOps#delete} 完全同一条路径，这里固定住
+     * 「链接只删链、目标内容一个字节不动」。</p>
+     */
+    static void t8DeleteOrTrashKeepsLinkTarget(File base) throws Exception {
+        File root = mk(base, "t8");
+        File victim = mk(root, "victim");
+        write(new File(victim, "keep.txt"), "必须留着");
+
+        File holder = mk(root, "holder");
+        write(new File(holder, "ln-victim"), "stub");   // 桩：视为指向 victim 的链接
+        write(new File(holder, "moved.txt"), "已进压缩包");
+
+        ok(TreeOps.deleteOrTrash(holder, STUB), "deleteOrTrash 删除含链接目录成功");
+        ok(!holder.exists(), "源目录被清掉（移动语义）");
+        ok(new File(victim, "keep.txt").isFile(), "链接目标里的文件仍在（R-09 关键）");
+        ok(victim.isDirectory(), "链接目标目录仍在");
     }
 
     // ------------------------------------------------------------------ 工具

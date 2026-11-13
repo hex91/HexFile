@@ -33,6 +33,7 @@ public class AtomicReplaceTest {
             sameVolume(base);
             noTarget(base);
             missingTmp(base);
+            bakOnlyNoTarget(base);      // v2.4.0（R-10）
             messageOnFailure(base);
             crossVolume(base);
         } finally {
@@ -134,6 +135,46 @@ public class AtomicReplaceTest {
         ok(AtomicReplace.lastError != null && AtomicReplace.lastError.equals(r.message),
                 "lastError 与返回消息一致（界面可直接拼进提示）");
         ok("old".equals(read(target)), "失败时原文件内容未变");
+    }
+
+    /**
+     * v2.4.0（R-10）：上一次「还原失败」留下 target 不存在 + bak 是唯一副本。
+     *
+     * <p>老代码下一次替换一进门就 {@code bak.delete()}，然后才写新内容。若这次临时文件
+     * 恰好无效（或后续复制因空间不足失败），用户手里就<b>一份原内容都不剩</b>了 ——
+     * 备份被当垃圾清掉，目标又是坏的。现在第一步就是把 bak 放回原位，之后再谈清理。</p>
+     */
+    static void bakOnlyNoTarget(File base) throws Exception {
+        // A：正常替换 —— 恢复后覆盖写入，备份清理干净
+        File dir = mk(base, "bakonly");
+        File target = new File(dir, "pkg.zip");
+        File bak = bak(target);
+        write(bak, "old");
+        File tmp = new File(dir, "pkg.reb.tmp");
+        write(tmp, "new");
+        ok(!target.exists() && bak.isFile(), "前置：只剩备份、目标不存在");
+
+        ok(AtomicReplace.tryReplace(tmp, target), "只剩备份时替换成功");
+        ok("new".equals(read(target)), "目标已是新内容");
+        ok(!bak.exists(), "备份已清理");
+
+        // B：临时文件无效 —— 必须先把唯一副本恢复，再报错退出
+        File dir2 = mk(base, "bakonly2");
+        File target2 = new File(dir2, "pkg2.zip");
+        File bak2 = bak(target2);
+        write(bak2, "old2");
+        File badTmp = mk(dir2, "notafile.tmp");        // 目录 → !tmp.isFile()
+
+        boolean threw = false;
+        try {
+            AtomicReplace.replace(badTmp, target2);
+        } catch (IOException e) {
+            threw = true;
+        }
+        ok(threw, "临时文件是目录时抛 IOException");
+        ok("old2".equals(read(target2)), "唯一副本已恢复到原路径（R-10 关键）");
+        ok(!bak2.exists() || "old2".equals(read(bak2)),
+                "备份要么已转正，要么内容仍是原内容");
     }
 
     // ------------------------------------------------------------------ 工具

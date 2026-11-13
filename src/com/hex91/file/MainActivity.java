@@ -2393,7 +2393,9 @@ public class MainActivity extends BaseActivity {
                             toast(move ? "已移动进压缩包" : "已复制进压缩包");
                         }
                         if (move) {
-                            for (File f : sources) deleteRecursiveOrTrash(f);
+                            // R-09：必须走 TreeOps —— 它先判 isLink 再判 isDirectory，
+                            // 源目录里的软链只删链本身，不会顺着链接删掉目标内容
+                            for (File f : sources) TreeOps.deleteOrTrash(f);
                         }
                         showArchiveDir(archPane);
                         refreshAll();
@@ -2407,7 +2409,8 @@ public class MainActivity extends BaseActivity {
      *  apkMode = APK 目标：条目登记进 ApkEditSession（调用方随后 flushRegen），否则原地写入 */
     private void writeTree(File dir, String prefix, File archive, boolean apkMode)
             throws java.io.IOException {
-        File[] kids = dir.listFiles();
+        // R-09：与 R-01 的打包策略一致 —— 链接不进压缩包，遍历时直接过滤
+        File[] kids = LinkUtil.listNoFollow(dir);
         if (kids == null) return;
         for (File k : kids) {
             String entry = prefix + "/" + k.getName();
@@ -2421,16 +2424,6 @@ public class MainActivity extends BaseActivity {
                 }
             }
         }
-    }
-
-    private void deleteRecursiveOrTrash(File f) {
-        if (f.isFile()) {
-            if (!f.delete()) Trash.moveToTrash(f);
-            return;
-        }
-        File[] kids = f.listFiles();
-        if (kids != null) for (File k : kids) deleteRecursiveOrTrash(k);
-        if (!f.delete()) Trash.moveToTrash(f);
     }
 
     /** 复制/移动文件或目录进压缩包：可自定义目标条目名（含后缀，支持子目录路径） */
@@ -3602,7 +3595,8 @@ public class MainActivity extends BaseActivity {
         int visited = 0;
         while (!queue.isEmpty()) {
             File d = queue.poll();
-            File[] kids = d.listFiles();
+            // R-09：不跟进软链，免得顺着 ln-xxx -> /sdcard 把整片存储扫一遍
+            File[] kids = LinkUtil.listNoFollow(d);
             if (kids == null) continue;
             for (File k : kids) {
                 if (++visited > 5000) return false;   // 目录太大，放弃检测

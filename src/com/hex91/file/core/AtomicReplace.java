@@ -99,19 +99,31 @@ public final class AtomicReplace {
      */
     public static void replace(File tmp, File target) throws IOException {
         if (tmp == null || target == null) throw new IOException("替换参数为空");
-        if (!tmp.isFile()) throw new IOException("临时文件不存在: " + tmp);
         File parent = target.getParentFile();
         if (parent == null) throw new IOException("目标没有父目录: " + target);
 
-        // 1) 同一挂载点：rename 原子替换，没有中间态，也不需要备份
-        if (tmp.renameTo(target)) return;
-
         File bak = new File(parent, target.getName() + BAK_SUFFIX);
+
+        // 0) v2.4.0（R-10）：先处理「上一次还原失败」的残局。
+        //    跨卷复制失败且 bak.renameTo(target) 也失败时，磁盘上是
+        //    「target 不存在 + bak 是唯一副本」；下一次替换若按原顺序先删 bak，
+        //    这份唯一副本就没了。必须在清理任何东西之前把它放回原位。
+        //    复制失败直接抛 —— 此时 bak 原样留在磁盘上，用户还能手工找回。
+        if (bak.exists() && !target.exists()) {
+            if (!bak.renameTo(target)) copy(bak, target);
+        }
+
+        if (!tmp.isFile()) throw new IOException("临时文件不存在: " + tmp);
+
         if (bak.exists() && !bak.delete()) {
             // 旧备份清不掉（被占用）：不硬来，原文件一个字节都不动
             throw new IOException("旧备份无法清理: " + bak.getPath());
         }
         boolean hadOld = target.exists();
+
+        // 1) 同一挂载点：rename 原子替换，没有中间态，也不需要备份
+        if (tmp.renameTo(target)) return;
+
         if (hadOld && !target.renameTo(bak)) {
             // rename 让不开（目标被别的进程打开 / 跨挂载点）→ 先复制出完整备份，再删原文件。
             // 复制失败会抛异常，此时原文件仍完好 —— 这是这条路径唯一能接受的失败方式。
