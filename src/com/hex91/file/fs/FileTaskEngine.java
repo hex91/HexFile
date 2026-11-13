@@ -79,6 +79,14 @@ public final class FileTaskEngine {
     }
 
     private final Object lock = new Object();
+    /**
+     * v2.4.0（O-21）：账本写入锁。
+     *
+     * <p>与 {@link #lock} 分开：{@code lock} 保护任务队列，持锁时间要短；
+     * 账本落盘是 IO，不能占着队列锁。两者只在此处按 {@code journalLock → lock}
+     * 的顺序嵌套，不会死锁。</p>
+     */
+    private final Object journalLock = new Object();
     private final LinkedList<Job> pending = new LinkedList<Job>();
     /** 含已完成的任务，供面板回看；超出上限时从头部淘汰已结束的 */
     private final ArrayList<FileTask> all = new ArrayList<FileTask>();
@@ -148,19 +156,28 @@ public final class FileTaskEngine {
      * 相比拷贝几个 G 的耗时可以忽略；换来的是进程被清掉后能告诉用户「上次做到哪」。
      *
      * <p>已请求取消的任务不记：用户按了取消，重启后再劝他重试是反直觉的。</p>
+     *
+     * <p><b>v2.4.0（O-21）：快照与落盘必须在同一把锁里。</b>原来 {@code store.save(es)}
+     * 在 {@code lock} 之外，两个线程可以这样交错：A 构建 {@code [T1]} → B 构建
+     * {@code [T1,T2]} 并保存 → A 的 {@code save([T1])} 后落盘，账本把 T2 丢了。
+     * 后果不是文件损坏，而是杀进程重启后「上次没做完」的提示漏项。
+     * 锁顺序固定为 {@code journalLock → lock}：{@link #writeJournal()} 的两个调用点
+     * （{@link #submit}、任务收尾的 finally）都在 {@code lock} 之外，不会反向嵌套。</p>
      */
     private void writeJournal() {
         final TaskJournal.Store store = journalStore;
         if (store == null) return;
-        java.util.List<TaskJournal.Entry> es = new java.util.ArrayList<TaskJournal.Entry>();
-        synchronized (lock) {
-            for (FileTask t : all) {
-                if (t.finished() || t.cancelRequested) continue;
-                if (t.srcs == null || t.dstDir == null) continue;
-                es.add(new TaskJournal.Entry(t.kind, t.dstDir, t.srcs));
+        synchronized (journalLock) {
+            java.util.List<TaskJournal.Entry> es = new java.util.ArrayList<TaskJournal.Entry>();
+            synchronized (lock) {
+                for (FileTask t : all) {
+                    if (t.finished() || t.cancelRequested) continue;
+                    if (t.srcs == null || t.dstDir == null) continue;
+                    es.add(new TaskJournal.Entry(t.kind, t.dstDir, t.srcs));
+                }
             }
+            store.save(es);
         }
-        store.save(es);
     }
 
     /**

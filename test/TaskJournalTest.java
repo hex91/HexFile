@@ -1,4 +1,5 @@
 import com.hex91.file.fs.FileTask;
+import com.hex91.file.fs.FileTaskEngine;
 import com.hex91.file.utils.TaskJournal;
 
 import java.io.File;
@@ -6,6 +7,8 @@ import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * v1.99.2（R-07）：未完成任务账本。
@@ -38,6 +41,7 @@ public class TaskJournalTest {
             t3BadFile(base);
             t4Missing(base);
             t5Encode(base);
+            t6JournalSerialized(base);
         } finally {
             deleteTree(base);
         }
@@ -127,6 +131,95 @@ public class TaskJournalTest {
         eqi(0, TaskJournal.decode("垃圾").size(), "decode(乱码) 返回空");
         eqi(0, TaskJournal.decode("hexfile-journal-1\nT\t0").size(),
                 "只有任务头、没有来源 → 不产出半条记录");
+    }
+
+    /**
+     * v2.4.0（O-21）：账本写入串行化。
+     *
+     * <p>引擎原来把「构建快照」放在 {@code lock} 里、{@code store.save} 放在锁外，
+     * 两个线程可以「后构建的先落盘」，把别的任务从账本里抹掉。这里用慢速 Store
+     * （每次 save 睡 15ms）把并发窗口放大：只要 save 区间出现重叠，就说明串行化没做到。
+     * 断言不依赖具体条目内容，因此不会因为任务跑得快慢而抖动。</p>
+     */
+    static void t6JournalSerialized(File base) throws Exception {
+        File srcDir = new File(base, "jsrc");
+        srcDir.mkdirs();
+        final File src = new File(srcDir, "one.bin");
+        writeFile(src, "payload");
+
+        final FileTaskEngine engine = FileTaskEngine.get();
+        final SlowStore store = new SlowStore();
+        engine.setJournalStore(store);
+        try {
+            final int n = 4;
+            final CountDownLatch start = new CountDownLatch(1);
+            Thread[] ts = new Thread[n];
+            for (int i = 0; i < n; i++) {
+                final File dst = new File(base, "jdst" + i);
+                dst.mkdirs();
+                ts[i] = new Thread(new Runnable() {
+                    public void run() {
+                        try {
+                            start.await();
+                        } catch (InterruptedException e) {
+                            return;
+                        }
+                        FileTaskEngine.get().submit(FileTask.COPY,
+                                new ArrayList<File>(Arrays.asList(src)), dst);
+                    }
+                }, "jidt-" + i);
+                ts[i].start();
+            }
+            start.countDown();
+            for (Thread t : ts) t.join(10000);
+
+            ok(store.saves.get() >= n, "并发提交产生了 " + store.saves.get() + " 次账本写入");
+            eqi(0, store.overlap.get(), "账本写入区间不重叠（O-21 串行化）");
+
+            long deadline = System.currentTimeMillis() + 20000;
+            while (System.currentTimeMillis() < deadline && engine.hasActive()) {
+                Thread.sleep(50);
+            }
+            ok(!engine.hasActive(), "并发提交的任务全部跑完");
+            eqi(0, store.lastSize, "收尾后账本清空（最后一次 save 是空列表）");
+        } finally {
+            engine.setJournalStore(null);
+        }
+    }
+
+    /**
+     * 慢速账本：用「同时进入 save 的线程数」检测串行化。
+     *
+     * <p>sleep 是刻意的 —— 真实 SharedPreferences 的 commit 也要几毫秒，
+     * 不慢一点，两个线程正好错开，这个用例就形同虚设。</p>
+     */
+    static final class SlowStore implements TaskJournal.Store {
+        final AtomicInteger saves = new AtomicInteger();
+        final AtomicInteger inSave = new AtomicInteger();
+        final AtomicInteger overlap = new AtomicInteger();
+        volatile int lastSize = -1;
+
+        public void save(List<TaskJournal.Entry> es) {
+            if (inSave.incrementAndGet() > 1) overlap.incrementAndGet();
+            try {
+                saves.incrementAndGet();
+                lastSize = es == null ? -1 : es.size();
+                Thread.sleep(15);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                inSave.decrementAndGet();
+            }
+        }
+    }
+
+    static void writeFile(File f, String s) throws Exception {
+        FileOutputStream o = new FileOutputStream(f);
+        try {
+            o.write(s.getBytes("UTF-8"));
+        } finally {
+            o.close();
+        }
     }
 
     static void deleteTree(File f) {
