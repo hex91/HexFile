@@ -1,7 +1,7 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.apk.*;
-import com.hex91.file.fs.*;
+import com.hex91.file.apk.ApkEditSession;
+import com.hex91.file.apk.ApkSignerTool;
 
 
 import android.app.Activity;

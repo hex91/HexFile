@@ -1,6 +1,7 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.fs.*;
+import com.hex91.file.fs.RootUtil;
+import com.hex91.file.fs.WorkDir;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.Configuration;

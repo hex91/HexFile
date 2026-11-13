@@ -1,6 +1,6 @@
 package com.hex91.file.apk;
 
-import com.hex91.file.core.*;
+import com.hex91.file.core.ArscDefs;
 import java.util.List;
 import java.util.Map;
 

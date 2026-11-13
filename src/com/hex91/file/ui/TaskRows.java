@@ -2,7 +2,9 @@ package com.hex91.file.ui;
 
 import com.hex91.file.*;
 import com.hex91.file.R;
-import com.hex91.file.fs.*;
+import com.hex91.file.fs.FileOps;
+import com.hex91.file.fs.FileTask;
+import com.hex91.file.fs.FileTaskEngine;
 import android.content.Context;
 import android.view.Gravity;
 import android.view.View;

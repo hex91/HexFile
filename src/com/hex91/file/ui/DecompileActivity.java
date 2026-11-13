@@ -1,10 +1,11 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.utils.*;
+import com.hex91.file.utils.SyntaxHighlight;
 import com.hex91.file.*;
-import com.hex91.file.apk.*;
+import com.hex91.file.apk.Decompiler;
+import com.hex91.file.apk.SmaliTool;
 import com.hex91.file.R;
-import com.hex91.file.fs.*;
+import com.hex91.file.fs.TreeOps;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.ClipData;

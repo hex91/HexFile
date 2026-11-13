@@ -1,6 +1,7 @@
 package com.hex91.file.net;
 
-import com.hex91.file.fs.*;
+import com.hex91.file.fs.TempFiles;
+import com.hex91.file.fs.WorkDir;
 import android.content.Context;
 import android.os.Environment;
 import android.os.Handler;

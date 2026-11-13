@@ -1,6 +1,6 @@
 package com.hex91.file.net;
 
-import com.hex91.file.core.*;
+import com.hex91.file.core.Iso8601;
 import android.util.Xml;
 
 import org.xmlpull.v1.XmlPullParser;

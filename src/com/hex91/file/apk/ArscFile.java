@@ -1,6 +1,6 @@
 package com.hex91.file.apk;
 
-import com.hex91.file.core.*;
+import com.hex91.file.core.ArscDefs;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;

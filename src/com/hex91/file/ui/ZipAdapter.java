@@ -1,8 +1,9 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.apk.*;
+import com.hex91.file.apk.ArchiveUtil;
 import com.hex91.file.R;
-import com.hex91.file.fs.*;
+import com.hex91.file.fs.FileItem;
+import com.hex91.file.fs.FileOps;
 import android.content.Context;
 import android.graphics.drawable.GradientDrawable;
 import android.util.TypedValue;

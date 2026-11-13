@@ -1,6 +1,6 @@
 package com.hex91.file.apk;
 
-import com.hex91.file.fs.*;
+import com.hex91.file.fs.FileOps;
 import com.android.apksig.ApkVerifier;
 
 import java.io.File;

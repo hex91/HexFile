@@ -1,6 +1,7 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.fs.*;
+import com.hex91.file.fs.DiskScanUtil;
+import com.hex91.file.fs.FileOps;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.os.Bundle;

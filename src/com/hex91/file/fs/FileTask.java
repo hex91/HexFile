@@ -1,6 +1,5 @@
 package com.hex91.file.fs;
 
-import com.hex91.file.utils.*;
 /**
  * 一个「复制 / 移动」任务的运行状态（v1.77.0）。
  *

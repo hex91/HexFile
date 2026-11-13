@@ -1,6 +1,6 @@
 package com.hex91.file.apk;
 
-import com.hex91.file.fs.*;
+import com.hex91.file.fs.FileOps;
 /**
  * v1.61.0 Smali 语法知识库（纯静态数据，供 {@link SmaliDocActivity} 渲染）。
  *

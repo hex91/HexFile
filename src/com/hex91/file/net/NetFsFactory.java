@@ -1,6 +1,6 @@
 package com.hex91.file.net;
 
-import com.hex91.file.utils.*;
+import com.hex91.file.utils.CredentialVault;
 import android.content.Context;
 
 import org.json.JSONObject;

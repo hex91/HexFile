@@ -1,6 +1,6 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.apk.*;
+import com.hex91.file.apk.SmaliDocs;
 import com.hex91.file.R;
 import android.content.ClipData;
 import android.content.ClipboardManager;

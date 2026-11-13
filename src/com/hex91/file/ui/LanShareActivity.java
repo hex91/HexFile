@@ -1,10 +1,14 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.net.*;
+import com.hex91.file.net.LanNet;
+import com.hex91.file.net.LanNode;
+import com.hex91.file.net.LanProtocol;
+import com.hex91.file.net.LanSender;
 import com.hex91.file.*;
 import com.hex91.file.R;
-import com.hex91.file.fs.*;
-import com.hex91.file.core.*;
+import com.hex91.file.fs.FileOps;
+import com.hex91.file.core.MimeUtil;
+import com.hex91.file.MainActivity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.DialogInterface;

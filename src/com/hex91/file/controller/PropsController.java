@@ -1,9 +1,13 @@
 package com.hex91.file.controller;
 
-import com.hex91.file.utils.*;
+import com.hex91.file.utils.HashUtil;
 import com.hex91.file.*;
-import com.hex91.file.ui.*;
-import com.hex91.file.fs.*;
+import com.hex91.file.ui.HfDialogBuilder;
+import com.hex91.file.ui.ThemeManager;
+import com.hex91.file.ui.UiDecor;
+import com.hex91.file.fs.FileAttrs;
+import com.hex91.file.fs.FileOps;
+import com.hex91.file.fs.RootUtil;
 import android.app.AlertDialog;
 import android.content.ClipboardManager;
 import android.content.Context;

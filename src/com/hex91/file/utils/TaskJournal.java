@@ -1,6 +1,6 @@
 package com.hex91.file.utils;
 
-import com.hex91.file.fs.*;
+import com.hex91.file.fs.FileTask;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;

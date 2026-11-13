@@ -1,6 +1,5 @@
 package com.hex91.file.utils;
 
-import com.hex91.file.core.*;
 /*#######################################################
  *
  *   Maintained 2018-2025 by Gregor Santner <gsantner AT mailbox DOT org>

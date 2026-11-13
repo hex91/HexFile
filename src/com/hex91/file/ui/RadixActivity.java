@@ -1,7 +1,7 @@
 package com.hex91.file.ui;
 
 import com.hex91.file.R;
-import com.hex91.file.core.*;
+import com.hex91.file.core.RadixCore;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.os.Bundle;

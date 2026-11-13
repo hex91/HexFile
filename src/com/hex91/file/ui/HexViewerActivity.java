@@ -1,9 +1,10 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.apk.*;
+import com.hex91.file.apk.FileInspect;
 import com.hex91.file.R;
-import com.hex91.file.fs.*;
-import com.hex91.file.core.*;
+import com.hex91.file.fs.FileOps;
+import com.hex91.file.fs.RootIO;
+import com.hex91.file.core.HexCore;
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;

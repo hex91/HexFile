@@ -1,6 +1,6 @@
 package com.hex91.file.net;
 
-import com.hex91.file.core.*;
+import com.hex91.file.core.Json;
 /**
  * v1.89.0 OAuth 令牌（纯 Java，可单测）。
  *

@@ -1,6 +1,6 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.core.*;
+import com.hex91.file.core.MimeUtil;
 import android.content.ContentProvider;
 import android.content.ContentValues;
 import android.database.Cursor;

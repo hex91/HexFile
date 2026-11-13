@@ -1,6 +1,6 @@
 package com.hex91.file.utils;
 
-import com.hex91.file.core.*;
+import com.hex91.file.core.CredentialCodec;
 import android.content.Context;
 import android.os.Build;
 import android.provider.Settings;

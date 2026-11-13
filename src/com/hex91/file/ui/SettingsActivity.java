@@ -1,10 +1,16 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.utils.*;
+import com.hex91.file.utils.Bg;
+import com.hex91.file.utils.ShizukuBridge;
 import com.hex91.file.*;
 import com.hex91.file.R;
-import com.hex91.file.fs.*;
-import com.hex91.file.core.*;
+import com.hex91.file.fs.FileOps;
+import com.hex91.file.fs.LeftoverScan;
+import com.hex91.file.fs.RootUtil;
+import com.hex91.file.fs.TempFiles;
+import com.hex91.file.fs.Trash;
+import com.hex91.file.fs.WorkDir;
+import com.hex91.file.core.ThemeSchemes;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.drawable.Drawable;

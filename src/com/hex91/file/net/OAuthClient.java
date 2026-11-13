@@ -1,6 +1,6 @@
 package com.hex91.file.net;
 
-import com.hex91.file.core.*;
+import com.hex91.file.core.Json;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;

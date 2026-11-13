@@ -1,8 +1,8 @@
 package com.hex91.file.ui;
 
 import com.hex91.file.R;
-import com.hex91.file.fs.*;
-import com.hex91.file.core.*;
+import com.hex91.file.fs.FileItem;
+import com.hex91.file.core.MimeUtil;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.drawable.GradientDrawable;

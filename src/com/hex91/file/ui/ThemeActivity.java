@@ -1,7 +1,7 @@
 package com.hex91.file.ui;
 
 import com.hex91.file.R;
-import com.hex91.file.core.*;
+import com.hex91.file.core.ThemeSchemes;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.view.Gravity;

@@ -1,6 +1,7 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.net.*;
+import com.hex91.file.net.OAuthClient;
+import com.hex91.file.net.OAuthToken;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;

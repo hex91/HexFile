@@ -1,10 +1,12 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.utils.*;
+import com.hex91.file.utils.SyncPlan;
 import com.hex91.file.*;
-import com.hex91.file.net.*;
+import com.hex91.file.net.NetFs;
+import com.hex91.file.net.NetFsFactory;
+import com.hex91.file.net.SyncRunner;
 import com.hex91.file.R;
-import com.hex91.file.fs.*;
+import com.hex91.file.fs.WorkDir;
 import android.content.DialogInterface;
 import android.os.Bundle;
 import android.os.Handler;

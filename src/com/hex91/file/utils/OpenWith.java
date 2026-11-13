@@ -1,6 +1,6 @@
 package com.hex91.file.utils;
 
-import com.hex91.file.core.*;
+import com.hex91.file.core.MimeUtil;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.Context;

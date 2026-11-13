@@ -1,7 +1,7 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.fs.*;
-import com.hex91.file.core.*;
+import com.hex91.file.core.PlaySpeed;
+import com.hex91.file.core.ScreenPolicy;
 import android.content.Context;
 import android.content.SharedPreferences;
 

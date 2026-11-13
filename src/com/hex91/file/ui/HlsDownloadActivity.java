@@ -1,8 +1,11 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.net.*;
+import com.hex91.file.net.HlsDownloader;
+import com.hex91.file.net.HlsPlaylist;
+import com.hex91.file.net.M3u8Playlist;
+import com.hex91.file.net.StreamUrl;
 import com.hex91.file.R;
-import com.hex91.file.fs.*;
+import com.hex91.file.fs.WorkDir;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.DialogInterface;

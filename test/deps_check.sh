@@ -37,6 +37,14 @@ check apk   '^import com\.hex91\.file\.(\*|ui\.|controller\.)'             'apk 
 check net   '^import com\.hex91\.file\.(\*|ui\.|controller\.)'             'net 不能依赖 ui/controller'
 check utils '^import com\.hex91\.file\.(\*|ui\.|controller\.|apk\.|net\.)' 'utils 只能依赖 core/fs'
 
+# O-18：自有包一律精确 import（java.* 通配可以留）
+wild=$(grep -rnE '^import com\.hex91\.file\..*\.\*;' src --include='*.java' 2>/dev/null || true)
+if [ -n "$wild" ]; then
+  echo "FAIL 自有包禁止通配 import（O-18）"
+  echo "$wild" | sed 's/^/      /'
+  fail=1
+fi
+
 if [ "$fail" -eq 0 ]; then
   echo "依赖方向检查通过（core → utils → fs/apk/net → ui/controller → MainActivity）"
 fi

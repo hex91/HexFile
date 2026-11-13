@@ -1,9 +1,12 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.utils.*;
+import com.hex91.file.utils.OpenWith;
 import com.hex91.file.*;
 import com.hex91.file.R;
-import com.hex91.file.fs.*;
+import com.hex91.file.fs.ContentGrep;
+import com.hex91.file.fs.FileOps;
+import com.hex91.file.fs.Trash;
+import com.hex91.file.MainActivity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;

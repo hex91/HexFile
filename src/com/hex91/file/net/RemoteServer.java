@@ -1,6 +1,6 @@
 package com.hex91.file.net;
 
-import com.hex91.file.fs.*;
+import com.hex91.file.fs.TreeOps;
 import android.util.Log;
 
 import java.io.File;

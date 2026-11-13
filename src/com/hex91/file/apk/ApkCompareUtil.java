@@ -1,7 +1,7 @@
 package com.hex91.file.apk;
 
-import com.hex91.file.utils.*;
-import com.hex91.file.fs.*;
+import com.hex91.file.utils.HashUtil;
+import com.hex91.file.fs.CompareUtil;
 import android.content.pm.PackageManager;
 
 import java.io.File;

@@ -1,7 +1,8 @@
 package com.hex91.file.ui;
 
 import com.hex91.file.R;
-import com.hex91.file.core.*;
+import com.hex91.file.core.RegionTable;
+import com.hex91.file.core.TestDataCore;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;

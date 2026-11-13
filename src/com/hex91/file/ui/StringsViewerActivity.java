@@ -1,6 +1,6 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.core.*;
+import com.hex91.file.core.StringExtract;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.os.Bundle;

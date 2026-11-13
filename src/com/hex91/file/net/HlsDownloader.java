@@ -1,6 +1,7 @@
 package com.hex91.file.net;
 
-import com.hex91.file.fs.*;
+import com.hex91.file.fs.TempFiles;
+import com.hex91.file.fs.TreeOps;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;

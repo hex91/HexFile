@@ -1,6 +1,7 @@
 package com.hex91.file.ui;
 
-import com.hex91.file.fs.*;
+import com.hex91.file.fs.Trash;
+import com.hex91.file.fs.TrashPolicy;
 import android.app.Activity;
 import android.content.DialogInterface;
 import android.view.View;
