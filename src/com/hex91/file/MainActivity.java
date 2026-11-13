@@ -1,5 +1,8 @@
 package com.hex91.file;
 
+import com.hex91.file.core.AtomicReplace;
+import com.hex91.file.core.ByteIO;
+import com.hex91.file.fs.FileKind;
 import com.hex91.file.utils.DragPlan;
 import com.hex91.file.utils.GridAction;
 import com.hex91.file.utils.ImageBatchUtil;
@@ -1270,14 +1273,14 @@ public class MainActivity extends BaseActivity {
     private void onFileClick(File f) {
         new RecentStore(this).record(f.getAbsolutePath());
         String lower = f.getName().toLowerCase();
-        if (isArchiveExt(lower) || lower.endsWith(".apk")) {
+        if (FileKind.isArchiveExt(lower) || lower.endsWith(".apk")) {
             // 压缩包/APK 均在当前窗格内嵌浏览（v1.14，不再全屏）
             if (lower.endsWith(".apk")) showApkInfo(f);
             else openArchiveInPane(active(), f);
             return;
         } else if (lower.endsWith(".dex")) {
             askDexAction(f);
-        } else if (isImageExt(lower)) {
+        } else if (FileKind.isImageExt(lower)) {
             openViewer(f);
         } else if (lower.endsWith(".pdf")) {
             startActivity(new Intent(this, PdfPreviewActivity.class)
@@ -1293,7 +1296,7 @@ public class MainActivity extends BaseActivity {
         } else if (MimeUtil.isVideo(lower) || MimeUtil.isPlaylist(lower)) {
             // v1.91.0：视频/流清单交给内置播放器（以前一律交给系统，等于「管理器里看不了视频」）
             openVideo(f);
-        } else if (isTextFile(f, lower)) {
+        } else if (FileKind.isTextFile(f, lower)) {
             openEditor(f);
         } else if (!OpenWith.open(this, f)) {
             // v1.77.0：以前所有不认识的文件一律弹属性，视频/Office 在文件管理器里等于打不开。
@@ -1301,12 +1304,6 @@ public class MainActivity extends BaseActivity {
             toast("没有可打开该类型的应用");
             showProps(f);
         }
-    }
-
-    /** 常见图片扩展名 → 点击进图片查看器 */
-    public static boolean isImageExt(String lower) {
-        return lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png")
-                || lower.endsWith(".gif") || lower.endsWith(".webp") || lower.endsWith(".bmp");
     }
 
     // ============================================================ 内置播放器（v1.91.0）
@@ -1615,13 +1612,6 @@ public class MainActivity extends BaseActivity {
         startActivity(i);
     }
 
-    /** 是否压缩包类扩展名（ZIP/7z/TAR/RAR/Zstd 等，交给内嵌多格式浏览器） */
-    private static boolean isArchiveExt(String lower) {
-        return lower.endsWith(".zip") || lower.endsWith(".7z") || lower.endsWith(".rar")
-                || lower.endsWith(".tar") || lower.endsWith(".tgz") || lower.endsWith(".tar.gz")
-                || lower.endsWith(".tar.zst") || lower.endsWith(".tzst") || lower.endsWith(".zst");
-    }
-
     /** 点击 .dex → 操作菜单（Dex 编辑器++ / 反编译 / HEX / 属性） */
     private void askDexAction(final File f) {
         String[] ops = {"Dex 编辑器++", "反编译为 smali", "HEX 查看", "属性"};
@@ -1668,28 +1658,7 @@ public class MainActivity extends BaseActivity {
         }, "baksmali").start();
     }
 
-    /** 常见文本扩展名 → 点击直接进编辑器 */
-    private static boolean isTextFile(File f, String lower) {
-        return isTextName(lower, f.length());
-    }
-
-    /** 按扩展名+大小判断是否按文本处理（压缩包条目用，无 File 可查） */
-    public static boolean isTextName(String lower, long size) {
-        String[] exts = {".txt", ".xml", ".json", ".java", ".kt", ".kts", ".gradle",
-                ".properties", ".ini", ".conf", ".cfg", ".log", ".md", ".csv",
-                ".html", ".htm", ".css", ".js", ".ts", ".py", ".c", ".cpp", ".h",
-                ".hpp", ".sh", ".bat", ".smali", ".yml", ".yaml", ".toml", ".sql"};
-        for (String e : exts) if (lower.endsWith(e)) return true;
-        // 无扩展名的小文件也按文本处理（如 README、Makefile）
-        return lower.indexOf('.') < 0 && size > 0 && size < 1024 * 1024;
-    }
-
     // ================================================================ 窗格内嵌压缩包浏览（v1.14）
-
-    /** 该归档是否支持写回（ZIP/APK/JAR/TAR/TGZ/7Z；RAR 专有格式无写入器） */
-    public static boolean writableArchive(File f) {
-        return ArchiveWrite.canWrite(f);
-    }
 
     /** 写归档前校验：RAR 弹「转存为 ZIP」，其余只读格式给说明；返回 false 中止操作 */
     private boolean ensureArchiveWritable(File f) {
@@ -1726,7 +1695,7 @@ public class MainActivity extends BaseActivity {
             public void run() {
                 String err = null;
                 File out = new File(rar.getParentFile(),
-                        stripExt(rar.getName()) + ".zip");
+                        FileKind.stripExt(rar.getName()) + ".zip");
                 File tmp = new File(getCacheDir(), "rar2zip_" + System.currentTimeMillis());
                 try {
                     tmp.mkdirs();
@@ -1791,20 +1760,6 @@ public class MainActivity extends BaseActivity {
     }
 
     private void archDelete(Pane p, List<FileItem> items) { archCtl.archDelete(p, items); }
-
-
-    public static byte[] readAllBytes(File f) throws Exception {
-        FileInputStream in = new FileInputStream(f);
-        try {
-            java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
-            byte[] buf = new byte[65536];
-            int n;
-            while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
-            return bo.toByteArray();
-        } finally {
-            in.close();
-        }
-    }
 
 
     /** Dex 属性（v1.66.5）：版本 + String/Type/Proto/Field/Method/Class 数量 + 校验状态 */
@@ -1877,19 +1832,6 @@ public class MainActivity extends BaseActivity {
     }
 
 
-    /**
-     * v1.99.2（R-06）：写回失败的说明。
-     *
-     * <p>压缩包写回失败时 {@link AtomicReplace} 会把原内容挪成 {@code .bakrepl}、把新内容留在临时文件，
-     * 这些路径记在 {@code lastError} 里 —— 必须拼进提示，否则用户只看到「写入失败」，
-     * 同时在自己目录里发现一个不认识的 {@code xxx.bakrepl}。</p>
-     */
-    public static String writeFailMsg(String what) {
-        String why = AtomicReplace.lastError;
-        return why == null ? what : what + "（" + why + "）";
-    }
-
-
     /** 用内置密钥给 APK 签名：产物 同名_signed.apk（长按菜单「APK 签名」与修改后询问共用） */
     private void signApkBuiltin(final File apk) {
         toast("签名中…");
@@ -1897,7 +1839,7 @@ public class MainActivity extends BaseActivity {
             public void run() {
                 String err = null;
                 File out = new File(apk.getParentFile(),
-                        stripExt(apk.getName()) + "_signed.apk");
+                        FileKind.stripExt(apk.getName()) + "_signed.apk");
                 try {
                     // v1.67.3：sign 抛异常时也必须关闭 assets 流（原实现 close 在 try 末尾，异常路径不执行）
                     java.io.InputStream ks = getAssets().open("hexfile.p12");
@@ -2197,7 +2139,7 @@ public class MainActivity extends BaseActivity {
 
     /** APK 解包（v1.57）：全部条目提取到 <name>_unpack/，另存可读 Manifest */
     private void doApkUnpack(final File apk) {
-        File out = new File(apk.getParentFile(), stripExt(apk.getName()) + "_unpack");
+        File out = new File(apk.getParentFile(), FileKind.stripExt(apk.getName()) + "_unpack");
         if (out.exists()) {
             toast("目录已存在: " + out.getName());
             return;
@@ -2228,7 +2170,7 @@ public class MainActivity extends BaseActivity {
 
     /** 去除签名（v1.57）：重写包并剥离 META-INF 签名文件 → <name>_unsigned.apk */
     private void doRemoveSignature(final File apk) {
-        File out = new File(apk.getParentFile(), stripExt(apk.getName()) + "_unsigned.apk");
+        File out = new File(apk.getParentFile(), FileKind.stripExt(apk.getName()) + "_unsigned.apk");
         final ProgressDialog pd = ProgressDialog.show(this, "去除签名", apk.getName(), true, false);
         new Thread(new Runnable() {
             public void run() {
@@ -2343,7 +2285,7 @@ public class MainActivity extends BaseActivity {
                 File out = inPlace
                         ? new File(apk.getParentFile(), apk.getName() + ".signtmp")
                         : new File(apk.getParentFile(),
-                                stripExt(apk.getName()) + "_csigned.apk");
+                                FileKind.stripExt(apk.getName()) + "_csigned.apk");
                 try {
                     byte[] ksBytes = SignKeyManagerActivity.loadKeyBytes(MainActivity.this, entry.id);
                     ApkSignerTool.signAutoAlias(ksBytes,
@@ -2378,7 +2320,7 @@ public class MainActivity extends BaseActivity {
 
     /** 解包目录 → 打包为 APK（v1.57）：产物未签名，询问是否用内置密钥直接签 */
     private void doApkPack(final File dir) {
-        File out = new File(dir.getParentFile(), stripExt(dir.getName()) + "_packed.apk");
+        File out = new File(dir.getParentFile(), FileKind.stripExt(dir.getName()) + "_packed.apk");
         final ProgressDialog pd = ProgressDialog.show(this, "打包 APK", dir.getName(), true, false);
         new Thread(new Runnable() {
             public void run() {
@@ -2439,7 +2381,7 @@ public class MainActivity extends BaseActivity {
                                     archPane.archiveFile, root, f);
                         } else {
                             if (!ArchiveWrite.writeEntry(archPane.archiveFile, root, f)) {
-                                err = writeFailMsg("写入失败: " + root);
+                                err = AtomicReplace.failMessage("写入失败: " + root);
                                 break;
                             }
                         }
@@ -2493,7 +2435,7 @@ public class MainActivity extends BaseActivity {
                 ApkEditSession.stageAdd(MainActivity.this, archive, entry, k);
             } else {
                 if (!ArchiveWrite.writeEntry(archive, entry, k)) {
-                    throw new RuntimeException(writeFailMsg("写入失败: " + entry));
+                    throw new RuntimeException(AtomicReplace.failMessage("写入失败: " + entry));
                 }
             }
         }
@@ -2540,22 +2482,6 @@ public class MainActivity extends BaseActivity {
         startActivity(i);
     }
 
-    /** MT 风格 APK 信息弹窗：图标 + 逐行信息；点行复制，点「签名状态」行进签名详情页 */
-    private static String apkFileRole(File f) {
-        String n = f.getName().toLowerCase();
-        if (n.endsWith("_edit.apk"))
-            return "修改版（v1.66.7 及更早版本生成；新版本修改直接写回原包，不再生成 _edit）";
-        if (n.endsWith("_bak.apk"))
-            return "原包备份（首次修改时自动生成，保持原厂签名，用于还原；勿安装）";
-        if (n.endsWith("_signed.apk"))
-            return "签名副本（长按「APK 签名」用内置密钥生成的独立文件）";
-        if (n.endsWith("_csigned.apk"))
-            return "自定义签名副本（用自有 keystore 签名的独立文件）";
-        if (n.endsWith("_unsigned.apk"))
-            return "去除签名副本（仅剥离签名文件，内容同原包）";
-        return null;
-    }
-
     private void showApkInfo(final File f) {
         final PackageManager pm = getPackageManager();
         List<String[]> rows = ApkUtil.rows(f, pm);
@@ -2572,7 +2498,7 @@ public class MainActivity extends BaseActivity {
         final List<String[]> rowsF = rows;
         // v1.66.7：备份文件角色说明——_bak 永远保持原厂签名（设计如此，用于还原）；
         // v1.66.8 起修改直接写回原包，签名状态行即可判断当前包是否已重签
-        String role = apkFileRole(f);
+        String role = FileKind.apkFileRole(f);
         if (role != null) rowsF.add(1, new String[]{"文件角色", role});
 
         View view = getLayoutInflater().inflate(R.layout.dialog_apk_info, null);
@@ -2789,7 +2715,7 @@ public class MainActivity extends BaseActivity {
         if (isFile) { ops.add("解密文件"); acts.add(A_DECRYPT); }
         if (isFile && !FileSplit.isSplitPart(f)) { ops.add("文件分割"); acts.add(A_SPLIT); }
         if (FileSplit.isSplitPart(f)) { ops.add("文件合并"); acts.add(A_MERGE); }
-        if (isFile && f.length() > 0 && !MainActivity.isTextName(f.getName().toLowerCase(), f.length())) {
+        if (isFile && f.length() > 0 && !FileKind.isTextName(f.getName().toLowerCase(), f.length())) {
             ops.add("strings 提取"); acts.add(A_STRINGS);
         }
         ops.add("对比…"); acts.add(A_COMPARE);
@@ -3207,7 +3133,7 @@ public class MainActivity extends BaseActivity {
                             e = SmaliTool.assemble(smaliDir, outDex, 4);
                             if (e != null) throw new Exception("回编译 " + nm + " 失败: " + e);
 
-                            byte[] data = readAllBytes(outDex);
+                            byte[] data = ByteIO.readAll(outDex);
                             if (data != null) replace.put(nm, data);
                             dexIdx++;
                         }
@@ -3647,7 +3573,7 @@ public class MainActivity extends BaseActivity {
             mode = CompareActivity.MODE_FOLDER;
         } else if (a.isFile() && b.isFile()) {
             String la = a.getName().toLowerCase(), lb = b.getName().toLowerCase();
-            boolean textA = isTextName(la, a.length()) || isTextName(lb, b.length());
+            boolean textA = FileKind.isTextName(la, a.length()) || FileKind.isTextName(lb, b.length());
             // 任一像文本且都能按文本解码 → 文本对比；否则哈希对比
             mode = textA ? CompareActivity.MODE_TEXT : CompareActivity.MODE_HASH;
         } else {
@@ -3726,8 +3652,8 @@ public class MainActivity extends BaseActivity {
     private void extractApkDexes(final File apk, final boolean decompile) {
         final File cacheTmp = new File(getCacheDir(), "apk_dex_tmp");
         final File outRoot = decompile
-                ? new File(WorkDir.base(), "Smali/" + stripExt(apk.getName()))
-                : new File(other().dir, stripExt(apk.getName()) + "_dex");
+                ? new File(WorkDir.base(), "Smali/" + FileKind.stripExt(apk.getName()))
+                : new File(other().dir, FileKind.stripExt(apk.getName()) + "_dex");
         toast(decompile ? "反编译中…（APK 内 dex 越多耗时越长）" : "提取中…");
         new Thread(new Runnable() {
             public void run() {
@@ -3805,12 +3731,6 @@ public class MainActivity extends BaseActivity {
         } catch (Throwable t) {
             toast("分享失败: " + t.getMessage());
         }
-    }
-
-    /** 去掉文件名扩展名 */
-    public static String stripExt(String name) {
-        int dot = name.lastIndexOf('.');
-        return dot > 0 ? name.substring(0, dot) : name;
     }
 
     private void askRename(final File f) {
@@ -4256,7 +4176,7 @@ public class MainActivity extends BaseActivity {
                         done.add(it.archPath());
                         ok++;
                     }
-                    if (alsoDelete && writableArchive(p.archiveFile) && !done.isEmpty()) {
+                    if (alsoDelete && ArchiveWrite.canWrite(p.archiveFile) && !done.isEmpty()) {
                         if (ApkEditSession.isApk(p.archiveFile))
                             ApkEditSession.putRemove(MainActivity.this, p.archiveFile, done);
                         else
@@ -4507,7 +4427,7 @@ public class MainActivity extends BaseActivity {
                                 File out = inPlace
                                         ? new File(apk.getParentFile(), apk.getName() + ".signtmp")
                                         : new File(apk.getParentFile(),
-                                                stripExt(apk.getName()) + "_csigned.apk");
+                                                FileKind.stripExt(apk.getName()) + "_csigned.apk");
                                 try {
                                     byte[] ksBytes = readUriBytes(keystoreUri);
                                     ApkSignerTool.signAutoAlias(ksBytes, pwd.toCharArray(),

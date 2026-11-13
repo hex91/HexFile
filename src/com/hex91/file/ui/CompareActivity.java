@@ -1,5 +1,6 @@
 package com.hex91.file.ui;
 
+import com.hex91.file.fs.FileKind;
 import com.hex91.file.utils.HashUtil;
 import com.hex91.file.*;
 import com.hex91.file.apk.ApkCompareUtil;
@@ -304,10 +305,10 @@ public class CompareActivity extends BaseActivity {
     private void openOne(File f) {
         if (f == null || !f.exists()) { toast("文件不存在"); return; }
         String low = f.getName().toLowerCase();
-        if (MainActivity.isImageExt(low)) {
+        if (FileKind.isImageExt(low)) {
             startActivity(new Intent(this, ImageViewerActivity.class)
                     .putExtra(ImageViewerActivity.EXTRA_FILE, f.getAbsolutePath()));
-        } else if (MainActivity.isTextName(low, f.length())) {
+        } else if (FileKind.isTextName(low, f.length())) {
             startActivity(new Intent(this, TextEditorActivity.class)
                     .putExtra(TextEditorActivity.EXTRA_FILE, f.getAbsolutePath()));
         } else {

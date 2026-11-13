@@ -40,6 +40,21 @@ public final class AtomicReplace {
      */
     public static volatile String lastError;
 
+    /**
+     * v2.4.0（O-19）：把 {@code what} 与最近一次失败的详情拼成一句可展示的提示。
+     *
+     * <p>原来这行逻辑是 {@code MainActivity.writeFailMsg}，被 {@code ArchiveController}
+     * 调了 3 处 —— controller 为了拼一句字符串反向依赖宿主 Activity。它读的是
+     * {@link #lastError}，本来就只有这个类最清楚怎么解释。</p>
+     *
+     * <p>保持「读 volatile + 拼路径」的原逻辑：不 try/catch、不清空
+     * {@code lastError}，失败说明由下一次替换自行覆盖。</p>
+     */
+    public static String failMessage(String what) {
+        String why = lastError;
+        return why == null ? what : what + "（" + why + "）";
+    }
+
     /** 替换结果（成功 {@code message} 为 null） */
     public static final class Result {
         public final boolean ok;

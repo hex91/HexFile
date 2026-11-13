@@ -1,5 +1,8 @@
 package com.hex91.file.controller;
 
+import com.hex91.file.core.AtomicReplace;
+import com.hex91.file.core.ByteIO;
+import com.hex91.file.fs.FileKind;
 import com.hex91.file.utils.GridAction;
 import com.hex91.file.*;
 import com.hex91.file.ui.ArscEditorActivity;
@@ -325,11 +328,11 @@ public final class ArchiveController {
         if (low.equals("androidmanifest.xml")) { askArchManifestAction(p, it); return; }
         if (low.endsWith(".dex")) { askArchDexAction(p, it); return; }
         if (low.endsWith(".arsc")) { openArchArsc(p, it); return; }
-        if (MainActivity.isTextName(low, it.archSize)) {
+        if (FileKind.isTextName(low, it.archSize)) {
             editArchEntry(p, it);
             return;
         }
-        if (MainActivity.isImageExt(low)) {
+        if (FileKind.isImageExt(low)) {
             viewArchEntry(p, it);
             return;
         }
@@ -417,7 +420,7 @@ public final class ArchiveController {
                             return;
                         }
                         try {
-                            AxmlFile ax = AxmlFile.parse(MainActivity.readAllBytes(tmpFile));
+                            AxmlFile ax = AxmlFile.parse(ByteIO.readAll(tmpFile));
                             File pretty = new File(tmpDir, it.archPath() + ".pretty.xml");
                             java.io.PrintWriter pw = new java.io.PrintWriter(
                                     new java.io.OutputStreamWriter(
@@ -518,7 +521,7 @@ public final class ArchiveController {
                         // AXML 二进制（APK 内 AndroidManifest / res 下编译过的 xml）→ 转 pretty 文本查看
                         if (isAxml(tmpFile)) {
                             try {
-                                AxmlFile ax = AxmlFile.parse(MainActivity.readAllBytes(tmpFile));
+                                AxmlFile ax = AxmlFile.parse(ByteIO.readAll(tmpFile));
                                 File pretty = new File(tmpDir,
                                         it.archPath() + ".pretty.xml");
                                 java.io.PrintWriter pw = new java.io.PrintWriter(
@@ -536,7 +539,7 @@ public final class ArchiveController {
                             // pretty 文本只落缓存、强制只读（文本编辑会破坏二进制 AXML；
                             // 要改 Manifest 请用「Manifest 编辑器++」）
                             i.putExtra(TextEditorActivity.EXTRA_READONLY, true);
-                        } else if (MainActivity.writableArchive(zip)) {
+                        } else if (ArchiveWrite.canWrite(zip)) {
                             i.putExtra(TextEditorActivity.EXTRA_ARCHIVE, zip.getAbsolutePath());
                             i.putExtra(TextEditorActivity.EXTRA_ENTRY, it.archPath());
                         } else {
@@ -651,9 +654,9 @@ public final class ArchiveController {
     void decompileArchDex(final Pane p, final FileItem it) {
         final File apk = p.archiveFile;
         final File cacheTmp = new File(host.ctx().getCacheDir(), "arch_dex_tmp");
-        final String base = MainActivity.stripExt(new File(it.archPath()).getName());
+        final String base = FileKind.stripExt(new File(it.archPath()).getName());
         final File outRoot = new File(WorkDir.base(),
-                "Smali/" + MainActivity.stripExt(apk.getName()) + "/" + base);
+                "Smali/" + FileKind.stripExt(apk.getName()) + "/" + base);
         host.toast("反编译中…（大型 dex 可能需要较长时间）");
         new Thread(new Runnable() {
             public void run() {
@@ -829,8 +832,8 @@ public final class ArchiveController {
 
     /** 压缩包条目长按菜单（MT 式双列宫格） */
     public void showArchOpsMenu(final Pane p, final FileItem it) {
-        final boolean canWrite = MainActivity.writableArchive(p.archiveFile);
-        final boolean isText = MainActivity.isTextName(it.archShort.toLowerCase(), it.archSize);
+        final boolean canWrite = ArchiveWrite.canWrite(p.archiveFile);
+        final boolean isText = FileKind.isTextName(it.archShort.toLowerCase(), it.archSize);
         final boolean canToArch = host.other().archiveFile != null;
         final int A_EDIT = 0, A_HERE = 1, A_OTHER = 2, A_DEL = 3, A_PROP = 4,
                 A_TOARCH_C = 5, A_TOARCH_M = 6, A_DEXPP = 7, A_SMALI = 8, A_HEX = 9, A_ARSCPP = 10, A_MANIFEST = 11,
@@ -895,7 +898,7 @@ public final class ArchiveController {
     void askAddEntriesToArchive(final Pane src, final List<FileItem> entries,
             final Pane dst, final boolean move) {
         if (!host.ensureArchiveWritable(dst.archiveFile)) return;
-        if (move && !MainActivity.writableArchive(src.archiveFile)) {
+        if (move && !ArchiveWrite.canWrite(src.archiveFile)) {
             host.toast("源压缩包为只读格式，无法删除原条目（改为复制）");
             addEntriesToArchive(src, entries, dst, null, false);
             return;
@@ -963,7 +966,7 @@ public final class ArchiveController {
                                 if (dstApk) {
                                     ApkEditSession.stageAdd(host.ctx(), dst.archiveFile, root, extracted);
                                 } else if (!ArchiveWrite.writeEntry(dst.archiveFile, root, extracted)) {
-                                    throw new RuntimeException(MainActivity.writeFailMsg("写入失败: " + root));
+                                    throw new RuntimeException(AtomicReplace.failMessage("写入失败: " + root));
                                 }
                             } else {
                                 throw new RuntimeException("提取失败: " + it.archPath());
@@ -980,7 +983,7 @@ public final class ArchiveController {
                                 ApkEditSession.putRemove(host.ctx(), src.archiveFile, names);
                             } else if (!ArchiveWrite.removeEntries(src.archiveFile, names)) {
                                 throw new RuntimeException(
-                                        MainActivity.writeFailMsg("源归档删除失败（内容已复制）"));
+                                        AtomicReplace.failMessage("源归档删除失败（内容已复制）"));
                             }
                         }
                     } catch (Throwable t) {
@@ -1031,7 +1034,7 @@ public final class ArchiveController {
                                 // v1.66.8：APK 删除条目 → 会话登记 + 重打包写回原包
                                 ApkEditSession.putRemove(host.ctx(), p.archiveFile, names);
                             } else if (!ArchiveWrite.removeEntries(p.archiveFile, names)) {
-                                err = MainActivity.writeFailMsg("删除失败");
+                                err = AtomicReplace.failMessage("删除失败");
                             }
                         } catch (Throwable t) {
                             err = t.getMessage();
