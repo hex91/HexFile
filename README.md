@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文：目前只有设置页与工具栏（未迁移页面回退中文）
+│   ├── values-en/               # 英文：设置页 / 任务中心 / 通知 / 工具栏（未迁移页面回退中文）
 │   ├── values-sw600dp/          # 平板：pane_divider 从 1dp 装饰线变 6dp 可拖
 │   └── drawable/                # 矢量图标（ic_launcher / ic_folder / ic_file）
 └── src/com/hex91/file
@@ -48,36 +48,37 @@ adb install -r out/HexFile-*.apk
     │   └── PropsController      属性 / 权限 / 时间 / 所有者 / 哈希
     ├── core/        (25)        # 基础工具：编码、加密、格式化、时间、十六进制、颜色对比
     │   ├── Base64Codec Json Iso8601 FormatUtil HexCore Sm3 Sm4 CryptoCore CodecCore
-    │   ├── AtomicReplace MimeUtil TimeCore TextDiffUtil Contrast ScreenPolicy
-    │   └── CredentialCodec ScanCache LinkUtil StringExtract RadixCore ThemeSchemes
+    │   ├── AtomicReplace MimeUtil TimeCore TextDiffUtil Contrast ScreenPolicy ByteIO
+    │   └── CredentialCodec ScanCache StringExtract RadixCore ThemeSchemes
     │       RegionTable PlaySpeed TestDataCore ArscDefs
-    ├── fs/          (25)        # 文件系统：读目录、复制移动、回收站、压缩包、Root/Shell
-    │   ├── FileItem FileOps FileAttrs FileClipboard DirReader DiskScanUtil
+    ├── fs/          (29)        # 文件系统：读目录、复制移动、回收站、压缩包、Root/Shell
+    │   ├── FileItem FileOps FileAttrs FileClipboard DirReader DiskScanUtil FileKind
     │   ├── FileTask FileTaskEngine FileSplit FileCrypt Trash TrashJanitor TrashPolicy
     │   ├── ZipUtil ZstdUtil WorkDir DocPath BatchRenameCore CompareUtil ContentGrep
-    │   └── LeftoverScan TreeOps RootIO RootUtil Shell
+    │   └── LeftoverScan TreeOps RootIO RootUtil Shell LinkUtil SortMode TempFiles
     ├── apk/         (27)        # APK / 压缩包 / 资源二进制：重打包、签名、ARSC、AXML、smali
     │   ├── ApkUtil ApkInfoUtil ApkPackager ApkRepack ApkEditSession ApkSignCheck
     │   ├── ApkSignerTool ApkCloneTool ApkCompareUtil ArchiveUtil ArchiveWrite ArchivePasswords
     │   ├── FileInspect ArscEditor ArscFile ArscPlus ArscValues ArscWriter
     │   └── AxmlFile AxmlTextSync AxmlWriter Decompiler SmaliTool SmaliDocs
     │       KeyStoreUtil KeystoreCreate SigKill
-    ├── net/         (26)        # 网络：云盘 / FTP / SFTP / SMB / WebDAV / S3 / HLS / 局域网
+    ├── net/         (27)        # 网络：云盘 / FTP / SFTP / SMB / WebDAV / S3 / HLS / 局域网
     │   ├── NetFs NetFsFactory FtpFs SftpFs SmbFs WebDavFs S3Fs S3Signer
     │   ├── OneDriveFs AliyunDriveFs OAuthClient OAuthToken CloudPath StreamUrl
     │   ├── HlsPlaylist HlsCrypto HlsKey M3u8Playlist HlsDownloader TsRemuxer
-    │   └── LanNet LanNode LanProtocol LanSender RemoteServer TokenHarvest
-    ├── ui/          (72)        # 界面：44 Activity + 7 Service/Provider + 视图/适配器/对话框
+    │   └── LanNet LanNode LanProtocol LanSender RemoteServer TokenHarvest SyncRunner
+    ├── ui/          (73)        # 界面：44 Activity + 7 Service/Provider + 视图/适配器/对话框
     │   ├── *Activity（除 MainActivity 外全部）、ActivityFloatService / ActivityTraceService
     │   ├── ApkFileProvider / HfDocumentsProvider / WidgetProvider / LanShareService / TaskService
     │   ├── FileAdapter / FileGridAdapter / ZipAdapter、PullRefreshLayout / RadarView
     │   ├── LineNumbersView / HighlightingEditor、BaseActivity / ThemeManager / ThumbLoader
-    │   └── ToolUi / UiKit / UiDecor / TaskRows / 三个对话框 / PlayerPrefs / BookmarkStore / RecentStore
-    ├── utils/       (29)        # 横切工具：与界面、文件系统都无关的可复用能力
+    │   ├── ToolUi / UiKit / UiDecor / TaskRows / 三个对话框 / PlayerPrefs / BookmarkStore / RecentStore
+    │   └── ApkSignHelper（内置/自有签名流程，调用方全是本包）
+    ├── utils/       (28)        # 横切工具：与界面、文件系统都无关的可复用能力
     │   ├── Bg HashUtil StorageStat WidgetText GridAction ColorUnderlineSpan
     │   ├── CredentialVault KeyCipher ShizukuBridge TaskJournal TaskStore
-    │   ├── SyncPlan SyncRunner ResumePlan DragPlan BackupRestore OpenWith
-    │   ├── ActivityLog ImageBatchUtil ApkSignHelper
+    │   ├── SyncPlan ResumePlan DragPlan BackupRestore OpenWith
+    │   ├── ActivityLog ImageBatchUtil SyntaxPalette
     │   └── AutoTextFormatter MdFormatPatterns MarkdownRender MtTextUtils
     │       SyntaxHighlight SyntaxHighlighterBase MtSyntaxHighlighter
     │       MarkdownSyntaxHighlighter PlaintextSyntaxHighlighter
@@ -94,13 +95,31 @@ MainActivity  →  controller  →  ui / fs / apk / net
                   core
 ```
 
-- `core` 不依赖任何自研包（纯 JDK）；
-- `utils` 只依赖 `core`（`Bg` 用 Handler、`ShizukuBridge` 用 Context，但没有业务依赖）；
-- `fs` / `apk` / `net` 依赖 `core` + `utils`，彼此之间按需引用；
+- `core` 不依赖任何自研包，也不 import `android.*`（纯 JDK，桌面可测）；
+- `utils` 只依赖 `core` / `fs`（`Bg` 用 Handler、`ShizukuBridge` 用 Context，但没有业务依赖）；
+- `fs` / `apk` / `net` 依赖 `core` + `utils`，彼此之间按需引用；**不依赖 `ui` / `controller`**；
 - `ui` 可以用下面所有层；`controller` 只依赖 `ui` 的少数装配工具（`UiDecor` / `PullRefreshLayout` / 适配器）与 `fs`/`apk`/`net` 的能力；
 - `MainActivity` 在包根，只做装配、菜单分发与跨模块编排，不写具体业务。
 
-> 211 个类，与拆包前完全一致：core 25 / fs 25 / apk 27 / net 26 / ui 72 / utils 29 / controller 6 / 顶层 1。
+这几条不是写在文档里的君子协定，而是 `test/deps_check.sh` 每次构建/CI 都验的硬约束；
+自有包还禁止通配 `import`（`import com.hex91.file.fs.*` 会让「javadoc 提过一个类」
+看起来像「依赖了整个包」，审计和门脚本都没法据此判断）。
+
+> 216 个类：core 25 / fs 29 / apk 27 / net 27 / ui 73 / utils 28 / controller 6 / 顶层 1。
+> v2.4.0 的 O-17 归位后各包数量有增减（`LinkUtil` 进 fs、`SyncRunner` 进 net、
+> `ApkSignHelper` 进 ui、新增 `SortMode`/`TempFiles`/`FileKind`/`ByteIO`/`SyntaxPalette`），
+> 类总数从 211 增到 216，都是新增的小工具类，没有重复实现。
+
+### 质量门（每次构建与 CI 都跑）
+
+```bash
+bash test/deps_check.sh    # 依赖方向 + 自有包禁止通配 import
+bash test/catch_check.sh   # 空 catch 不增长（当前基线 339）
+./test/jc.sh               # 只编译自研包，约 40 秒（改 import / 搬包时的快速校验）
+```
+
+`catch_check.sh` 只拦「比基线多」，不清零：`close()` / `stopForeground()` 这类收尾吞异常
+本来就是对的，硬加日志只是噪音；真正要治的是网络与写入路径。清理一批就把基线调低一格。
 
 ## 已实现功能（v1.6.0，手机上全部可用）
 
@@ -1712,6 +1731,109 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - versionCode 109，APK 约 13MB。
 
 ---
+
+## v2.4.0（versionCode 194）—— 审计修复：三处数据风险 + 分层收口
+
+这一版没有新功能，全部来自一次针对「会丢数据 / 会让审计失真」的排查。按风险排序，
+每项一个提交，可单独 `git revert`。
+
+### R-09：递归删除跟随软链（数据丢失，最高优先级）
+
+`MainActivity.deleteRecursiveOrTrash` 自己写了一份递归：`f.isFile()` 判文件、
+`f.listFiles()` 递归，两者**都会跟随软链接**。「移动进压缩包」成功后调它删源，
+源目录里若有个 `backup -> /sdcard/DCIM`，删掉的是相册内容，链接本身反而留在原地。
+
+R-01 的「打包跳过链接」让链接不会进 zip，于是打包完成后，源里那个链接成了唯一指向目标的入口，
+删除时更危险。现在所有「删了就没了」的递归统一走 `TreeOps.deleteOrTrash`：
+它先判 `isLink` 再判 `isDirectory`，链接只删链本身；删不掉（只读挂载）才移交回收站，
+而回收站的跨卷回退同样复刻链接而不是跟进。
+
+`writeTree` 与 `hasSmali` 的 `listFiles()` 一并换成 `LinkUtil.listNoFollow`，与打包策略对齐。
+
+### R-10：`AtomicReplace` 先删唯一备份
+
+跨卷复制失败且 `bak.renameTo(target)` 也失败时，磁盘状态是「target 不存在 + bak 是唯一副本」。
+老代码下一次替换一进门就 `bak.delete()`，再谈写入 —— 如果这次临时文件恰好无效，
+用户手里一份原内容都不剩。现在第一步是把 bak 放回原位（rename，失败则复制，
+复制失败直接抛且 bak 保留），之后才校验 tmp、清理旧备份。
+
+### O-21：任务账本写入串行化
+
+`writeJournal()` 在 `synchronized (lock)` 里构建快照，但 `store.save(es)` 在锁外：
+A 构建 `[T1]` → B 构建 `[T1,T2]` 并落盘 → A 的 `save([T1])` 最后落盘，账本把 T2 丢了。
+杀进程重启后「上次没做完」的提示就漏项。现在快照与落盘同锁（`journalLock → lock`，
+两个调用点都在 `lock` 之外，不会反向嵌套）。
+
+### R-08 / R-11：临时文件统一登记与识别
+
+新增 `fs/TempFiles`：一张「谁正在写」的注册表（`begin` / `end` / `isActive` / `snapshot`）
++ 一份「哪些名字算临时」的判定。三件事因此对齐：
+
+- 复制/移动（`FileTaskEngine`）、云同步下载（`SyncRunner`）、局域网接收（`LanNode`）、
+  HLS 拼接（`HlsDownloader`）、TS 转封装（`TsRemuxer`）都在开工时登记、`finally` 里注销；
+- 遗留扫描（`LeftoverScan`）按快照排除活动路径，删除入口再查一次实时状态
+  —— 挡住「扫描之后、用户确认之前」才开始的任务；
+- 命名收敛：HLS 分片与 TsRemuxer 输出的 `.tmp` 改成 `.part`，`LeftoverScan` 因此能认出
+  `zip 写回失败的 .reb<ts>.tmp`（以前扫不出来，那坨文件永远躺着）；
+  `.parts`（断点续传清单）与 `.merged`（合并输出）明确排除，扫描也不再递归进 `.parts` 目录。
+
+真实后果对照：1 GB 复制进行中打开「设置 → 遗留文件」，以前列表里会出现那个 `.part`，
+用户确认删除后写线程仍持有已 unlink 的句柄，rename 必然失败，拷贝在几百 MB 处报错。
+现在扫描看不到它，删除也被拒绝并提示「任务进行中」。
+
+### O-17 / O-18：分层归位与依赖门
+
+7 处真实越层（不是注释，是编译期依赖）全部修掉：
+
+| 越层 | 处理 |
+|---|---|
+| `core/LinkUtil` 调 `android.system.Os` | 整体搬到 `fs/LinkUtil`（调用方都在 fs 及以上） |
+| `fs/DirReader` 用 `FileAdapter.SORT_*` | 新增 `fs/SortMode`，`FileAdapter.SORT_*` 保留为别名（持久化数值不变） |
+| `apk/ApkEditSession` new `ui.SignPromptActivity` | 导航搬进 `SignPromptActivity.launch(ctx, apk)` |
+| `utils/ApkSignHelper` 引 `ui`/`apk` | 搬到 `ui/ApkSignHelper`（调用方本来全在 ui） |
+| `utils/MtSyntaxHighlighter` / `PlaintextSyntaxHighlighter` 引 `ThemeManager` | 抽出 `utils/SyntaxPalette`（暗色标记 + 提亮算法各一份），`ThemeManager` 委托 |
+| `utils/SyncRunner` 引 `NetFs` | 搬到 `net/SyncRunner` |
+
+同时删掉 40 处越层/死 import，并把 196 处自有包通配 import 展开为 380 条精确 import
+（26 行整行删除 —— 那些文件其实一个类都没用到该包，纯属 javadoc 里提过一句）。
+`test/deps_check.sh` 把方向变成可检查的约束，CI 与本地构建都跑。
+
+### O-19：`MainActivity` 静态工具下沉
+
+`isImageExt` / `isTextName` / `isArchiveExt` / `isTextFile` / `apkFileRole` / `stripExt`
+→ `fs/FileKind`；`writableArchive` → `ArchiveWrite.canWrite`；`readAllBytes` → `core/ByteIO`；
+`writeFailMsg` → `AtomicReplace.failMessage`。`controller` 对 `MainActivity` 的引用只剩
+`MainActivity.class` 这一处导航（`ArchiveController:680`），拆包后剩下的最大耦合到此为止。
+
+### F-14/2：任务中心与通知 i18n
+
+`TaskCenterActivity` 9 处 + `TaskService` 7 处中文改资源键；带数字的用 `<plurals>`
+（中文只有 `other`，英文 `one`/`other`，避免出现「1 records」）。`values` 与 `values-en`
+各 131 键 + 4 个 plurals，`aapt2 dump resources` 可见 `(en)` 变体。
+
+> 通知渠道名只在首次创建时生效：验收请「清除应用数据」而不是只切语言。
+
+### O-20：空 catch 不增长门
+
+自研包空 catch 实测 345（审计报告写的 315 是当时时点，之后拆包与 F-14/F-15 又有新增），
+第一批只治 `LanNode` 的 6 处业务回调与路径回退（close/stop/解析容错按例外保留），
+降到 339 并把基线锁在 339。`test/catch_check.sh` 只在超出基线时失败 ——
+目标是「不再增长 + 分批清理」，不是一次性清零。
+
+### 验收
+
+```bash
+./build.sh                      # BUILD OK，194 / 2.4.0
+QUICK=1 ./test/run_core.sh      # 53/53
+bash test/deps_check.sh         # 退出 0
+bash test/catch_check.sh        # 339 / 基线 339
+```
+
+新增用例：`TreeOpsTest.t8DeleteOrTrashKeepsLinkTarget`（链接目标内容不被删）、
+`AtomicReplaceTest.bakOnlyNoTarget`（唯一副本先恢复再报错）、
+`TaskJournalTest.t6JournalSerialized`（慢速 Store 检出 save 区间重叠；
+把 `journalLock` 去掉会立刻 FAIL，已反向验证）、
+`LeftoverScanTest.t4RebTmpAndFunctionalData` / `t5ActiveWriting`。
 
 ## v2.3.1（versionCode 187）—— 手机恢复双栏
 

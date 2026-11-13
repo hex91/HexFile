@@ -90,6 +90,15 @@ jobs:
       - name: Core tests (desktop JVM, no device)
         run: QUICK=1 bash test/run_core.sh
 
+      # v2.4.0：依赖方向与空 catch 两道门。它们和单元测试分开列，
+      # 失败时一眼能看出是「层级被绕过了」还是「新代码留了空 catch」，
+      # 不用去翻 53 个用例的输出。
+      - name: Dependency direction gate (O-17/O-18)
+        run: bash test/deps_check.sh
+
+      - name: Empty catch gate (O-20)
+        run: bash test/catch_check.sh
+
       - name: Read version name
         id: ver
         run: |
