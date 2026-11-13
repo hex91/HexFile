@@ -29,10 +29,17 @@ public class FileAdapter extends BaseAdapter {
     private final Context ctx;
     private final List<FileItem> items = new ArrayList<FileItem>();
 
-    /** 排序方式：名称 / 大小 / 修改时间 */
-    public static final int SORT_NAME = 0;
-    public static final int SORT_SIZE = 1;
-    public static final int SORT_TIME = 2;
+    /**
+     * 排序方式：名称 / 大小 / 修改时间。
+     *
+     * <p>v2.4.0（O-17）：定义搬到 {@link com.hex91.file.fs.SortMode} —— 常量本身住在
+     * fs 层才合理（{@code DirReader} 要按它排序，却不该为此依赖 ui）。这里保留别名，
+     * 一是调用点（MainActivity / DirectoryController 的持久化读写）不用改，
+     * 二是旧代码读起来仍是 {@code FileAdapter.SORT_TIME}，语义没变。</p>
+     */
+    public static final int SORT_NAME = SortMode.NAME;
+    public static final int SORT_SIZE = SortMode.SIZE;
+    public static final int SORT_TIME = SortMode.TIME;
     public int sortMode = SORT_NAME;
     /** 是否显示隐藏文件（. 开头） */
     public boolean showHidden = false;

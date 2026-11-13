@@ -1,6 +1,5 @@
 package com.hex91.file.core;
 
-import com.hex91.file.*;
 /**
  * 扩展名 → MIME 类型（v1.72.0）。
  *

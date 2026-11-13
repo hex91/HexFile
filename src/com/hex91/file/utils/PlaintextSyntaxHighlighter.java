@@ -1,7 +1,6 @@
 package com.hex91.file.utils;
 
 import com.hex91.file.utils.*;
-import com.hex91.file.ui.*;
 /*#######################################################
  *
  *   Maintained 2018-2025 by Gregor Santner <gsantner AT mailbox DOT org>
@@ -149,7 +148,7 @@ public class PlaintextSyntaxHighlighter extends SyntaxHighlighterBase {
                 try {
                     // 暗色模式：深色系高亮色在深色底上不可读，整体提亮
                     createColorSpanForMatches(rules.pattern(i),
-                            ThemeManager.syntaxColor(color.intValue()));
+                            SyntaxPalette.adapt(color.intValue()));
                 } catch (Exception e) {
                     Log.e(getClass().getName(), "bad pattern: " + e);
                 }

@@ -1,7 +1,5 @@
 package com.hex91.file.utils;
 
-import com.hex91.file.*;
-import com.hex91.file.controller.*;
 /**
  * 双列宫格弹窗的动作回调。
  *

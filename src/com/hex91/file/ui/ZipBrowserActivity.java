@@ -105,7 +105,7 @@ public class ZipBrowserActivity extends BaseActivity {
         // v1.66.0：退出 APK 浏览时，有未签名修改版 → 统一弹窗（不签名/内置签名文件/自有签名文件）
         if (archiveFile != null && ApkEditSession.isApk(archiveFile)
                 && ApkEditSession.needsSignPrompt(archiveFile)) {
-            ApkEditSession.launchSignPrompt(this, archiveFile);
+            SignPromptActivity.launch(this, archiveFile);
         }
         super.finish();
     }

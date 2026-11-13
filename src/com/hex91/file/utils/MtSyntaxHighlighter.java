@@ -1,7 +1,5 @@
 package com.hex91.file.utils;
 
-import com.hex91.file.*;
-import com.hex91.file.ui.*;
 import com.hex91.file.fs.*;
 /*#######################################################
  *
@@ -72,7 +70,7 @@ public class MtSyntaxHighlighter extends SyntaxHighlighterBase {
             try {
                 // 暗色模式：深色系高亮色在深色底上不可读，整体提亮
                 createColorSpanForMatches(Pattern.compile(r.regex, FLAGS),
-                        ThemeManager.syntaxColor(r.color));
+                        SyntaxPalette.adapt(r.color));
             } catch (Exception e) {
                 // 跳过非法正则，不影响其它规则
             }

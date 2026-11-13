@@ -1,7 +1,8 @@
-package com.hex91.file.utils;
+package com.hex91.file.ui;
 
-import com.hex91.file.ui.*;
 import com.hex91.file.apk.*;
+import com.hex91.file.fs.*;
+
 
 import android.app.Activity;
 import android.app.AlertDialog;

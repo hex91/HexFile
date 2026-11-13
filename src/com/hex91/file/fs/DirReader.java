@@ -1,8 +1,6 @@
 package com.hex91.file.fs;
 
 import com.hex91.file.utils.*;
-import com.hex91.file.ui.*;
-import com.hex91.file.*;
 import com.hex91.file.core.*;
 import java.io.File;
 import java.util.ArrayList;
@@ -87,7 +85,7 @@ public final class DirReader {
     /**
      * 读目录（自动判断有无特权 shell）。
      *
-     * @param sortMode   {@link FileAdapter#SORT_NAME} / SORT_SIZE / SORT_TIME
+     * @param sortMode   {@link SortMode#NAME} / {@link SortMode#SIZE} / {@link SortMode#TIME}
      * @param showHidden 是否显示以 . 开头的条目
      * @param rootDir    应用根目录；等于它时不插 ".."（null = 只要上级可读就插）
      */
@@ -145,10 +143,10 @@ public final class DirReader {
                     boolean bd = kb != null && kb[0] != 0;
                     if (ad != bd) return ad ? -1 : 1;
                     int r;
-                    if (sortMode == FileAdapter.SORT_SIZE) {
+                    if (sortMode == SortMode.SIZE) {
                         r = Long.compare(ka == null ? 0 : ka[1], kb == null ? 0 : kb[1]);
                         if (r == 0) r = byName.compare(a, b);
-                    } else if (sortMode == FileAdapter.SORT_TIME) {
+                    } else if (sortMode == SortMode.TIME) {
                         r = Long.compare(kb == null ? 0 : kb[2], ka == null ? 0 : ka[2]);
                         if (r == 0) r = byName.compare(a, b);
                     } else {

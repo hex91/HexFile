@@ -4,6 +4,7 @@ import com.hex91.file.apk.*;
 import com.hex91.file.core.*;
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -32,6 +33,24 @@ import java.io.File;
  *    配色全部取自 ThemeManager 当前主题（亮/暗 + 22 色板自动适配）。
  */
 public class SignPromptActivity extends Activity {
+
+    /**
+     * v2.4.0（O-17）：统一签名弹窗的启动入口。
+     *
+     * <p>原来这个 {@code new Intent(ctx, SignPromptActivity.class)} 写在
+     * {@code apk.ApkEditSession.launchSignPrompt} 里 —— {@code apk} 层因此引用了
+     * {@code ui} 的具体 Activity，依赖方向反了。Intent 组装本质是界面导航，
+     * 放在 Activity 自己身上最自然：调用方拿到的仍是一行静态方法，
+     * {@code apk} 层只说「这个包改过了、该提示签名」，不关心提示长什么样。</p>
+     */
+    public static void launch(Context ctx, File apk) {
+        if (ctx == null || apk == null) return;
+        Intent i = new Intent(ctx, SignPromptActivity.class);
+        i.putExtra("apk", apk.getAbsolutePath());
+        if (!(ctx instanceof Activity)) i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        ctx.startActivity(i);
+        ApkEditSession.markPrompted(apk);
+    }
 
     private static final int REQ_KEYSTORE = 7001;
 

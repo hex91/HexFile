@@ -1,7 +1,6 @@
 package com.hex91.file.fs;
 
 import com.hex91.file.utils.*;
-import com.hex91.file.*;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;

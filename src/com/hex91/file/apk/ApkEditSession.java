@@ -1,7 +1,5 @@
 package com.hex91.file.apk;
 
-import com.hex91.file.ui.*;
-import com.hex91.file.*;
 import com.hex91.file.fs.*;
 import com.hex91.file.core.*;
 import android.content.Context;
@@ -276,18 +274,6 @@ public final class ApkEditSession {
         s.dirty = true;
         s.prompted = false;
         return apk;
-    }
-
-    /**
-     * 启动统一签名弹窗（透明 Activity，不阻塞调用方关闭浏览页）。
-     * v1.66.8 原地模型：直接签当前 APK（修改就在它身上）。
-     */
-    public static void launchSignPrompt(Context ctx, File apk) {
-        Intent i = new Intent(ctx, SignPromptActivity.class);
-        i.putExtra("apk", apk.getAbsolutePath());
-        if (!(ctx instanceof android.app.Activity)) i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        ctx.startActivity(i);
-        markPrompted(apk);
     }
 
     /**

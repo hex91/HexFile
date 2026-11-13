@@ -1,5 +1,5 @@
 import com.hex91.file.fs.DirReader;
-import com.hex91.file.ui.FileAdapter;
+import com.hex91.file.fs.SortMode;
 import com.hex91.file.fs.FileItem;
 
 import java.io.File;
@@ -73,7 +73,7 @@ public class DirReaderTest {
         hdir.setLastModified(now - 1500000);
 
         // ---------- 1) 默认：按名称，目录在前，大小写不敏感，隐藏项隐藏 ----------
-        DirReader.Result r = DirReader.read(base, FileAdapter.SORT_NAME, false, null, false);
+        DirReader.Result r = DirReader.read(base, SortMode.NAME, false, null, false);
         eqs("..,adir,Bdir,alpha.TXT,Beta.txt", names(r), "按名称排序 + 目录在前 + 大小写不敏感");
         eqi(2, r.dirs, "目录计数不含 ..");
         eqi(2, r.files, "文件计数");
@@ -87,28 +87,28 @@ public class DirReaderTest {
                 "顶部 .. 指向上级目录");
 
         // ---------- 2) 显示隐藏文件 ----------
-        r = DirReader.read(base, FileAdapter.SORT_NAME, true, null, false);
+        r = DirReader.read(base, SortMode.NAME, true, null, false);
         eqs("..,.hiddendir,adir,Bdir,.hidden,alpha.TXT,Beta.txt", names(r),
                 "显示隐藏文件（.hiddendir 按目录排在前面）");
         eqi(3, r.dirs, "隐藏目录计入目录数");
         eqi(3, r.files, "隐藏文件计入文件数");
 
         // ---------- 3) 按大小：目录仍然在前，文件小的在前 ----------
-        r = DirReader.read(base, FileAdapter.SORT_SIZE, false, null, false);
+        r = DirReader.read(base, SortMode.SIZE, false, null, false);
         eqs("..,adir,Bdir,alpha.TXT,Beta.txt", names(r), "按大小升序（5 字节在 20 字节之前）");
 
         // ---------- 4) 按时间：新的在前 ----------
-        r = DirReader.read(base, FileAdapter.SORT_TIME, false, null, false);
+        r = DirReader.read(base, SortMode.TIME, false, null, false);
         eqs("..,Bdir,adir,Beta.txt,alpha.TXT", names(r), "按修改时间倒序");
 
         // ---------- 5) rootDir：应用根目录不显示 .. ----------
-        r = DirReader.read(base, FileAdapter.SORT_NAME, false, base, false);
+        r = DirReader.read(base, SortMode.NAME, false, base, false);
         eqs("adir,Bdir,alpha.TXT,Beta.txt", names(r), "到达应用根目录时没有 .. 返回项");
         eqi(4, r.items.size(), "根目录条目数");
 
         // ---------- 6) 非空但读不到（模拟 SELinux 拒绝 + 无 root）----------
         File missing = new File(base, "no_such_dir");
-        r = DirReader.read(missing, FileAdapter.SORT_NAME, false, null, false);
+        r = DirReader.read(missing, SortMode.NAME, false, null, false);
         eqs("..", names(r), "读不到内容时只留 .. 返回项（不给假空目录）");
         eqi(0, r.dirs, "读不到时目录数为 0");
         eqi(0, r.files, "读不到时文件数为 0");
@@ -129,11 +129,11 @@ public class DirReaderTest {
                 throw new IllegalStateException("模拟 SELinux 拒绝 / su 进程挂掉");
             }
         };
-        DirReader.Result rf = DirReader.readSafe(boom, FileAdapter.SORT_NAME, true, null, false);
+        DirReader.Result rf = DirReader.readSafe(boom, SortMode.NAME, true, null, false);
         ok(rf != null, "readSafe 不抛异常，始终返回结果");
         eqi(0, rf.items.size(), "失败结果条目为空");
         ok(rf.error != null && rf.error.contains("模拟"), "失败原因带回给调用方: " + rf.error);
-        DirReader.Result rnull = DirReader.readSafe(null, FileAdapter.SORT_NAME, false, null, false);
+        DirReader.Result rnull = DirReader.readSafe(null, SortMode.NAME, false, null, false);
         ok(rnull != null && rnull.error == null, "传 null 目录仍按「空目录」处理，不算失败");
 
         // ---------- 收尾 ----------

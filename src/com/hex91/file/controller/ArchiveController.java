@@ -87,7 +87,7 @@ public final class ArchiveController {
         // v1.66.0：退出 APK 浏览时，有未签名修改版 → 统一弹窗（不签名/内置签名文件/自有签名文件）
         if (p.archiveFile != null && ApkEditSession.isApk(p.archiveFile)
                 && ApkEditSession.needsSignPrompt(p.archiveFile)) {
-            ApkEditSession.launchSignPrompt(host.ctx(), p.archiveFile);
+            SignPromptActivity.launch(host.ctx(), p.archiveFile);
         }
         if (p.archive != null) {
             try { p.archive.close(); } catch (Throwable ignored) {}

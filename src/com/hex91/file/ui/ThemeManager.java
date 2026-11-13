@@ -2,6 +2,7 @@ package com.hex91.file.ui;
 
 import com.hex91.file.R;
 import com.hex91.file.core.*;
+import com.hex91.file.utils.*;
 import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -93,6 +94,9 @@ public final class ThemeManager {
 
     public static void setDarkFlag(boolean dark) {
         sDark = dark;
+        // v2.4.0（O-17）：高亮器家族在 utils，靠 SyntaxPalette 的标记决定配色，
+        // 切换主题时同步过去，免得两处状态各说各话
+        SyntaxPalette.setDark(dark);
     }
 
     public static boolean darkFlag() {
@@ -249,22 +253,12 @@ public final class ThemeManager {
      */
     public static int syntaxColor(Context c, int color) {
         if (!isDark(c)) return color;
-        return lighten(color);
+        return SyntaxPalette.lighten(color);
     }
 
     /** 无 Context 版本的语法色适配（供静态高亮器使用） */
     public static int syntaxColor(int color) {
-        if (!sDark) return color;
-        return lighten(color);
-    }
-
-    /** 把颜色整体提亮（HSV 亮度至少 62%，饱和度上限 72%） */
-    private static int lighten(int color) {
-        float[] hsv = new float[3];
-        android.graphics.Color.colorToHSV(color, hsv);
-        if (hsv[2] < 0.62f) hsv[2] = 0.62f;
-        if (hsv[1] > 0.72f) hsv[1] = 0.72f;
-        return android.graphics.Color.HSVToColor(hsv);
+        return SyntaxPalette.adapt(color);
     }
 
     /** 是否处于暗色模式（用于需要程序化判断的场景，如语法高亮配色） */
