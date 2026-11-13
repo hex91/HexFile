@@ -145,6 +145,17 @@ rm -f "$BUILD/res.zip" "$BUILD/base.apk" "$BUILD/java.args"
 rm -f "$BUILD"/dex/classes*.dex
 rm -f "$OUT/HexFile-unsigned.apk"
 
+# ---- 源码质量门（v2.5.0 R-14）------------------------------------------------
+# README 一直把 deps_check / catch_check 写成「每次构建都跑」，实际只有 CI 跑，
+# 本地出一条「分层已破 / 新增空 catch」的 APK 完全不受阻。两道门合计 1-2 秒，
+# 相对 5 分钟出包可以忽略；急着拿包时 SKIP_GATES=1 可绕过。
+# 放在 aapt2 之前：都是源码级检查，早失败连资源编译都省了。
+if [ "${SKIP_GATES:-0}" != "1" ]; then
+  echo "[gate] 依赖方向 + 空 catch（SKIP_GATES=1 可跳过）..."
+  bash "$ROOT/test/deps_check.sh" || { echo "构建中止：依赖方向门失败" >&2; exit 1; }
+  bash "$ROOT/test/catch_check.sh" || { echo "构建中止：空 catch 门失败" >&2; exit 1; }
+fi
+
 echo "[1/7] aapt2 compile resources..."
 "$BT/aapt2${EXE}" compile --dir "$ROOT/res" -o "$BUILD/res.zip"
 

@@ -16,6 +16,11 @@
 #
 # 注意：日志只记「操作名 + 异常类」，不要把含 token 的 URL、密码打进 logcat
 # （S3/FTP 的 URL 里带签名参数，直接 t.toString() 会泄露凭据）。
+#
+# 退出码：0 = 未超基线；1 = 超基线（新增代码留了空 catch）；2 = 环境缺失（找不到 Python）。
+# 2 这个值是为了让「门没跑起来」和「门通过了」不混在一起：v2.4.0 之前硬编码 python3，
+# 在 Windows 上命中的是 Microsoft Store 的存根，脚本静默退出 49、一行输出都没有，
+# 看起来像通过。环境问题必须大声报出来。
 set -u
 cd "$(dirname "$0")/.."
 
@@ -26,7 +31,20 @@ BASE=339
 LIST=0
 [ "${1:-}" = "--list" ] && LIST=1
 
-python3 - "$BASE" "$LIST" <<'PY'
+# Python 解释器探测（R-13）：只 command -v 不够，WindowsApps 目录下的 python3 是
+# Store 存根，--version 都返回 49。用 -c 'pass' 真跑一次才算数。
+# 覆盖方式：PYTHON_EXE=python bash test/catch_check.sh
+PY="${PYTHON_EXE:-${PYTHON:-}}"
+if [ -z "$PY" ]; then
+  for c in python3 python py; do
+    if command -v "$c" >/dev/null 2>&1 && "$c" -c 'pass' >/dev/null 2>&1; then
+      PY="$c"; break
+    fi
+  done
+fi
+[ -n "$PY" ] || { echo "找不到可用的 Python：用 PYTHON_EXE=python 指定" >&2; exit 2; }
+
+"$PY" - "$BASE" "$LIST" <<'PY'
 import os, sys, re
 
 base = int(sys.argv[1])
