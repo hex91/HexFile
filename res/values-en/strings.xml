@@ -156,4 +156,102 @@
     <string name="task_noti_files">%1$d/%2$d files</string>
     <string name="task_noti_preparing">Preparing file task…</string>
     <string name="task_noti_counting">Counting files</string>
+
+    <!-- v2.8.0（O-24/1）：Signing keys page（SignKeyManagerActivity） -->
+    <string name="common_save">Save</string>
+    <string name="common_got_it">Got it</string>
+
+    <string name="ksm_title">Signing keys</string>
+    <string name="ksm_subtitle">Import once, sign as often as you like — passwords are encrypted by the system Keystore</string>
+    <string name="ksm_import_title">Import key</string>
+    <string name="ksm_import_action">Import</string>
+    <string name="ksm_create_title">Create key</string>
+    <string name="ksm_create_desc">Self-signed RSA certificate</string>
+    <string name="ksm_create_action">Create</string>
+    <string name="ksm_section_keys">Imported keys</string>
+    <string name="ksm_empty">No keys imported yet.\n\n· Tap “Import key” above to bring an existing keystore into the app\n· Or tap “Create key” to generate a new one\n\nOnce imported, signing picks the key from this list — no need to load a file every time.</string>
+    <string name="ksm_broken_short">⚠ Password lost (new device or cleared data) — delete and import again</string>
+    <string name="ksm_alias_prefix">"Alias %1$s · "</string>
+    <plurals name="ksm_keys_count">
+        <item quantity="one">%1$d private key</item>
+        <item quantity="other">%1$d private keys</item>
+    </plurals>
+    <plurals name="ksm_imported_count">
+        <item quantity="one">Imported (%1$d private key)</item>
+        <item quantity="other">Imported (%1$d private keys)</item>
+    </plurals>
+
+    <string name="ksm_err_no_picker">Cannot open the file picker</string>
+    <string name="ksm_err_read">Read failed: %1$s</string>
+    <string name="ksm_err_save">Save failed: %1$s</string>
+    <string name="ksm_err_rename">Rename failed: %1$s</string>
+    <string name="ksm_err_parse">Parse failed: %1$s</string>
+    <string name="ksm_err_no_key">No private key entries in this keystore (certificates alone cannot be used for signing)</string>
+    <string name="ksm_err_bad_pass">Wrong password or unsupported format (supports .p12/.pfx/.jks/.keystore/.bks)</string>
+    <string name="ksm_err_name_empty">Name cannot be empty</string>
+    <string name="ksm_err_pass_short">Password must be at least 6 characters</string>
+
+    <string name="ksm_reading">Reading file…</string>
+    <string name="ksm_parsing_ks">Parsing keystore…</string>
+    <string name="ksm_parsing">Parsing…</string>
+    <string name="ksm_import_failed">Import failed</string>
+    <string name="ksm_imported_default">Imported and set as the default signing key</string>
+    <string name="ksm_auto_name">Signing key %1$d</string>
+    <string name="ksm_hint_name">Name (shown in the list)</string>
+    <string name="ksm_hint_name2">Name (shown in Signing keys)</string>
+    <string name="ksm_hint_store_pass">Keystore password</string>
+    <string name="ksm_hint_key_pass">Key password (empty = same as keystore)</string>
+    <string name="ksm_pass_tip">Passwords are stored inside the app only (%1$s); signing never loads a file.</string>
+    <string name="ksm_enc_on">encrypted by the system Keystore</string>
+    <string name="ksm_enc_off">⚠ plain text — Android 5.x has no encryption</string>
+
+    <string name="ksm_default_name">My key %1$d</string>
+    <string name="ksm_label_name">Name</string>
+    <string name="ksm_hint_cn">Certificate CN, e.g. My App Signing</string>
+    <string name="ksm_label_cn">Cert CN</string>
+    <string name="ksm_hint_org">Organization O (optional)</string>
+    <string name="ksm_label_org">Organization</string>
+    <string name="ksm_hint_alias">Alias</string>
+    <string name="ksm_label_alias">Alias</string>
+    <string name="ksm_hint_pass">Password (6+ chars, shared by keystore and key)</string>
+    <string name="ksm_label_pass">Password</string>
+    <string name="ksm_bits_line_default">Key size: 2048 bits (recommended, best compatibility)</string>
+    <string name="ksm_bits_line">Key size: %1$d bits</string>
+    <string name="ksm_bits_title">Key size</string>
+    <string name="ksm_bits_2048">2048 bits (recommended)</string>
+    <string name="ksm_bits_3072">3072 bits</string>
+    <string name="ksm_bits_4096">4096 bits (slower)</string>
+    <string name="ksm_years_line_default">Valid for 30 years</string>
+    <string name="ksm_years_line">Valid for %1$d years</string>
+    <string name="ksm_years_title">Validity</string>
+    <string name="ksm_years_1">1 year</string>
+    <string name="ksm_years_10">10 years</string>
+    <string name="ksm_years_30">30 years</string>
+    <string name="ksm_years_50">50 years</string>
+    <string name="ksm_create_tip">This creates a self-signed certificate (the same class as the Android debug key), which is fine for local install testing; use your own release key for store distribution.</string>
+    <string name="ksm_generating">Generating a %1$d-bit RSA key and certificate…</string>
+    <string name="ksm_create_failed">Create failed</string>
+    <string name="ksm_created">Key created</string>
+    <string name="ksm_created_msg">%1$s\n\nPassword: %2$s\n(Saved in Signing keys; the password is encrypted inside the app)</string>
+
+    <string name="ksm_default_current">Current default key</string>
+    <string name="ksm_default_none">Not the default</string>
+    <string name="ksm_view_detail">Details</string>
+    <string name="ksm_rename">Rename</string>
+    <string name="ksm_is_default">Default</string>
+    <string name="ksm_set_default">Set default</string>
+    <string name="ksm_already_default_toast">This is already the default key</string>
+    <string name="ksm_set_default_toast">Set as the default signing key</string>
+    <string name="ksm_tip_default_usage">Tip: the default key is used by Dex editor auto-sign and similar entry points</string>
+    <string name="ksm_rename_title">Rename key</string>
+    <string name="ksm_broken_detail">The password for this key can no longer be decrypted (usually after a new device, factory reset or clearing app data, which loses the Android Keystore key).\n\nThe password cannot be recovered. The keystore file itself is still there — delete this entry, import it again and re-enter the password.</string>
+    <string name="ksm_delete_reimport">Delete and re-import</string>
+    <string name="ksm_info_title">Key details</string>
+    <string name="ksm_info_name">Name: %1$s\n</string>
+    <string name="ksm_is_default_sig">Already default</string>
+    <string name="ksm_set_default_sig">Set as default</string>
+    <string name="ksm_delete_title">Delete key</string>
+    <string name="ksm_delete_msg">Delete “%1$s”? (Only the copy inside the app is removed; the original file is untouched)</string>
+    <string name="ksm_deleted">Deleted</string>
+    <string name="ksm_ks_file_fallback">Keystore file</string>
 </resources>

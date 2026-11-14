@@ -158,4 +158,102 @@
     <string name="task_noti_files">%1$d/%2$d 个文件</string>
     <string name="task_noti_preparing">准备文件任务…</string>
     <string name="task_noti_counting">正在统计文件</string>
+
+    <!-- v2.8.0（O-24/1）：签名管理页（SignKeyManagerActivity）。
+         日志 / 异常 / su 命令不在此列；「保存失败 / 重命名失败」这类带原因的操作失败进资源，
+         因为它们直接显示给用户。 -->
+    <string name="common_save">保存</string>
+    <string name="common_got_it">知道了</string>
+
+    <string name="ksm_title">签名管理</string>
+    <string name="ksm_subtitle">导入一次即可反复签名，密码用系统 Keystore 加密保存</string>
+    <string name="ksm_import_title">导入签名</string>
+    <string name="ksm_import_action">导入</string>
+    <string name="ksm_create_title">创建签名</string>
+    <string name="ksm_create_desc">自签 RSA 证书</string>
+    <string name="ksm_create_action">创建</string>
+    <string name="ksm_section_keys">已导入的签名</string>
+    <string name="ksm_empty">还没有导入签名。\n\n· 点上面「导入签名」把已有 keystore 收进应用\n· 或点「创建签名」直接生成一个新的\n\n导入后签名时会直接从列表选择，\n不再需要每次从文件加载。</string>
+    <string name="ksm_broken_short">⚠ 密码已损坏（换机/清除数据导致），请删除后重新导入</string>
+    <string name="ksm_alias_prefix">"别名 %1$s · "</string>
+    <plurals name="ksm_keys_count">
+        <item quantity="other">%1$d 个私钥别名</item>
+    </plurals>
+    <plurals name="ksm_imported_count">
+        <item quantity="other">已导入（%1$d 个私钥别名）</item>
+    </plurals>
+
+    <string name="ksm_err_no_picker">无法打开文件选择器</string>
+    <string name="ksm_err_read">读取失败: %1$s</string>
+    <string name="ksm_err_save">保存失败: %1$s</string>
+    <string name="ksm_err_rename">重命名失败: %1$s</string>
+    <string name="ksm_err_parse">解析失败: %1$s</string>
+    <string name="ksm_err_no_key">keystore 中没有私钥条目（只有证书不能用于签名）</string>
+    <string name="ksm_err_bad_pass">密码错误或格式不支持（支持 .p12/.pfx/.jks/.keystore/.bks）</string>
+    <string name="ksm_err_name_empty">名称不能为空</string>
+    <string name="ksm_err_pass_short">密码至少 6 位</string>
+
+    <string name="ksm_reading">读取文件…</string>
+    <string name="ksm_parsing_ks">解析 keystore…</string>
+    <string name="ksm_parsing">解析中…</string>
+    <string name="ksm_import_failed">导入失败</string>
+    <string name="ksm_imported_default">已导入并设为默认签名密钥</string>
+    <string name="ksm_auto_name">签名 %1$d</string>
+    <string name="ksm_hint_name">名称（用于列表展示）</string>
+    <string name="ksm_hint_name2">名称（签名管理列表里显示）</string>
+    <string name="ksm_hint_store_pass">keystore 密码</string>
+    <string name="ksm_hint_key_pass">私钥密码（可空 = 与 keystore 密码相同）</string>
+    <string name="ksm_pass_tip">密码只保存在应用内部（%1$s），签名时无需再从文件加载。</string>
+    <string name="ksm_enc_on">系统 Keystore 加密</string>
+    <string name="ksm_enc_off">⚠ 明文，Android 5.x 不支持加密</string>
+
+    <string name="ksm_default_name">我的签名 %1$d</string>
+    <string name="ksm_label_name">名称</string>
+    <string name="ksm_hint_cn">证书 CN，如 My App Signing</string>
+    <string name="ksm_label_cn">证书 CN</string>
+    <string name="ksm_hint_org">组织 O（可空）</string>
+    <string name="ksm_label_org">组织</string>
+    <string name="ksm_hint_alias">别名 alias</string>
+    <string name="ksm_label_alias">别名</string>
+    <string name="ksm_hint_pass">密码（至少 6 位，keystore 与私钥共用）</string>
+    <string name="ksm_label_pass">密码</string>
+    <string name="ksm_bits_line_default">密钥长度: 2048 位（推荐，兼容性最好）</string>
+    <string name="ksm_bits_line">密钥长度: %1$d 位</string>
+    <string name="ksm_bits_title">密钥长度</string>
+    <string name="ksm_bits_2048">2048 位（推荐）</string>
+    <string name="ksm_bits_3072">3072 位</string>
+    <string name="ksm_bits_4096">4096 位（生成较慢）</string>
+    <string name="ksm_years_line_default">有效期: 30 年</string>
+    <string name="ksm_years_line">有效期: %1$d 年</string>
+    <string name="ksm_years_title">有效期</string>
+    <string name="ksm_years_1">1 年</string>
+    <string name="ksm_years_10">10 年</string>
+    <string name="ksm_years_30">30 年</string>
+    <string name="ksm_years_50">50 年</string>
+    <string name="ksm_create_tip">生成的是自签名证书（与 Android 调试签名同类），可用于本机安装测试；上架应用商店请使用你自己的正式签名。</string>
+    <string name="ksm_generating">生成 %1$d 位 RSA 密钥与证书…</string>
+    <string name="ksm_create_failed">创建失败</string>
+    <string name="ksm_created">已创建签名</string>
+    <string name="ksm_created_msg">%1$s\n\n密码: %2$s\n（已存入签名管理，密码用应用内加密保存）</string>
+
+    <string name="ksm_default_current">当前默认签名</string>
+    <string name="ksm_default_none">未设为默认</string>
+    <string name="ksm_view_detail">查看详情</string>
+    <string name="ksm_rename">重命名</string>
+    <string name="ksm_is_default">已是默认</string>
+    <string name="ksm_set_default">设为默认</string>
+    <string name="ksm_already_default_toast">它已经是默认签名了</string>
+    <string name="ksm_set_default_toast">已设为默认签名密钥</string>
+    <string name="ksm_tip_default_usage">提示：默认签名用于 Dex 编辑器自动签名等入口</string>
+    <string name="ksm_rename_title">重命名签名</string>
+    <string name="ksm_broken_detail">这条签名的密码已无法解密（常见原因：换机、恢复出厂、清除应用数据后 Android Keystore 密钥丢失）。\n\n密码无法恢复，keystore 文件本身还在，请删除本条目后重新导入，并重新输入一次密码。</string>
+    <string name="ksm_delete_reimport">删除并重新导入</string>
+    <string name="ksm_info_title">签名信息</string>
+    <string name="ksm_info_name">名称: %1$s\n</string>
+    <string name="ksm_is_default_sig">已是默认签名</string>
+    <string name="ksm_set_default_sig">设为默认签名</string>
+    <string name="ksm_delete_title">删除签名</string>
+    <string name="ksm_delete_msg">删除「%1$s」？（只删除应用内导入的副本，不影响原文件）</string>
+    <string name="ksm_deleted">已删除</string>
+    <string name="ksm_ks_file_fallback">签名文件</string>
 </resources>

@@ -330,7 +330,8 @@ public final class SignFlowController {
                     }
                 } catch (Throwable t) {
                     sb.setLength(0);
-                    sb.append("解析失败: ").append(SignKeyManagerActivity.friendlyKsError(t));
+                    sb.append("解析失败: ").append(
+                            SignKeyManagerActivity.friendlyKsError(host.ctx(), t));
                 }
                 host.ui(new Runnable() {
                     public void run() {
