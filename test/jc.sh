@@ -8,12 +8,12 @@
 #   build/obj 里的 vendored class     （android.jar 之外的依赖）
 # 缺任何一样都会直接提示，而不是丢一堆看起来像源码错误的编译错误。
 #
-# 工具链定位复用 test/toolchain.sh（R-12）：不再写死 D:/ E:/ 盘符，Linux/macOS 上
+# 工具链定位复用 tools/toolchain.sh（R-12 / R-22）：不再写死 D:/ E:/ 盘符，Linux/macOS 上
 # 不必有 cygpath。winpath 只在 Windows 分支生效。
 set -u
 cd "$(dirname "$0")/.."
 
-. test/toolchain.sh
+. tools/toolchain.sh
 
 if [ ! -f build/gen/com/hex91/file/R.java ]; then
   echo "缺少 build/gen/com/hex91/file/R.java：先跑 ./build.sh" >&2

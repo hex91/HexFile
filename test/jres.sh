@@ -8,7 +8,7 @@
 #   ./test/jres.sh && ./test/jc.sh
 set -u
 cd "$(dirname "$0")/.."
-. test/toolchain.sh
+. tools/toolchain.sh
 
 [ -d res ] || { echo "没有 res 目录" >&2; exit 2; }
 mkdir -p build/gen

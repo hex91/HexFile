@@ -4,73 +4,47 @@
 # 流程: aapt2 compile → link(R.java+base.apk) → NDK 编译 libtermux.so
 #       → javac → d8 → zipalign → apksigner
 #
-# 路径可通过环境变量覆盖（CI 用 Linux，本地 Windows 走默认）：
-#   ANDROID_HOME             Android SDK 根目录（默认 Windows 的 E:/repo/android/Sdk）
+# 工具链定位全部走 tools/toolchain.sh（v2.6.0 / R-22）：环境变量优先 → 常见位置探测
+# → 明确报错。这里不再写死任何盘符或个人目录。
+#   ANDROID_HOME             Android SDK 根目录
 #   ANDROID_NDK_HOME         NDK 根目录（默认 $ANDROID_HOME/ndk/27.0.12077973）
-#   JAVA_HOME               JDK 根目录（bin 在其下）
-#   PYTHON_EXE              python 解释器（默认：Windows 用 workbuddy 环境，其它用 python3）
+#   JAVA_HOME                JDK 根目录（bin 在其下）
+#   PYTHON_EXE               python 解释器（默认探测 python3 → python → py）
 #   HEXFILE_KEYSTORE_BASE64 经 base64 编码的签名 keystore（CI 注入，优先于本地文件）
 #   HEXFILE_KEYSTORE_PASS    keystore 密码（默认 android）
 #   HEXFILE_KEYSTORE_ALIAS   签名 key 别名（默认 hex91，与本地 hexfile.keystore 内条目一致）
 # ============================================================
 set -e
 
-# 判断操作系统，决定可执行文件后缀（Windows 为 .exe）
-uname_s="$(uname -s)"
-EXE=""
-case "$uname_s" in
-  MINGW*|MSYS*|CYGWIN*) EXE=".exe" ;;
+# ---- 工程根目录（先定：toolchain.sh 要按它的路径形式去找；Windows 用 E:/a/b 形式）----
+case "$(uname -s 2>/dev/null)" in
+  MINGW*|MSYS*|CYGWIN*) ROOT="$(cygpath -m "$(cd "$(dirname "$0")" && pwd)")" ;;
+  *)                    ROOT="$(cd "$(dirname "$0")" && pwd)" ;;
 esac
-
-# ---- Android SDK ----
-if [ -n "$ANDROID_HOME" ]; then
-  SDK="$ANDROID_HOME"
-elif [ -n "$EXE" ]; then
-  SDK="E:/repo/android/Sdk"
-elif [ -d "$HOME/android-sdk" ]; then
-  SDK="$HOME/android-sdk"
-else
-  SDK="$HOME/android-sdk"
-fi
-BT="$SDK/build-tools/37.0.0"
-PLATFORM="$SDK/platforms/android-35/android.jar"
-
-# ---- JDK ----
-if [ -n "$JAVA_HOME" ]; then
-  JDK_BIN="$JAVA_HOME/bin"
-elif [ -n "$EXE" ]; then
-  JDK_BIN="D:/Program Files/Java/zulu17.38.21/bin"
-else
-  JDK_BIN="$(dirname "$(command -v java)")"
-fi
-JAVAC="$JDK_BIN/javac${EXE}"
-JAVA_BIN="$JDK_BIN/java${EXE}"
-KEYTOOL="$JDK_BIN/keytool${EXE}"
-
-# ---- NDK ----
-NDK="${ANDROID_NDK_HOME:-$SDK/ndk/27.0.12077973}"
-NDK_BIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
-if [ -n "$EXE" ]; then
-  NDK_BIN="$NDK/toolchains/llvm/prebuilt/windows-x86_64/bin"
-fi
-
-# ---- Python（仅用于 zip 追加 entry）----
-if [ -n "$PYTHON_EXE" ]; then
-  PY="$PYTHON_EXE"
-elif [ -n "$EXE" ]; then
-  PY="C:/Users/han/.workbuddy/binaries/python/envs/default/Scripts/python.exe"
-else
-  PY="python3"
-fi
-
-# ---- 工程根目录 ----
-if [ -n "$EXE" ]; then
-  ROOT="$(cygpath -m "$(cd "$(dirname "$0")" && pwd)")"
-else
-  ROOT="$(cd "$(dirname "$0")" && pwd)"
-fi
 BUILD="$ROOT/build"
 OUT="$ROOT/out"
+
+# ---- 工具链 ----
+# R-22：JDK / build-tools / android.jar / python 的定位与校验只维护在 tools/toolchain.sh，
+# 与 test/run_core.sh、jc.sh、jres.sh 共用一份。原来这里有四段重复分支：
+#   SDK 默认 E:/repo/android/Sdk、JDK 默认 zulu17.38.21、PY 默认 C:/Users/han/.workbuddy/...
+# 新机器按 README 跑会在 aapt2 或 javac 处报 No such file or directory，看着像源码坏了。
+. "$ROOT/tools/toolchain.sh"
+[ -n "$PY" ] || { echo "找不到可用的 Python：用 PYTHON_EXE=python 指定" >&2; exit 2; }
+
+JAVAC="$JH/javac$EXE"
+JAVA_BIN="$JH/java$EXE"
+KEYTOOL="$JH/keytool$EXE"
+PLATFORM="$ANDJ"
+
+# ---- NDK ----
+# $SDK 由 build-tools 反推得到（MSYS 下是 /e/... 形式），这里转成 E:/... 再拼给 clang：
+# NDK_BIN 是原生命令路径，保持盘符形式与 v2.5.0 的行为一致，避免 MSYS 二次转换。
+NDK="${ANDROID_NDK_HOME:-$(toolpath "$SDK")/ndk/27.0.12077973}"
+NDK_BIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+if [ "$WIN" = 1 ]; then
+  NDK_BIN="$NDK/toolchains/llvm/prebuilt/windows-x86_64/bin"
+fi
 
 # 版本号从 AndroidManifest 读取，避免硬编码
 VER="$(grep -o 'android:versionName="[^"]*"' "$ROOT/AndroidManifest.xml" | head -1 | sed 's/.*"\(.*\)"/\1/')"
@@ -199,10 +173,8 @@ if [ -d "$BUILD/obj/com/hex91/file" ]; then
   find "$BUILD/obj/com/hex91/file" -type f -name '*.class' -delete
 fi
 # libs = apksigner.jar + baksmali/dexlib2 等（smali 反编译引擎），供编译期引用
-# classpath 分隔符：Windows 为 ;，其它(Unix/Linux)为 :
-SEP=":"
-if [ -n "$EXE" ]; then SEP=";"; fi
-LIBS_CP="$BT/lib/apksigner.jar"
+# classpath 分隔符 $SEP 由 tools/toolchain.sh 给出（Windows 为 ;，其它为 :）
+LIBS_CP="$APKSIG"
 for j in "$ROOT"/libs/*.jar; do LIBS_CP="$LIBS_CP$SEP$j"; done
 # 源码集：
 #   src/com/hex91/file/**          HexFile 自有（v2.1.0 起分 core/fs/apk/net/ui 子包，递归收）
@@ -265,7 +237,9 @@ is_app_program_jar() {
 deps_inputs() {
     # 把构建脚本自己也纳入指纹：改了分组逻辑必须重建依赖 dex，
     # 否则会复用仍然带着 media3 的旧 deps dex，和新 app dex 撞成 duplicate class
-    ls -l "$0" "$BT/lib/apksigner.jar" "$PLATFORM" 2>/dev/null
+    # v2.6.0（R-22）：工具链定位已搬到 tools/toolchain.sh，它同样影响依赖解析
+    # （JDK/平台 jar/分隔符全由它决定），一并纳入指纹。
+    ls -l "$0" "$ROOT/tools/toolchain.sh" "$APKSIG" "$PLATFORM" 2>/dev/null
     for j in "$ROOT"/libs/*.jar; do ls -l "$j"; done
     echo "$BT"
 }

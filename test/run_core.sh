@@ -7,10 +7,11 @@ set -u
 cd "$(dirname "$0")/.."
 
 # ---- 工具链定位 -------------------------------------------------------------
-# 定位逻辑本身在 test/toolchain.sh（R-12）：原来这里写死了 D:/ 与 E:/，等于把测试锁在
-# 开发机上；jc.sh 又各写了一份。现在只维护一份：环境变量优先 → 常见位置探测 → 明确报错。
+# 定位逻辑本身在 tools/toolchain.sh（R-12 / R-22）：原来这里写死了 D:/ 与 E:/，等于把
+# 测试锁在开发机上；jc.sh 又各写了一份，build.sh 到 v2.5.0 还在写死 E:/ 与 zulu17。
+# 现在只维护一份：环境变量优先 → 常见位置探测 → 明确报错。
 #   JH=/path/to/jdk/bin   BT=/path/to/build-tools/37.0.0   ANDJ=/path/to/android.jar
-. "$(dirname "$0")/toolchain.sh"
+. "$(dirname "$0")/../tools/toolchain.sh"
 echo "JDK=$JH  BT=$BT"
 CP="build/obj${SEP}libs/*${SEP}$APKSIG${SEP}$ANDJ"
 OUT="test/bin_core"
