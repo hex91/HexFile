@@ -201,22 +201,22 @@ public class TextEditorActivity extends BaseActivity {
                 AutoTextFormatter.makeRenumberWatcher(MdFormatPatterns.MARKDOWN));
 
         if (rtAxmlFile != null) {
-            titleSuffix = "\n↳ 编译写回 " + rtApkFile.getName();
+            titleSuffix = getString(R.string.te_suffix_compile, rtApkFile.getName());
         } else if (arscppType != null) {
-            titleSuffix = "\n↳ ARSC++ 写回 " + archiveFile.getName() + "!" + arscppEntry
-                    + "  (" + ArscPlus.cfgLabel(arscppType, arscppCfg) + ")";
+            titleSuffix = getString(R.string.te_suffix_arsc, archiveFile.getName(),
+                    arscppEntry + "  (" + ArscPlus.cfgLabel(arscppType, arscppCfg) + ")");
         } else if (readOnly) {
             editor.setKeyListener(null);
             editor.setTextIsSelectable(true);
             userReadOnly = true;
             findViewById(R.id.editor_save).setVisibility(View.GONE);
-            titleSuffix = "\n↳ 只读预览（二进制 XML）";
+            titleSuffix = getString(R.string.te_suffix_readonly_bin);
             titleView.setText(file.getName() + titleSuffix);
             titleSuffix = "";
         } else if (archiveFile != null)
-            titleSuffix = "\n↳ 写回 " + archiveFile.getName() + "!" + entryName;
+            titleSuffix = getString(R.string.te_suffix_writeback, archiveFile.getName(), entryName);
         else if (exportDir != null)
-            titleSuffix = "\n↳ 导出 " + exportDir;
+            titleSuffix = getString(R.string.te_suffix_export, exportDir);
 
         editor.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s, int a, int c, int d) {}
@@ -390,7 +390,7 @@ public class TextEditorActivity extends BaseActivity {
         if (key.isEmpty()) { searchCount.setText("0/0"); return; }
         String text = editor.getText().toString();
         matches = findMatches(text, key);
-        if (regexError) { searchCount.setText("正则错误"); return; }
+        if (regexError) { searchCount.setText(R.string.te_regex_error); return; }
         if (matches.isEmpty()) { searchCount.setText("0/0"); return; }
         applyHighlights();
         gotoMatch(0);
@@ -488,7 +488,7 @@ public class TextEditorActivity extends BaseActivity {
                 s.replace(0, s.length(), sb.toString());
             } catch (PatternSyntaxException ex) {
                 suppressWatch = false;
-                searchCount.setText("正则错误");
+                searchCount.setText(R.string.te_regex_error);
                 return;
             }
         } else {
@@ -515,7 +515,7 @@ public class TextEditorActivity extends BaseActivity {
                 s.replace(0, s.length(), replaced);
             } catch (PatternSyntaxException ex) {
                 suppressWatch = false;
-                searchCount.setText("正则错误");
+                searchCount.setText(R.string.te_regex_error);
                 return;
             }
         } else {
@@ -529,7 +529,7 @@ public class TextEditorActivity extends BaseActivity {
         clearSearchHighlight();
         matches.clear();
         searchCount.setText("0/0");
-        toast("已替换全部");
+        toast(getString(R.string.te_replaced_all));
     }
 
     // ============================================================ 跳转行
@@ -538,17 +538,17 @@ public class TextEditorActivity extends BaseActivity {
         if (!loaded) return;
         final EditText input = new EditText(this);
         input.setInputType(InputType.TYPE_CLASS_NUMBER);
-        input.setHint("行号");
+        input.setHint(R.string.te_hint_line);
         input.setSingleLine(true);
         new HfDialogBuilder(this)
-                .setTitle("跳转到行")
+                .setTitle(R.string.te_goto_title)
                 .setView(input)
-                .setPositiveButton("跳转", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.te_goto_action, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         applyGotoLine(input.getText().toString());
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -556,8 +556,8 @@ public class TextEditorActivity extends BaseActivity {
         if (raw == null || raw.trim().isEmpty()) return;
         int line;
         try { line = Integer.parseInt(raw.trim()); }
-        catch (NumberFormatException e) { toast("请输入数字"); return; }
-        if (line < 1) { toast("行号从 1 开始"); return; }
+        catch (NumberFormatException e) { toast(getString(R.string.te_err_need_number)); return; }
+        if (line < 1) { toast(getString(R.string.te_err_line_from_1)); return; }
         String text = editor.getText().toString();
         // 与行号区共用同一套换行符语义（'\n' / '\r' / "\r\n"），
         // 否则混合换行文件里跳转落点与行号不一致
@@ -614,7 +614,7 @@ public class TextEditorActivity extends BaseActivity {
     }
 
     private void goBack() {
-        if (backStack.isEmpty()) { toast("没有可回退的位置"); return; }
+        if (backStack.isEmpty()) { toast(getString(R.string.te_no_back)); return; }
         int cs = editor.getSelectionStart(), ce = editor.getSelectionEnd();
         forwardStack.addLast(new int[]{cs, ce});
         int[] p = backStack.removeLast();
@@ -623,7 +623,7 @@ public class TextEditorActivity extends BaseActivity {
     }
 
     private void goForward() {
-        if (forwardStack.isEmpty()) { toast("没有可前进的位置"); return; }
+        if (forwardStack.isEmpty()) { toast(getString(R.string.te_no_forward)); return; }
         int cs = editor.getSelectionStart(), ce = editor.getSelectionEnd();
         backStack.addLast(new int[]{cs, ce});
         int[] p = forwardStack.removeLast();
@@ -650,11 +650,11 @@ public class TextEditorActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         if (ld == null) {
-                            toast("无法读取文件");
+                            toast(getString(R.string.te_err_read_file));
                             finish();
                             return;
                         }
-                        if (tooBig) toast("文件较大(" + FileOps.formatSize(size) + ")，编辑可能卡顿");
+                        if (tooBig) toast(getString(R.string.te_large_file, FileOps.formatSize(size)));
                         encoding = ld.encoding;
                         titleView.setText(file.getName() + "  (" + encoding + ", "
                                 + FileOps.formatSize(size) + ")" + titleSuffix);
@@ -708,18 +708,18 @@ public class TextEditorActivity extends BaseActivity {
 
     private void askBinary(String type) {
         new HfDialogBuilder(this)
-                .setTitle("疑似二进制文件")
-                .setMessage("该文件含二进制数据，文本方式打开会乱码。\n仍要打开，还是改用 HEX 查看？")
-                .setPositiveButton("用 HEX 查看", new DialogInterface.OnClickListener() {
+                .setTitle(R.string.te_bin_title)
+                .setMessage(R.string.te_bin_msg)
+                .setPositiveButton(R.string.te_bin_open_hex, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) { toHex(); }
                 })
-                .setNegativeButton("仍要打开", new DialogInterface.OnClickListener() {
+                .setNegativeButton(R.string.te_bin_open_anyway, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         binaryConfirmed = true;
                         loadAsync();
                     }
                 })
-                .setNeutralButton("关闭", new DialogInterface.OnClickListener() {
+                .setNeutralButton(R.string.common_close, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) { finish(); }
                 })
                 .setCancelable(false)
@@ -806,7 +806,7 @@ public class TextEditorActivity extends BaseActivity {
     // ============================================================ 符号栏 / 插入
 
     private void insertAtCursor(String sym) {
-        if (userReadOnly) { toast("只读模式"); return; }
+        if (userReadOnly) { toast(getString(R.string.te_readonly)); return; }
         if ("Tab".equals(sym)) sym = "\t";
         else if ("换行".equals(sym)) sym = "\n";
         else if (" ".equals(sym)) sym = " ";
@@ -819,10 +819,15 @@ public class TextEditorActivity extends BaseActivity {
     // ============================================================ 编辑操作菜单（✎）
 
     private void showEditMenu() {
-        final String[] items = {"复制行", "剪切行", "删除行", "清空行", "替换行",
-                "重复行", "转为大写", "转为小写", "增加缩进", "减小缩进", "自定义", "格式化"};
+        final String[] items = { getString(R.string.te_op_copy_line),
+                getString(R.string.te_op_cut_line), getString(R.string.te_op_delete_line),
+                getString(R.string.te_op_clear_line), getString(R.string.te_op_replace_line),
+                getString(R.string.te_op_dup_line), getString(R.string.te_op_upper),
+                getString(R.string.te_op_lower), getString(R.string.te_op_indent),
+                getString(R.string.te_op_outdent), getString(R.string.te_op_custom),
+                getString(R.string.te_op_format) };
         new HfDialogBuilder(this)
-                .setTitle("编辑操作")
+                .setTitle(R.string.te_edit_ops_title)
                 .setItems(items, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         switch (w) {
@@ -862,11 +867,11 @@ public class TextEditorActivity extends BaseActivity {
         int[] r = lineRange();
         String line = editor.getText().subSequence(r[0], r[1]).toString();
         setClip(line);
-        toast("已复制行");
+        toast(getString(R.string.te_copied_line));
     }
 
     private void cutLine() {
-        if (userReadOnly) { toast("只读模式"); return; }
+        if (userReadOnly) { toast(getString(R.string.te_readonly)); return; }
         int[] r = lineRange();
         Editable s = editor.getText();
         int lineEnd = (r[1] < s.length()) ? r[1] + 1 : r[1]; // 连同换行一起切
@@ -879,7 +884,7 @@ public class TextEditorActivity extends BaseActivity {
     }
 
     private void deleteLine() {
-        if (userReadOnly) { toast("只读模式"); return; }
+        if (userReadOnly) { toast(getString(R.string.te_readonly)); return; }
         int[] r = lineRange();
         Editable s = editor.getText();
         int lineEnd = (r[1] < s.length()) ? r[1] + 1 : r[1];
@@ -891,7 +896,7 @@ public class TextEditorActivity extends BaseActivity {
     }
 
     private void clearLine() {
-        if (userReadOnly) { toast("只读模式"); return; }
+        if (userReadOnly) { toast(getString(R.string.te_readonly)); return; }
         int[] r = lineRange();
         Editable s = editor.getText();
         suppressWatch = true;
@@ -902,14 +907,14 @@ public class TextEditorActivity extends BaseActivity {
     }
 
     private void replaceLine() {
-        if (userReadOnly) { toast("只读模式"); return; }
+        if (userReadOnly) { toast(getString(R.string.te_readonly)); return; }
         final int[] r = lineRange();
         final EditText input = new EditText(this);
-        input.setHint("替换为该行内容");
+        input.setHint(R.string.te_hint_replace_with);
         new HfDialogBuilder(this)
-                .setTitle("替换行")
+                .setTitle(R.string.te_replace_line_title)
                 .setView(input)
-                .setPositiveButton("替换", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.te_replace_action, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         Editable s = editor.getText();
                         suppressWatch = true;
@@ -919,11 +924,11 @@ public class TextEditorActivity extends BaseActivity {
                         editor.setSelection(r[0]);
                     }
                 })
-                .setNegativeButton("取消", null).show();
+                .setNegativeButton(R.string.common_cancel, null).show();
     }
 
     private void duplicateLine() {
-        if (userReadOnly) { toast("只读模式"); return; }
+        if (userReadOnly) { toast(getString(R.string.te_readonly)); return; }
         int[] r = lineRange();
         Editable s = editor.getText();
         String line = s.subSequence(r[0], r[1]).toString();
@@ -936,13 +941,13 @@ public class TextEditorActivity extends BaseActivity {
     }
 
     private void transformCase(boolean upper) {
-        if (userReadOnly) { toast("只读模式"); return; }
+        if (userReadOnly) { toast(getString(R.string.te_readonly)); return; }
         Editable s = editor.getText();
         int selS = editor.getSelectionStart(), selE = editor.getSelectionEnd();
         int[] r = lineRange();
         int a = (selS != selE) ? Math.min(selS, selE) : r[0];
         int b = (selS != selE) ? Math.max(selS, selE) : r[1];
-        if (a == b) { toast("请先选中或移动光标到行内"); return; }
+        if (a == b) { toast(getString(R.string.te_sel_required)); return; }
         String t = s.subSequence(a, b).toString();
         t = upper ? t.toUpperCase() : t.toLowerCase();
         suppressWatch = true;
@@ -953,7 +958,7 @@ public class TextEditorActivity extends BaseActivity {
     }
 
     private void indentLine(boolean add) {
-        if (userReadOnly) { toast("只读模式"); return; }
+        if (userReadOnly) { toast(getString(R.string.te_readonly)); return; }
         Editable s = editor.getText();
         String text = s.toString();
         int len = text.length();
@@ -986,9 +991,11 @@ public class TextEditorActivity extends BaseActivity {
     }
 
     private void showCustomMenu() {
-        final String[] items = {"行首插入文本", "行尾插入文本", "删除空行", "按行排序", "删除重复行"};
+        final String[] items = { getString(R.string.te_custom_ins_head),
+                getString(R.string.te_custom_ins_tail), getString(R.string.te_custom_del_empty),
+                getString(R.string.te_custom_sort), getString(R.string.te_custom_dedup) };
         new HfDialogBuilder(this)
-                .setTitle("自定义")
+                .setTitle(R.string.te_custom_title)
                 .setItems(items, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         switch (w) {
@@ -1003,13 +1010,13 @@ public class TextEditorActivity extends BaseActivity {
     }
 
     private void surroundLine(boolean head) {
-        if (userReadOnly) { toast("只读模式"); return; }
+        if (userReadOnly) { toast(getString(R.string.te_readonly)); return; }
         final EditText input = new EditText(this);
-        input.setHint(head ? "行首插入" : "行尾插入");
+        input.setHint(head ? R.string.te_hint_ins_head : R.string.te_hint_ins_tail);
         new HfDialogBuilder(this)
-                .setTitle(head ? "行首插入" : "行尾插入")
+                .setTitle(head ? R.string.te_hint_ins_head : R.string.te_hint_ins_tail)
                 .setView(input)
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.te_confirm, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int wi) {
                         int[] r = lineRange();
                         Editable s = editor.getText();
@@ -1033,11 +1040,11 @@ public class TextEditorActivity extends BaseActivity {
                         setModified(true);
                     }
                 })
-                .setNegativeButton("取消", null).show();
+                .setNegativeButton(R.string.common_cancel, null).show();
     }
 
     private void removeEmptyLines() {
-        if (userReadOnly) { toast("只读模式"); return; }
+        if (userReadOnly) { toast(getString(R.string.te_readonly)); return; }
         Editable s = editor.getText();
         String[] lines = MtTextUtils.splitLines(s.toString());
         StringBuilder sb = new StringBuilder();
@@ -1048,11 +1055,11 @@ public class TextEditorActivity extends BaseActivity {
         s.replace(0, s.length(), sb.toString());
         suppressWatch = false;
         setModified(true);
-        toast("已删除空行");
+        toast(getString(R.string.te_deleted_empty));
     }
 
     private void sortLines() {
-        if (userReadOnly) { toast("只读模式"); return; }
+        if (userReadOnly) { toast(getString(R.string.te_readonly)); return; }
         String[] lines = MtTextUtils.splitLines(editor.getText().toString());
         java.util.Arrays.sort(lines);
         StringBuilder sb = new StringBuilder();
@@ -1064,11 +1071,11 @@ public class TextEditorActivity extends BaseActivity {
         editor.getText().replace(0, editor.length(), sb.toString());
         suppressWatch = false;
         setModified(true);
-        toast("已按行排序");
+        toast(getString(R.string.te_sorted));
     }
 
     private void dedupeLines() {
-        if (userReadOnly) { toast("只读模式"); return; }
+        if (userReadOnly) { toast(getString(R.string.te_readonly)); return; }
         String[] lines = MtTextUtils.splitLines(editor.getText().toString());
         java.util.LinkedHashSet<String> set = new java.util.LinkedHashSet<String>();
         StringBuilder sb = new StringBuilder();
@@ -1079,7 +1086,7 @@ public class TextEditorActivity extends BaseActivity {
         editor.getText().replace(0, editor.length(), sb.toString());
         suppressWatch = false;
         setModified(true);
-        toast("已删除重复行");
+        toast(getString(R.string.te_deduped));
     }
 
     private void setClip(String text) {
@@ -1092,23 +1099,23 @@ public class TextEditorActivity extends BaseActivity {
     private void showMainMenu() {
         final List<String> items = new ArrayList<String>();
         final List<Integer> acts = new ArrayList<Integer>();
-        items.add("文件"); acts.add(0);
-        items.add("搜索"); acts.add(1);
-        items.add("语法 (" + langLabel(currentLang) + ")"); acts.add(2);
-        items.add("上个位置"); acts.add(3);
-        items.add("下个位置"); acts.add(4);
-        items.add("转到指定行"); acts.add(5);
-        items.add((userReadOnly ? "☑ " : "☐ ") + "只读模式"); acts.add(6);
-        items.add((highlightOn ? "☑ " : "☐ ") + "语法高亮"); acts.add(7);
-        items.add((completionOn ? "☑ " : "☐ ") + "代码补全"); acts.add(8);
-        items.add("设置"); acts.add(9);
-        items.add("格式化"); acts.add(12);
+        items.add(getString(R.string.te_menu_file)); acts.add(0);
+        items.add(getString(R.string.te_menu_search)); acts.add(1);
+        items.add(getString(R.string.te_menu_lang, langLabel(currentLang))); acts.add(2);
+        items.add(getString(R.string.te_menu_prev)); acts.add(3);
+        items.add(getString(R.string.te_menu_next)); acts.add(4);
+        items.add(getString(R.string.te_menu_goto)); acts.add(5);
+        items.add((userReadOnly ? "☑ " : "☐ ") + getString(R.string.te_readonly)); acts.add(6);
+        items.add((highlightOn ? "☑ " : "☐ ") + getString(R.string.te_menu_highlight)); acts.add(7);
+        items.add((completionOn ? "☑ " : "☐ ") + getString(R.string.te_menu_completion)); acts.add(8);
+        items.add(getString(R.string.te_menu_settings)); acts.add(9);
+        items.add(getString(R.string.te_menu_format)); acts.add(12);
         if ("markdown".equals(currentLang))
-            { items.add("预览 Markdown"); acts.add(10); }
-        items.add("关闭文件"); acts.add(11);
+            { items.add(getString(R.string.te_menu_preview_md)); acts.add(10); }
+        items.add(getString(R.string.te_menu_close_file)); acts.add(11);
 
         new HfDialogBuilder(this)
-                .setTitle("菜单")
+                .setTitle(R.string.te_menu_title)
                 .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         switch (acts.get(w)) {
@@ -1122,9 +1129,10 @@ public class TextEditorActivity extends BaseActivity {
                             case 7:
                                 highlightOn = !highlightOn;
                                 editor.setHighlightingEnabled(highlightOn);
-                                toast(highlightOn ? "语法高亮开" : "语法高亮关");
+                                toast(getString(highlightOn ? R.string.te_hl_on : R.string.te_hl_off));
                                 break;
-                            case 8: completionOn = !completionOn; toast(completionOn ? "代码补全开" : "代码补全关"); break;
+                            case 8: completionOn = !completionOn; toast(getString(completionOn
+                                    ? R.string.te_comp_on : R.string.te_comp_off)); break;
                             case 9: showSettings(); break;
                             case 10: previewMarkdown(); break;
                             case 11: finishWithCheck(); break;
@@ -1141,9 +1149,10 @@ public class TextEditorActivity extends BaseActivity {
     }
 
     private void showFileMenu() {
-        final String[] items = {"重新打开", "另存为副本", "分享"};
+        final String[] items = { getString(R.string.te_file_reopen), getString(R.string.te_file_save_as),
+                getString(R.string.te_file_share) };
         new HfDialogBuilder(this)
-                .setTitle("文件")
+                .setTitle(R.string.te_menu_file)
                 .setItems(items, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         if (w == 0) { setModified(false); loadAsync(); }
@@ -1158,13 +1167,13 @@ public class TextEditorActivity extends BaseActivity {
         String[] names = new String[langs.size()];
         for (int i = 0; i < langs.size(); i++) names[i] = langs.get(i).label;
         new HfDialogBuilder(this)
-                .setTitle("语法高亮")
+                .setTitle(R.string.te_menu_highlight)
                 .setItems(names, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         currentLang = langs.get(w).id;
                         String text = editor.getText().toString();
                         setHighlightedText(text, true);
-                        toast("语法：" + langs.get(w).label);
+                        toast(getString(R.string.te_syntax_selected, langs.get(w).label));
                     }
                 }).show();
     }
@@ -1176,13 +1185,13 @@ public class TextEditorActivity extends BaseActivity {
             userReadOnly = false;
             editor.setKeyListener(savedKeyListener);
             editor.setTextIsSelectable(false);
-            toast("已退出只读");
+            toast(getString(R.string.te_readonly_off));
         } else {
             userReadOnly = true;
             savedKeyListener = editor.getKeyListener();
             editor.setKeyListener(null);
             editor.setTextIsSelectable(true);
-            toast("只读模式");
+            toast(getString(R.string.te_readonly));
         }
     }
 
@@ -1193,37 +1202,43 @@ public class TextEditorActivity extends BaseActivity {
         input.setText(String.valueOf(fontSize));
         input.setSelection(input.getText().length());
         new HfDialogBuilder(this)
-                .setTitle("字体大小（sp，8-40）")
+                .setTitle(R.string.te_font_title)
                 .setView(input)
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.te_confirm, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         try {
                             float v = Float.parseFloat(input.getText().toString().trim());
                             v = Math.max(8f, Math.min(40f, v));
                             fontSize = (int) v;
                             editor.setTextSize(v);
-                            toast("字体 " + fontSize + "sp");
+                            toast(getString(R.string.te_font_applied, fontSize));
                         } catch (Exception e) {
-                            toast("格式错误");
+                            toast(getString(R.string.te_format_error));
                         }
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     // ============================================================ 格式化（v1.29.0）
 
     private void showFormatMenu() {
-        final String[] items = {"JSON 美化", "JSON 压缩", "XML/HTML 美化", "代码美化（{} 语言）"};
-        final int[] modes = {FormatUtil.FMT_JSON, FormatUtil.FMT_JSON_MIN,
-                FormatUtil.FMT_XML, FormatUtil.FMT_CODE};
+        final String[] items = { getString(R.string.te_fmt_json_pretty),
+                getString(R.string.te_fmt_json_min), getString(R.string.te_fmt_xml),
+                getString(R.string.te_fmt_code) };
+        final int[] modes = { FormatUtil.FMT_JSON, FormatUtil.FMT_JSON_MIN,
+                FormatUtil.FMT_XML, FormatUtil.FMT_CODE };
         final int detected = FormatUtil.detectFormat(
                 file != null ? file.getName() : "", editor.getText().toString());
-        String title = "格式化";
-        if (detected == FormatUtil.FMT_JSON) title += "（检测到 JSON）";
-        else if (detected == FormatUtil.FMT_XML) title += "（检测到 XML/HTML）";
-        else if (detected == FormatUtil.FMT_CODE) title += "（检测到代码）";
+        String title = getString(R.string.te_fmt_title);
+        if (detected == FormatUtil.FMT_JSON)
+            title = getString(R.string.te_fmt_title_detected, "JSON");
+        else if (detected == FormatUtil.FMT_XML)
+            title = getString(R.string.te_fmt_title_detected, "XML/HTML");
+        else if (detected == FormatUtil.FMT_CODE)
+            title = getString(R.string.te_fmt_title_detected,
+                    getString(R.string.te_fmt_kind_code));
         new HfDialogBuilder(this)
                 .setTitle(title)
                 .setItems(items, new DialogInterface.OnClickListener() {
@@ -1234,22 +1249,22 @@ public class TextEditorActivity extends BaseActivity {
     }
 
     private void doFormat(int mode) {
-        if (userReadOnly) { toast("只读模式"); return; }
+        if (userReadOnly) { toast(getString(R.string.te_readonly)); return; }
         String src = editor.getText().toString();
-        if (src.trim().isEmpty()) { toast("内容为空"); return; }
-        if (src.length() > 2 * 1024 * 1024) { toast("文件过大（>2MB），不建议格式化"); return; }
+        if (src.trim().isEmpty()) { toast(getString(R.string.te_err_empty_content)); return; }
+        if (src.length() > 2 * 1024 * 1024) { toast(getString(R.string.te_err_too_big_fmt)); return; }
         try {
             String out = FormatUtil.format(src, mode);
-            if (out.equals(src)) { toast("格式已规范，无变化"); return; }
+            if (out.equals(src)) { toast(getString(R.string.te_fmt_no_change)); return; }
             int caret = editor.getSelectionStart();
             suppressWatch = true;
             editor.setText(out);
             suppressWatch = false;
             if (caret >= 0 && caret <= editor.length()) editor.setSelection(caret);
             setModified(true);
-            toast("已格式化（可点工具栏撤销恢复）");
+            toast(getString(R.string.te_fmt_done));
         } catch (FormatUtil.FormatException e) {
-            toast("格式化失败：" + e.getMessage());
+            toast(getString(R.string.te_fmt_failed, e.getMessage()));
         }
     }
 
@@ -1258,8 +1273,8 @@ public class TextEditorActivity extends BaseActivity {
         AlertDialog.Builder b = new HfDialogBuilder(this);
         android.webkit.WebView wv = new android.webkit.WebView(this);
         wv.loadDataWithBaseURL(null, html, "text/html", "utf-8", null);
-        b.setTitle("Markdown 预览").setView(wv)
-                .setPositiveButton("关闭", null).show();
+        b.setTitle(R.string.te_md_preview_title).setView(wv)
+                .setPositiveButton(R.string.common_close, null).show();
     }
 
     // ============================================================ 代码补全
@@ -1375,10 +1390,10 @@ public class TextEditorActivity extends BaseActivity {
                 } catch (Exception ro) {
                     ok = RootIO.writeBytes(file, data);   // root 区回退
                 }
-                if (!ok) { toast("保存失败，无法反编译最新内容"); return; }
+                if (!ok) { toast(getString(R.string.te_err_save_decompile)); return; }
                 setModified(false);
             } catch (Exception e) {
-                toast("保存失败: " + e.getMessage());
+                toast(getString(R.string.te_err_save, e.getMessage()));
                 return;
             }
         }
@@ -1433,9 +1448,9 @@ public class TextEditorActivity extends BaseActivity {
             FileOutputStream fo = new FileOutputStream(out);
             fo.write(encodeForSave(editor.getText().toString()));
             fo.close();
-            toast("已另存为 " + out.getName());
+            toast(getString(R.string.te_saved_as, out.getName()));
         } catch (Exception e) {
-            toast("另存为失败: " + e.getMessage());
+            toast(getString(R.string.te_err_save_as, e.getMessage()));
         }
     }
 
@@ -1450,16 +1465,16 @@ public class TextEditorActivity extends BaseActivity {
             i.setType("*/*");
             i.putExtra(Intent.EXTRA_STREAM, uri);
             i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(Intent.createChooser(i, "分享"));
+            startActivity(Intent.createChooser(i, getString(R.string.te_file_share)));
         } catch (Exception e) {
-            toast("分享失败: " + e.getMessage());
+            toast(getString(R.string.te_err_share, e.getMessage()));
         }
     }
 
     private void saveRoundtrip() {
         final String text = editor.getText().toString();
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("编译 XML 并写回…");
+        pd.setMessage(getString(R.string.te_compiling_xml));
         pd.setCancelable(false);
         pd.show();
         new Thread(new Runnable() {
@@ -1492,14 +1507,14 @@ public class TextEditorActivity extends BaseActivity {
                         if (ferr != null) {
                             pendingFinishAfterSave = false;
                             new HfDialogBuilder(TextEditorActivity.this)
-                                    .setTitle(fuerr ? "不支持的修改" : "编译失败")
+                                    .setTitle(fuerr ? R.string.te_compile_unsupported
+                                            : R.string.te_compile_failed)
                                     .setMessage(ferr)
-                                    .setPositiveButton("知道了", null).show();
+                                    .setPositiveButton(R.string.common_got_it, null).show();
                             return;
                         }
                         setModified(false);
-                        toast("已生成 " + fout.getName()
-                                + "\n（退出 APK 后可统一签名）");
+                        toast(getString(R.string.te_compiled_output, fout.getName()));
                         if (pendingFinishAfterSave) finish();
                     }
                 });
@@ -1544,7 +1559,7 @@ public class TextEditorActivity extends BaseActivity {
                             ApkEditSession.putEdit(TextEditorActivity.this,
                                     archiveFile, entryName, data);
                         } else if (!ArchiveWrite.writeEntry(archiveFile, entryName, data)) {
-                            err = "写回压缩包失败";
+                            err = getString(R.string.te_err_writeback);
                         }
                     } else if (exportDir != null) {
                         exportDir.mkdirs();
@@ -1565,21 +1580,21 @@ public class TextEditorActivity extends BaseActivity {
                         if (done) {
                             setModified(false);
                             if (editGenerated) {
-                                toast("已保存，已写回原包\n（首次修改自动备份 同名_bak.apk；退出 APK 后可统一签名）");
+                                toast(getString(R.string.te_saved_writeback_bak));
                                 if (pendingFinishAfterSave) finish();
                             } else if (archiveFile != null) {
-                                toast("已写回压缩包 (" + encoding + ")");
+                                toast(getString(R.string.te_written_archive, encoding));
                                 if (pendingFinishAfterSave) finish();
                             } else if (exportDir != null) {
-                                toast("已保存并导出到 " + exportDir.getPath());
+                                toast(getString(R.string.te_saved_export, exportDir.getPath()));
                                 if (pendingFinishAfterSave) finish();
                             } else {
-                                toast("已保存 (" + encoding + ")");
+                                toast(getString(R.string.te_saved_encoding, encoding));
                                 if (pendingFinishAfterSave) finish();
                             }
                         } else {
                             pendingFinishAfterSave = false;  // 保存失败留在编辑器，可重试
-                            toast("保存失败: " + ferr);
+                            toast(getString(R.string.te_err_save, ferr));
                         }
                     }
                 });
@@ -1636,17 +1651,16 @@ public class TextEditorActivity extends BaseActivity {
                         if (ferr != null) {
                             pendingFinishAfterSave = false;
                             new HfDialogBuilder(TextEditorActivity.this)
-                                    .setTitle("保存失败")
+                                    .setTitle(R.string.te_err_save_title)
                                     .setMessage(ferr)
-                                    .setPositiveButton("知道了", null).show();
+                                    .setPositiveButton(R.string.common_got_it, null).show();
                         } else if (fn == 0) {
                             setModified(false);
-                            toast("没有需要保存的修改");
+                            toast(getString(R.string.te_nothing_to_save));
                             if (pendingFinishAfterSave) finish();
                         } else {
                             setModified(false);
-                            toast("已保存 " + arscppEntry + "（" + fn + " 处修改）\n已写回原包"
-                                    + "\n（首次修改自动备份 同名_bak.apk；退出 APK 后可统一签名）");
+                            toast(getString(R.string.te_arscpp_saved, arscppEntry, fn));
                             if (pendingFinishAfterSave) finish();
                         }
                     }
@@ -1695,19 +1709,19 @@ public class TextEditorActivity extends BaseActivity {
             return;
         }
         new HfDialogBuilder(this)
-                .setTitle("未保存的修改")
-                .setMessage("内容已修改，是否保存？")
-                .setPositiveButton("保存", new DialogInterface.OnClickListener() {
+                .setTitle(R.string.te_unsaved_title)
+                .setMessage(R.string.te_unsaved_msg)
+                .setPositiveButton(R.string.common_save, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         // v1.64.3：不立即退出 —— 保存完成后按场景提示自动签名，再统一退出
                         pendingFinishAfterSave = true;
                         save();
                     }
                 })
-                .setNegativeButton("不保存", new DialogInterface.OnClickListener() {
+                .setNegativeButton(R.string.te_unsaved_discard, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) { finish(); }
                 })
-                .setNeutralButton("取消", null)
+                .setNeutralButton(R.string.common_cancel, null)
                 .show();
     }
 

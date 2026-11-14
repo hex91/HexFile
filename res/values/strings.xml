@@ -256,4 +256,124 @@
     <string name="ksm_delete_msg">删除「%1$s」？（只删除应用内导入的副本，不影响原文件）</string>
     <string name="ksm_deleted">已删除</string>
     <string name="ksm_ks_file_fallback">签名文件</string>
+
+    <!-- v2.8.0（O-24/2）：文本编辑器（TextEditorActivity）。
+         不进资源的三处：行 811 的 "换行"（是符号栏按钮文本当内部 token 用，翻译即断）、
+         两处异常消息（回读校验失败 / 压缩包内找不到条目）。 -->
+    <string name="te_suffix_compile">\n↳ 编译写回 %1$s</string>
+    <string name="te_suffix_arsc">\n↳ ARSC++ 写回 %1$s!%2$s</string>
+    <string name="te_suffix_readonly_bin">\n↳ 只读预览（二进制 XML）</string>
+    <string name="te_suffix_writeback">\n↳ 写回 %1$s!%2$s</string>
+    <string name="te_suffix_export">\n↳ 导出 %1$s</string>
+
+    <string name="te_regex_error">正则错误</string>
+    <string name="te_replaced_all">已替换全部</string>
+    <string name="te_hint_line">行号</string>
+    <string name="te_goto_title">跳转到行</string>
+    <string name="te_goto_action">跳转</string>
+    <string name="te_err_need_number">请输入数字</string>
+    <string name="te_err_line_from_1">行号从 1 开始</string>
+    <string name="te_no_back">没有可回退的位置</string>
+    <string name="te_no_forward">没有可前进的位置</string>
+
+    <string name="te_err_read_file">无法读取文件</string>
+    <string name="te_large_file">文件较大(%1$s)，编辑可能卡顿</string>
+    <string name="te_bin_title">疑似二进制文件</string>
+    <string name="te_bin_msg">该文件含二进制数据，文本方式打开会乱码。\n仍要打开，还是改用 HEX 查看？</string>
+    <string name="te_bin_open_hex">用 HEX 查看</string>
+    <string name="te_bin_open_anyway">仍要打开</string>
+
+    <string name="te_readonly">只读模式</string>
+    <string name="te_readonly_off">已退出只读</string>
+    <string name="te_edit_ops_title">编辑操作</string>
+    <string name="te_op_copy_line">复制行</string>
+    <string name="te_op_cut_line">剪切行</string>
+    <string name="te_op_delete_line">删除行</string>
+    <string name="te_op_clear_line">清空行</string>
+    <string name="te_op_replace_line">替换行</string>
+    <string name="te_op_dup_line">重复行</string>
+    <string name="te_op_upper">转为大写</string>
+    <string name="te_op_lower">转为小写</string>
+    <string name="te_op_indent">增加缩进</string>
+    <string name="te_op_outdent">减小缩进</string>
+    <string name="te_op_custom">自定义</string>
+    <string name="te_op_format">格式化</string>
+    <string name="te_copied_line">已复制行</string>
+    <string name="te_hint_replace_with">替换为该行内容</string>
+    <string name="te_replace_line_title">替换行</string>
+    <string name="te_replace_action">替换</string>
+    <string name="te_sel_required">请先选中或移动光标到行内</string>
+    <string name="te_custom_title">自定义</string>
+    <string name="te_custom_ins_head">行首插入文本</string>
+    <string name="te_custom_ins_tail">行尾插入文本</string>
+    <string name="te_custom_del_empty">删除空行</string>
+    <string name="te_custom_sort">按行排序</string>
+    <string name="te_custom_dedup">删除重复行</string>
+    <string name="te_hint_ins_head">行首插入</string>
+    <string name="te_hint_ins_tail">行尾插入</string>
+    <string name="te_confirm">确定</string>
+    <string name="te_deleted_empty">已删除空行</string>
+    <string name="te_sorted">已按行排序</string>
+    <string name="te_deduped">已删除重复行</string>
+
+    <string name="te_menu_title">菜单</string>
+    <string name="te_menu_file">文件</string>
+    <string name="te_menu_search">搜索</string>
+    <string name="te_menu_lang">语法 (%1$s)</string>
+    <string name="te_menu_prev">上个位置</string>
+    <string name="te_menu_next">下个位置</string>
+    <string name="te_menu_goto">转到指定行</string>
+    <string name="te_menu_highlight">语法高亮</string>
+    <string name="te_menu_completion">代码补全</string>
+    <string name="te_menu_settings">设置</string>
+    <string name="te_menu_format">格式化</string>
+    <string name="te_menu_preview_md">预览 Markdown</string>
+    <string name="te_menu_close_file">关闭文件</string>
+    <string name="te_hl_on">语法高亮开</string>
+    <string name="te_hl_off">语法高亮关</string>
+    <string name="te_comp_on">代码补全开</string>
+    <string name="te_comp_off">代码补全关</string>
+    <string name="te_file_reopen">重新打开</string>
+    <string name="te_file_save_as">另存为副本</string>
+    <string name="te_file_share">分享</string>
+    <string name="te_syntax_selected">语法：%1$s</string>
+    <string name="te_font_title">字体大小（sp，8-40）</string>
+    <string name="te_font_applied">字体 %1$dsp</string>
+    <string name="te_format_error">格式错误</string>
+
+    <string name="te_fmt_title">格式化</string>
+    <string name="te_fmt_title_detected">格式化（检测到 %1$s）</string>
+    <string name="te_fmt_kind_code">代码</string>
+    <string name="te_fmt_json_pretty">JSON 美化</string>
+    <string name="te_fmt_json_min">JSON 压缩</string>
+    <string name="te_fmt_xml">XML/HTML 美化</string>
+    <string name="te_fmt_code">代码美化（{} 语言）</string>
+    <string name="te_err_empty_content">内容为空</string>
+    <string name="te_err_too_big_fmt">文件过大（&gt;2MB），不建议格式化</string>
+    <string name="te_fmt_no_change">格式已规范，无变化</string>
+    <string name="te_fmt_done">已格式化（可点工具栏撤销恢复）</string>
+    <string name="te_fmt_failed">格式化失败：%1$s</string>
+    <string name="te_md_preview_title">Markdown 预览</string>
+
+    <string name="te_err_save_decompile">保存失败，无法反编译最新内容</string>
+    <string name="te_err_save">保存失败: %1$s</string>
+    <string name="te_err_save_title">保存失败</string>
+    <string name="te_saved_as">已另存为 %1$s</string>
+    <string name="te_err_save_as">另存为失败: %1$s</string>
+    <string name="te_err_share">分享失败: %1$s</string>
+    <string name="te_compiling_xml">编译 XML 并写回…</string>
+    <string name="te_compile_unsupported">不支持的修改</string>
+    <string name="te_compile_failed">编译失败</string>
+    <string name="te_compiled_output">已生成 %1$s\n（退出 APK 后可统一签名）</string>
+    <string name="te_err_writeback">写回压缩包失败</string>
+    <string name="te_saved_writeback_bak">已保存，已写回原包\n（首次修改自动备份 同名_bak.apk；退出 APK 后可统一签名）</string>
+    <string name="te_written_archive">已写回压缩包 (%1$s)</string>
+    <string name="te_saved_export">已保存并导出到 %1$s</string>
+    <string name="te_saved_encoding">已保存 (%1$s)</string>
+    <string name="te_nothing_to_save">没有需要保存的修改</string>
+    <string name="te_arscpp_saved">已保存 %1$s（%2$d 处修改）\n已写回原包\n（首次修改自动备份 同名_bak.apk；退出 APK 后可统一签名）</string>
+
+    <string name="te_unsaved_title">未保存的修改</string>
+    <string name="te_unsaved_msg">内容已修改，是否保存？</string>
+    <string name="te_unsaved_discard">不保存</string>
 </resources>
