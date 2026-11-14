@@ -18,12 +18,10 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import fi.iki.elonen.NanoHTTPD;
 
@@ -484,13 +482,23 @@ public final class LanNode {
             // 并发时都选中同一个名字，共写一个 .part；先完成的一方 rename 走后，
             // 另一方复制到的是交错数据，还会 delete 掉对方正在写的文件。
             File part = LanProtocol.reserve(dir, rawName);
+            // v2.4.0（R-08）：整个接收期间都算活动临时文件。局域网接收的 .part
+            // 就是唯一进度载体，被遗留扫描列出来删掉 = 已接收的字节全丢。
+            // v2.6.0（R-27）：登记必须紧跟占名 —— 原来要等下面两行推导完才 begin，
+            // 这几行之间设置页的快照里没有它、删除入口的 isActive 预检也放行，
+            // 正是 R-08 想挡的「扫描之后任务才开始」窗口。文件一存在就该是登记态。
+            TempFiles.begin(part);
             String partName = part.getName();
             String finalName = partName.substring(0, partName.length() - TempFiles.PART.length());
             File dst = new File(dir, finalName);
-            // v2.4.0（R-08）：整个接收期间都算活动临时文件。局域网接收的 .part
-            // 就是唯一进度载体，被遗留扫描列出来删掉 = 已接收的字节全丢
-            TempFiles.begin(part);
 
+            // v2.6.0（R-24）：reserve 的约定一直是「调用方负责清理占位文件」，
+            // 但只在「长度不符」与「rename 失败」两个分支里 delete 过。真实缺口是
+            // read() 抛 IOException（客户端断网、传输中途关连接）：异常一路抛出
+            // receive()，serve() 接住回 500，占位文件既没删、又已在 finally 里 end，
+            // 下一次打开「设置 → 遗留文件」才看得到它。用 done 统一收口：
+            // 只有 rename/复制成功才算完成，其余所有退出路径都删。
+            boolean done = false;
             long got = 0;
             long lastTick = 0;
             FileOutputStream out = null;
@@ -511,31 +519,31 @@ public final class LanNode {
                     }
                 }
                 out.flush();
+
+                if (got != declared) {
+                    return NanoHTTPD.newFixedLengthResponse(Response.Status.INTERNAL_ERROR,
+                            "text/plain; charset=utf-8", "incomplete " + got + "/" + declared);
+                }
+                if (!part.renameTo(dst)) {
+                    // 极少数文件系统不允许 rename，退化成复制后删除
+                    if (!copyThenDelete(part, dst)) {
+                        return NanoHTTPD.newFixedLengthResponse(Response.Status.INTERNAL_ERROR,
+                                "text/plain; charset=utf-8", "rename failed");
+                    }
+                }
+                done = true;
+                notifyProgress(finalName, got, declared);
+                notifyReceived(finalName, got, dst);
+                Log.i(TAG, "received " + finalName + " " + got + "B");
+                return NanoHTTPD.newFixedLengthResponse(Response.Status.OK,
+                        "text/plain; charset=utf-8", "OK " + dst.getAbsolutePath());
             } finally {
                 try { if (out != null) out.close(); } catch (Throwable ignored) { }
-                // 写完即注销：下面无论走「不完整 → 删掉」还是「rename 成功」，
-                // 注册表里都不该再留着这个路径
+                // 先删再注销：占名是原子的，这个路径此刻只属于本请求，删除不会撞到别人。
+                // 进程被杀这条路走不到，那种情况只能靠「设置 → 遗留文件」清。
+                if (!done) part.delete();
                 TempFiles.end(part);
             }
-
-            if (got != declared) {
-                part.delete();
-                return NanoHTTPD.newFixedLengthResponse(Response.Status.INTERNAL_ERROR,
-                        "text/plain; charset=utf-8", "incomplete " + got + "/" + declared);
-            }
-            if (!part.renameTo(dst)) {
-                // 极少数文件系统不允许 rename，退化成复制后删除
-                if (!copyThenDelete(part, dst)) {
-                    part.delete();
-                    return NanoHTTPD.newFixedLengthResponse(Response.Status.INTERNAL_ERROR,
-                            "text/plain; charset=utf-8", "rename failed");
-                }
-            }
-            notifyProgress(finalName, got, declared);
-            notifyReceived(finalName, got, dst);
-            Log.i(TAG, "received " + finalName + " " + got + "B");
-            return NanoHTTPD.newFixedLengthResponse(Response.Status.OK,
-                    "text/plain; charset=utf-8", "OK " + dst.getAbsolutePath());
         }
     }
 
