@@ -293,8 +293,12 @@ public final class LanProtocol {
      * 权限或 IO，运维照着这个报错会去查重名，方向完全错。</p>
      *
      * <p>{@code canWrite()} 只用来决定报错措辞，<b>不作为拦截判据</b>：部分 FUSE / SAF
-     * 路径会误报 false，而写入其实是可行的；但若 {@code createNewFile} 连续三次都不是
-     * 「因为已存在」而失败，那基本可以判定目录不可写。</p>
+     * 路径会误报 false，而写入其实是可行的；真正判死活的是 {@code createNewFile} 的结果。</p>
+     *
+     * <p>注意 {@code createNewFile} 的两种失败是<b>不同形态</b>的：文件已存在时返回
+     * {@code false}（重名，换号重试），权限/只读挂载/IO 失败时<b>抛 IOException</b>。
+     * 只判返回值会让只读目录的场景变成「抛出一个没有上下文的 Permission denied」，
+     * 这里两种都收，连续三次不是「因为已存在」就按目录不可写报。</p>
      *
      * @return 已创建的 0 字节临时文件，名字形如 {@code 名字.part} 或 {@code 名字 (1).part}
      */
@@ -308,16 +312,23 @@ public final class LanProtocol {
         String base = dot > 0 ? name.substring(0, dot) : name;
         String ext = dot > 0 ? name.substring(dot) : "";
         int denied = 0;
+        IOException last = null;
         for (int i = 0; i < MAX_NAME_ATTEMPTS; i++) {
             String cand = i == 0 ? name : base + " (" + i + ")" + ext;
             File part = new File(dir, cand + TempFiles.PART);
-            if (part.createNewFile()) return part;
+            boolean created = false;
+            try {
+                created = part.createNewFile();
+            } catch (IOException ex) {
+                last = ex;      // 权限 / 只读 / IO：先记下，够三次再定性
+            }
+            if (created) return part;
             if (part.exists()) { denied = 0; continue; }   // 只是重名，继续换号
             // 不是重名却创建不出来：权限、只读挂载、目录被删。三次就认输，不空转一万次
             if (++denied >= 3) {
                 throw new IOException(writable
                         ? "创建占位文件失败: " + part
-                        : "接收目录不可写: " + dir);
+                        : "接收目录不可写: " + dir, last);
             }
         }
         throw new IOException("无法分配唯一临时文件名: " + name);

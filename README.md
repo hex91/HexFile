@@ -1850,7 +1850,10 @@ JH 下没有 javac: /nonexistent/jdk          （rc=2）
 → `创建占位文件失败` / `接收目录不可写`；真的换号一万次才用原来的措辞。
 
 `canWrite()` 只用来决定报错措辞，**不作为拦截判据**：部分 FUSE / SAF 路径会误报 false，
-而写入其实可行；真正判死活的是 `createNewFile` 的返回值。
+而写入其实可行；真正判死活的是 `createNewFile` 的结果 —— 注意它的两种失败形态不同：
+「文件已存在」返回 `false`，「权限 / 只读挂载」直接抛 `IOException`。两种都收齐，
+连续三次不是「因为已存在」才定性为不可写；只判返回值会让只读目录的场景变成一句
+没有上下文的 `Permission denied`（CI 上第一次就是这么红的）。
 
 ### R-28：`LanNode` 残留未用 import（P3）
 
