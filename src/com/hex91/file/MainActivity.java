@@ -1,6 +1,5 @@
 package com.hex91.file;
 
-import com.hex91.file.core.ByteIO;
 import com.hex91.file.fs.FileKind;
 import com.hex91.file.utils.DragPlan;
 import com.hex91.file.utils.GridAction;
@@ -14,6 +13,7 @@ import com.hex91.file.controller.DirectoryController;
 import com.hex91.file.controller.DrawerController;
 import com.hex91.file.controller.Pane;
 import com.hex91.file.controller.PropsController;
+import com.hex91.file.controller.SignFlowController;
 import com.hex91.file.controller.TaskUiController;
 import com.hex91.file.ui.ApkInfoActivity;
 import com.hex91.file.ui.ArscEditorActivity;
@@ -61,8 +61,6 @@ import com.hex91.file.apk.ArchivePasswords;
 import com.hex91.file.apk.ArchiveUtil;
 import com.hex91.file.apk.ArchiveWrite;
 import com.hex91.file.apk.FileInspect;
-import com.hex91.file.apk.KeyStoreUtil;
-import com.hex91.file.apk.SigKill;
 import com.hex91.file.apk.SmaliTool;
 import com.hex91.file.R;
 import com.hex91.file.fs.DiskScanUtil;
@@ -120,7 +118,6 @@ import android.widget.Toast;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -137,10 +134,7 @@ public class MainActivity extends BaseActivity {
 
     private static final int REQ_STORAGE = 1;
     private static final int REQ_BATCH_RENAME = 3001;
-    private static final int REQ_CUSTOM_KEYSTORE = 3002;
-    /** 自定义签名待处理的 APK（onActivityResult 期间持有） */
-    private File mCustomSignSrc;
-    private boolean mCustomSignInPlace;
+    // 选 keystore 的请求码已随签名簇搬到 SignFlowController.REQ_CUSTOM_KEYSTORE（v2.7.0）
 
     private TextView headerPath, headerStats;
     private ListView listLeft, listRight;
@@ -252,6 +246,30 @@ public class MainActivity extends BaseActivity {
                     return MainActivity.this.ensureArchiveWritable(f);
                 }
             });
+
+    /**
+     * 「APK 签名」控制器（v2.7.0，O-22 刀1）。
+     *
+     * <p>这一簇与另外两个控制器不同：它有<b>跨 Activity 的状态</b>——「选 keystore 文件」要起
+     * 系统选择器，结果从 {@code onActivityResult} 回来。原来靠 {@code mCustomSignSrc} /
+     * {@code mCustomSignInPlace} 两个字段跨过这个缝，字段读写散在三处。现在状态收进控制器，
+     * 宿主只在 {@code onActivityResult} 里转发一次 {@link SignFlowController#handleResult}。</p>
+     */
+    private final SignFlowController signFlow = new SignFlowController(new SignFlowController.Host() {
+        public android.content.Context ctx() { return MainActivity.this; }
+
+        public void toast(String s) { MainActivity.this.toast(s); }
+
+        public void ui(Runnable r) { runOnUiThread(r); }
+
+        public void refreshAll() { MainActivity.this.refreshAll(); }
+
+        public void pickKeystore(Intent chooser) {
+            startActivityForResult(chooser, SignFlowController.REQ_CUSTOM_KEYSTORE);
+        }
+
+        public void importKeystore(File f) { MainActivity.this.importKeystore(f); }
+    });
 
     /** v1.78.0：窗格显示偏好（排序方式 / 是否显示 . 文件 / 列表or网格），两栏共用 */
     private static final String PREF_UI = "hf_view";
@@ -1509,7 +1527,7 @@ public class MainActivity extends BaseActivity {
             public void run() {
                 byte[] bytes = null;
                 String err = null;
-                try { bytes = readFileBytes(f); }
+                try { bytes = FileOps.readAllBytes(f); }
                 catch (Throwable t) { err = t.getMessage(); }
                 final byte[] fb = bytes;
                 final String fe = err;
@@ -1540,87 +1558,11 @@ public class MainActivity extends BaseActivity {
                 .setView(et)
                 .setPositiveButton("解析", new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
-                        parseKeystore(f, et.getText().toString());
+                        signFlow.parseKeystore(f, et.getText().toString());
                     }
                 })
                 .setNegativeButton("取消", null)
                 .show();
-    }
-
-    private void parseKeystore(final File f, final String pass) {
-        final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("解析 keystore…");
-        pd.setCancelable(false);
-        pd.show();
-        new Thread(new Runnable() {
-            public void run() {
-                final StringBuilder sb = new StringBuilder();
-                try {
-                    byte[] bytes = readFileBytes(f);
-                    sb.append("文件: ").append(f.getName()).append("（")
-                            .append(FileOps.formatSize(f.length())).append("）\n");
-                    sb.append("格式: ").append(FileInspect.typeLabel(
-                            FileInspect.readHead(f, 16), f.getName())).append('\n');
-                    sb.append("文件头: ").append(FileInspect.hexHead(
-                            FileInspect.readHead(f, 16), 8)).append("\n\n");
-                    List<KeyStoreUtil.AliasInfo> list =
-                            KeyStoreUtil.inspect(bytes, pass.toCharArray(), null);
-                    if (list.isEmpty()) sb.append("（没有任何条目）");
-                    for (int i = 0; i < list.size(); i++) {
-                        if (i > 0) sb.append('\n');
-                        sb.append(list.get(i).detail());
-                    }
-                } catch (Throwable t) {
-                    sb.setLength(0);
-                    sb.append("解析失败: ").append(SignKeyManagerActivity.friendlyKsError(t));
-                }
-                runOnUiThread(new Runnable() {
-                    public void run() {
-                        pd.dismiss();
-                        android.widget.ScrollView sv = new android.widget.ScrollView(MainActivity.this);
-                        TextView tv = new TextView(MainActivity.this);
-                        int pad = (int) (20 * getResources().getDisplayMetrics().density);
-                        sv.setPadding(pad, pad / 2, pad, 0);
-                        tv.setText(sb.toString());
-                        tv.setTextIsSelectable(true);
-                        tv.setTextSize(13);
-                        tv.setTextColor(ThemeManager.text(MainActivity.this));
-                        sv.addView(tv);
-                        new HfDialogBuilder(MainActivity.this)
-                                .setTitle("签名信息")
-                                .setView(sv)
-                                .setPositiveButton("导入到签名管理",
-                                        new android.content.DialogInterface.OnClickListener() {
-                                            public void onClick(android.content.DialogInterface d, int w) {
-                                                importKeystore(f);
-                                            }
-                                        })
-                                .setNegativeButton("关闭", null)
-                                .show();
-                    }
-                });
-            }
-        }, "ks-parse").start();
-    }
-
-    /** 读整个文件（root 区回退 su cat） */
-    private byte[] readFileBytes(File f) throws Exception {
-        try {
-            java.io.FileInputStream in = new java.io.FileInputStream(f);
-            try {
-                java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
-                byte[] buf = new byte[65536];
-                int n;
-                while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
-                return bo.toByteArray();
-            } finally {
-                try { in.close(); } catch (Exception ignored) {}
-            }
-        } catch (Exception e) {
-            byte[] rb = RootIO.readBytes(f);
-            if (rb != null) return rb;
-            throw e;
-        }
     }
 
     private void openViewer(File f) {
@@ -1893,11 +1835,11 @@ public class MainActivity extends BaseActivity {
         boolean legacyEdit = n.endsWith("_edit.apk");
         boolean modified = legacyEdit || ApkEditSession.hasEdits(apk);
         if (modified) {
-            if (custom) askCustomSign(apk, true);
+            if (custom) signFlow.askCustomSign(apk, true);
             else signApkInPlace(apk);
             return;
         }
-        if (custom) askCustomSign(apk, false);
+        if (custom) signFlow.askCustomSign(apk, false);
         else signApkBuiltin(apk);
     }
 
@@ -2214,127 +2156,6 @@ public class MainActivity extends BaseActivity {
         }, "apk-rmsign").start();
     }
 
-    /**
-     * 自定义密钥签名（v1.57；v1.67.0 重构）：
-     * 已导入签名 → 列表直接选择并签名（密码已在导入时保存，无需再从文件加载/输密码）；
-     * 没有导入 → 走旧版「选文件 + 输密码」一次性流程；两个入口都可进「签名管理」。
-     */
-    private void askCustomSign(final File apk, final boolean inPlace) {
-        List<SignKeyManagerActivity.KeyEntry> keys = new ArrayList<SignKeyManagerActivity.KeyEntry>();
-        File dir = new File(getFilesDir(), "signkeys");
-        File[] fs = dir.listFiles();
-        List<String> ids = new ArrayList<String>();
-        if (fs != null) for (File f : fs)
-            if (f.getName().endsWith(".meta"))
-                ids.add(f.getName().substring(0, f.getName().length() - 5));
-        java.util.Collections.sort(ids);
-        String defId = SignKeyManagerActivity.signPrefs(this).getString("key_id", null);
-        if (defId != null && ids.remove(defId)) ids.add(0, defId);
-        for (String id : ids) {
-            SignKeyManagerActivity.KeyEntry e = SignKeyManagerActivity.loadEntry(this, id);
-            if (e != null) keys.add(e);
-        }
-
-        if (keys.isEmpty()) {
-            // 无导入签名 → 旧版一次性流程
-            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            i.addCategory(Intent.CATEGORY_OPENABLE);
-            i.setType("*/*");
-            try {
-                startActivityForResult(Intent.createChooser(i, "选择 keystore（.p12/.jks/.keystore/.bks）"),
-                        REQ_CUSTOM_KEYSTORE);
-            } catch (Throwable t) {
-                toast("无法打开文件选择器: " + t.getMessage());
-            }
-            mCustomSignSrc = apk;
-            mCustomSignInPlace = inPlace;
-            return;
-        }
-
-        List<String> items = new ArrayList<String>();
-        for (SignKeyManagerActivity.KeyEntry e : keys)
-            items.add((e.id.equals(defId) ? "★ " : "") + e.name
-                    + (e.broken() ? "  ⚠ 密码已损坏"
-                                  : (e.keyCount > 0 ? "（" + e.keyCount + " 个私钥别名）" : "")));
-        items.add("从文件选择（一次性）…");
-        items.add("管理签名…（导入 / 查看证书信息 / 删除）");
-        new HfDialogBuilder(this)
-                .setTitle("自定义密钥签名 — " + apk.getName())
-                .setItems(items.toArray(new String[0]), new android.content.DialogInterface.OnClickListener() {
-                    public void onClick(android.content.DialogInterface d, int w) {
-                        if (w < keys.size()) {
-                            doCustomSignWithEntry(keys.get(w), apk, inPlace);
-                        } else if (w == keys.size()) {
-                            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                            i.addCategory(Intent.CATEGORY_OPENABLE);
-                            i.setType("*/*");
-                            try {
-                                startActivityForResult(Intent.createChooser(i,
-                                        "选择 keystore（.p12/.jks/.keystore/.bks）"),
-                                        REQ_CUSTOM_KEYSTORE);
-                            } catch (Throwable t) {
-                                toast("无法打开文件选择器: " + t.getMessage());
-                            }
-                            mCustomSignSrc = apk;
-                            mCustomSignInPlace = inPlace;
-                        } else {
-                            startActivity(new Intent(MainActivity.this,
-                                    SignKeyManagerActivity.class));
-                        }
-                    }
-                })
-                .setNegativeButton("取消", null)
-                .show();
-    }
-
-    /** 用已导入签名直接签（密码已保存）；inPlace = 原地覆盖，否则 <名>_csigned.apk */
-    private void doCustomSignWithEntry(final SignKeyManagerActivity.KeyEntry entry,
-            final File apk, final boolean inPlace) {
-        if (entry.broken()) {
-            toast("该签名的密码已损坏（换机/清除数据导致），请到「签名管理」重新导入");
-            return;
-        }
-        final ProgressDialog pd = ProgressDialog.show(MainActivity.this,
-                "自定义签名", entry.name + " → " + apk.getName(), true, false);
-        new Thread(new Runnable() {
-            public void run() {
-                String err = null;
-                File out = inPlace
-                        ? new File(apk.getParentFile(), apk.getName() + ".signtmp")
-                        : new File(apk.getParentFile(),
-                                FileKind.stripExt(apk.getName()) + "_csigned.apk");
-                try {
-                    byte[] ksBytes = SignKeyManagerActivity.loadKeyBytes(MainActivity.this, entry.id);
-                    ApkSignerTool.signAutoAlias(ksBytes,
-                            entry.storePass.toCharArray(),
-                            entry.keyPass != null ? entry.keyPass.toCharArray() : null,
-                            entry.alias, apk, out, 21);
-                    if (inPlace) {
-                        ApkEditSession.safeReplace(out, apk);
-                        try { ApkEditSession.markSigned(apk); }
-                        catch (Throwable ignored) {}
-                    }
-                } catch (Throwable t) {
-                    err = t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
-                }
-                final String ferr = err;
-                final File fout = apk;
-                final boolean finPlace = inPlace;
-                runOnUiThread(new Runnable() {
-                    public void run() {
-                        pd.dismiss();
-                        if (ferr != null) toast("签名失败: " + ferr);
-                        else {
-                            toast("已签名（" + entry.name + "）→ "
-                                    + (finPlace ? fout.getName() + "（原地覆盖）" : fout.getName()));
-                            refreshAll();
-                        }
-                    }
-                });
-            }
-        }, "apk-csign").start();
-    }
-
     /** 解包目录 → 打包为 APK（v1.57）：产物未签名，询问是否用内置密钥直接签 */
     private void doApkPack(final File dir) {
         File out = new File(dir.getParentFile(), FileKind.stripExt(dir.getName()) + "_packed.apk");
@@ -2365,7 +2186,7 @@ public class MainActivity extends BaseActivity {
                                 })
                                 .setNeutralButton("自定义密钥签名", new android.content.DialogInterface.OnClickListener() {
                                     public void onClick(android.content.DialogInterface d, int w) {
-                                        askCustomSign(fout, false);
+                                        signFlow.askCustomSign(fout, false);
                                     }
                                 })
                                 .setNegativeButton("先不签", null)
@@ -2779,7 +2600,7 @@ public class MainActivity extends BaseActivity {
                 askApkClone(f);
                 break;
             case 26:                              // 去除签名校验（SigKill）
-                doSigKill(f);
+                signFlow.doSigKill(f);
                 break;
             case 27:                              // 文件分割（对标 MT）
                 askSplitSize(f);
@@ -2805,7 +2626,7 @@ public class MainActivity extends BaseActivity {
                 doApkUnpack(f);
                 break;
             case 34:                              // 自定义密钥签名（v1.57）
-                askCustomSign(f, false);
+                signFlow.askCustomSign(f, false);
                 break;
             case 35:                              // 去除签名 → 未签名 APK（v1.57）
                 doRemoveSignature(f);
@@ -2989,123 +2810,6 @@ public class MainActivity extends BaseActivity {
                 });
             }
         }, "apk-clone").start();
-    }
-
-    // ============================================================ 去除签名校验（v1.34.0）
-
-    /**
-     * SigKill 入口：反编译全部 dex → 启发式 patch 签名校验点 → 回编译 → 重打包 → v1+v2+v3 重签名。
-     * 输出与原 APK 同目录：<名>_nosig.apk。
-     */
-    private void doSigKill(final File f) {
-        final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("去除签名校验…");
-        pd.setCancelable(false);
-        pd.show();
-        String base = f.getName();
-        int dot = base.lastIndexOf('.');
-        if (dot > 0) base = base.substring(0, dot);
-        final File out = new File(f.getParentFile(), base + "_nosig.apk");
-        new Thread(new Runnable() {
-            public void run() {
-                String err = null, info = null;
-                File work = new File(getCacheDir(), "sigkill_tmp");
-                try {
-                    FileOps.deleteRecursive(work);
-                    work.mkdirs();
-
-                    // 1) 抽取全部 dex → 反编译 → patch → 回编译
-                    Map<String, byte[]> replace = new java.util.LinkedHashMap<String, byte[]>();
-                    java.util.List<SigKill.Patch> patches = new ArrayList<SigKill.Patch>();
-                    java.util.zip.ZipFile zf = new java.util.zip.ZipFile(f);
-                    try {
-                        java.util.Enumeration<? extends java.util.zip.ZipEntry> en = zf.entries();
-                        int dexIdx = 0;
-                        while (en.hasMoreElements()) {
-                            java.util.zip.ZipEntry ze = en.nextElement();
-                            String nm = ze.getName();
-                            if (!nm.toLowerCase().endsWith(".dex")) continue;
-                            File dex = new File(work, "src_" + dexIdx + ".dex");
-                            java.io.InputStream in = zf.getInputStream(ze);
-                            java.io.FileOutputStream fo = new java.io.FileOutputStream(dex);
-                            byte[] buf = new byte[65536]; int n;
-                            while ((n = in.read(buf)) > 0) fo.write(buf, 0, n);
-                            fo.close(); in.close();
-
-                            File smaliDir = new File(work, "smali_" + dexIdx);
-                            String e = SmaliTool.decompile(dex, smaliDir, 4);
-                            if (e != null) throw new Exception("反编译 " + nm + " 失败: " + e);
-                            patches.addAll(SigKill.run(smaliDir));
-                            File outDex = new File(work, "out_" + dexIdx + ".dex");
-                            e = SmaliTool.assemble(smaliDir, outDex, 4);
-                            if (e != null) throw new Exception("回编译 " + nm + " 失败: " + e);
-
-                            byte[] data = ByteIO.readAll(outDex);
-                            if (data != null) replace.put(nm, data);
-                            dexIdx++;
-                        }
-                    } finally {
-                        try { zf.close(); } catch (Throwable ig) {}
-                    }
-
-                    if (patches.isEmpty()) {
-                        err = "未发现可去除的签名校验点（没有 PackageManager.checkSignatures 调用、"
-                                + "Signature.verify/equals 调用点或自带 Signature 副本），原 APK 未修改。";
-                    } else {
-                        // 2) 重打包（替换 dex）→ 重签名
-                        File unsigned = new File(work, "unsigned.apk");
-                        ApkRepack.repack(f, replace, unsigned);
-                        if (out.exists()) out.delete();
-                        InputStream ksIn = getAssets().open("hexfile.p12");
-                        ApkSignerTool.sign(ksIn, ApkSignerTool.KEY_PASSWORD, unsigned, out, 21);
-                        ksIn.close();
-
-                        // 3) 汇总报告
-                        int cs = 0, call = 0, body = 0;
-                        for (SigKill.Patch p : patches) {
-                            if (p.kind.equals("checkSignatures→0")) cs++;
-                            else if (p.kind.equals("Signature调用→true")) call++;
-                            else body++;
-                        }
-                        StringBuilder sb = new StringBuilder();
-                        sb.append("共 patch ").append(patches.size()).append(" 处\n");
-                        if (cs > 0) sb.append("· checkSignatures 返回值强置 0: ").append(cs).append(" 处\n");
-                        if (call > 0) sb.append("· Signature.verify/equals 调用点强 true: ").append(call).append(" 处\n");
-                        if (body > 0) sb.append("· 自带 Signature 副本方法体重写: ").append(body).append(" 处\n");
-                        sb.append("\n输出: ").append(out.getAbsolutePath())
-                                .append("\n已用内置密钥 v1+v2+v3 重签名");
-                        info = sb.toString();
-                    }
-                } catch (Throwable t) {
-                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
-                    Throwable c = t.getCause();
-                    while (c != null) {
-                        err += "\n↳ " + c.getClass().getSimpleName() + ": " + c.getMessage();
-                        c = c.getCause();
-                    }
-                } finally {
-                    FileOps.deleteRecursive(work);
-                }
-                final String e = err, ok = info;
-                runOnUiThread(new Runnable() {
-                    public void run() {
-                        pd.dismiss();
-                        if (e != null) {
-                            new HfDialogBuilder(MainActivity.this)
-                                    .setTitle("去除签名校验").setMessage(e)
-                                    .setPositiveButton("知道了", null).show();
-                        } else {
-                            refreshAll();
-                            new HfDialogBuilder(MainActivity.this)
-                                    .setTitle("已生成 <名>_nosig.apk")
-                                    .setMessage(ok)
-                                    .setPositiveButton("关闭", null)
-                                    .show();
-                        }
-                    }
-                });
-            }
-        }, "sigkill").start();
     }
 
     // ============================================================ 文件分割/合并（v1.35.0）
@@ -4214,89 +3918,9 @@ public class MainActivity extends BaseActivity {
             if (selPanel != null && selPanel.adapter.selectionMode) exitSelection(selPanel);
             refreshAll();
         }
-        if (req == REQ_CUSTOM_KEYSTORE && res == RESULT_OK && data != null
-                && data.getData() != null && mCustomSignSrc != null) {
-            askCustomKeyPassword(data.getData(), mCustomSignSrc);
-        }
-    }
-
-    /** 自定义签名第 2 步：输入 keystore 密码后执行 signAutoAlias */
-    private void askCustomKeyPassword(final android.net.Uri keystoreUri, final File apk) {
-        final EditText pass = new EditText(this);
-        pass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
-                | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        pass.setHint("keystore 密码");
-        new HfDialogBuilder(this)
-                .setTitle("自定义密钥签名")
-                .setMessage("keystore: " + (keystoreUri.getLastPathSegment() != null
-                        ? keystoreUri.getLastPathSegment() : "已选择")
-                        + "\nAPK: " + apk.getName())
-                .setView(pass)
-                .setPositiveButton("签名", new android.content.DialogInterface.OnClickListener() {
-                    public void onClick(android.content.DialogInterface d, int w) {
-                        final String pwd = pass.getText().toString();
-                        if (pwd.isEmpty()) { toast("密码不能为空"); return; }
-                        final boolean inPlace = mCustomSignInPlace;
-                        final ProgressDialog pd = ProgressDialog.show(MainActivity.this,
-                                "自定义签名", apk.getName(), true, false);
-                        new Thread(new Runnable() {
-                            public void run() {
-                                String err = null;
-                                // inPlace（_edit.apk）→ 临时文件原地覆盖；否则 <名>_csigned.apk
-                                File out = inPlace
-                                        ? new File(apk.getParentFile(), apk.getName() + ".signtmp")
-                                        : new File(apk.getParentFile(),
-                                                FileKind.stripExt(apk.getName()) + "_csigned.apk");
-                                try {
-                                    byte[] ksBytes = readUriBytes(keystoreUri);
-                                    ApkSignerTool.signAutoAlias(ksBytes, pwd.toCharArray(),
-                                            apk, out, 21);
-                                    if (inPlace) {
-                                        // v1.66.4 / v1.99.1：AtomicReplace 先 rename，失败才
-                                        // 备份+复制，不再先 delete 防写失败丢原包
-                                        ApkEditSession.safeReplace(out, apk);
-                                        try { ApkEditSession.markSigned(apk); }
-                                        catch (Throwable ignored) {}
-                                    }
-                                } catch (Throwable t) {
-                                    err = t.getMessage() != null
-                                            ? t.getMessage()
-                                            : t.getClass().getSimpleName();
-                                }
-                                final String ferr = err;
-                                final File fout = apk;
-                                final boolean finPlace = inPlace;
-                                runOnUiThread(new Runnable() {
-                                    public void run() {
-                                        pd.dismiss();
-                                        if (ferr != null) toast("签名失败: " + ferr);
-                                        else {
-                                            toast("已签名 → " + (finPlace
-                                                    ? fout.getName() + "（原地覆盖）"
-                                                    : fout.getName()));
-                                            refreshAll();
-                                        }
-                                    }
-                                });
-                            }
-                        }, "apk-csign").start();
-                    }
-                })
-                .setNegativeButton("取消", null)
-                .show();
-    }
-
-    private byte[] readUriBytes(android.net.Uri uri) throws Exception {
-        java.io.InputStream in = getContentResolver().openInputStream(uri);
-        try {
-            java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
-            byte[] buf = new byte[65536];
-            int n;
-            while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
-            return bo.toByteArray();
-        } finally {
-            try { in.close(); } catch (Exception ignored) {}
-        }
+        // 签名簇的请求码与「待签 APK」状态都在控制器里（v2.7.0）：这里只转发一次，
+        // 不再由宿主判断 res/data 是否齐全——那三处判断原来和字段生命周期纠缠在一起。
+        if (signFlow.handleResult(req, res, data)) return;
     }
 
     private long lastBackPress = 0;

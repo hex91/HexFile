@@ -29,13 +29,13 @@ SRCS=$(ls test/*.java | grep -vE "RarProbe|ArscDbgB")
 "$JH/javac$EXE" -J-Dfile.encoding=UTF-8 -encoding UTF-8 -nowarn -cp "$CP" -d "$OUT" $SRCS \
   || { echo "COMPILE FAIL"; exit 2; }
 
-ALL="DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest SessionTest SignPromptFlowTest CustomSignE2ETest ArscPreviewTest HexLayoutTest FileInspectTest KeystoreCreateTest ActivityLogTest ToolboxCoreTest TestDataCoreTest MimeUtilTest DiskScanTest UiKitTest ScanCacheTest LanProtocolTest UiDecorTest FileTaskTest FileClipboardTest FileAttrsTest ContentGrepTest LinkUtilTest TrashPolicyTest CredentialCodecTest ContrastTest WorkDirTest DocPathTest WidgetTextTest SyncPlanTest ResumePlanTest DragPlanTest S3SignerTest JsonTest OAuthTokenTest CloudPathTest Iso8601Test TokenHarvestTest M3u8PlaylistTest StreamUrlTest PlaySpeedTest HlsPlaylistTest ScreenPolicyTest AuditFixTest HlsDownloaderTest DirReaderTest TreeOpsTest TaskListenerTest AtomicReplaceTest ZipUtilTest TaskJournalTest LeftoverScanTest FileItemCacheTest LanReserveTest"
+ALL="DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest SessionTest SignPromptFlowTest CustomSignE2ETest ArscPreviewTest HexLayoutTest FileInspectTest KeystoreCreateTest ActivityLogTest ToolboxCoreTest TestDataCoreTest MimeUtilTest DiskScanTest UiKitTest ScanCacheTest LanProtocolTest UiDecorTest FileTaskTest FileClipboardTest FileAttrsTest ContentGrepTest LinkUtilTest TrashPolicyTest CredentialCodecTest ContrastTest WorkDirTest DocPathTest WidgetTextTest SyncPlanTest ResumePlanTest DragPlanTest S3SignerTest JsonTest OAuthTokenTest CloudPathTest Iso8601Test TokenHarvestTest M3u8PlaylistTest StreamUrlTest PlaySpeedTest HlsPlaylistTest ScreenPolicyTest AuditFixTest HlsDownloaderTest DirReaderTest TreeOpsTest TaskListenerTest AtomicReplaceTest ZipUtilTest TaskJournalTest LeftoverScanTest FileItemCacheTest LanReserveTest FileOpsTest"
 
 if [ $# -gt 0 ]; then
   TESTS="$*"
 elif [ "${QUICK:-0}" = "1" ]; then
   # 重签/会话类用例要真跑 apksig 打包，几十秒起，改 UI 时没必要每次都等
-  TESTS="DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest ArscPreviewTest HexLayoutTest FileInspectTest KeystoreCreateTest ActivityLogTest ToolboxCoreTest TestDataCoreTest MimeUtilTest DiskScanTest UiKitTest ScanCacheTest LanProtocolTest UiDecorTest FileTaskTest FileClipboardTest FileAttrsTest ContentGrepTest LinkUtilTest TrashPolicyTest CredentialCodecTest ContrastTest WorkDirTest DocPathTest WidgetTextTest SyncPlanTest ResumePlanTest DragPlanTest S3SignerTest JsonTest OAuthTokenTest CloudPathTest Iso8601Test TokenHarvestTest M3u8PlaylistTest StreamUrlTest PlaySpeedTest HlsPlaylistTest ScreenPolicyTest AuditFixTest HlsDownloaderTest DirReaderTest TreeOpsTest TaskListenerTest AtomicReplaceTest ZipUtilTest TaskJournalTest LeftoverScanTest FileItemCacheTest LanReserveTest"
+  TESTS="DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest ArscPreviewTest HexLayoutTest FileInspectTest KeystoreCreateTest ActivityLogTest ToolboxCoreTest TestDataCoreTest MimeUtilTest DiskScanTest UiKitTest ScanCacheTest LanProtocolTest UiDecorTest FileTaskTest FileClipboardTest FileAttrsTest ContentGrepTest LinkUtilTest TrashPolicyTest CredentialCodecTest ContrastTest WorkDirTest DocPathTest WidgetTextTest SyncPlanTest ResumePlanTest DragPlanTest S3SignerTest JsonTest OAuthTokenTest CloudPathTest Iso8601Test TokenHarvestTest M3u8PlaylistTest StreamUrlTest PlaySpeedTest HlsPlaylistTest ScreenPolicyTest AuditFixTest HlsDownloaderTest DirReaderTest TreeOpsTest TaskListenerTest AtomicReplaceTest ZipUtilTest TaskJournalTest LeftoverScanTest FileItemCacheTest LanReserveTest FileOpsTest"
 else
   TESTS="$ALL"
 fi
@@ -54,7 +54,7 @@ for t in $TESTS; do
   #
   # v2.5.0（R-20）：补上漏掉的三个真签名 E2E。它们走 *) 分支拿到同一个样本路径，
   # 内部直接调 ApkSignerTool.sign —— 缺样本时不是 SKIP 而是 FAIL，新机器上跑
-  # `bash test/run_core.sh`（ALL=57）会无条件变红，第一反应却是「代码坏了」。
+  # `bash test/run_core.sh`（ALL=58）会无条件变红，第一反应却是「代码坏了」。
   # SessionTest 还要读 assets/hexfile.p12（内置密钥），单独判一次。
   need_p12=0
   case "$t" in

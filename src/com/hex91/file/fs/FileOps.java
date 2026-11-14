@@ -137,6 +137,32 @@ public class FileOps {
         return f;
     }
 
+    /**
+     * 读整个文件（v2.7.0）：普通读失败时回退 {@link RootIO#readBytes}，覆盖 /data 等受限路径。
+     *
+     * <p>原来这份实现是 {@code MainActivity.readFileBytes} 私有方法，只被「导入签名」与
+     * 「查看签名信息」用；签名簇搬进 {@code SignFlowController} 后两处都要用，与其复制一份
+     * 不如落到 fs 层——它本质就是「带 root 回退的整文件读取」，与界面无关。</p>
+     */
+    public static byte[] readAllBytes(File f) throws Exception {
+        try {
+            FileInputStream in = new FileInputStream(f);
+            try {
+                java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[65536];
+                int n;
+                while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+                return bo.toByteArray();
+            } finally {
+                try { in.close(); } catch (Exception ignored) { }
+            }
+        } catch (Exception e) {
+            byte[] rb = RootIO.readBytes(f);
+            if (rb != null) return rb;
+            throw e;
+        }
+    }
+
     public static String formatSize(long len) {
         if (len < 1024) return len + " B";
         if (len < 1048576) return String.format(Locale.US, "%.1f KB", len / 1024.0);
