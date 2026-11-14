@@ -33,8 +33,11 @@ import java.util.regex.Pattern;
  */
 public final class TempFiles {
 
-    /** 覆盖写回留下的临时名：{@code 名字.reb<时间戳>.tmp}（ZipUtil / ArchiveWrite） */
+    /** 覆盖写回留下的临时名：{@code 名字.reb<数字>.tmp}（ZipUtil / ArchiveWrite） */
     private static final Pattern REB = Pattern.compile("\\.reb\\d+\\.tmp$");
+    /** 上一条正则的两端（v2.6.0 R-26）：生成与识别必须同源，改格式只改这两个常量 */
+    private static final String REB_INFIX = ".reb";
+    private static final String REB_TAIL = ".tmp";
 
     /**
      * 写回备份后缀。真定义在 {@link AtomicReplace#BAK_SUFFIX}（生产端是它），
@@ -113,6 +116,30 @@ public final class TempFiles {
     }
 
     // ------------------------------------------------------------------ 命名判定
+
+    /**
+     * 给 {@code target} 挑一个写回用的临时名（v2.6.0 / R-26）。
+     *
+     * <p>原来 {@code ArchiveWrite}（两处）与 {@code ZipUtil} 各自拼
+     * {@code name + ".reb" + currentTimeMillis() + ".tmp"}，而认名字的只有这里的一条正则。
+     * 写的人各拼各的、认的人靠正则猜，只要有一处改了格式（加进程号、改位数），
+     * 遗留扫描就再次出现「写了但永远扫不到」—— 正是 R-11 的原始问题。</p>
+     *
+     * <p>只负责<b>选名字</b>，不创建文件：真正的写入方沿用原有语义（覆盖写），
+     * 冲突代价只是覆盖掉一个临时名，不会碰到目标文件。</p>
+     *
+     * <p>同一毫秒内的两次调用要拿到不同名字（原来三个生产端都没有重试，
+     * 同毫秒连写两次会共用同一个临时名）；100 次仍冲突就退化到 {@code nanoTime}。</p>
+     */
+    public static File rebTmp(File target) {
+        File dir = target.getParentFile();
+        String base = target.getName();
+        for (int i = 0; i < 100; i++) {
+            File f = new File(dir, base + REB_INFIX + System.currentTimeMillis() + REB_TAIL);
+            if (!f.exists()) return f;
+        }
+        return new File(dir, base + REB_INFIX + System.nanoTime() + REB_TAIL);
+    }
 
     /**
      * 名字是否是「遗留临时文件」。

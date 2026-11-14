@@ -1,5 +1,6 @@
 package com.hex91.file.apk;
 
+import com.hex91.file.fs.TempFiles;
 import com.hex91.file.fs.ZipUtil;
 import com.hex91.file.core.AtomicReplace;
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
@@ -185,8 +186,7 @@ public class ArchiveWrite {
         }
 
         private static File tempFile(File sz) {
-            return new File(sz.getParentFile(),
-                    sz.getName() + ".reb" + System.currentTimeMillis() + ".tmp");
+            return TempFiles.rebTmp(sz);
         }
 
         private static void closeQuiet(InputStream in) {
@@ -316,8 +316,7 @@ public class ArchiveWrite {
         }
 
         private static File tempFile(File tar) {
-            return new File(tar.getParentFile(),
-                    tar.getName() + ".reb" + System.currentTimeMillis() + ".tmp");
+            return TempFiles.rebTmp(tar);
         }
 
         private static void closeQuiet(InputStream in) {

@@ -263,8 +263,7 @@ public class ZipUtil {
     }
 
     private static File tempFile(File zip) {
-        return new File(zip.getParentFile(),
-                zip.getName() + ".reb" + System.currentTimeMillis() + ".tmp");
+        return TempFiles.rebTmp(zip);
     }
 
     /** 原条目按原压缩方式复制到新 zip（STORED 需缓冲算 CRC；按 locPos 对齐） */

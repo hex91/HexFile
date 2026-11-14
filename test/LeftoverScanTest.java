@@ -35,6 +35,7 @@ public class LeftoverScanTest {
             t3DeleteGuard(base);
             t4RebTmpAndFunctionalData(base);   // v2.4.0（R-11）
             t5ActiveWriting(base);            // v2.4.0（R-08）
+            t6RebTmpSingleSource(base);       // v2.6.0（R-26）
         } finally {
             deleteTree(base);
         }
@@ -148,6 +149,32 @@ public class LeftoverScanTest {
         eqi(1, LeftoverScan.scan(root).size(), "写完之后才算遗留文件");
         ok(LeftoverScan.delete(part), "写完之后可以正常删");
         ok(!part.exists(), "写完之后删除生效");
+    }
+
+    /**
+     * v2.6.0（R-26）：{@code .reb<ts>.tmp} 的名字改由 {@link TempFiles#rebTmp} 单点生成。
+     *
+     * <p>原来 ArchiveWrite（两处）与 ZipUtil 各自拼名字，认名字的却是 TempFiles 里的一条
+     * 正则。只要有一处改了格式，遗留扫描就再次出现「写了但永远扫不到」。这条用例锁住
+     * 「生成 → 认出 → 还原原名」这三步同源，另外锁「同毫秒两次不共用名字」。</p>
+     */
+    static void t6RebTmpSingleSource(File base) throws Exception {
+        File root = new File(base, "t6");
+        root.mkdirs();
+        File target = new File(root, "pkg.zip");
+        write(target, "zipdata");
+
+        File t1 = TempFiles.rebTmp(target);
+        ok(LeftoverScan.isLeftover(t1), "rebTmp 生成的名字被 isLeftover 认出：" + t1.getName());
+        ok("pkg.zip".equals(TempFiles.ownerOf(t1.getName())),
+                "ownerOf 还原成 pkg.zip（" + TempFiles.ownerOf(t1.getName()) + "）");
+        ok(root.equals(t1.getParentFile()), "临时文件与目标同目录");
+        write(t1, "half");
+        eqi(1, LeftoverScan.scan(root).size(), "扫描能列出这个临时文件");
+
+        File t2 = TempFiles.rebTmp(target);
+        ok(!t1.getName().equals(t2.getName()),
+                "同名目标连续两次生成不同名字：" + t1.getName() + " / " + t2.getName());
     }
 
     static void write(File f, String s) throws Exception {
