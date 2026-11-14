@@ -34,7 +34,8 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文：设置页 / 任务中心 / 通知 / 工具栏（未迁移页面回退中文）
+│   ├── values-en/               # 英文：设置页 / 任务中心 / 通知 / 工具栏 / 签名管理 / 文本编辑器
+│                                #   （未迁移页面回退中文，见 test/lang_check.sh 的覆盖率统计）
 │   ├── values-sw600dp/          # 平板：pane_divider 从 1dp 装饰线变 6dp 可拖
 │   ├── drawable/                # 矢量图标（ic_folder / ic_file）+ 自适应底板 ic_launcher_background
 │   └── mipmap-*/                # 启动图标：ic_launcher / ic_launcher_round / ic_launcher_foreground
@@ -116,17 +117,24 @@ MainActivity  →  controller  →  ui / fs / apk / net
 ### 质量门
 
 ```bash
-./build.sh                 # 构建时自动跑 deps_check + catch_check（SKIP_GATES=1 可绕过）
+./build.sh                 # 构建时自动跑三道门（SKIP_GATES=1 可绕过）
 bash test/deps_check.sh    # 依赖方向 + 自有包禁止通配 + 全限定名越层
 bash test/catch_check.sh   # 空 catch 不增长（当前基线 336）
 bash test/catch_check.sh --others   # 只列「没表态忽略」的那 4 处（欠理由）
+bash test/lang_check.sh    # 文案键：引用的键存在、两侧类型与格式参数一致
 ./test/jc.sh               # 只编译自研包，约 40 秒（改 import / 搬包时的快速校验）
 ./test/jres.sh             # 只重生成 R.java（改了 res/values 后不必等完整构建）
 ```
 
-v2.5.0 起 `build.sh` 在 aapt2 之前就跑这两道门：以前只有 CI 跑，本地出一条
+v2.5.0 起 `build.sh` 在 aapt2 之前就跑这些门：以前只有 CI 跑，本地出一条
 「分层已破 / 新增空 catch」的 APK 完全不受阻，README 的口径与可执行行为对不上。
-两道门合计 1-2 秒，相对 5 分钟出包可忽略。
+三道门合计 1-2 秒，相对 5 分钟出包可忽略。
+
+`lang_check.sh`（v2.8.0）只查「键能不能对上」，不查翻译质量：代码引用的键必须在中文
+资源里存在且类型（`string` / `plurals`）一致；`values-en` 不能出现中文侧没有的孤儿键；
+两侧同名键的**位置参数集合**必须一致（少一个 → 界面上缺内容；多一个 → 运行时
+`MissingFormatArgumentException` 闪退）。英文覆盖率只作统计，因为 v2.3.0 定的规矩是
+「只放已完成迁移的键」，未迁移页面回退中文属预期。
 
 `build.sh` 与 `run_core.sh` / `jc.sh` / `jres.sh` 共用 **`tools/toolchain.sh`** 定位
 JDK / build-tools / android.jar / Python（环境变量优先 → 常见位置探测 → 明确报错），
@@ -1750,6 +1758,72 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.8.0（versionCode 199）—— O-24 批次 1：签名管理 + 文本编辑器 i18n
+
+F-14 的逐页迁移继续。这一批是计划里最大的两页（审计口径 273 处），实际拆成两次提交：
+
+| 页 | 硬编码中文 | 新增键 | 提交 |
+|---|---|---|---|
+| `SignKeyManagerActivity` | 123 | 72（`ksm_`） | `i18n: 签名管理页迁移（O-24/1）` |
+| `TextEditorActivity` | 152 | 109（`te_`） | `i18n: 文本编辑器迁移（O-24/2）` |
+
+`values-en` 现在与中文侧 330 个键**一一对应**（覆盖率 100%），但仍按 v2.3.0 的规矩只放
+已迁移的页——没迁的页面在英文下继续回退中文，这是预期行为，不是漏翻。
+
+### 两页迁起来不一样的地方
+
+签名管理页的难点是**状态文案**：列表标题是
+`"别名 " + alias + " · " + keyCount + " 个私钥别名"` 这种「中文片段 + 变量」硬拼，
+英文语序放不进去（`Alias x · 2 private keys` 需要名词在前、数量短语整体变化）。
+拆成两段独立片段再拼接，分隔点 ` · ` 留作字面量（是标点不是文案）；带数量的走
+`plurals`，中文只有 `other`、英文分 `one`/`other`——「1 private key」不能写成
+「1 private keys」。
+
+文本编辑器的难点是**菜单互相引用**：主菜单 → 文件菜单 → 语法菜单 → 格式化菜单，
+拆开迁会留下半中半英的中间态，所以六组（主菜单 / 编辑操作 / 自定义 / 格式化 /
+保存写回 / 退出确认）一次做完。「只读模式」是 13 处前置守卫 + 1 个菜单项共用的
+同一句话，收敛成一个键；菜单里的 `☑` / `☐` 仍是字面量，只翻状态词。
+
+### 三处刻意不迁移
+
+1. **`insertAtCursor` 里的 `"换行"`**：底部符号栏的按钮文本既当标签显示、又当内部
+   token 用（`btn.getText().toString()` 传进来再比对），翻译它等于把换行键改成插入
+   「换行」二字。这一条以后要是有人把符号栏也 i18n 了，会静默坏掉。
+2. **`回读校验失败：元素数不一致`**：异常消息，v2.3.0 定的规矩不翻。
+3. **`压缩包内找不到 x`**：同上。
+
+签名管理页还有一处同类的：`saveEntry` 里那句 `IllegalStateException("密码已损坏…")`
+保留中文。它会在「重命名损坏条目」时经 toast 露出来，严格说算半漏——但那是异常消息
+路径，改了就要连异常语义一起理，留给异常本地化单独一轮。
+
+### 新增门：`test/lang_check.sh`
+
+逐页迁 i18n 最容易出的错不是翻错，而是键对不上，其中两类编译期完全看不出来：
+
+- 英文加了、中文漏了 → 中文环境直接崩（找不到资源）；
+- 格式参数对不上 → 中文 `已保存 %1$s`、英文翻成 `Saved`（丢参数）不崩但界面缺内容；
+  反过来英文多一个 `%2$s` 而调用方只传一个参数，运行时
+  `String.format` 抛 `MissingFormatArgumentException`，直接闪退。
+
+门查四件事：代码引用的键在中文资源里存在且类型一致、`values-en` 没有孤儿键、
+两侧资源类型一致、两侧位置参数集合一致。**不查**英文覆盖率（理由见上），只作统计输出。
+
+反向验证三条（都已实测）：改英文参数 → FAIL、删一条英文 → PASS、引用不存在的键 → FAIL。
+
+### 验证
+
+- `build.sh` → **BUILD OK，v199，13M，V3 CN=hex91**
+- `QUICK=1 ./test/run_core.sh` → **55/55**
+- 三道门：`deps_check` 0 命中、`catch_check` 336（持平）、`lang_check` PASS
+- 英文侧机械核对：330 个键两侧齐全，位置参数逐条比对通过（`lang_check` 输出）
+
+**真机回归**：切系统语言到英文，走一遍「抽屉 → 签名管理」（导入签名卡片、空状态
+文案、创建签名表单、条目长按菜单、详情、删除确认）与「文本编辑器」的主菜单 /
+编辑操作 / 格式化 / 退出确认；重点看英文卡片与按钮有没有被截断（英文平均长 30%），
+以及签名管理的列表副标题在「有别名 / 无别名 / 别名数=1」三种情形下的读法。
 
 ---
 
