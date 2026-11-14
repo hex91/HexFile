@@ -40,7 +40,7 @@ adb install -r out/HexFile-*.apk
 │   └── mipmap-*/                # 启动图标：ic_launcher / ic_launcher_round / ic_launcher_foreground
 └── src/com/hex91/file
     ├── MainActivity.java        # 唯一的顶层类：主界面装配 / 菜单分发 / 多选批量 / 跨模块编排
-    ├── controller/  (7)         # 主界面的状态与行为，MainActivity 只负责装配与转发
+    ├── controller/  (8)         # 主界面的状态与行为，MainActivity 只负责装配与转发
     │   ├── Pane.java            单窗格状态：视图引用 / 目录 / 压缩包 / 历史栈 / 读取代次
     │   ├── DirectoryController  读目录 / 下拉刷新 / 历史栈 / 冷启动恢复
     │   ├── ArchiveController    压缩包内浏览：打开、密码、条目操作、查看编辑、提取
@@ -107,10 +107,11 @@ MainActivity  →  controller  →  ui / fs / apk / net
 自有包还禁止通配 `import`（`import com.hex91.file.fs.*` 会让「javadoc 提过一个类」
 看起来像「依赖了整个包」，审计和门脚本都没法据此判断）。
 
-> 217 个类：core 25 / fs 29 / apk 27 / net 27 / ui 73 / utils 28 / controller 7 / 顶层 1。
-> 从 211 增到 217 的过程：v2.4.0 的 O-17 归位（`LinkUtil` 进 fs、`SyncRunner` 进 net、
+> 218 个类：core 25 / fs 29 / apk 27 / net 27 / ui 73 / utils 28 / controller 8 / 顶层 1。
+> 从 211 增到 218 的过程：v2.4.0 的 O-17 归位（`LinkUtil` 进 fs、`SyncRunner` 进 net、
 > `ApkSignHelper` 进 ui）加了 `SortMode`/`TempFiles`/`FileKind`/`ByteIO`/`SyntaxPalette`；
-> v2.5.0 的 O-22 刀2 加了 `ArchiveAddController`。都是新增的小工具类/控制器，没有重复实现。
+> v2.5.0 的 O-22 刀2 加了 `ArchiveAddController`，v2.7.0 的刀1 加了 `SignFlowController`。
+> 都是新增的小工具类/控制器，没有重复实现。
 
 ### 质量门
 
@@ -1749,6 +1750,103 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.7.0（versionCode 198）—— O-22 刀1：签名簇搬出 MainActivity
+
+v2.5.0 那一轮把「往压缩包里加东西」搬成 `ArchiveAddController`（刀2），签名簇留了下来，
+原因写在了当时那版的说明里：它跟 `onActivityResult` 的密钥选择分支和
+`mCustomSignSrc` 状态强耦合，搬动等于同时改四条路径。这一版把它做完。
+
+### 为什么这一簇比刀2难
+
+刀2 是纯「调用—回调」，宿主给能力、控制器干活。签名簇中间有**一次进程内的往返**：
+
+```
+askCustomSign → 起系统选择器（ACTION_OPEN_DOCUMENT）→ onActivityResult → askCustomKeyPassword → 签名
+```
+
+「等一下要签哪个包」这件事必须跨过这次往返。原来的实现是两个 Activity 字段
+`mCustomSignSrc` / `mCustomSignInPlace`，于是字段的写入点在 `askCustomSign` 的两个分支里、
+读取点在 `onActivityResult` 与对话框回调里、判空散在 `onActivityResult` 的
+`if (res == RESULT_OK && data != null && data.getData() != null && mCustomSignSrc != null)`。
+字段活多久、谁负责清，没有任何一处代码能回答。
+
+### 做法
+
+新增 `controller/SignFlowController`（497 行），搬 5 个方法：
+
+| 方法 | 原行数 | 职责 |
+|---|---|---|
+| `askCustomSign` | 69 | 列表选已导入签名 / 走一次性流程 / 进签名管理 |
+| `doCustomSignWithEntry` | 47 | 用已保存密码直接签（审计只点了 4 个方法，这个是 `askCustomSign` 的唯一后继，留下只会多一层来回调用） |
+| `askCustomKeyPassword` | 65 | 一次性流程第 2 步：输密码 → `signAutoAlias` |
+| `parseKeystore` | 57 | 「查看签名信息」的解析与展示 |
+| `doSigKill` | 115 | 去除签名校验全流程 |
+
+跨 Activity 的状态跟着代码一起进控制器，宿主只剩一次转发：
+
+```java
+// MainActivity.onActivityResult
+if (signFlow.handleResult(req, res, data)) return;   // 本簇的请求码，控制器已消费
+```
+
+请求码也搬了：`SignFlowController.REQ_CUSTOM_KEYSTORE`（3002）。宿主 Host 只有六个能力：
+`ctx` / `toast` / `ui` / `refreshAll` / `pickKeystore` / `importKeystore`。
+
+### 搬动时顺带修的一处：pending 的读取次数
+
+`handleResult` 在**消费的这一刻**把 `pendingSrc` / `pendingInPlace` 快照成局部变量并清空，
+`askCustomKeyPassword` 改成接收 `inPlace` 参数，不再读字段。
+
+原来 `mCustomSignSrc` 用完不清：取消密码对话框后再点一次「自定义密钥签名」，如果这次
+在选择器里取消，`mCustomSignSrc` 仍是**上一次**的包；而如果新的一次选择成功了，
+`onActivityResult` 拿到的 Uri 配的是刚写入的包（这次是对的），但字段里残留的旧包会一直
+留到下一次成功写入 —— 也就是说「哪一次会拿错包」取决于上一次是否成功，是个只在边角
+出现的错签风险。现在 pending 的生命周期只有一段：从起选择器到结果回来。
+
+### `readFileBytes` 下沉到 `fs/FileOps`
+
+`parseKeystore` 与 `importKeystore` 都要「读整个文件，普通读失败回退 `RootIO`」，
+原来这份实现是 `MainActivity.readFileBytes` 私有方法。控制器要用它，两个选择：复制一份，
+或者落到 fs 层。选了后者 —— 它本来就和界面无关，叫 `FileOps.readAllBytes`。
+
+新增 `test/FileOpsTest`（5 条断言，已进 `run_core.sh`）：逐字节相等（含 `0x00` / `0x80` /
+`0xFF` 三个边界）、空文件返回 0 字节而非 null、不存在的文件**抛异常**而不是退化成 null、
+传目录抛异常。最后两条是这个方法唯一容易做错的地方：回退链一旦把失败吞成 null，
+调用方拿到的是 NPE 而不是「读失败」。
+
+（顺带发现 `test/RootIOTest.java` 已经是个跑不起来的孤儿：`RootUtil.isRootAvailable()`
+要 Android `Context`，桌面 JVM 直接 `NoClassDefFoundError`，而且没有任何脚本引用它。
+先把新断言放在真正会执行的用例里，那个文件的去留单独再说。）
+
+### 变化量
+
+| | v2.6.0 | v2.7.0 |
+|---|---|---|
+| `MainActivity` | 4411 行 | **4036 行**（−375） |
+| `controller/` 类数 | 7 | **8** |
+| 空 catch 总数 | 336 | 336（控制器内 12 个，都是从 `MainActivity` 位移过来的 `catch (Throwable ignored)`） |
+
+空 catch 总数不变是这一刀「只搬不改」的证据：如果哪一段在搬运中被顺手删了 `catch`，
+计数会掉；如果补了日志，计数会掉 —— 都没发生。
+
+顺手删掉 `MainActivity` 里 `java.io.FileOutputStream` 的死 import（旧代码里 `doSigKill`
+用的是全限定名，这个 import 从加上那天起就没被用过）。
+
+### 真机回归（这一版必须走）
+
+签名簇是唯一「搬完还要看行为」的部分，四条路径都要过一遍：
+
+1. **列表选已导入签名**：长按 APK → 自定义密钥签名 → 选一个已导入的签名 → 出 `_csigned.apk`；
+2. **一次性流程**：删掉全部已导入签名 → 同一入口 → 选 keystore 文件 → 输密码 → 出包；
+   中途在选择器里取消，应无任何提示、无残留；
+3. **原地覆盖**：编辑过的包（有本会话修改）→ 签名后原文件名不变、可安装；
+4. **查看签名信息**：点 keystore 文件 → 查看签名信息 → 输密码 → 条目详情 → 「导入到签名管理」；
+5. **去除签名校验**：长按 APK → 去除签名校验 → 生成 `<名>_nosig.apk`，报告里的 patch 数不为 0。
+
+第 2 条里的「取消」是新逻辑的直接观察点：原来取消后字段残留，现在是干净退出。
 
 ---
 
