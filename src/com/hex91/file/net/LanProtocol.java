@@ -46,6 +46,9 @@ public final class LanProtocol {
     /** 接收文件名的最大长度（按字符计，保留扩展名） */
     public static final int MAX_FILE_NAME = 120;
 
+    /** {@link #reserve} 的换号上限：防御性上限，正常路径（同名并发）远远走不到 */
+    private static final int MAX_NAME_ATTEMPTS = 10000;
+
     private LanProtocol() {
     }
 
@@ -285,17 +288,37 @@ public final class LanProtocol {
      * <p>{@code createNewFile} 是原子的，能跨线程与跨进程消除 check-then-create 窗口；
      * 占名失败就换下一个编号。<b>调用方负责清理</b>：请求失败/中断时必须删掉这个 0 字节占位文件。</p>
      *
+     * <p>v2.6.0（R-25）：错误信息要能区分两种故障。原来任何 {@code false} 都当成「重名」，
+     * 在只读/已删除的目录上空转一万次，最后报「无法分配唯一临时文件名」—— 真实原因是
+     * 权限或 IO，运维照着这个报错会去查重名，方向完全错。</p>
+     *
+     * <p>{@code canWrite()} 只用来决定报错措辞，<b>不作为拦截判据</b>：部分 FUSE / SAF
+     * 路径会误报 false，而写入其实是可行的；但若 {@code createNewFile} 连续三次都不是
+     * 「因为已存在」而失败，那基本可以判定目录不可写。</p>
+     *
      * @return 已创建的 0 字节临时文件，名字形如 {@code 名字.part} 或 {@code 名字 (1).part}
      */
     public static File reserve(File dir, String rawName) throws IOException {
+        if (dir == null || !dir.isDirectory()) {
+            throw new IOException("接收目录不可用: " + dir);
+        }
+        boolean writable = dir.canWrite();
         String name = safeFileName(rawName);
         int dot = name.lastIndexOf('.');
         String base = dot > 0 ? name.substring(0, dot) : name;
         String ext = dot > 0 ? name.substring(dot) : "";
-        for (int i = 0; i < 10000; i++) {
+        int denied = 0;
+        for (int i = 0; i < MAX_NAME_ATTEMPTS; i++) {
             String cand = i == 0 ? name : base + " (" + i + ")" + ext;
             File part = new File(dir, cand + TempFiles.PART);
             if (part.createNewFile()) return part;
+            if (part.exists()) { denied = 0; continue; }   // 只是重名，继续换号
+            // 不是重名却创建不出来：权限、只读挂载、目录被删。三次就认输，不空转一万次
+            if (++denied >= 3) {
+                throw new IOException(writable
+                        ? "创建占位文件失败: " + part
+                        : "接收目录不可写: " + dir);
+            }
         }
         throw new IOException("无法分配唯一临时文件名: " + name);
     }

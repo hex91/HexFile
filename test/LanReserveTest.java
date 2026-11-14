@@ -3,6 +3,7 @@ import com.hex91.file.net.LanProtocol;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -42,6 +43,7 @@ public class LanReserveTest {
             t2Concurrent(base);
             t3ActiveCount();
             t4SafeName(base);
+            t5ReserveErrors(base);
         } finally {
             deleteTree(base);
         }
@@ -134,6 +136,42 @@ public class LanReserveTest {
         ok(dir.getCanonicalFile().equals(f.getCanonicalFile().getParentFile()),
                 "占位文件仍在接收目录内");
         ok(f.getName().indexOf(':') < 0 && f.getName().indexOf('?') < 0, "非法字符被替换：" + f.getName());
+    }
+
+    /**
+     * v2.6.0（R-25）：目录不可用 / 不可写必须与「重名耗尽」区分开。
+     *
+     * <p>原来任何 {@code createNewFile == false} 都被当成重名，在只读或已删除的目录上
+     * 空转一万次，最后抛「无法分配唯一临时文件名」—— 真实原因是权限或 IO，
+     * 照着这个报错去查重名方向完全错。</p>
+     */
+    static void t5ReserveErrors(File base) throws Exception {
+        File notDir = new File(base, "t5_file.txt");
+        FileOutputStream o = new FileOutputStream(notDir);
+        try { o.write(new byte[]{1}); } finally { o.close(); }
+        String m1 = null;
+        try { LanProtocol.reserve(notDir, "a.txt"); } catch (IOException e) { m1 = e.getMessage(); }
+        ok(m1 != null && m1.contains("接收目录不可用"),
+                "普通文件当目录：报「接收目录不可用」（" + m1 + "）");
+
+        File gone = new File(base, "t5_gone");
+        String m2 = null;
+        try { LanProtocol.reserve(gone, "a.txt"); } catch (IOException e) { m2 = e.getMessage(); }
+        ok(m2 != null && m2.contains("接收目录不可用"), "目录不存在：同样报「接收目录不可用」");
+
+        // 只读目录：Windows 上 setWritable(false) 只改只读属性，不阻止在目录里建文件，
+        // 拿不到「不可写」就明确 SKIP —— 让用例假绿比没有用例更糟。
+        File ro = new File(base, "t5_ro");
+        ro.mkdirs();
+        ro.setWritable(false);
+        if (!ro.canWrite()) {
+            String m3 = null;
+            try { LanProtocol.reserve(ro, "a.txt"); } catch (IOException e) { m3 = e.getMessage(); }
+            ok(m3 != null && m3.contains("不可写"), "只读目录：报「接收目录不可写」（" + m3 + "）");
+        } else {
+            System.out.println("SKIP  只读目录用例：本平台 setWritable(false) 不阻止创建子文件");
+        }
+        ro.setWritable(true);
     }
 
     static void deleteTree(File f) {
