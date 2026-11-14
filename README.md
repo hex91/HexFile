@@ -117,7 +117,8 @@ MainActivity  →  controller  →  ui / fs / apk / net
 ```bash
 ./build.sh                 # 构建时自动跑 deps_check + catch_check（SKIP_GATES=1 可绕过）
 bash test/deps_check.sh    # 依赖方向 + 自有包禁止通配 + 全限定名越层
-bash test/catch_check.sh   # 空 catch 不增长（当前基线 338）
+bash test/catch_check.sh   # 空 catch 不增长（当前基线 336）
+bash test/catch_check.sh --others   # 只列「没表态忽略」的那 4 处（欠理由）
 ./test/jc.sh               # 只编译自研包，约 40 秒（改 import / 搬包时的快速校验）
 ./test/jres.sh             # 只重生成 R.java（改了 res/values 后不必等完整构建）
 ```
@@ -126,14 +127,19 @@ v2.5.0 起 `build.sh` 在 aapt2 之前就跑这两道门：以前只有 CI 跑�
 「分层已破 / 新增空 catch」的 APK 完全不受阻，README 的口径与可执行行为对不上。
 两道门合计 1-2 秒，相对 5 分钟出包可忽略。
 
-`jc.sh` 与 `run_core.sh` 共用 `test/toolchain.sh` 定位 JDK / build-tools / android.jar
-（环境变量优先 → 常见位置探测 → 明确报错），不再写死盘符，Linux/macOS 不需要 cygpath。
+`build.sh` 与 `run_core.sh` / `jc.sh` / `jres.sh` 共用 **`tools/toolchain.sh`** 定位
+JDK / build-tools / android.jar / Python（环境变量优先 → 常见位置探测 → 明确报错），
+不再写死盘符，Linux/macOS 不需要 cygpath。显式覆盖的 `JH` / `BT` / `ANDJ` / `PYTHON_EXE`
+同样要过校验，不通过就 `rc=2` 并给一行可操作提示，不会一路跑到 `javac` 才报
+`No such file or directory`。
 `jc.sh` 与 `jres.sh` 都要求先完整跑过一次 `./build.sh`（需要 `build/obj` 里的 vendored
 class 与 `build/gen/R.java`），缺了会直接提示而不是丢一堆「cannot find symbol」。
 
-`catch_check.sh` 只拦「比基线多」，不清零：当前 338 个空 catch 里 321 个的变量名是
-`ignore`/`ignored` —— 也就是作者明确决定吞掉（`close()` / `disconnect()` / `QUIT` 这类
-收尾）。脚本会把「变量名 ignore」与「留空但变量名不是 ignore」分开报，后者才真正欠理由。
+`catch_check.sh` 只拦「比基线多」，不清零：当前 336 个空 catch 里 332 个是作者明确表态
+忽略的（变量名 `ignore*` / `ig` / `ign`，或空块里写着 `ignore` / `忽略` 注释）——
+`close()` / `disconnect()` / `QUIT` 这类收尾本来就不该加日志。剩下 4 处才是真正欠理由的，
+`--others` 直接列出来。计数只覆盖 Java 代码：字符串字面量（含注入 WebView 的 JS）
+先被抹成等长空格，所以 JS 里的 `catch(e){}` 不会被算进来。
 
 ## 已实现功能（v1.6.0，手机上全部可用）
 
@@ -1746,6 +1752,114 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.6.0（versionCode 197）—— 第三轮审计：占位清理、临时名同源、工具链收口
+
+这一版仍然没有新功能，全部是「让工具与代码说的和做的一致」。八项按风险排序，
+前两项是数据面（断网留垃圾、临时名分叉），中间三项是构建可移植性，后三项是门禁精度。
+
+### R-24 / R-27：占位文件的清理契约只在两个分支落实（P2）
+
+`LanProtocol.reserve` 的约定一直是「调用方负责清理这个 0 字节占位文件」，
+但 `LanNode.receive` 只在「长度不符」与「rename 失败」两个分支里 `delete` 过。
+真正的缺口是 `read()` 抛 `IOException`（客户端断网、传输中途关连接）：异常一路抛到
+`serve()`，接住后回 500，占位文件既没删、又已经在 `finally` 里 `end` 掉，不再算活动 ——
+下一次打开「设置 → 遗留文件」才看得到它。一次断网一个 0 字节文件，用户以为「失败但磁盘干净」。
+
+现在用 `done` 统一收口：只有 rename/复制成功才置 true，其余所有退出路径都在 `finally` 里
+`part.delete()` 再 `TempFiles.end(part)`。进程被杀这条路走不到，那种残留靠清理工具。
+
+同时把 `TempFiles.begin(part)` 前移到 `reserve` 返回后的第一行（R-27）。原来要先推导
+`partName` / `finalName`（5 行）才登记，这几行之间设置页拿到的活动快照里没有它、
+删除入口的 `isActive` 预检也放行 —— 正是 R-08 想挡的「扫描之后任务才开始」窗口。
+文件一存在就该是登记态，窗口从 5 行缩到 0 行。
+
+### R-26：`.reb<ts>.tmp` 仍是 3 处生产 + 1 处正则（P2）
+
+`ArchiveWrite`（两处）与 `ZipUtil` 各自拼 `name + ".reb" + currentTimeMillis() + ".tmp"`，
+而认名字的只有 `TempFiles` 里的一条正则。写的人各拼各的、认的人靠正则猜：只要有一处改了
+格式（加进程号、改位数），遗留扫描就再次出现「写了但永远扫不到」—— 正是 R-11 的原始问题。
+
+现在统一走 `TempFiles.rebTmp(target)`，格式由 `REB_INFIX` / `REB_TAIL` 两个常量单点定义，
+识别用的正则紧贴其后。顺带修了同一毫秒内碰撞：三个生产端都没有重试，同毫秒连写两次会共用
+同一个临时名；`rebTmp` 先探测占用，100 次都撞才退化到 `nanoTime`。
+`grep -rn '"\.reb"' src` 现在只剩 `TempFiles` 一处定义。
+
+### R-22：`build.sh` 把开发机路径写死（P2）
+
+到 v2.5.0 为止，`build.sh` 无 `ANDROID_HOME` 时固定用 `E:/repo/android/Sdk`、无 `JAVA_HOME`
+时固定用 `D:/Program Files/Java/zulu17.38.21/bin`、`PYTHON_EXE` 缺省指向
+`C:/Users/han/.workbuddy/.../python.exe`。新机器按 README 直接 `bash build.sh`，会在
+`aapt2` 或 `javac` 处报 `No such file or directory`，看起来像源码或依赖坏了。
+
+R-12 已经在 `test/toolchain.sh` 里修好过同一个问题，只是 `build.sh` 没接进去。现在
+定位器上移到 **`tools/toolchain.sh`**，`build.sh` 与 `run_core.sh` / `jc.sh` / `jres.sh`
+共用一份：环境变量优先 → 常见位置探测 → 明确 `exit 2`。`build.sh` 里那四段重复分支
+（SDK / JDK / NDK / Python）整段删除，改用 `$JH` / `$BT` / `$ANDJ` / `$SEP` / `$PY`。
+NDK 由 `$BT` 反推 SDK 根得到，保持 `E:/...` 形式与旧行为一致。
+`deps_inputs` 把 `tools/toolchain.sh` 也纳入指纹——它决定依赖解析（JDK、平台 jar、分隔符），
+换了它就该重建依赖 dex。
+
+### R-23：显式覆盖 `JH` / `PYTHON_EXE` 不校验（P3）
+
+```
+PYTHON_EXE=/nonexistent/python bash test/catch_check.sh   → rc=127
+JH=/nonexistent/jdk bash test/jc.sh                       → rc=127
+```
+
+README 承诺「环境缺失 → rc=2 + 一行可操作提示」，但校验只在自动探测分支里。现在
+`tools/toolchain.sh` 在探测之后、任何使用之前统一校验 `JH/javac`、`BT/aapt2`、`ANDJ`，
+`catch_check.sh` 对 `PYTHON_EXE` 补 `-c 'pass'` 真跑：
+
+```
+$ JH=/nonexistent/jdk bash test/jc.sh
+JH 下没有 javac: /nonexistent/jdk          （rc=2）
+```
+
+### R-21：空 catch 计数把字符串里的 JS `catch` 也算进来（P3）
+
+`strip_comments` 只处理注释，进入字符串状态后仍把内容原样写回，于是
+`CloudLoginActivity` 里注入 WebView 的 `"...catch(e){}..."` 被当成 Java 空 catch
+计进基线。新增 `blank_strings`：把字符串/字符字面量内容换成**等长空格**（不增删字符、
+保留换行），行号与偏移都不变，`--list` 依旧准；转义对（`\"`、`\\`）整体抹掉，
+否则 `\"` 会被当成字符串结束，后面整段代码被吞。附带修掉同类误判：字符串里的
+`'{'` / `'}'` 原来也参与空块的花括号配对。
+
+顺带发现 `strip_comments` 自己也不满足它注释里写的「等长」前提 —— 它是**删掉**注释字符，
+`clean` 比原文短。行号靠数 `\n` 撑着所以没露馅，但任何按偏移回查原文的地方都是错的。
+现在改成把注释抹白，`clean[i]` 与 `raw[i]` 一一对应。
+
+「明确忽略」的判据也从「变量名是 `ignore`/`ignored`」放宽成三种表态：`ignore*` / `ig` / `ign`
+（实测剩余 17 个里 9 个叫 `ig`，意思完全一样却被算成欠理由）、空块里写了 `ignore`/`忽略`
+注释的。结果：
+
+| | v2.5.0 口径 | v2.6.0 口径 |
+|---|---|---|
+| 空 catch 总数 | 338 | **336**（扣掉 2 处 JS） |
+| 作者明确忽略 | 321 | **332** |
+| 真正欠理由 | 17 | **4** |
+
+剩下 4 处（`ArchiveUtil:333`、`SigKill:198`、`CompareUtil:228`、`MtSyntaxHighlighter:73`）
+都已有中文理由注释（「保留默认」「写盘失败不抛，交给上层」「读失败返回空列表，UI 提示」
+「跳过非法正则」），属于可接受终态。`--others` 可直接列出这一批。
+
+### R-25：`reserve` 在只读目录上空转且报错误导（P3）
+
+任何 `createNewFile == false` 都被当成「重名」，在只读 / 已删除的目录上循环 10000 次，
+最后抛「无法分配唯一临时文件名」—— 真实原因是权限或 IO，照着这个报错去查重名方向完全错。
+现在区分三种结局：目录不是目录 → `接收目录不可用`；连续 3 次「不是重名却创建不出来」
+→ `创建占位文件失败` / `接收目录不可写`；真的换号一万次才用原来的措辞。
+
+`canWrite()` 只用来决定报错措辞，**不作为拦截判据**：部分 FUSE / SAF 路径会误报 false，
+而写入其实可行；真正判死活的是 `createNewFile` 的返回值。
+
+### R-28：`LanNode` 残留未用 import（P3）
+
+删 `existingNames` 之后 `java.util.HashSet` 与 `java.util.Set` 已无引用，`javac -nowarn`
+不报未用 import，构建与门都发现不了。两行删掉。`imports_check.sh` 那类启发式没做：
+同名类与静态导入会误报，收益低于维护成本。
+
+---
+
 ## v2.5.0（versionCode 196）—— 新图标 + 第二轮审计（并发、门禁、清理界面）
 
 ### 启动图标
@@ -1794,7 +1908,8 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ### R-12 / R-13 / R-14：门禁与工具链
 
-- `test/toolchain.sh`：JDK / build-tools / android.jar 的定位只维护一份，
+- `test/toolchain.sh`（v2.6.0 起移到 `tools/toolchain.sh`，`build.sh` 一并接入）：
+  JDK / build-tools / android.jar 的定位只维护一份，
   `run_core.sh` 与 `jc.sh` 共用；`cygpath` 只在 Windows 分支调用。
 - `catch_check.sh` 自己探测 Python（`python3 → python → py`，用 `-c pass` 真跑一次，
   Windows Store 存根会被跳过），找不到就 `rc=2` 明确报错。以前硬编码 `python3`，
@@ -1832,6 +1947,10 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 于是 `catch_check.sh` 增加了一行分类统计：**338 个空 catch 里 321 个的变量名是
 `ignore`/`ignored`** —— 作者当时明确决定吞掉；只有 17 个是「留空但变量名不是 ignore」，
 后者才是真正欠理由的地方。后续批次按这 17 个走，比按目录走准。
+
+> v2.6.0 复核后发现这个 17 仍然高估：9 个的变量名叫 `ig`（与 `ignore` 同义）、
+> 2 个是 WebView 注入的 JS 源码误报、2 个在空块里写了 `ignore` 注释。
+> 修完是 **336 总数 / 4 个真欠理由**，见 v2.6.0 的 R-21。
 
 ## v2.4.0（versionCode 194）—— 审计修复：三处数据风险 + 分层收口
 
