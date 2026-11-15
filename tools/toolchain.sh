@@ -21,10 +21,16 @@
 #   JH=/path/to/jdk/bin  BT=/path/to/build-tools/37.0.0  ANDJ=/path/to/android.jar
 #   PYTHON_EXE=python
 #
+# 环境变量：JAVA_HOME / ANDROID_HOME / ANDROID_SDK_ROOT 优先于下面的常见位置；
+# ANDROID_HOME / ANDROID_SDK_ROOT 一旦给出就必须是真目录，否则 exit 2（R-32：静默回退
+# 到机器上的另一个 SDK 比直接报错更危险）。
+#
 # 为什么不写死盘符：v1.96.0 之前的 run_core.sh 把 D:/ 与 E:/ 写死在脚本里，等于把测试
 # 锁在开发机上；build.sh 到 v2.5.0 仍然固定 E:/repo/android/Sdk、zulu17.38.21 与
 # C:/Users/<某人>/.workbuddy/.../python.exe —— 新机器按 README 直接 bash build.sh，
 # 会在 aapt2 或 javac 处报 No such file or directory，看起来像源码或依赖坏了。
+# v2.9.0 起 JDK 那一行也不再钉版本（原来钉死 jdk-21.0.3+9，等于另一台装了 17 的机器
+# 明明能用却报「找不到 JDK」）：只认 JAVA_HOME → PATH 上的 javac。
 
 first_existing() {
   for c in "$@"; do
@@ -55,11 +61,29 @@ esac
 # Windows 的 JAVA_HOME 可能带反斜杠（D:\Program Files\...），先归一成 / 再拼 /bin。
 norm() { printf '%s' "$1" | tr '\\' '/'; }
 
+# v2.9.0（R-32）：显式 ANDROID_HOME / ANDROID_SDK_ROOT 指向不存在的目录时直接报错。
+# 之前 first_existing 只是「跳过无效候选」，于是
+#   ANDROID_HOME=/nonexistent/sdk bash build.sh
+# 会静默落到机器上的另一个 SDK —— 构建"成功"，但用的不是你以为的那个；换台机器又变成
+# 「找不到 android.jar」。与 R-23 刚建立的「显式覆盖必须校验」口径不一致。
+# 只校验将被采用的那个变量（ANDROID_HOME 优先），两者互相矛盾时不啰嗦。
+if [ -n "${ANDROID_HOME:-}" ]; then
+  [ -d "$(norm "$ANDROID_HOME")" ] || {
+    echo "ANDROID_HOME 指向的目录不存在: $ANDROID_HOME" >&2
+    echo "  要指向 SDK 根目录（含 build-tools/ 与 platforms/），不是 build-tools 子目录" >&2
+    exit 2
+  }
+elif [ -n "${ANDROID_SDK_ROOT:-}" ]; then
+  [ -d "$(norm "$ANDROID_SDK_ROOT")" ] || {
+    echo "ANDROID_SDK_ROOT 指向的目录不存在: $ANDROID_SDK_ROOT" >&2
+    exit 2
+  }
+fi
+
 if [ -z "${JH:-}" ]; then
   JH=$(first_existing "${JAVA_HOME:+$(norm "$JAVA_HOME")/bin}" \
-        "D:/Program Files/Java/jdk-21.0.3+9/bin" \
         "$(dirname "$(command -v javac 2>/dev/null || echo /nonexistent/none)" 2>/dev/null)") \
-    || { echo "找不到 JDK：用 JH=/path/to/jdk/bin 指定" >&2; exit 2; }
+    || { echo "找不到 JDK：用 JH=/path/to/jdk/bin 指定（或设 JAVA_HOME / 把 javac 放进 PATH）" >&2; exit 2; }
 fi
 EXE=""
 [ -f "$JH/javac.exe" ] && EXE=".exe"
