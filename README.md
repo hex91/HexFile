@@ -147,10 +147,12 @@ JDK / build-tools / android.jar / Python（环境变量优先 → 常见位置�
 `jc.sh` 与 `jres.sh` 都要求先完整跑过一次 `./build.sh`（需要 `build/obj` 里的 vendored
 class 与 `build/gen/R.java`），缺了会直接提示而不是丢一堆「cannot find symbol」。
 
-`catch_check.sh` 只拦「比基线多」，不清零：当前 336 个空 catch 里 332 个是作者明确表态
+`catch_check.sh` 只拦「比基线多」，不清零：当前 335 个空 catch 里 331 个是作者明确表态
 忽略的（变量名 `ignore*` / `ig` / `ign`，或空块里写着 `ignore` / `忽略` 注释）——
 `close()` / `disconnect()` / `QUIT` 这类收尾本来就不该加日志。剩下 4 处才是真正欠理由的，
-`--others` 直接列出来。计数只覆盖 Java 代码：字符串字面量（含注入 WebView 的 JS）
+`--others` 直接列出来。基线留在 336（v2.9.0 清掉 `FileOps.readAllBytes` 里那个
+`catch (Exception ignored) {}` 后实测 335），门只拦增长，不逼着往下砍。
+计数只覆盖 Java 代码：字符串字面量（含注入 WebView 的 JS）
 先被抹成等长空格，所以 JS 里的 `catch(e){}` 不会被算进来。
 
 ## 已实现功能（v1.6.0，手机上全部可用）
@@ -1764,6 +1766,108 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.9.0（versionCode 200）—— 第四轮审计：死 import、文案门补转换符、读文件收口、工具链兜底
+
+§20 的五个审计项（R-29 ~ R-33），**没有一条会改变界面行为**；共同点是「不影响功能、
+但会让下一个读代码的人判断错」：死 import 让评审分不清某页是否还在用 `AlertDialog`；
+门少比一半让错翻的 `%1$d` 溜进英文包；四份 `readAllBytes` 让修一处漏三处；
+`ANDROID_HOME` 拼错却"构建成功"让人以为用的是那个 SDK；README 的「55/55」把 4 个 SKIP
+算成了通过。做法一致：先让脚本把账算清，再动手，最后把口径写回文档。
+
+### R-29：清掉 50 处死 import（文档清单列了 45 处）
+
+口径：抹掉注释与字符串字面量后，按简单名判断该 import 是否在文件其余部分出现；
+`import static` 与通配不参与统计。实测 **50 处 / 36 文件**，比文档的 45 处 / 32 文件
+多 5 处，多出来的都是名字只出现在**字符串或 javadoc** 里的：
+`LanShareActivity` 的 `AlertDialog` 只在 `{@code AlertDialog.setItems}` 里、
+`ApkInfoActivity` / `CompareActivity` 的 `Activity` 只在 `comp("Activity", …)` 这类
+字面量里、`SyntaxHighlight` 的 `Shell` 只有 `buildShell()` 这个子串和 `"Shell"` 语言名、
+`SmaliDocs` 的 `FileOps` 只在 smali 示例文本里 —— 正好是「看起来还在用」的典型。
+
+分布：`AlertDialog` **17**、`List` 4、`Environment` 3、`ArrayList` 2、`Uri` 2，其余
+22 个各 1。`AlertDialog` 一家占三分之一，成因统一：v2.x 把弹窗换成 `HfDialogBuilder`
+之后 import 留在原地。`com/termux` 与 `jadx` 是 Apache-2.0 的第三方 fork，12 处不动。
+
+**不加门**：README v2.6 的权衡仍然成立（同名类与静态导入误报率高，收益低于维护成本），
+这次是「清一次」，不是「加一道」。清完 `test/jc.sh` rc=0，`deps_check` 仍 0。
+
+### R-30：文案门补上「转换符」比较
+
+原实现只抓 `%(\d+)\$`，`%1$s` 与 `%1$d` 得到同一个集合 `{'1'}` —— 译者把英文写成
+`%1$d`，编译、门、单测全绿，只有英文用户在 `String.format` 处吃到
+`IllegalFormatConversionException` 闪退。现在按 `%[位置$][标志][宽度][.精度]转换符`
+解析成 `(位置, 转换符)` 再比：
+
+- 日期时间类 `%1$tY` / `%1$td` 连后缀一起取，不把两个不同转换看成同一个；
+- 无位置参数的 `%s` / `%d` 以 `-` 当位置参与比较；`plurals` 的 `%d` 是 quantity，
+  按**集合**比不会因为 `one` / `other` 条数不同而误报；
+- 失败信息直接给 `%1$s` 形式：`leftover_scanning 格式参数不一致: 中文 %1$s / 英文 %1$d`。
+
+合成用例实测：改英文 `%1$s` → `%1$d` → FAIL + rc=1；还原 → PASS；真实仓库 330 个键
+两侧齐全仍 PASS（当前没有一处类型不符，属「幸未发生」）。
+
+### R-31：`readAllBytes` 四份实现收成两份
+
+| 位置 | 现状 |
+| --- | --- |
+| `core/ByteIO.readAll` | 纯 JDK 整读（流版本也在这里） |
+| `fs/FileOps.readAllBytes` | 失败回退 `RootIO`；**现在只留回退那一层**，缓冲循环委托 `ByteIO` |
+| `TextEditorActivity` 私有 | 删除，改调 `ByteIO.readAll` |
+| `DexEditorActivity` 私有 | 删除，改调 `ByteIO.readAll` |
+
+两个 Activity 原本就是纯读、无 root 回退，替换后行为不变。`ByteIO` 的类注释原来指向
+`MainActivity.readAllBytes`（O-19/O-22 期间已删），现在改成「要 root 回退走
+`FileOps.readAllBytes`，只读普通目录用本类」。`FileOpsTest` 补第 6 条断言，把
+「`readAllBytes(null)` 抛 `IOException`（委托前是 NPE）」固化下来 —— 调用方都
+`catch Exception`，形态变化无影响，但不写下来就会被下一个人当 bug 改回去。
+
+顺带收益：`FileOps` 里那个 `catch (Exception ignored) {}` 随实现一起删了，
+空 catch 总数 336 → 335（基线不动，门只拦增长）。
+
+### R-32：`ANDROID_HOME` / `ANDROID_SDK_ROOT` 错值不再静默回退
+
+原来 `first_existing` 只是「跳过不存在的候选」，于是
+`ANDROID_HOME=/nonexistent/sdk bash build.sh` 会落到机器上的另一个 SDK —— 构建
+"成功"，用的却不是你以为的那个；换台机器又变成「找不到 android.jar」。现在只要
+给了 `ANDROID_HOME`（优先）或 `ANDROID_SDK_ROOT`，就必须是真目录，否则 `exit 2` +
+一行可操作提示（并提醒「要指向 SDK 根目录，不是 build-tools 子目录」）。
+
+同时删掉 JDK 兜底里钉死的 `D:/Program Files/Java/jdk-21.0.3+9/bin`：装了 JDK 17
+却没设 `JAVA_HOME` 的机器本来能用，被这行钉成「找不到 JDK」。现在只认
+`JAVA_HOME` → `PATH` 上的 `javac`，都没有才报错，报错里补上三种解法。
+
+实测四条：`ANDROID_HOME=/nonexistent bash test/jc.sh` → rc=2 + 两行提示；
+`ANDROID_HOME=E:/repo/android/Sdk` → 正常出 `BT`；
+`env -u JAVA_HOME` → 取 PATH 上的 `javac`（本机 zulu17）；`JH=/nope` → rc=2（R-23 的校验）。
+
+### R-33：README 的「55/55」按 `run_core.sh` 末行口径重写
+
+`QUICK=1 ./test/run_core.sh` 的末行是 `pass= / fail= / skip=`，README 只抄了分子：
+本机 `test/huangguo.apk` 在（44MB，`.gitignore` 里，**不入库**）时是 55 PASS，干净 clone
+则必然 4 SKIP —— 而「51 PASS + 4 SKIP」被写成「55/55」，正好是 R-20 要治的那类
+「样本缺失 = 通过」。现在统一写成「N 用例：X PASS / Y SKIP（原因）」，并注明样本在不在
+两种结果。同类口径问题一并修：`MainActivity` v2.7.0 的 `4,036 行（−375）` 按 `wc -l`
+复核为 `4,035 行（−376）`；`v2.5.0` 那句 `ALL=57` 标注成「当时」。
+
+### 验证
+
+- `build.sh` → **BUILD OK，v200 / 2.9.0，13M，V3 CN=hex91**（`aapt2 dump badging` 核对
+  `versionCode='200'`）
+- 桌面单测：`QUICK=1` **55 用例 55 PASS / 0 SKIP**；`ALL` **58 用例 58 PASS / 0 SKIP**
+  （本机样本在；干净 clone 见 R-33 的两种结果）
+- 三道门：`deps_check` 0 命中、`catch_check` 335（基线 336）、`lang_check` PASS（330 键）
+
+**真机测试点**（本轮不动界面，重点在 R-31 改过的读文件路径）：
+
+1. 设置页确认版本 `2.9.0 (200)`；
+2. 长按 APK → 查看签名信息 → 输密码 → 条目详情（走 `FileOps.readAllBytes`）；
+3. 长按 keystore → 导入到签名管理（同上）；
+4. 用文本编辑器打开 `AndroidManifest.xml` 改一处再保存（`saveRoundtrip` 走
+   `ByteIO.readAll`），确认能重新出包、无「回读校验失败」；
+5. dex 编辑器改一处 smali → 保存写回（同上），确认 `_bak.apk` 逻辑照旧。
+
+---
+
 ## v2.8.0（versionCode 199）—— O-24 批次 1：签名管理 + 文本编辑器 i18n
 
 F-14 的逐页迁移继续。这一批是计划里最大的两页（审计口径 273 处），实际拆成两次提交：
@@ -1812,16 +1916,24 @@ F-14 的逐页迁移继续。这一批是计划里最大的两页（审计口径
   `String.format` 抛 `MissingFormatArgumentException`，直接闪退。
 
 门查四件事：代码引用的键在中文资源里存在且类型一致、`values-en` 没有孤儿键、
-两侧资源类型一致、两侧位置参数集合一致。**不查**英文覆盖率（理由见上），只作统计输出。
+两侧资源类型一致、两侧格式占位符集合一致（**位置 + 转换符**，`%1$s` ≠ `%1$d`，
+v2.9.0 的 R-30 补上了后半截；只看位置时 `%1$s` / `%1$d` 的集合都是 `{'1'}`）。
+**不查**英文覆盖率（理由见上），只作统计输出。
 
-反向验证三条（都已实测）：改英文参数 → FAIL、删一条英文 → PASS、引用不存在的键 → FAIL。
+反向验证四条（都已实测）：改英文参数 → FAIL、改英文转换符 `%1$s`→`%1$d` → FAIL、
+删一条英文 → PASS、引用不存在的键 → FAIL。
 
 ### 验证
 
+口径：一律抄 `run_core.sh` 末行 `pass= / fail= / skip=`，**SKIP 必须写原因**——
+「51 PASS + 4 SKIP」不等于「55 PASS」，样本缺失曾经被当成通过，这正是 R-20 要治的病。
+本机（`test/huangguo.apk` 在，44MB，gitignore 不入库）：
+
 - `build.sh` → **BUILD OK，v199，13M，V3 CN=hex91**
-- `QUICK=1 ./test/run_core.sh` → **55/55**
+- `QUICK=1 ./test/run_core.sh` → **55 用例：55 PASS / 0 SKIP**；`ALL` → **58 用例：58 PASS / 0 SKIP**
+- 干净 clone（无样本）：`QUICK=1` 51 PASS + 4 SKIP、`ALL` 51 PASS + 7 SKIP（新增 3 条 E2E 也缺样本）
 - 三道门：`deps_check` 0 命中、`catch_check` 336（持平）、`lang_check` PASS
-- 英文侧机械核对：330 个键两侧齐全，位置参数逐条比对通过（`lang_check` 输出）
+- 英文侧机械核对：330 个键两侧齐全，位置 + 转换符逐条比对通过（`lang_check` 输出）
 
 **真机回归**：切系统语言到英文，走一遍「抽屉 → 签名管理」（导入签名卡片、空状态
 文案、创建签名表单、条目长按菜单、详情、删除确认）与「文本编辑器」的主菜单 /
@@ -1889,7 +2001,7 @@ if (signFlow.handleResult(req, res, data)) return;   // 本簇的请求码，控
 原来这份实现是 `MainActivity.readFileBytes` 私有方法。控制器要用它，两个选择：复制一份，
 或者落到 fs 层。选了后者 —— 它本来就和界面无关，叫 `FileOps.readAllBytes`。
 
-新增 `test/FileOpsTest`（5 条断言，已进 `run_core.sh`）：逐字节相等（含 `0x00` / `0x80` /
+新增 `test/FileOpsTest`（5 条断言，v2.9.0 加第 6 条锁 null 契约；已进 `run_core.sh`）：逐字节相等（含 `0x00` / `0x80` /
 `0xFF` 三个边界）、空文件返回 0 字节而非 null、不存在的文件**抛异常**而不是退化成 null、
 传目录抛异常。最后两条是这个方法唯一容易做错的地方：回退链一旦把失败吞成 null，
 调用方拿到的是 NPE 而不是「读失败」。
@@ -1902,12 +2014,16 @@ if (signFlow.handleResult(req, res, data)) return;   // 本簇的请求码，控
 
 | | v2.6.0 | v2.7.0 |
 |---|---|---|
-| `MainActivity` | 4411 行 | **4036 行**（−375） |
+| `MainActivity` | 4411 行 | **4035 行**（−376） |
 | `controller/` 类数 | 7 | **8** |
 | 空 catch 总数 | 336 | 336（控制器内 12 个，都是从 `MainActivity` 位移过来的 `catch (Throwable ignored)`） |
 
 空 catch 总数不变是这一刀「只搬不改」的证据：如果哪一段在搬运中被顺手删了 `catch`，
 计数会掉；如果补了日志，计数会掉 —— 都没发生。
+
+> 行数口径：一律 `wc -l`。本节 v2.7.0 当时写的是「4,036 行（−375）」，本轮按同一命令
+> 复核为 `4411 → 4035`（−376）。差 1 行的原因已不可考（当时文件正在改，多半是记在
+> 清理死 import 之前），不影响「搬走 376 行」这个结论。
 
 顺手删掉 `MainActivity` 里 `java.io.FileOutputStream` 的死 import（旧代码里 `doSigKill`
 用的是全限定名，这个 import 从加上那天起就没被用过）。
@@ -2099,7 +2215,7 @@ JH 下没有 javac: /nonexistent/jdk          （rc=2）
 
 缺 `test/huangguo.apk` 时，只有 4 个用例会 SKIP；`SessionTest`、`SignPromptFlowTest`、
 `CustomSignE2ETest` 走 `*)` 分支拿到同一个样本路径，内部直接调 `ApkSignerTool.sign`，
-于是 `bash test/run_core.sh`（`ALL=57`）在新机器上无条件变红。现在这三个也 SKIP，
+于是 `bash test/run_core.sh`（当时 `ALL=57`）在新机器上无条件变红。现在这三个也 SKIP，
 `SessionTest` 还单独判 `assets/hexfile.p12`。
 
 ### O-22 刀2：`ArchiveAddController`
