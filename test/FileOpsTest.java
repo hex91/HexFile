@@ -69,6 +69,18 @@ public class FileOpsTest {
         }
         ok(dirThrew, "readAllBytes 传目录抛异常");
 
+        // 5) null：v2.9.0（R-31）委托给 ByteIO.readAll 前是 NPE，之后是 IOException。
+        //    调用方都 catch Exception，行为等价；这里固化「异常而不是 null」这个契约。
+        boolean nullThrew = false;
+        try {
+            FileOps.readAllBytes(null);
+        } catch (java.io.IOException e) {
+            nullThrew = true;
+        } catch (Exception e) {
+            nullThrew = false;   // NPE 之类也算「抛了」，但不是我们要的形态
+        }
+        ok(nullThrew, "readAllBytes(null) 抛 IOException（不是 NPE）");
+
         f.delete();
         empty.delete();
         base.delete();

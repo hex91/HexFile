@@ -9,13 +9,17 @@ import java.io.InputStream;
 /**
  * v2.4.0（O-19）：整读字节的小工具。
  *
- * <p><b>为什么单开一个类</b>：{@code MainActivity.readAllBytes} 被
- * {@code ArchiveController} 调了 5 处（压缩包条目读取、写回前取原内容），
- * 而 {@code MainActivity} 是 4,600 行的宿主壳 —— controller 反向依赖它这件事，
- * 一半的耦合量就出在这种「一个纯函数长在了 Activity 里」的地方。</p>
+ * <p><b>为什么单开一个类</b>：整文件读取原来长在 4,600 行的 {@code MainActivity} 里，
+ * 被 {@code ArchiveController} 调了 5 处（压缩包条目读取、写回前取原内容）——controller
+ * 反向依赖宿主，一半的耦合量就出在这种「一个纯函数长在了 Activity 里」的地方。</p>
  *
  * <p>纯 JDK，不进 {@code android.*}，桌面单测可直接用；流版本顺手一起收进来，
  * 免得各处再写一遍「读到底部拼 byte[]」的循环。</p>
+ *
+ * <p><b>入口选哪个</b>（v2.9.0，R-31）：需要 root 回退（/data 等受限路径）时走
+ * {@link com.hex91.file.fs.FileOps#readAllBytes}，它内部就是本类的 {@link #readAll(File)}
+ * 加一层 {@code RootIO} 兜底；只在普通目录读时直接用本类，别在各 Activity 里再抄一份
+ * ——本轮清掉了文本编辑器与 dex 编辑器的两份私有副本。</p>
  */
 public final class ByteIO {
 

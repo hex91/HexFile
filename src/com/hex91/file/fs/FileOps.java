@@ -1,6 +1,8 @@
 package com.hex91.file.fs;
 
 
+import com.hex91.file.core.ByteIO;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -143,19 +145,14 @@ public class FileOps {
      * <p>原来这份实现是 {@code MainActivity.readFileBytes} 私有方法，只被「导入签名」与
      * 「查看签名信息」用；签名簇搬进 {@code SignFlowController} 后两处都要用，与其复制一份
      * 不如落到 fs 层——它本质就是「带 root 回退的整文件读取」，与界面无关。</p>
+     *
+     * <p>v2.9.0（R-31）：缓冲循环复用 {@link ByteIO#readAll(File)}，本层只留「失败回退 root」。
+     * 之前全仓有四个同义实现（这里、{@code ByteIO}、文本编辑器、dex 编辑器），改缓冲区大小
+     * 或关闭异常处理时总会漏掉几个。</p>
      */
     public static byte[] readAllBytes(File f) throws Exception {
         try {
-            FileInputStream in = new FileInputStream(f);
-            try {
-                java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
-                byte[] buf = new byte[65536];
-                int n;
-                while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
-                return bo.toByteArray();
-            } finally {
-                try { in.close(); } catch (Exception ignored) { }
-            }
+            return ByteIO.readAll(f);
         } catch (Exception e) {
             byte[] rb = RootIO.readBytes(f);
             if (rb != null) return rb;

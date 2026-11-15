@@ -3,6 +3,7 @@ package com.hex91.file.ui;
 import com.hex91.file.R;
 import com.hex91.file.apk.ApkEditSession;
 import com.hex91.file.apk.SmaliTool;
+import com.hex91.file.core.ByteIO;
 import com.hex91.file.fs.TreeOps;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
@@ -803,7 +804,7 @@ public class DexEditorActivity extends BaseActivity {
         new Thread() { public void run() {
             String err = null;
             try {
-                byte[] dexBytes = readAllBytes(outDex);
+                byte[] dexBytes = ByteIO.readAll(outDex);
                 // v1.66.8：登记进 ApkEditSession → 重打包写回原包（首次修改自动备份 _bak.apk）
                 ApkEditSession.putEdit(DexEditorActivity.this, apk, dexes.get(0), dexBytes);
                 if (dexes.size() > 1)
@@ -851,19 +852,6 @@ public class DexEditorActivity extends BaseActivity {
     }
 
     // ---------- 自动签名（v1.67.4 起与 Manifest/ARSC 编辑器共用 ApkSignHelper） ----------
-
-    private static byte[] readAllBytes(File f) throws java.io.IOException {
-        FileInputStream fi = new FileInputStream(f);
-        try {
-            java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
-            byte[] buf = new byte[65536];
-            int n;
-            while ((n = fi.read(buf)) > 0) bo.write(buf, 0, n);
-            return bo.toByteArray();
-        } finally {
-            fi.close();
-        }
-    }
 
     // ---------- IO 小工具 ----------
 

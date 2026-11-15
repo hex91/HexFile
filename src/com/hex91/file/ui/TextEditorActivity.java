@@ -15,6 +15,7 @@ import com.hex91.file.apk.ArscPlus;
 import com.hex91.file.apk.ArscWriter;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.fs.RootIO;
+import com.hex91.file.core.ByteIO;
 import com.hex91.file.core.FormatUtil;
 import com.hex91.file.apk.ArchiveWrite;
 import com.hex91.file.apk.AxmlFile;
@@ -1482,7 +1483,7 @@ public class TextEditorActivity extends BaseActivity {
                 boolean userError = false;
                 File outApk = null;
                 try {
-                    byte[] orig = readAllBytes(rtAxmlFile);
+                    byte[] orig = ByteIO.readAll(rtAxmlFile);
                     AxmlFile axml = AxmlFile.parse(orig);
                     byte[] newAxml = AxmlTextSync.sync(axml, text);
                     AxmlFile check = AxmlFile.parse(newAxml);
@@ -1519,16 +1520,6 @@ public class TextEditorActivity extends BaseActivity {
                 });
             }
         }, "rt-save").start();
-    }
-
-    private byte[] readAllBytes(File f) throws Exception {
-        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
-        java.io.FileInputStream in = new java.io.FileInputStream(f);
-        byte[] buf = new byte[65536];
-        int n;
-        while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
-        in.close();
-        return bo.toByteArray();
     }
 
     private void save() {
