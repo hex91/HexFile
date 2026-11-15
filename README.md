@@ -121,7 +121,7 @@ MainActivity  →  controller  →  ui / fs / apk / net
 bash test/deps_check.sh    # 依赖方向 + 自有包禁止通配 + 全限定名越层
 bash test/catch_check.sh   # 空 catch 不增长（当前基线 336）
 bash test/catch_check.sh --others   # 只列「没表态忽略」的那 4 处（欠理由）
-bash test/lang_check.sh    # 文案键：引用的键存在、两侧类型与格式参数一致
+bash test/lang_check.sh    # 文案键：引用的键存在、两侧类型与「位置 + 转换符」一致
 ./test/jc.sh               # 只编译自研包，约 40 秒（改 import / 搬包时的快速校验）
 ./test/jres.sh             # 只重生成 R.java（改了 res/values 后不必等完整构建）
 ```
@@ -132,8 +132,11 @@ v2.5.0 起 `build.sh` 在 aapt2 之前就跑这些门：以前只有 CI 跑，�
 
 `lang_check.sh`（v2.8.0）只查「键能不能对上」，不查翻译质量：代码引用的键必须在中文
 资源里存在且类型（`string` / `plurals`）一致；`values-en` 不能出现中文侧没有的孤儿键；
-两侧同名键的**位置参数集合**必须一致（少一个 → 界面上缺内容；多一个 → 运行时
-`MissingFormatArgumentException` 闪退）。英文覆盖率只作统计，因为 v2.3.0 定的规矩是
+两侧同名键的**格式占位符**必须一致——比的是「位置 + 转换符」（`%1$s` ≠ `%1$d`），
+少一个 → 界面上缺内容；多一个 → 运行时 `MissingFormatArgumentException`；
+类型不符（`String` 套 `%d`）→ `IllegalFormatConversionException`，都是闪退（v2.9.0，R-30）。
+无位置参数的 `%s` / `%d` 也参与比较（`plurals` 的 `%d` 是 quantity，按集合比不会误报）。
+英文覆盖率只作统计，因为 v2.3.0 定的规矩是
 「只放已完成迁移的键」，未迁移页面回退中文属预期。
 
 `build.sh` 与 `run_core.sh` / `jc.sh` / `jres.sh` 共用 **`tools/toolchain.sh`** 定位

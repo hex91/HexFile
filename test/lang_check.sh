@@ -11,7 +11,10 @@
 #   - **格式参数对不上** —— 中文 `已保存 %1$s`、英文翻成 `Saved`（丢了参数）不崩，
 #     但界面上「已保存」后面什么都没有；反过来英文多一个 %2$s 而调用方只传一个参数，
 #     运行时 String.format 抛 MissingFormatArgumentException，直接闪退。
-#   前三类里第三、四类是真会静默出问题的，最后一条尤其值得拦。
+#   - **转换符类型对不上**（v2.9.0，R-30）—— 中文 `%1$s`、英文写成 `%1$d`：位置集合都是
+#     {1}，只看「有没有第 1 个参数」的门看不见，但切英文时 String.format 拿 String 套 %d，
+#     抛 IllegalFormatConversionException 直接闪退。所以比较的键是 (位置, 转换符)。
+#   前三类里第三、四类是真会静默出问题的，最后两条尤其值得拦。
 #
 # 刻意不做的检查（避免把门做成噪音）：
 #   - 不要求 values-en 覆盖全部键：v2.3.0 定的规矩是「只放已完成迁移的键」，
@@ -43,8 +46,44 @@ def bad(msg):
     BAD.append(msg)
 
 # ---------------------------------------------------------------- 读资源
+# 占位符解析：Android 的格式化语法是 %[位置$][标志][宽度][.精度]转换符。
+# 只看「位置」不够（R-30）：%1$s 与 %1$d 位置相同、语义不同，切语言就崩。
+# 转换符取最后一个字母，日期时间类（%1$tY）连后缀一起取，避免 %tY/%td 被看成同一个。
+SPEC = re.compile(r'%(\d+)\$([-+#0,(]*\d*(?:\.\d+)?)([a-zA-Z])')
+PLAIN = re.compile(r'%(?!\d+\$)([-+#0,(]*\d*(?:\.\d+)?)([a-zA-Z%])')
+
+def conv_of(s, m, gi):
+    """取转换符；日期时间类 %1$tY / %1$td 连后缀一起取，避免被当成同一个"""
+    conv = m.group(gi)
+    if conv in 'tT':
+        nxt = s[m.end():m.end() + 1]
+        if nxt.isalpha():
+            conv += nxt
+    return conv
+
+def specs(s):
+    """返回 {(位置, 转换符)}；无位置参数的 %s/%d 用 '-' 当位置。
+    plurals 的 %d 是 quantity，两侧都有、按集合比较不会因为 one/other 条数不同而误报。"""
+    out = set()
+    for m in SPEC.finditer(s):
+        out.add((m.group(1), conv_of(s, m, 3)))
+    for m in PLAIN.finditer(s):
+        conv = conv_of(s, m, 2)
+        if conv != '%':
+            out.add(('-', conv))
+    return out
+
+def fmt_args(s):
+    """把 {(位置, 转换符)} 渲染成 %1$s, %d 这样的可读形式，方便照着改"""
+    if not s:
+        return '无'
+    def one(t):
+        i, c = t
+        return '%%%s$%s' % (i, c) if i != '-' else '%%%s' % c
+    return ', '.join(one(t) for t in sorted(s, key=lambda t: (t[0] == '-', int(t[0]) if t[0] != '-' else 0, t[1])))
+
 def load(path):
-    """返回 {name: (kind, [arg set])}；解析失败直接算违规（XML 坏了构建也会挂，先说清楚）"""
+    """返回 {name: (kind, [格式参数集合])}；解析失败直接算违规（XML 坏了构建也会挂，先说清楚）"""
     d = {}
     try:
         root = ET.parse(path).getroot()
@@ -60,7 +99,7 @@ def load(path):
             bad('%s 重复的键: %s' % (path, name))
         args = set()
         for s in el.itertext():
-            args |= set(re.findall(r'%(\d+)\$', s))
+            args |= specs(s)
         d[name] = (kind, args)
     return d
 
@@ -96,10 +135,11 @@ for name, (ekind, eargs) in sorted(EN.items()):
     if ekind != zkind:
         bad('%s 两侧资源类型不同: <%s> vs <%s>' % (name, zkind, ekind))
         continue
-    # 位置参数必须一一对应：少了会输出空、多了会运行时抛 MissingFormatArgumentException
+    # 位置 + 转换符必须一一对应：少了会输出空、多了会抛 MissingFormatArgumentException、
+    # 类型不符（%1$s 对 %1$d）会抛 IllegalFormatConversionException
     if eargs != zargs:
         bad('%s 格式参数不一致: 中文 %s / 英文 %s'
-            % (name, sorted(zargs) or '无', sorted(eargs) or '无'))
+            % (name, fmt_args(zargs), fmt_args(eargs)))
 
 # ---------------------------------------------------------------- 统计
 translated = len([n for n in ZH if n in EN])
