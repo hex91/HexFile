@@ -2,7 +2,6 @@ package com.hex91.file.apk;
 
 import com.hex91.file.core.AtomicReplace;
 import android.content.Context;
-import android.content.Intent;
 
 import java.io.File;
 import java.io.FileInputStream;

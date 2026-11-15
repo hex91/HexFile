@@ -6,7 +6,6 @@ import com.hex91.file.apk.ApkEditSession;
 import com.hex91.file.apk.ArchiveUtil;
 import com.hex91.file.apk.SmaliTool;
 import com.hex91.file.fs.WorkDir;
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;

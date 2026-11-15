@@ -15,7 +15,6 @@ import com.hex91.file.net.SmbFs;
 import com.hex91.file.net.WebDavFs;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.fs.WorkDir;
-import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.Intent;
 import android.database.Cursor;

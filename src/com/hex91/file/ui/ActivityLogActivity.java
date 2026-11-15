@@ -2,7 +2,6 @@ package com.hex91.file.ui;
 
 import com.hex91.file.utils.ActivityLog;
 import com.hex91.file.R;
-import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;

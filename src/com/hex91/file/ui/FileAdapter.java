@@ -11,7 +11,6 @@ import com.hex91.file.core.MimeUtil;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.drawable.GradientDrawable;
-import android.util.Log;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -22,8 +21,6 @@ import android.widget.TextView;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 
 /** 文件列表适配器：MT 风格条目（类型彩色图标 + 名称 + 时间/大小），支持排序与隐藏文件 */

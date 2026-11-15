@@ -8,7 +8,6 @@ import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 
 import java.security.KeyStore;
-import java.security.SecureRandom;
 import java.util.Arrays;
 
 import javax.crypto.KeyGenerator;

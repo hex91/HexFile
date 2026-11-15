@@ -3,7 +3,6 @@ package com.hex91.file.ui;
 import com.hex91.file.fs.DiskScanUtil;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.core.ScanCache;
-import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.DialogInterface;
 import android.graphics.drawable.GradientDrawable;
@@ -18,7 +17,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
-import java.util.List;
 
 /**
  * 存储分析（v1.59.0，v1.73.0 重构）：

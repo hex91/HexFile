@@ -8,7 +8,6 @@ import com.hex91.file.R;
 import com.hex91.file.MainActivity;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.core.MimeUtil;
-import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.DialogInterface;
 import android.content.Intent;

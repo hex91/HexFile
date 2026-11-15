@@ -4,7 +4,6 @@ import com.hex91.file.fs.Trash;
 import com.hex91.file.fs.TrashPolicy;
 import android.app.Activity;
 import android.content.DialogInterface;
-import android.view.View;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;

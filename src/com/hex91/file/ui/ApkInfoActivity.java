@@ -3,7 +3,6 @@ package com.hex91.file.ui;
 import com.hex91.file.apk.ApkInfoUtil;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.fs.WorkDir;
-import android.app.Activity;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.view.View;

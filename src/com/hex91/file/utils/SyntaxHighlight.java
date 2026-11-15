@@ -1,6 +1,5 @@
 package com.hex91.file.utils;
 
-import com.hex91.file.fs.Shell;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;

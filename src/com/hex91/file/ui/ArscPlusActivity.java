@@ -4,7 +4,6 @@ import com.hex91.file.apk.ApkEditSession;
 import com.hex91.file.apk.ArscFile;
 import com.hex91.file.apk.ArscPlus;
 import com.hex91.file.R;
-import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.DialogInterface;
 import android.content.Intent;

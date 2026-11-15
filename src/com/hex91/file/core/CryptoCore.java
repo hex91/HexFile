@@ -1,6 +1,5 @@
 package com.hex91.file.core;
 
-import java.io.ByteArrayOutputStream;
 import java.security.MessageDigest;
 import java.util.Locale;
 import java.util.zip.CRC32;

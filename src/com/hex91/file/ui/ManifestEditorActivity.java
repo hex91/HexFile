@@ -5,7 +5,6 @@ import com.hex91.file.apk.ApkEditSession;
 import com.hex91.file.apk.AxmlFile;
 import com.hex91.file.apk.AxmlWriter;
 import com.hex91.file.core.ArscDefs;
-import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.DialogInterface;
 import android.content.Intent;

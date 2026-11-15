@@ -21,7 +21,6 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import java.io.File;
-import java.util.List;
 
 /**
  * 文件属性 / 权限 / 时间 / 所有者 / 哈希弹窗（v2.0.0，O-15 刀6）。
