@@ -117,18 +117,19 @@ MainActivity  →  controller  →  ui / fs / apk / net
 ### 质量门
 
 ```bash
-./build.sh                 # 构建时自动跑三道门（SKIP_GATES=1 可绕过）
+./build.sh                 # 构建时自动跑四道门（SKIP_GATES=1 可绕过）
 bash test/deps_check.sh    # 依赖方向 + 自有包禁止通配 + 全限定名越层
 bash test/catch_check.sh   # 空 catch 不增长（当前基线 335 = 实际值）
 bash test/catch_check.sh --others   # 只列「没表态忽略」的那 4 处（欠理由）
 bash test/lang_check.sh    # 文案键：引用的键存在、两侧类型与「位置 + 转换符」一致
+bash test/action_check.sh  # 文件动作码：派发侧不许出现数字 case、菜单侧不许写数字
 ./test/jc.sh               # 只编译自研包，约 40 秒（改 import / 搬包时的快速校验）
 ./test/jres.sh             # 只重生成 R.java（改了 res/values 后不必等完整构建）
 ```
 
 v2.5.0 起 `build.sh` 在 aapt2 之前就跑这些门：以前只有 CI 跑，本地出一条
 「分层已破 / 新增空 catch」的 APK 完全不受阻，README 的口径与可执行行为对不上。
-三道门合计 1-2 秒，相对 5 分钟出包可忽略。
+四道门合计 2-3 秒，相对 5 分钟出包可忽略。
 
 `lang_check.sh`（v2.8.0）只查「键能不能对上」，不查翻译质量：代码引用的键必须在中文
 资源里存在且类型（`string` / `plurals`）一致；`values-en` 不能出现中文侧没有的孤儿键；
@@ -138,6 +139,11 @@ v2.5.0 起 `build.sh` 在 aapt2 之前就跑这些门：以前只有 CI 跑，�
 无位置参数的 `%s` / `%d` 也参与比较（`plurals` 的 `%d` 是 quantity，按集合比不会误报）。
 英文覆盖率只作统计，因为 v2.3.0 定的规矩是
 「只放已完成迁移的键」，未迁移页面回退中文属预期。
+
+`action_check.sh`（v2.11.0，O-26）只扫 `MainActivity.runFileAction` 这一个方法：不许
+出现 `case <数字>`、整个 `MainActivity` 不许出现 `acts.add(<数字>)`、`default` 必须还在。
+别的方法（菜单 id、排序模式）与别的页面（`TextEditorActivity` 的局部 `acts`、
+`ArchiveController` 的 `A_EDIT`）用数字是正常的，扫全仓只会制造噪音。
 
 `build.sh` 与 `run_core.sh` / `jc.sh` / `jres.sh` 共用 **`tools/toolchain.sh`** 定位
 JDK / build-tools / android.jar / Python（环境变量优先 → 常见位置探测 → 明确报错），
@@ -1772,6 +1778,114 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.11.0（versionCode 202）—— R-36 / O-26 / R-37：SDK 自足性、派发侧收尾、口径修正
+
+三项都是「上一步没做完」的收尾：R-36 把「显式 SDK 要么生效、要么明确失败」从
+「目录存在」补到「子目录齐全 + NDK 可解析」；O-26 把 O-25 的「菜单与派发引用同一符号」
+在派发侧真正兑现；R-37 改掉 v2.10.0 里 6 处与实测对不上的说法。
+
+### R-36：显式 SDK 必须自足
+
+R-32 只校验「`ANDROID_HOME` 指向的目录存在」，R-35 又只让 build-tools/platform
+按版本探测。两件事凑起来仍有一个洞：**目录存在、但里面只装了一半**。
+
+| `ANDROID_HOME` 内容 | v2.10.0 的行为 | 现在 |
+| --- | --- | --- |
+| 目录不存在 | `rc=2`（R-32） | 不变 |
+| **空目录** | 静默全量回退到 `E:/repo`，`rc=0` | `rc=2`：`ANDROID_HOME 下没有可用的 build-tools` |
+| 只有 `platforms` | 同上，静默回退 | `rc=2`，同上 |
+| 只有 `build-tools` | **跨 SDK 混搭**（aapt2 来自这里、android.jar 来自别处） | `rc=2`：`ANDROID_HOME 下没有 platforms/android-<版本>/android.jar` |
+| 齐全但无 `ndk` | `[3/7]` 跑 `clang` → rc=127 `No such file or directory` | `[3/7]` 之前一行 `找不到 NDK` + 两条可操作提示，`rc=2` |
+| 齐全、无 `ndk`、`.so` 已最新 | 跳过 `[3/7]`，BUILD OK | 不变（这一步真的不需要 NDK） |
+
+三处改动：
+
+1. **子目录校验**（`exit 2`）：显式给了 SDK 根就用 `pick_bt` / `pick_andj` 真去里面找，
+   找不到直接报缺哪一半。例外写进了注释：`BT=` / `ANDJ=` 显式指定时不校验对应那一半
+   —— 有人就拿 `ANDROID_HOME` 指一个只放 build-tools 的目录试某个 aapt2。
+2. **BT 与 ANDJ 对齐到同一个 SDK**：`SDK` 反推提前到 ANDJ 探测之前，ANDJ 先在
+   `$BT/../..` 下找，找不到才退到其它候选，且**不静默**——打印 `[warn] build-tools 与
+   android.jar 来自不同 SDK` 并列两个路径。aapt2 37 配 platform 34 打出来的包，出问题
+   时没人会想到是这里。
+3. **NDK 改成探测**：`ANDROID_NDK_HOME` → `$SDK/ndk/` 下挑版本最大且含
+   `source.properties` 的目录（不用「纯版本号排序」：`ndk/` 里可能有 `ndk-bundle`
+   这类别名）。NDK 为空**不立即报错**，只在 `[3/7]` 真要重编 `.so` 时才拦住——原生桥
+   极少改动，`.so` 比 `termux.c` 新的机器上根本没装 NDK 也该能出包。
+
+`--min-sdk-version 21 --target-sdk-version 30` 一个字没动：platform 换版本是探测，
+产品目标版本是决策。
+
+CI 也顺带改了一处：原来显式 `echo ANDROID_NDK_HOME=$SDK/ndk/27.0.12077973` 绕过探测，
+现在删掉这行，让 CI 真的走一遍 `pick_ndk`；升级 NDK 只改 `sdkmanager` 里那一行。
+
+实测（六种 SDK 形态逐条跑）：空目录 / 只有 platforms → `rc=2` 缺 build-tools；
+只有 build-tools → `rc=2` 缺 platforms；完整无 ndk + `touch termux.c` → `rc=2`
+找不到 NDK；同上不 touch → **BUILD OK**；`ANDROID_HOME=/nonexistent` → `rc=2`；
+`ANDROID_NDK_HOME=/nope` → `rc=2`；`BT=` 指向只有 build-tools 的目录 → 打出
+`[warn]` 混搭提示后继续。本机（37.0.0 + NDK 27）出包 **13,046,327 B**，与 v2.10.0 一致。
+
+### O-26：`runFileAction` 的 case 也换成常量
+
+O-25 只改了菜单侧；派发侧还是 `case 0:` … `case 52:`，`grep` 也拦不住
+「新增 `case 53` 却忘了加常量」。现在 52 个 `case <数字>` 全部换成 `case A_XXX:`，
+数值与分支顺序一个都没动——脚本按「常量表 → 数字」回查，52 个字面量 52 个名字，
+没有缺号，也没有「表里有两个同名不同值」（52 个值两两不同，先断言过）。
+
+顺手补一道门 `test/action_check.sh`（已进 `build.sh` 的门块与 CI，用时 &lt; 1 秒）：
+
+| 检查 | 判据 |
+| --- | --- |
+| 派发侧 | `runFileAction` 方法体内不许出现 `case <数字>` |
+| 菜单侧 | `MainActivity` 里不许出现 `acts.add(<数字>)` |
+| 兜底 | `runFileAction` 必须有 `default:` |
+
+只扫 `MainActivity` 这一个方法：`TextEditorActivity` 里也有一个局部 `acts`
+（编辑器自己的菜单号），`ArchiveController` 的 `A_EDIT` / `A_HERE` 同理——三套编号
+互不相干，扫全仓只会制造噪音（第一版门就是被这三处误报拦下来的）。
+
+反向验证：把 `case A_HEX:` 临时改回 `case 2:` → `FAIL … runFileAction 里还有数字 case`；
+改回 → `PASS  动作码一致：runFileAction 全是常量 case（52 个）`。
+
+### R-37：v2.10.0 的 6 处口径
+
+| # | 位置 | 原来 | 现在 |
+| --- | --- | --- | --- |
+| 1 | v2.10.0 章 | 62 个菜单项（37 + 25） | **63**（37 + 26）；漏数原因见下 |
+| 2 | v2.10.0 验证 | 单测只写「55 PASS / 0 SKIP、58 PASS / 0 SKIP」 | 补「干净 clone：51 PASS / 4 SKIP、51 / 7」（`test/huangguo.apk` 在 `.gitignore`） |
+| 3 | v2.10.0 章 | 假 SDK「只放 build-tools/36.0.0 + platforms/android-35」→ BUILD OK | 补三个前提：build-tools 必须完整（缺 `lib/d8.jar` → `[5/7]` `ClassNotFoundException: D8`）、当时没用 NDK、只有一半会跨 SDK 混搭 |
+| 4 | `build.sh` 头部 | 「SDK 默认 `E:/repo/android/Sdk`…」看着像现状 | 明确是 v2.6.0 之前的旧行为，并指向 toolchain 的候选顺序 |
+| 5 | `build.sh` NDK 注释 | 「默认 `$ANDROID_HOME/ndk/27.0.12077973`」 | 改为「缺省时自动探测 `$SDK/ndk/` 下版本最大的」 |
+| 6 | CI 注释 | 只点名「依赖方向门 + catch 门」 | 四道门各一个步骤名（`lang_check` / `action_check` 单独列出，失败时不用翻 `[gate]` 行） |
+
+第 1 条是核对脚本自己的 bug：正则要求 `ops.add("…"); acts.add(…)` 同一行，APK 菜单
+有一项跨行，`zip()` 把 26 项悄悄截成 25 项——**最后一项从来没被比对过**。改成允许跨行
+后重跑，63 项逐项一致。
+
+另记一条本轮确认的事实：`test/LanReserveTest` 的「只读目录」子用例在 Windows 上走
+`SKIP`（`setWritable(false)` 不阻止建文件），**只在 Linux/CI 真跑**。本机 `PASS` 不证明
+这一条在 CI 上成立，反之亦然。
+
+### 验证
+
+- `build.sh` → **BUILD OK，v202 / 2.11.0，13,046,327 B（与 v2.10.0 逐字节同大小），V3 CN=hex91**
+- 四道门：`deps_check` 0 命中、`catch_check` 335（基线 335）、`lang_check` PASS（330 键）、
+  `action_check` PASS（52 个常量 case）
+- 桌面单测（本机有 `test/huangguo.apk`）：`QUICK=1` **55 用例 55 PASS**；`ALL` **58 用例 58 PASS**
+- SDK 形态矩阵 7 条、门反向验证 1 条，全部实跑（结果见上）
+
+**真机测试点**（O-26 改的是「点哪个菜单执行哪个动作」，编译与单测都覆盖不到）：
+
+1. 设置页确认 `2.11.0 (202)`；
+2. 普通文件长按：文本编辑 / HEX / 计算哈希 / 图片处理 / 查找重复文件 / 分享 /
+   局域网快传 / 复制到剪贴板 / 删除 —— 逐项确认弹的是同一个功能；
+3. APK 长按：Dex 编辑器++ / ARSC 编辑 / ARSC++ / Manifest 编辑器++ / 反编译 dex→smali /
+   提取 dex / 签名信息 / APK 签名 / APK 对比 / 共存 / 解包 / 去除签名；
+4. keystore 长按：签名信息 / 导入签名管理；解包目录「打包为 APK」；`.dex` 长按
+   「Dex 属性」/「Dex 修复」；
+5. 可选：把某菜单项号码临时改成 12（空号）点一下 → 应弹「未知动作 12」。
+
+---
+
 ## v2.10.0（versionCode 201）—— R-34 / R-35 / O-25：基线归零、ANDROID_HOME 真正可单独生效、动作码收敛
 
 三项都不是功能改动，但都在治同一种病：**机制已经建好了，却在某个角落没真正生效**——
@@ -1811,9 +1925,17 @@ shell —— 两边都把 `/c/...` 当成「当前盘根下的相对路径」，
 `BT` / `ANDJ` / `APKSIG` / `SDK` 统一成 `cygpath -m` 的混合形式（`C:/Users/...`），
 调用方不必各自转。
 
-实测：假 SDK（只放 `build-tools/36.0.0` + `platforms/android-35`）→
+实测：假 SDK（**完整** build-tools 目录改名成 `36.0.0`，加 `platforms/android-35`，
+且 `native/lib` 下的 `.so` 比 `termux.c` 新，所以 `[3/7]` 整步跳过）→
 `BT` / `ANDJ` 都指向它，`ANDROID_HOME=<假 SDK> ./build.sh` → **BUILD OK**；
 `ANDROID_HOME=/nonexistent` 仍 `rc=2`；本机（37.0.0）出包正常。
+
+> 这个"BUILD OK"当时被写成了「假 SDK 够用」，不准确。v2.11.0（R-36）把三个隐含前提
+> 摆出来了：① build-tools 必须是**完整**目录（缺 `lib/d8.jar` 会在 `[5/7]` 报
+> `ClassNotFoundException: com.android.tools.r8.D8`）；② 当时那条流水线**没有**用到 NDK
+> （`.so` 已最新），`touch native/jni/termux.c` 之后同一份假 SDK 会在 `[3/7]` 报
+> `clang: No such file or directory`（rc=127）；③ 只有 build-tools 或只有 platforms 时，
+> 以前会跨 SDK 混搭着把包打出来。这三条现在都有明确报错，见 v2.11.0 章。
 
 ### O-25：文件动作码收敛到一张表
 
@@ -1827,9 +1949,14 @@ shell —— 两边都把 `/c/...` 当成「当前盘根下的相对路径」，
 
 审计文说「7 处绕过常量」，实测是 **8 处** —— 漏了「图片处理」的 `acts.add(37)`。
 
-数值一个都没改：用脚本按**方法作用域**解析改前改后的 62 个菜单项（文件菜单 37 +
-APK 菜单 25），`(标签, 数字)` 逐项对比全一致 —— 只搬名字，不改行为，这是这一项唯一
+数值一个都没改：用脚本按**方法作用域**解析改前改后的 63 个菜单项（文件菜单 37 +
+APK 菜单 26），`(标签, 数字)` 逐项对比全一致 —— 只搬名字，不改行为，这是这一项唯一
 安全的做法（52 个号码抄错一个，就变成「点这个执行那个」）。
+
+> 上一轮写的是「62 个（37 + 25）」，数字抄错在核对脚本上：正则要求
+> `ops.add("…"); acts.add(…)` 在同一行，APK 菜单里有一项跨了行，配对时被 `zip()`
+> 静默截掉，于是 26 项显示成 25 项、且最后一项压根没参与比对。v2.11.0 用
+> `\s*;\s*(?:\n\s*)?` 允许跨行后重跑，63 项全部一致。
 
 **不做** §20.3 提的「O-22 第三刀」（把 `runFileAction` 搬进控制器）：它是 52 个 case 的
 分发表、绝大多数 case 只有一行调用，搬走只是换文件，真正的问题在编号。
@@ -1839,10 +1966,16 @@ APK 菜单 25），`(标签, 数字)` 逐项对比全一致 —— 只搬名字�
 ### 验证
 
 - `build.sh` → **BUILD OK，v201 / 2.10.0，13M，V3 CN=hex91**
-- 假 SDK（只有 build-tools/36.0.0）：`ANDROID_HOME=<假 SDK> ./build.sh` → **BUILD OK**
-- 桌面单测：`QUICK=1` **55 用例 55 PASS / 0 SKIP**；`ALL` **58 用例 58 PASS / 0 SKIP**
+- 假 SDK（完整 build-tools/36.0.0 + platforms/android-35、无 ndk、`.so` 已最新）：
+  `ANDROID_HOME=<假 SDK> ./build.sh` → **BUILD OK**
+- 桌面单测（本机有 44MB 的 `test/huangguo.apk`）：`QUICK=1` **55 用例 55 PASS**；
+  `ALL` **58 用例 58 PASS**
 - 三道门：`deps_check` 0 命中、`catch_check` 335（基线 335）、`lang_check` PASS（330 键）
 - `grep -c 'acts.add([0-9]' src` → **0**
+
+> `test/huangguo.apk` 在 `.gitignore` 里（44MB），所以**干净 clone** 上跑不到这 4 个
+> 依赖样本的用例：`QUICK=1` 是 **51 PASS / 4 SKIP**，`ALL` 是 **51 PASS / 7 SKIP**。
+> 两种口径都要能解释，不能只写理想值（R-33 的规矩，这一行 v2.10.0 又写回去了，v2.11.0 修正）。
 
 **真机测试点**（改动集中在菜单与动作派发，编译不覆盖）：
 
