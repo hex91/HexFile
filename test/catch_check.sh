@@ -33,8 +33,11 @@ cd "$(dirname "$0")/.."
 #   降级容错，硬加日志只是噪音，故本批只补 1 处）
 #   v2.6.0（R-21）口径修正后 → 336：原来的 338 里有 2 处是 WebView 注入的 JS 源码
 #   （CloudLoginActivity 里 "...catch(e){}..."），根本不是 Java 语法。
-# 清理一批就把这个数下调，永不上调。
-BASE=336
+#   v2.9.0（R-34）→ 335：FileOps.readAllBytes 委托 ByteIO 后，原来的
+#   catch (Exception ignored) {} 随实现一起删了（R-31）。
+# 清理一批就把这个数下调，永不上调；改实现导致计数下降时**同步下调**，否则门会白送
+# 一个额度（count > BASE 才失败，335 配 336 的基线意味着再加一个空 catch 也不红）。
+BASE=335
 
 MODE=""
 case "${1:-}" in

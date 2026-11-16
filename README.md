@@ -119,7 +119,7 @@ MainActivity  →  controller  →  ui / fs / apk / net
 ```bash
 ./build.sh                 # 构建时自动跑三道门（SKIP_GATES=1 可绕过）
 bash test/deps_check.sh    # 依赖方向 + 自有包禁止通配 + 全限定名越层
-bash test/catch_check.sh   # 空 catch 不增长（当前基线 336）
+bash test/catch_check.sh   # 空 catch 不增长（当前基线 335 = 实际值）
 bash test/catch_check.sh --others   # 只列「没表态忽略」的那 4 处（欠理由）
 bash test/lang_check.sh    # 文案键：引用的键存在、两侧类型与「位置 + 转换符」一致
 ./test/jc.sh               # 只编译自研包，约 40 秒（改 import / 搬包时的快速校验）
@@ -150,8 +150,9 @@ class 与 `build/gen/R.java`），缺了会直接提示而不是丢一堆「cann
 `catch_check.sh` 只拦「比基线多」，不清零：当前 335 个空 catch 里 331 个是作者明确表态
 忽略的（变量名 `ignore*` / `ig` / `ign`，或空块里写着 `ignore` / `忽略` 注释）——
 `close()` / `disconnect()` / `QUIT` 这类收尾本来就不该加日志。剩下 4 处才是真正欠理由的，
-`--others` 直接列出来。基线留在 336（v2.9.0 清掉 `FileOps.readAllBytes` 里那个
-`catch (Exception ignored) {}` 后实测 335），门只拦增长，不逼着往下砍。
+`--others` 直接列出来。基线**恒等于当前实测值**（v2.9.0 清掉 `FileOps.readAllBytes`
+里那个 `catch (Exception ignored) {}` 后从 336 下调到 335）：门判的是 `count > BASE`，
+基线留高一个就等于白送一个额度 —— 再加一个空 catch 也不会红。
 计数只覆盖 Java 代码：字符串字面量（含注入 WebView 的 JS）
 先被抹成等长空格，所以 JS 里的 `catch(e){}` 不会被算进来。
 
@@ -1822,7 +1823,7 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 `catch Exception`，形态变化无影响，但不写下来就会被下一个人当 bug 改回去。
 
 顺带收益：`FileOps` 里那个 `catch (Exception ignored) {}` 随实现一起删了，
-空 catch 总数 336 → 335（基线不动，门只拦增长）。
+空 catch 总数 336 → 335，基线同步下调到 335（R-34：留高一个等于白送一个额度）。
 
 ### R-32：`ANDROID_HOME` / `ANDROID_SDK_ROOT` 错值不再静默回退
 
@@ -1855,7 +1856,7 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
   `versionCode='200'`）
 - 桌面单测：`QUICK=1` **55 用例 55 PASS / 0 SKIP**；`ALL` **58 用例 58 PASS / 0 SKIP**
   （本机样本在；干净 clone 见 R-33 的两种结果）
-- 三道门：`deps_check` 0 命中、`catch_check` 335（基线 336）、`lang_check` PASS（330 键）
+- 三道门：`deps_check` 0 命中、`catch_check` 335（基线 335）、`lang_check` PASS（330 键）
 
 **真机测试点**（本轮不动界面，重点在 R-31 改过的读文件路径）：
 
