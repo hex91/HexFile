@@ -143,7 +143,12 @@ v2.5.0 起 `build.sh` 在 aapt2 之前就跑这些门：以前只有 CI 跑，�
 JDK / build-tools / android.jar / Python（环境变量优先 → 常见位置探测 → 明确报错），
 不再写死盘符，Linux/macOS 不需要 cygpath。显式覆盖的 `JH` / `BT` / `ANDJ` / `PYTHON_EXE`
 同样要过校验，不通过就 `rc=2` 并给一行可操作提示，不会一路跑到 `javac` 才报
-`No such file or directory`。
+`No such file or directory`。v2.10.0 起 build-tools 与 platform **按版本探测**（在
+`build-tools/` 与 `platforms/` 下取最高、且真含 `aapt2` / `android.jar` 的那个），所以
+`ANDROID_HOME` 指向一个只有 `36.0.0` 的 SDK 也能直接构建；Windows 上 `BT` / `ANDJ` /
+`APKSIG` / `SDK` 统一转成 `cygpath -m` 的 `C:/...` 形式 —— `javac` 的多段 classpath 与
+d8 的 `@args` 文件都不经过 MSYS 参数转换，给 `/c/...` 会变成一屏莫名其妙的
+`cannot find symbol`。
 `jc.sh` 与 `jres.sh` 都要求先完整跑过一次 `./build.sh`（需要 `build/obj` 里的 vendored
 class 与 `build/gen/R.java`），缺了会直接提示而不是丢一堆「cannot find symbol」。
 
@@ -1764,6 +1769,91 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.10.0（versionCode 201）—— R-34 / R-35 / O-25：基线归零、ANDROID_HOME 真正可单独生效、动作码收敛
+
+三项都不是功能改动，但都在治同一种病：**机制已经建好了，却在某个角落没真正生效**——
+基线留高一个，门就白送一个额度；`ANDROID_HOME` 能指向目录却仍被别的 SDK 顶替；
+动作码有三套编号，菜单写错号只会静默。
+
+### R-34：空 catch 基线 336 → 335
+
+门判的是 `count > BASE`。v2.9.0 的 R-31 删掉 `FileOps.readAllBytes` 里那个
+`catch (Exception ignored) {}` 之后实际是 335，基线还停在 336 —— 下一个新增空 catch
+不会让门失败，等于先攒下一个额度，再删一个又攒一个。现在 `BASE=335`，注释补一句
+「改动实现导致计数下降时**同步下调**」，README 的三处口径（命令注释、门说明、
+v2.9.0 验证）一起改。
+
+反向验证：临时插一个 `try { … } catch (Exception e) { }` → `rc=1`；删掉 → `rc=0`。
+**不是**去补代码凑数（§21.5 第 1 条）。
+
+### R-35：build-tools / platform 按版本探测
+
+R-32 只治了「`ANDROID_HOME` 指向不存在的目录」。目录存在、里面只有
+`build-tools/36.0.0` 时，五个候选全钉着 `37.0.0`，`first_existing` 会跳过它继续往下找，
+落到机器上另一个 SDK —— 显式给的 `ANDROID_HOME` 被静默忽略，还是同一个病；而在没有
+`E:/repo`、`$HOME/android-sdk` 的机器上又会报「找不到 build-tools：需要 37.0.0」，
+把「版本不匹配」说成「找不到」。
+
+现在 `pick_dir` 在 `build-tools/` 与 `platforms/` 下挑「版本最大、且真含 `aapt2` /
+`android.jar`」的那个：优先 `sort -rV`（GNU coreutils / macOS 都有），busybox 没有
+`-V` 就退化成「只比主段数字」—— 因为把 `35.0.0-rc1` 里的数字全抠出来是 `35001`，
+反而会压过 `37.0.0`。`--min-sdk-version 21 --target-sdk-version 30` 一个字没动：
+platform 换版本是探测，产品目标版本是决策（§21.5 的口径）。
+
+**顺带修掉一个更要命的问题**：探测出来的路径是 MSYS 形式（`/c/Users/...`），bash 能用，
+但 `javac -classpath` 用 `;` 拼多段时 MSYS 不做参数转换、d8 的 `@args` 文件更是完全不经过
+shell —— 两边都把 `/c/...` 当成「当前盘根下的相对路径」，于是报一屏
+`cannot find symbol: ApkSigner`，看着像源码坏了。`jc.sh` 一直在用 `winpath` 转，
+`build.sh` 忘了转，就是这个差别。现在 `tools/toolchain.sh` 在 Windows 上把
+`BT` / `ANDJ` / `APKSIG` / `SDK` 统一成 `cygpath -m` 的混合形式（`C:/Users/...`），
+调用方不必各自转。
+
+实测：假 SDK（只放 `build-tools/36.0.0` + `platforms/android-35`）→
+`BT` / `ANDJ` 都指向它，`ANDROID_HOME=<假 SDK> ./build.sh` → **BUILD OK**；
+`ANDROID_HOME=/nonexistent` 仍 `rc=2`；本机（37.0.0）出包正常。
+
+### O-25：文件动作码收敛到一张表
+
+| | 收敛前 | 现在 |
+| --- | --- | --- |
+| 常量 | `showOpsMenu` 内 29 个局部 `final int`，`showApkOpsMenu` 内另 27 个 | 类级 52 个 `A_*`（0–52，12 空号） |
+| 同名冲突 | `A_DEXPP` 在文件菜单是 14、在 APK 菜单是 15 | `A_DEXPP`(14) / `A_DEXPP_MULTI`(15) |
+| 字面量 | 8 处直接写数字（36/37/38/39/41/42/43/44） | 全部换成常量名 |
+| 派发 | 52 个 case，**没有 default** | 补 `default: toast("未知动作 " + act)` |
+| 后果 | 写了个没定义的号 → 点了没反应；写成语义相近的号（13 签名信息 vs 20 APK 签名）→ 弹错功能 | 未定义的号当场可见 |
+
+审计文说「7 处绕过常量」，实测是 **8 处** —— 漏了「图片处理」的 `acts.add(37)`。
+
+数值一个都没改：用脚本按**方法作用域**解析改前改后的 62 个菜单项（文件菜单 37 +
+APK 菜单 25），`(标签, 数字)` 逐项对比全一致 —— 只搬名字，不改行为，这是这一项唯一
+安全的做法（52 个号码抄错一个，就变成「点这个执行那个」）。
+
+**不做** §20.3 提的「O-22 第三刀」（把 `runFileAction` 搬进控制器）：它是 52 个 case 的
+分发表、绝大多数 case 只有一行调用，搬走只是换文件，真正的问题在编号。
+`ArchiveController` 那套归档条目编号（`A_EDIT` / `A_HERE` …）也不动：它服务压缩包内
+条目菜单，是另一张表。
+
+### 验证
+
+- `build.sh` → **BUILD OK，v201 / 2.10.0，13M，V3 CN=hex91**
+- 假 SDK（只有 build-tools/36.0.0）：`ANDROID_HOME=<假 SDK> ./build.sh` → **BUILD OK**
+- 桌面单测：`QUICK=1` **55 用例 55 PASS / 0 SKIP**；`ALL` **58 用例 58 PASS / 0 SKIP**
+- 三道门：`deps_check` 0 命中、`catch_check` 335（基线 335）、`lang_check` PASS（330 键）
+- `grep -c 'acts.add([0-9]' src` → **0**
+
+**真机测试点**（改动集中在菜单与动作派发，编译不覆盖）：
+
+1. 设置页确认 `2.10.0 (201)`；
+2. 普通文件长按：文本编辑 / HEX / 计算哈希 / 图片处理 / 查找重复文件 / 分享 /
+   局域网快传 / 复制到剪贴板 / 删除 —— 逐项确认弹的是同一个功能；
+3. APK 长按：Dex 编辑器++ / ARSC 编辑 / ARSC++ / Manifest 编辑器++ / 反编译 dex→smali /
+   提取 dex / 签名信息 / APK 签名 / APK 对比 / APK 共存 / 解包 / 去除签名；
+4. keystore 长按：签名信息（43）/ 导入签名管理（44）；
+5. 解包目录长按「打包为 APK」（36）、.dex 长按「Dex 属性」（41）/「Dex 修复」（42）；
+6. 可选：把某个菜单项号码临时改成 12（空号）点一下 → 应弹「未知动作 12」而不是没反应。
 
 ---
 
