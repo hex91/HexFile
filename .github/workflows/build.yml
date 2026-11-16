@@ -69,7 +69,10 @@ jobs:
             sleep 5
             if [ "$i" = "3" ]; then echo "::error::SDK 组件安装失败"; exit 1; fi
           done
-          echo "ANDROID_NDK_HOME=$SDK/ndk/27.0.12077973" >> "$GITHUB_ENV"
+          # v2.11.0（R-36）：NDK 版本不再由环境变量钉死 —— toolchain.sh 会去
+          # $SDK/ndk/ 下挑版本最大、且含 source.properties 的那个。这里只负责装一个，
+          # 顺带让 CI 真正走到探测这条路径（而不是靠 ANDROID_NDK_HOME 绕过去）。
+          # 升级 NDK 只需改下面 sdkmanager 那一行。
 
       - name: Build APK
         env:
@@ -90,14 +93,21 @@ jobs:
       - name: Core tests (desktop JVM, no device)
         run: QUICK=1 bash test/run_core.sh
 
-      # v2.4.0：依赖方向与空 catch 两道门。它们和单元测试分开列，
-      # 失败时一眼能看出是「层级被绕过了」还是「新代码留了空 catch」，
-      # 不用去翻 53 个用例的输出。
+      # v2.4.0：依赖方向与空 catch 两道门；v2.8.0 加文案门；v2.11.0 加动作码门。
+      # 它们和单元测试分开列，失败时一眼能看出是「层级被绕过了」「新代码留了空 catch」
+      # 「译文占位符对不上」还是「动作码又写回数字」，不用去翻 58 个用例的输出。
+      # build.sh 里也有同样四道（本地出包同样拦），这里是给 CI 单独一个步骤名。
       - name: Dependency direction gate (O-17/O-18)
         run: bash test/deps_check.sh
 
       - name: Empty catch gate (O-20)
         run: bash test/catch_check.sh
+
+      - name: Locale resource gate (R-30/O-24)
+        run: bash test/lang_check.sh
+
+      - name: File action code gate (O-26)
+        run: bash test/action_check.sh
 
       - name: Read version name
         id: ver

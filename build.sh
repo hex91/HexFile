@@ -7,7 +7,7 @@
 # 工具链定位全部走 tools/toolchain.sh（v2.6.0 / R-22）：环境变量优先 → 常见位置探测
 # → 明确报错。这里不再写死任何盘符或个人目录。
 #   ANDROID_HOME             Android SDK 根目录
-#   ANDROID_NDK_HOME         NDK 根目录（默认 $ANDROID_HOME/ndk/27.0.12077973）
+#   ANDROID_NDK_HOME         NDK 根目录（缺省时自动探测 $SDK/ndk/ 下版本最大的那个）
 #   JAVA_HOME                JDK 根目录（bin 在其下）
 #   PYTHON_EXE               python 解释器（默认探测 python3 → python → py）
 #   HEXFILE_KEYSTORE_BASE64 经 base64 编码的签名 keystore（CI 注入，优先于本地文件）
@@ -26,9 +26,10 @@ OUT="$ROOT/out"
 
 # ---- 工具链 ----
 # R-22：JDK / build-tools / android.jar / python 的定位与校验只维护在 tools/toolchain.sh，
-# 与 test/run_core.sh、jc.sh、jres.sh 共用一份。原来这里有四段重复分支：
-#   SDK 默认 E:/repo/android/Sdk、JDK 默认 zulu17.38.21、PY 默认 C:/Users/han/.workbuddy/...
+# 与 test/run_core.sh、jc.sh、jres.sh 共用一份。v2.6.0 之前这里有四段重复分支
+# （SDK 写死 E:/repo/android/Sdk、JDK 写死 zulu17.38.21、PY 写死 C:/Users/han/.workbuddy/...），
 # 新机器按 README 跑会在 aapt2 或 javac 处报 No such file or directory，看着像源码坏了。
+# 现在没有任何"默认路径"：候选顺序与环境变量优先规则见 tools/toolchain.sh 开头。
 . "$ROOT/tools/toolchain.sh"
 [ -n "$PY" ] || { echo "找不到可用的 Python：用 PYTHON_EXE=python 指定" >&2; exit 2; }
 
@@ -38,9 +39,12 @@ KEYTOOL="$JH/keytool$EXE"
 PLATFORM="$ANDJ"
 
 # ---- NDK ----
-# $SDK 由 build-tools 反推得到（MSYS 下是 /e/... 形式），这里转成 E:/... 再拼给 clang：
-# NDK_BIN 是原生命令路径，保持盘符形式与 v2.5.0 的行为一致，避免 MSYS 二次转换。
-NDK="${ANDROID_NDK_HOME:-$(toolpath "$SDK")/ndk/27.0.12077973}"
+# v2.11.0（R-36）：版本不再钉 27.0.12077973 —— 由 toolchain.sh 探测
+# （ANDROID_NDK_HOME → $SDK/ndk/<版本最大且含 source.properties>），探测不到就是空串。
+# 空串不立即报错：原生桥极少改动，native/lib 下的 .so 比 termux.c 新时整步跳过，
+# 那种机器上根本没有 NDK 也该能出包。真需要重编时才在 [3/7] 里报「找不到 NDK」，
+# 而不是让 clang 抛一个 "No such file or directory"（rc=127）——那个报错完全看不出
+# 是 NDK 版本对不上。
 NDK_BIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
 if [ "$WIN" = 1 ]; then
   NDK_BIN="$NDK/toolchains/llvm/prebuilt/windows-x86_64/bin"
@@ -121,14 +125,15 @@ rm -f "$OUT/HexFile-unsigned.apk"
 
 # ---- 源码质量门（v2.5.0 R-14）------------------------------------------------
 # README 一直把 deps_check / catch_check 写成「每次构建都跑」，实际只有 CI 跑，
-# 本地出一条「分层已破 / 新增空 catch」的 APK 完全不受阻。两道门合计 1-2 秒，
+# 本地出一条「分层已破 / 新增空 catch」的 APK 完全不受阻。几道门合计 2-3 秒，
 # 相对 5 分钟出包可以忽略；急着拿包时 SKIP_GATES=1 可绕过。
 # 放在 aapt2 之前：都是源码级检查，早失败连资源编译都省了。
 if [ "${SKIP_GATES:-0}" != "1" ]; then
-  echo "[gate] 依赖方向 + 空 catch + 文案一致性（SKIP_GATES=1 可跳过）..."
+  echo "[gate] 依赖方向 + 空 catch + 文案一致性 + 动作码（SKIP_GATES=1 可跳过）..."
   bash "$ROOT/test/deps_check.sh" || { echo "构建中止：依赖方向门失败" >&2; exit 1; }
   bash "$ROOT/test/catch_check.sh" || { echo "构建中止：空 catch 门失败" >&2; exit 1; }
   bash "$ROOT/test/lang_check.sh" || { echo "构建中止：文案一致性门失败" >&2; exit 1; }
+  bash "$ROOT/test/action_check.sh" || { echo "构建中止：动作码一致性门失败" >&2; exit 1; }
 fi
 
 echo "[1/7] aapt2 compile resources..."
@@ -149,6 +154,12 @@ if [ "$ROOT/native/lib/arm64-v8a/libtermux.so" -nt "$ROOT/native/jni/termux.c" ]
    && [ "$ROOT/native/lib/armeabi-v7a/libtermux.so" -nt "$ROOT/native/jni/termux.c" ]; then
     echo "      libtermux.so 已是最新，跳过"
 else
+[ -n "$NDK" ] && [ -d "$NDK/toolchains/llvm" ] || {
+    echo "找不到 NDK：native/jni/termux.c 比 native/lib 下的 .so 新，需要重编 libtermux.so" >&2
+    echo "  设 ANDROID_NDK_HOME=/path/to/ndk/<版本>（要含 toolchains/llvm 与 source.properties）" >&2
+    echo "  或者让 native/lib/{arm64-v8a,armeabi-v7a}/libtermux.so 比 termux.c 新（源码没改时）" >&2
+    exit 2
+}
 "$NDK_BIN/aarch64-linux-android21-clang" -shared -fPIC -O2 \
     -o "$ROOT/native/lib/arm64-v8a/libtermux.so" "$ROOT/native/jni/termux.c"
 "$NDK_BIN/armv7a-linux-androideabi21-clang" -shared -fPIC -O2 \
