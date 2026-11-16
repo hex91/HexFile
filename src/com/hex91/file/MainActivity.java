@@ -134,6 +134,70 @@ public class MainActivity extends BaseActivity {
 
     private static final int REQ_STORAGE = 1;
     private static final int REQ_BATCH_RENAME = 3001;
+
+    // ---------------------------------------------------------- 文件动作码（v2.9.0，O-25）
+    // 收敛前这里有两套并行的编号：showOpsMenu 与 showApkOpsMenu 各自声明一段局部
+    // final int A_…（同名不同值：A_DEXPP 在文件菜单是 14、在 APK 菜单是 15），中间还夹着
+    // 8 个绕过常量直接写数字的地方（36/37/38/39/41/42/43/44）。派发端 runFileAction 是 52 个 case 的
+    // 裸 int switch，所以菜单写错号只会静默：写了个没有 case 的号 → 点了没反应；
+    // 写成语义相近的号（13 签名信息 vs 20 APK 签名）→ 弹错功能。
+    //
+    // 现在只有这一张表：数值一个都不改（保持 52 个 case 的语义原样，避免"只换名字却改
+    // 行为"），菜单构造与派发引用同一符号，switch 补 default 把静默失败变成可见失败。
+    // ArchiveController 里那套归档条目编号（A_EDIT / A_HERE …）不动：它服务的是压缩包
+    // 内条目菜单，是另一张表，合并只会把两个控制器耦在一起。
+    private static final int A_SMALI = 0;          // 独立 dex → 反编译 smali
+    private static final int A_EDIT = 1;           // 文本编辑
+    private static final int A_HEX = 2;            // HEX 查看
+    private static final int A_COPY = 3;           // 复制到对面窗格
+    private static final int A_MOVE = 4;           // 移动到对面窗格
+    private static final int A_REN = 5;            // 重命名
+    private static final int A_ZIP = 6;            // 压缩为 ZIP
+    private static final int A_DEL = 7;            // 删除（回收站）
+    private static final int A_PROP = 8;           // 属性
+    private static final int A_ASSEMBLE = 9;       // smali 目录 → 编译为 dex
+    private static final int A_DEX2SMALI = 10;     // APK → 反编译全部 dex
+    private static final int A_EXTRACT_DEX = 11;   // APK → 仅提取 dex
+    private static final int A_SIGN = 13;          // 签名详情
+    private static final int A_DEXPP = 14;         // 独立 dex → Dex 编辑器++
+    private static final int A_DEXPP_MULTI = 15;   // APK → Dex 编辑器++（MultiDex 多选）
+    private static final int A_ARSCPP = 16;        // APK → ARSC 编辑
+    private static final int A_MFPP = 17;          // APK → Manifest 编辑器++
+    private static final int A_TOZIP_C = 18;       // 复制到对面压缩包
+    private static final int A_TOZIP_M = 19;       // 移动到对面压缩包
+    private static final int A_SIGN_APK = 20;      // APK 签名（内置密钥）
+    private static final int A_COMPARE = 21;       // 对比…（自动判别目录/文本/哈希）
+    private static final int A_APK_COMPARE = 22;   // APK 对比
+    private static final int A_APK_CLONE = 23;     // APK 共存
+    private static final int A_ENCRYPT = 24;       // 加密文件（.enc）
+    private static final int A_DECRYPT = 25;       // 解密文件
+    private static final int A_SIGKILL = 26;       // 去除签名校验
+    private static final int A_SPLIT = 27;         // 文件分割
+    private static final int A_MERGE = 28;         // 分卷合并
+    private static final int A_ZSTDC = 29;         // Zstd 压缩
+    private static final int A_ZSTDD = 30;         // Zstd 解压
+    private static final int A_STRINGS = 31;       // strings 提取
+    private static final int A_INFO = 32;          // APK 信息
+    private static final int A_UNPACK = 33;        // APK 解包
+    private static final int A_SIGN_CUSTOM = 34;   // 自定义密钥签名
+    private static final int A_RM_SIGN = 35;       // 去除签名 → 未签名 APK
+    private static final int A_APK_PACK = 36;      // 解包目录 → 打包为 APK
+    private static final int A_IMGBATCH = 37;      // 图片处理（缩放/转格式/水印）
+    private static final int A_HASH = 38;          // 计算哈希（MD5/SHA1/SHA256）
+    private static final int A_DUPFIND = 39;       // 查找重复文件
+    private static final int A_ARSCPP2 = 40;       // APK → ARSC++ 编辑
+    private static final int A_DEX_PROP = 41;      // Dex 属性
+    private static final int A_DEX_FIX = 42;       // Dex 修复
+    private static final int A_KS_INFO = 43;       // 签名文件 → 签名信息
+    private static final int A_KS_IMPORT = 44;     // 签名文件 → 导入签名管理
+    private static final int A_SHARE = 45;         // 分享
+    private static final int A_LAN = 46;           // 局域网快传
+    private static final int A_OPEN = 47;          // 打开方式
+    private static final int A_CLIP_C = 48;        // 复制到剪贴板
+    private static final int A_CLIP_M = 49;        // 剪切到剪贴板
+    private static final int A_PLAYER = 50;        // 内置播放器
+    private static final int A_TSMP4 = 51;         // TS → MP4（转封装）
+    private static final int A_HLSD = 52;          // 本地 m3u8 → 下载/合并页
     // 选 keystore 的请求码已随签名簇搬到 SignFlowController.REQ_CUSTOM_KEYSTORE（v2.7.0）
 
     private TextView headerPath, headerStats;
@@ -2382,13 +2446,7 @@ public class MainActivity extends BaseActivity {
         final boolean isDex = isFile && f.getName().toLowerCase().endsWith(".dex");
         final boolean isKs = isFile && isKeystoreFile(f, f.getName().toLowerCase());
         final boolean isSmaliDir = !isFile && TreeOps.hasSmali(f);
-        // 动作码
-        final int A_SMALI = 0, A_EDIT = 1, A_HEX = 2, A_COPY = 3, A_MOVE = 4,
-                A_REN = 5, A_ZIP = 6, A_DEL = 7, A_PROP = 8, A_ASSEMBLE = 9, A_DEXPP = 14,
-                A_TOZIP_C = 18, A_TOZIP_M = 19, A_COMPARE = 21,
-                A_ENCRYPT = 24, A_DECRYPT = 25, A_SPLIT = 27, A_MERGE = 28,
-                A_ZSTDC = 29, A_ZSTDD = 30, A_STRINGS = 31, A_SHARE = 45, A_LAN = 46, A_OPEN = 47,
-                A_CLIP_C = 48, A_CLIP_M = 49, A_PLAYER = 50, A_TSMP4 = 51, A_HLSD = 52;
+        // 动作码：统一用类级 A_*（O-25 前这里是本方法内的局部 final int）
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
         // v1.91.0：视频与流清单直接给「播放」（内置播放器），不必先绕「打开方式」
@@ -2406,22 +2464,22 @@ public class MainActivity extends BaseActivity {
         }
         if (isSmaliDir) { ops.add("编译为 dex"); acts.add(A_ASSEMBLE); }
         // v1.68.0：签名文件专属操作（导入签名管理 / 查看别名与证书）
-        if (isKs) { ops.add("签名信息"); acts.add(43); }
-        if (isKs) { ops.add("导入签名管理"); acts.add(44); }
+        if (isKs) { ops.add("签名信息"); acts.add(A_KS_INFO); }
+        if (isKs) { ops.add("导入签名管理"); acts.add(A_KS_IMPORT); }
         if (!isFile && new java.io.File(f, "AndroidManifest.xml").isFile()) {
-            ops.add("打包为 APK"); acts.add(36);   // v1.57：解包目录回打包
+            ops.add("打包为 APK"); acts.add(A_APK_PACK);   // v1.57：解包目录回打包
         }
         if (isDex) { ops.add("Dex 编辑器++"); acts.add(A_DEXPP); }
         if (isDex) { ops.add("反编译 smali"); acts.add(A_SMALI); }
-        if (isDex) { ops.add("Dex 属性"); acts.add(41); }
-        if (isDex) { ops.add("Dex 修复"); acts.add(42); }
+        if (isDex) { ops.add("Dex 属性"); acts.add(A_DEX_PROP); }
+        if (isDex) { ops.add("Dex 修复"); acts.add(A_DEX_FIX); }
         if (isFile) { ops.add("文本编辑"); acts.add(A_EDIT); }
-        if (isFile) { ops.add("计算哈希"); acts.add(38);   // v1.59：MD5/SHA1/SHA256
+        if (isFile) { ops.add("计算哈希"); acts.add(A_HASH);   // v1.59：MD5/SHA1/SHA256
         }
         if (isFile && ImageBatchUtil.supported(f.getName().toLowerCase())) {
-            ops.add("图片处理"); acts.add(37);   // v1.58：缩放/转格式/水印
+            ops.add("图片处理"); acts.add(A_IMGBATCH);   // v1.58：缩放/转格式/水印
         }
-        if (!isFile) { ops.add("查找重复文件"); acts.add(39); }   // v1.59：内容级查重
+        if (!isFile) { ops.add("查找重复文件"); acts.add(A_DUPFIND); }   // v1.59：内容级查重
         if (isFile) { ops.add("HEX 查看"); acts.add(A_HEX); }
         if (isFile) { ops.add("打开方式"); acts.add(A_OPEN); }   // v1.77.0：交给系统应用
         if (isFile) { ops.add("分享"); acts.add(A_SHARE); }
@@ -2457,16 +2515,10 @@ public class MainActivity extends BaseActivity {
     /** MT 风格 APK 功能菜单（对标 MT 长按 APK 的功能项，本地版裁剪） */
     private void showApkOpsMenu(final File f) {
         final Pane dst = other();
-        // 动作码（APK 专属，与 runFileAction 对应）
-        final int A_DEX2SMALI = 10, A_EXTRACT_DEX = 11,
-                A_SIGN = 13, A_COPY = 3, A_REN = 5, A_PROP = 8, A_DEXPP = 15, A_ARSCPP = 16, A_MFPP = 17,
-                A_TOZIP_C = 18, A_TOZIP_M = 19, A_SIGN_APK = 20, A_APK_COMPARE = 22, A_APK_CLONE = 23,
-                A_SIGKILL = 26, A_INFO = 32, A_UNPACK = 33, A_SIGN_CUSTOM = 34, A_RM_SIGN = 35,
-                A_DEL = 7, A_IMGBATCH = 37, A_ARSCPP2 = 40, A_SHARE = 45, A_LAN = 46, A_OPEN = 47,
-                A_CLIP_C = 48, A_CLIP_M = 49, A_PLAYER = 50;
+        // 动作码：统一用类级 A_*（O-25 前这里是本方法内的局部 final int）
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
-        ops.add("Dex 编辑器++"); acts.add(A_DEXPP);
+        ops.add("Dex 编辑器++"); acts.add(A_DEXPP_MULTI);
         ops.add("ARSC 编辑"); acts.add(A_ARSCPP);
         ops.add("ARSC++ 编辑"); acts.add(A_ARSCPP2);
         ops.add("Manifest 编辑器++"); acts.add(A_MFPP);
@@ -2684,6 +2736,9 @@ public class MainActivity extends BaseActivity {
                 FileClipboard.get().put(java.util.Collections.singletonList(f), true);
                 updatePasteButton();
                 toast("已剪切 " + f.getName() + "，粘贴后原位置的文件会消失");
+                break;
+            default:                              // O-25：没有 case 的号不再静默
+                toast("未知动作 " + act);
                 break;
         }
     }
