@@ -61,6 +61,52 @@ esac
 # Windows 的 JAVA_HOME 可能带反斜杠（D:\Program Files\...），先归一成 / 再拼 /bin。
 norm() { printf '%s' "$1" | tr '\\' '/'; }
 
+# v2.9.0（R-35）：build-tools / platform 不再钉版本。
+# 原来五个候选一律写成 .../build-tools/37.0.0 与 .../platforms/android-35/android.jar，
+# 于是 R-32 只治了「目录不存在」这一种：目录存在、里面只有 build-tools/36.0.0 时，
+# first_existing 直接跳过它、继续落到机器上另一个 SDK —— 显式给的 ANDROID_HOME 被静默
+# 忽略，与 R-32 要治的是同一个病；兜底路径也没有的机器上则会报「找不到 build-tools：
+# 需要 37.0.0」，把「版本不匹配」说成「找不到」。
+# 现在按「版本号最大、且真含 aapt2 / android.jar 的那个」挑，仍然环境变量优先。
+# 版本比较不用 sort -V（busybox 的 sort 没有）：把名字里的数字抠出来当整数比 ——
+# 37.0.0 → 3700，android-35 → 35，够用且不依赖外部排序。
+pick_dir() {   # pick_dir <父目录> <标记文件...> → 打印版本号最大的合格子目录
+  local parent="$1"; shift
+  local d v m hit best="" pick="" i
+  local names=() dirs=()
+  [ -d "$parent" ] || return 1
+  for d in "$parent"/*; do
+    [ -d "$d" ] || continue
+    hit=0
+    for m in "$@"; do
+      if [ -f "$d/$m" ]; then hit=1; break; fi
+    done
+    [ "$hit" = "1" ] || continue
+    names+=("$(basename "$d")")
+    dirs+=("$d")
+  done
+  [ "${#names[@]}" -gt 0 ] || return 1
+  # 版本排序优先 sort -V（GNU coreutils / macOS 都有；busybox 的 sort 不认这个选项，
+  # 会报错到 /dev/null、输出为空，于是自动落到退化分支）。
+  # 退化分支只比版本号主段：35.0.0-rc1 抠出所有数字是 35001，反而会压过 37.0.0。
+  pick="$(printf '%s\n' "${names[@]}" | sort -rV 2>/dev/null | head -1)"
+  if [ -z "$pick" ]; then
+    local bestn=-1 n
+    for v in "${names[@]}"; do
+      n="$(printf '%s' "${v#android-}" | sed 's/\..*//; s/[^0-9]//g')"
+      [ -n "$n" ] || n=0
+      if [ "$n" -gt "$bestn" ] 2>/dev/null; then bestn="$n"; pick="$v"; fi
+    done
+  fi
+  [ -n "$pick" ] || return 1
+  for i in "${!names[@]}"; do
+    if [ "${names[$i]}" = "$pick" ]; then printf '%s' "${dirs[$i]}"; return 0; fi
+  done
+  return 1
+}
+pick_bt()   { pick_dir "$1/build-tools" aapt2 aapt2.exe; }
+pick_andj() { pick_dir "$1/platforms" android.jar; }
+
 # v2.9.0（R-32）：显式 ANDROID_HOME / ANDROID_SDK_ROOT 指向不存在的目录时直接报错。
 # 之前 first_existing 只是「跳过无效候选」，于是
 #   ANDROID_HOME=/nonexistent/sdk bash build.sh
@@ -89,20 +135,33 @@ EXE=""
 [ -f "$JH/javac.exe" ] && EXE=".exe"
 
 if [ -z "${BT:-}" ]; then
-  BT=$(first_existing "${ANDROID_HOME:+$(norm "$ANDROID_HOME")/build-tools/37.0.0}" \
-        "${ANDROID_SDK_ROOT:+$(norm "$ANDROID_SDK_ROOT")/build-tools/37.0.0}" \
-        "E:/repo/android/Sdk/build-tools/37.0.0" \
-        "$HOME/android-sdk/build-tools/37.0.0" \
-        "$HOME/Android/Sdk/build-tools/37.0.0") \
-    || { echo "找不到 build-tools（需要 37.0.0）：用 BT=/path/to/build-tools/37.0.0 指定" >&2; exit 2; }
+  BT=""
+  for root in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}" \
+              "E:/repo/android/Sdk" "$HOME/android-sdk" "$HOME/Android/Sdk"; do
+    [ -n "$root" ] || continue
+    if BT="$(pick_bt "$(norm "$root")")"; then break; fi
+    BT=""
+  done
+  if [ -z "$BT" ]; then
+    echo "找不到 build-tools（要有 build-tools/<版本>/aapt2）：用 BT=/path/to/build-tools/<版本> 指定" >&2
+    if [ -n "${ANDROID_HOME:-}" ]; then
+      echo "  已设 ANDROID_HOME=$ANDROID_HOME，但其中没有可用的 build-tools" >&2
+    fi
+    exit 2
+  fi
 fi
 if [ -z "${ANDJ:-}" ]; then
-  ANDJ=$(first_existing "${ANDROID_HOME:+$(norm "$ANDROID_HOME")/platforms/android-35/android.jar}" \
-        "${ANDROID_SDK_ROOT:+$(norm "$ANDROID_SDK_ROOT")/platforms/android-35/android.jar}" \
-        "E:/repo/android/Sdk/platforms/android-35/android.jar" \
-        "$HOME/android-sdk/platforms/android-35/android.jar" \
-        "$HOME/Android/Sdk/platforms/android-35/android.jar") \
-    || { echo "找不到 android.jar：用 ANDJ=/path/to/android.jar 指定" >&2; exit 2; }
+  ANDJ=""
+  for root in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}" \
+              "E:/repo/android/Sdk" "$HOME/android-sdk" "$HOME/Android/Sdk"; do
+    [ -n "$root" ] || continue
+    if _pj="$(pick_andj "$(norm "$root")")"; then ANDJ="$_pj/android.jar"; break; fi
+    ANDJ=""
+  done
+  if [ -z "$ANDJ" ]; then
+    echo "找不到 android.jar（要有 platforms/android-<版本>/android.jar）：用 ANDJ=/path/to/android.jar 指定" >&2
+    exit 2
+  fi
 fi
 
 APKSIG="$BT/lib/apksigner.jar"
@@ -116,7 +175,7 @@ APKSIG="$BT/lib/apksigner.jar"
 [ -f "$BT/aapt2$EXE" ] || { echo "BT 下没有 aapt2: $BT" >&2; exit 2; }
 [ -f "$ANDJ" ]         || { echo "找不到 android.jar: $ANDJ" >&2; exit 2; }
 
-# SDK 根由 build-tools 反推（.../build-tools/37.0.0 → ...），仅 build.sh 取 NDK 用
+# SDK 根由 build-tools 反推（.../build-tools/<版本> → ...），仅 build.sh 取 NDK 用
 SDK="$(cd "$BT/../.." 2>/dev/null && pwd)" || SDK=""
 
 # ---- Python（可选）----
@@ -153,3 +212,18 @@ toolpath() {
     printf '%s' "$1"
   fi
 }
+
+# v2.10.0（R-35）：在 Windows 上把手里的路径统一成「混合形式」（C:/Users/...）。
+# 起因：ANDROID_HOME 探测出来的路径是 MSYS 形式（/c/Users/...），bash 自己能用，但
+#   · javac -classpath 用 ';' 拼多段时 MSYS 不做参数转换 —— apksig 那段直接找不到，
+#     报出来是一屏 "cannot find symbol: ApkSigner"，看着像源码坏了；
+#   · d8 走的是 @args 文件，里面的路径根本不经过 shell，Java 把 /c/... 当成「当前盘根
+#     下的相对路径」，同样一批找不到类。
+# cygpath -m 同时满足 bash（无空格问题）与 Windows 可执行文件（含 Java），所以在这一处
+# 统一转，而不是要求每个调用方各自 winpath（jc.sh 转、build.sh 忘了转，就是这个 bug）。
+if [ "$WIN" = 1 ]; then
+  BT="$(toolpath "$BT")"
+  ANDJ="$(toolpath "$ANDJ")"
+  if [ -n "$SDK" ]; then SDK="$(toolpath "$SDK")"; fi
+  APKSIG="$(toolpath "$BT/lib/apksigner.jar")"
+fi
