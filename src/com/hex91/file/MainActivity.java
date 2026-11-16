@@ -144,6 +144,8 @@ public class MainActivity extends BaseActivity {
     //
     // 现在只有这一张表：数值一个都不改（保持 52 个 case 的语义原样，避免"只换名字却改
     // 行为"），菜单构造与派发引用同一符号，switch 补 default 把静默失败变成可见失败。
+    // v2.11.0（O-26）收尾：runFileAction 的 52 个 case 也从数字换成了 A_*，至此菜单与派发
+    // 两侧都不再出现裸数字；test/action_check.sh 会拦住「又写回数字 case」的改动。
     // ArchiveController 里那套归档条目编号（A_EDIT / A_HERE …）不动：它服务的是压缩包
     // 内条目菜单，是另一张表，合并只会把两个控制器耦在一起。
     private static final int A_SMALI = 0;          // 独立 dex → 反编译 smali
@@ -2592,147 +2594,147 @@ public class MainActivity extends BaseActivity {
     /** 长按菜单动作分发 */
     private void runFileAction(int act, File f, Pane dst) {
         switch (act) {
-            case 0: decompileDexFile(f); break;   // 反编译 smali（独立 dex）
-            case 1: openEditor(f); break;         // 文本编辑
-            case 2: openHex(f); break;            // HEX 查看
-            case 3:
+            case A_SMALI: decompileDexFile(f); break;   // 反编译 smali（独立 dex）
+            case A_EDIT: openEditor(f); break;         // 文本编辑
+            case A_HEX: openHex(f); break;            // HEX 查看
+            case A_COPY:
                 FileTaskEngine.get().submit(FileTask.COPY,
                         java.util.Collections.singletonList(f), dst.dir);
                 toast("已加入复制队列");
                 break;
-            case 4:
+            case A_MOVE:
                 FileTaskEngine.get().submit(FileTask.MOVE,
                         java.util.Collections.singletonList(f), dst.dir);
                 toast("已加入移动队列");
                 break;
-            case 5: askRename(f); break;
-            case 6: archiveAdd.askCompress(f); break;
-            case 7: confirmDelete(f); break;
-            case 24: askEncryptFile(f); break;       // 加密文件（自家格式 .enc）
-            case 25: askDecryptFile(f); break;       // 解密 .enc 文件
-            case 8: showProps(f); break;
-            case 9: assembleDexDir(f); break;     // smali 目录编译为 dex
-            case 10: extractApkDexes(f, true); break;   // APK 内全部 dex 反编译
-            case 11: extractApkDexes(f, false); break;  // 仅提取 dex
-            case 13: showSignDialog(f); break;    // 签名详情
-            case 20: startSign(f, false); break;  // APK 签名（内置密钥；_edit.apk 原地签）
-            case 14:                              // 独立 dex → Dex 编辑器++
+            case A_REN: askRename(f); break;
+            case A_ZIP: archiveAdd.askCompress(f); break;
+            case A_DEL: confirmDelete(f); break;
+            case A_ENCRYPT: askEncryptFile(f); break;       // 加密文件（自家格式 .enc）
+            case A_DECRYPT: askDecryptFile(f); break;       // 解密 .enc 文件
+            case A_PROP: showProps(f); break;
+            case A_ASSEMBLE: assembleDexDir(f); break;     // smali 目录编译为 dex
+            case A_DEX2SMALI: extractApkDexes(f, true); break;   // APK 内全部 dex 反编译
+            case A_EXTRACT_DEX: extractApkDexes(f, false); break;  // 仅提取 dex
+            case A_SIGN: showSignDialog(f); break;    // 签名详情
+            case A_SIGN_APK: startSign(f, false); break;  // APK 签名（内置密钥；_edit.apk 原地签）
+            case A_DEXPP:                              // 独立 dex → Dex 编辑器++
                 startActivity(new Intent(this, DexEditorActivity.class)
                         .putExtra(DexEditorActivity.EXTRA_FILE, f.getAbsolutePath()));
                 break;
-            case 15:                              // APK → Dex 编辑器++（MultiDex 多选）
+            case A_DEXPP_MULTI:                              // APK → Dex 编辑器++（MultiDex 多选）
                 startActivity(new Intent(this, DexEditorActivity.class)
                         .putExtra(DexEditorActivity.EXTRA_APK, f.getAbsolutePath()));
                 break;
-            case 16:                              // APK → ARSC 编辑
+            case A_ARSCPP:                              // APK → ARSC 编辑
                 startActivity(new Intent(this, ArscEditorActivity.class)
                         .putExtra(ArscEditorActivity.EXTRA_APK, f.getAbsolutePath()));
                 break;
-            case 40:                              // APK → ARSC++ 编辑
+            case A_ARSCPP2:                              // APK → ARSC++ 编辑
                 startActivity(new Intent(this, ArscPlusActivity.class)
                         .putExtra(ArscPlusActivity.EXTRA_APK, f.getAbsolutePath()));
                 break;
-            case 17:                              // APK → Manifest 编辑器++
+            case A_MFPP:                              // APK → Manifest 编辑器++
                 startActivity(new Intent(this, ManifestEditorActivity.class)
                         .putExtra(ManifestEditorActivity.EXTRA_APK, f.getAbsolutePath()));
                 break;
-            case 18:                              // 复制到对面窗格已打开的压缩包
+            case A_TOZIP_C:                              // 复制到对面窗格已打开的压缩包
                 if (dst.archiveFile != null) archiveAdd.askAddToArchive(f, dst, false);
                 break;
-            case 19:                              // 移动到对面窗格已打开的压缩包
+            case A_TOZIP_M:                              // 移动到对面窗格已打开的压缩包
                 if (dst.archiveFile != null) archiveAdd.askAddToArchive(f, dst, true);
                 break;
-            case 21:                              // 对比…（自动判别 目录/文本/哈希）
+            case A_COMPARE:                              // 对比…（自动判别 目录/文本/哈希）
                 askCompareTarget(f, false);
                 break;
-            case 22:                              // APK 对比
+            case A_APK_COMPARE:                              // APK 对比
                 askCompareTarget(f, true);
                 break;
-            case 23:                              // APK 共存
+            case A_APK_CLONE:                              // APK 共存
                 askApkClone(f);
                 break;
-            case 26:                              // 去除签名校验（SigKill）
+            case A_SIGKILL:                              // 去除签名校验（SigKill）
                 signFlow.doSigKill(f);
                 break;
-            case 27:                              // 文件分割（对标 MT）
+            case A_SPLIT:                              // 文件分割（对标 MT）
                 askSplitSize(f);
                 break;
-            case 28:                              // 分卷合并
+            case A_MERGE:                              // 分卷合并
                 doMerge(f);
                 break;
-            case 29:                              // Zstd 压缩（文件→.zst，目录→.tar.zst）
+            case A_ZSTDC:                              // Zstd 压缩（文件→.zst，目录→.tar.zst）
                 doZstdCompress(f);
                 break;
-            case 30:                              // Zstd 解压（.zst/.tar.zst/.tzst）
+            case A_ZSTDD:                              // Zstd 解压（.zst/.tar.zst/.tzst）
                 doZstdExtract(f);
                 break;
-            case 31:                              // strings 提取（二进制可读字符串）
+            case A_STRINGS:                              // strings 提取（二进制可读字符串）
                 startActivity(new Intent(this, StringsViewerActivity.class)
                         .putExtra(StringsViewerActivity.EXTRA_FILE, f.getAbsolutePath()));
                 break;
-            case 32:                              // APK 信息（v1.57）
+            case A_INFO:                              // APK 信息（v1.57）
                 startActivity(new Intent(this, ApkInfoActivity.class)
                         .putExtra(ApkInfoActivity.EXTRA_APK, f.getAbsolutePath()));
                 break;
-            case 33:                              // APK 解包（v1.57）
+            case A_UNPACK:                              // APK 解包（v1.57）
                 doApkUnpack(f);
                 break;
-            case 34:                              // 自定义密钥签名（v1.57）
+            case A_SIGN_CUSTOM:                              // 自定义密钥签名（v1.57）
                 signFlow.askCustomSign(f, false);
                 break;
-            case 35:                              // 去除签名 → 未签名 APK（v1.57）
+            case A_RM_SIGN:                              // 去除签名 → 未签名 APK（v1.57）
                 doRemoveSignature(f);
                 break;
-            case 36:                              // 解包目录 → 打包为 APK（v1.57）
+            case A_APK_PACK:                              // 解包目录 → 打包为 APK（v1.57）
                 doApkPack(f);
                 break;
-            case 37:                              // 图片处理（缩放/转格式/水印，v1.58）
+            case A_IMGBATCH:                              // 图片处理（缩放/转格式/水印，v1.58）
                 askImageBatch(java.util.Collections.singletonList(f.getAbsolutePath()));
                 break;
-            case 38:                              // 计算哈希（MD5/SHA1/SHA256，v1.59）
+            case A_HASH:                              // 计算哈希（MD5/SHA1/SHA256，v1.59）
                 doHash(f);
                 break;
-            case 39:                              // 查找重复文件（v1.59）
+            case A_DUPFIND:                              // 查找重复文件（v1.59）
                 startActivity(new Intent(this, DupFinderActivity.class)
                         .putExtra(DupFinderActivity.EXTRA_ROOT, f.getAbsolutePath()));
                 break;
-            case 41:                              // Dex 属性（v1.66.5）
+            case A_DEX_PROP:                              // Dex 属性（v1.66.5）
                 showDexProps(f);
                 break;
-            case 42:                              // Dex 修复（v1.66.5）
+            case A_DEX_FIX:                              // Dex 修复（v1.66.5）
                 askDexFix(f);
                 break;
-            case 43:                              // 签名文件 → 签名信息（v1.68.0）
+            case A_KS_INFO:                              // 签名文件 → 签名信息（v1.68.0）
                 showKeystoreInfo(f);
                 break;
-            case 44:                              // 签名文件 → 导入签名管理（v1.68.0）
+            case A_KS_IMPORT:                              // 签名文件 → 导入签名管理（v1.68.0）
                 importKeystore(f);
                 break;
-            case 45:                              // 分享（v1.72.0，APK 与普通文件共用）
+            case A_SHARE:                              // 分享（v1.72.0，APK 与普通文件共用）
                 shareFile(f);
                 break;
-            case 46:                              // 局域网快传（v1.74.0）
+            case A_LAN:                              // 局域网快传（v1.74.0）
                 openLanShare(f);
                 break;
-            case 47:                              // 打开方式（v1.77.0）
+            case A_OPEN:                              // 打开方式（v1.77.0）
                 if (!OpenWith.open(this, f)) toast("没有可打开该类型的应用");
                 break;
-            case 48:                              // 复制到剪贴板（v1.78.0）
+            case A_CLIP_C:                              // 复制到剪贴板（v1.78.0）
                 FileClipboard.get().put(java.util.Collections.singletonList(f), false);
                 updatePasteButton();
                 toast("已复制 " + f.getName() + "，翻到目标目录点底部 📋 粘贴");
                 break;
-            case 50:                              // v1.91.0：内置播放器
+            case A_PLAYER:                              // v1.91.0：内置播放器
                 openVideo(f);
                 break;
-            case 51:                              // v1.92.0：TS → MP4（转封装）
+            case A_TSMP4:                              // v1.92.0：TS → MP4（转封装）
                 remuxToMp4(f);
                 break;
-            case 52:                              // v1.92.0：本地 m3u8 → 下载/合并页
+            case A_HLSD:                              // v1.92.0：本地 m3u8 → 下载/合并页
                 startActivity(new Intent(MainActivity.this, HlsDownloadActivity.class)
                         .putExtra(HlsDownloadActivity.EXTRA_URL, f.getAbsolutePath()));
                 break;
-            case 49:                              // 剪切到剪贴板
+            case A_CLIP_M:                              // 剪切到剪贴板
                 FileClipboard.get().put(java.util.Collections.singletonList(f), true);
                 updatePasteButton();
                 toast("已剪切 " + f.getName() + "，粘贴后原位置的文件会消失");
