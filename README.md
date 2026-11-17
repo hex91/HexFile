@@ -26,7 +26,7 @@ adb install -r out/HexFile-*.apk
 
 ```
 /
-├── AndroidManifest.xml          # minSdk 21 / targetSdk 30 / 存储权限 / 53 个组件（44 Activity + Service/Provider/Receiver）
+├── AndroidManifest.xml          # minSdk 21 / targetSdk 30 / 存储权限 / 55 个组件（47 Activity + 4 Service + 3 Provider + 1 Receiver）
 ├── build.sh                     # 一键构建（7 步：aapt2 compile→link→NDK→javac→d8→zipalign→sign，带版本守卫）
 ├── res/
 │   ├── layout/activity_main.xml # 格双栏布局（深色顶栏+统计行、底部 ‹ › ＋ ⇄ ↑ 工具栏）
@@ -122,7 +122,7 @@ bash test/deps_check.sh    # 依赖方向 + 自有包禁止通配 + 全限定名
 bash test/catch_check.sh   # 空 catch 不增长（当前基线 335 = 实际值）
 bash test/catch_check.sh --others   # 只列「没表态忽略」的那 4 处（欠理由）
 bash test/lang_check.sh    # 文案键：引用的键存在、两侧类型与「位置 + 转换符」一致
-bash test/action_check.sh  # 文件动作码：派发侧不许出现数字 case、菜单侧不许写数字
+bash test/action_check.sh  # 文件动作码：派发侧不许数字 case、菜单侧不许写数字、A_* 名字与值都不许重复
 ./test/jc.sh               # 只编译自研包，约 40 秒（改 import / 搬包时的快速校验）
 ./test/jres.sh             # 只重生成 R.java（改了 res/values 后不必等完整构建）
 ```
@@ -142,6 +142,8 @@ v2.5.0 起 `build.sh` 在 aapt2 之前就跑这些门：以前只有 CI 跑，�
 
 `action_check.sh`（v2.11.0，O-26）只扫 `MainActivity.runFileAction` 这一个方法：不许
 出现 `case <数字>`、整个 `MainActivity` 不许出现 `acts.add(<数字>)`、`default` 必须还在。
+v2.12.0（R-38）补了第四条：`A_*` 常量的**名字与值**都不许重复——名字重复 javac 会说话，
+**值重复不会**（两个菜单项静默执行同一个动作），这类问题排查成本和 O-25 一样高。
 别的方法（菜单 id、排序模式）与别的页面（`TextEditorActivity` 的局部 `acts`、
 `ArchiveController` 的 `A_EDIT`）用数字是正常的，扫全仓只会制造噪音。
 
@@ -1775,6 +1777,143 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.12.0（versionCode 203）—— R-38 / F-17 / F-09 / F-18：动作号唯一性进门，三个小步快赢
+
+R-38 补上一道门的能力边界；F-17 / F-09 / F-18 是 §23 里规模最小的三项（S），
+共同点是「用户能立刻看见、又不牵动目录模型」：外部分享进来的文件终于能接住、
+照片能看到 EXIF、崩溃终于留下现场。
+
+### R-38：动作号的值也要查
+
+`action_check.sh` 原来只查两件事：`A_*` **名字**是否重复、`runFileAction` 里还有没有
+数字 `case`。名字重复 javac 会直接报「already defined」，所以那一半本来就是白查；
+真正没有保护的是**值**：
+
+```java
+private static final int A_HEX = 2;
+private static final int A_FOO = 2;   // 编译通过，门也通过
+```
+
+后果不是崩溃，而是「点了有反应，反应的是别人的活」——两个菜单项静默执行同一个动作。
+这与 O-25 那类「菜单/派发不一致」是同一种故障形态，排查成本一样高。
+
+现在按值分组，重复就列出共用的常量名：
+
+```bash
+FAIL 文件动作码不一致（O-26 / R-38）
+      src/com/hex91/file/MainActivity.java: A_* 动作号重复 → 2 被 A_HEX / A_DUP 共用
+```
+
+反向验证：沙箱里加一行 `A_DUP = 2` → `rc=1` 并指出重复值；真实仓库
+`PASS … 53 个动作号互不重复`。
+
+### F-17：外部分享 / 「用 HexFile 打开」
+
+以前这台设备上的文件管理器**收不到**别的应用递过来的文件：清单里 `MainActivity` 只有
+`MAIN` / `LAUNCHER` 两个 action，全仓 `ACTION_SEND` 的两处都是**发出**分享。
+
+落点三处：清单加两个 `intent-filter`（`SEND` / `SEND_MULTIPLE` 接全部类型；
+`VIEW` 只列本应用真能处理的 apk/zip/7z/rar/tar/gz/text/image，且**不加 `BROWSABLE`**，
+免得 http 链接也被接管）、新增 `utils/IntentImport`、`MainActivity.handleIncoming`。
+
+| 环节 | 做法 | 为什么 |
+| --- | --- | --- |
+| 取址 | `EXTRA_STREAM` / `EXTRA_STREAM` 列表 / `ClipData` / VIEW 的 `getData()` 四路，按 URI 字符串去重 | 厂商分享常常只填 `ClipData`，只读标准 extra 会「收到 0 个文件」 |
+| 命名 | `OpenableColumns.DISPLAY_NAME` → URI 末段 → `shared-<时间戳>`，统一过 `safeName` | 对方给的名字可能是 `../../data/x`、带 `:*?"<>|` 或纯控制字符 |
+| 落点 | 同名依次 `名字 (1).ext`、`名字 (2).ext` | **绝不覆盖**：分享同一个文件名十次就该是十个文件 |
+| 搬运 | 128 KB 一块写 `名字.part`，`TempFiles.begin/end` 登记，成功才改名 | 取消/失败删干净；进行中的 `.part` 也不会被「遗留文件清理」当垃圾列出 |
+| 进度 | 横向 `ProgressDialog` + 取消按钮，128 KB 检查点看取消标记 | 取消是显式操作，不是误触返回键 |
+| 收尾 | 完成后刷新两栏；`ACTION_VIEW` 单个文件再按类型打开（apk→信息、zip→包内浏览、图片→查看器） | 「用 HexFile 打开」的语义是**打开**，不是「落到目录里让我自己找」 |
+
+两个刻意的细节：
+
+1. **处理完立刻把 Intent 掏空**（`setAction(MAIN)`、清 `data` / `ClipData` / `EXTRA_STREAM`）。
+   横竖屏切换会重建 Activity 并重新读同一份 `getIntent()`，不清就会再导入一遍。
+2. **上限写死并如实报告**：单次 ≤ 100 个、总量 ≤ 4 GB，超出的计入「跳过 N 个」，
+   不静默丢。
+
+已知边界：来源是 root 区（`/data/...`）时没有 `su` 回退——分享场景的来源几乎都是
+`content://` 或 `/sdcard`，为它引一条 root 拷贝路径不值当，写在这里免得以后当 bug 查。
+
+### F-09：图片元数据（EXIF）
+
+入口两个：图片查看器底部「信息」、文件长按「图片信息」（新动作码 `A_EXIF = 53`，
+正好被 R-38 的新门覆盖）。
+
+- 用平台的 `android.media.ExifInterface`（API 5 起有，吃文件路径），**不引依赖**：
+  `libs/` 只放签名/反编译相关 jar，为一张信息页加一个库不划算。
+- 像素只读文件头（`inJustDecodeBounds`），几百 MB 的图也不吃内存。
+- EXIF 读不到**不报错**：PNG 重编码、截图、社交软件转存都会掉 EXIF，
+  界面显示「EXIF：无（该图片不含 EXIF 信息）」，那是正常情况。
+- 值做了人话化：方向（8 种，镜像 + 旋转）、曝光（`0.008` → `1/125 s`）、
+  焦距（`47/10` → `4.7 mm`）、闪光灯（EXIF 位域 bit0）、白平衡、GPS 十进制度。
+- 全部内容在一个可选中的 TextView 里，底部「复制全部」——用户最常做的是复制经纬度或拍摄时间。
+
+### F-18：崩溃捕获与诊断包
+
+这个工程以前对 release 崩溃是**完全失明**的：`utils/Bg` 的注释自己就写着
+「默认 UncaughtExceptionHandler 只打到 stderr，release 版本里基本看不到」。
+
+现在加 `HfApp`（Application 子类）在进程最早处装 handler——挂在 Application 而不是
+`MainActivity.onCreate`，是因为「启动即崩」恰恰发生在 Activity 起来之前，装在 Activity 里
+等于对最难排的一类崩溃失明。代价也写进注释了：这是启动路径的改动，所以
+`HfApp.onCreate` **只做这一件事**。
+
+三条硬约束：
+
+| 约束 | 做法 |
+| --- | --- |
+| 不能吞异常 | 写完文件**必须**调用原来的 handler，系统照常弹「应用已停止」；原来没有才自己 `killProcess` |
+| 处理器不能再崩 | 全程 try/catch + 静态重入标志，真失败退到 `System.err` |
+| 不能无限增长 | 只留最近 5 份、单份 ≤ 256 KB |
+
+`utils/LogRing` 是 200 行定长环形缓冲。**它不是 logcat 的镜像**：拦截
+`android.util.Log` 要改几百处调用点，所以由三处主动喂——`Bg` 的后台任务失败、
+`CrashLog` 的崩溃记录、关键路径留痕。崩溃报告里「崩之前刚失败过什么」往往就是原因。
+
+界面与入口：
+
+- 崩溃页（`CrashReportActivity`）：堆栈原样显示（等宽、可选中）、分享、删除。
+  **进页即已读**，否则下次启动再提示一次就是骚扰。
+- 启动提示只在 `onCreate` 问一次，`onResume` 不问（崩溃后切回来一次问一次等于骚扰）。
+- 设置 → 系统集成：崩溃日志（带未读数）+ 导出诊断包。
+
+诊断包（`CrashLog.exportDiag`）内容：`meta.txt`（版本/机型/SDK/ABI/handler 是否装上）、
+`log/ring.txt`、`crash/*.txt`、`prefs/hf_settings.txt`、`prefs/hexfile_task.txt`，
+落到缓存目录后直接弹分享面板（用户点这个按钮的目的就是「交给别人看」）。
+脱敏分两层：正文里 `pass/token/secret/sig/auth/credential` **连同它的取值**整段替换成
+`[redacted]`（只打码值、留下 `pass=` 依然等于告诉别人这里有密码）；偏好里敏感键只留
+键名、值写 `[hidden]`。
+
+已知边界：装 handler 之前的崩溃抓不到——所以 `meta.txt` 里专门有
+`handler_installed` 一行，用来说明「这份报告是不是完整现场」。
+
+### 验证
+
+- `build.sh` → **BUILD OK，v203 / 2.12.0，13,062,711 B**（+16 KB 来自两个新页面与文案），V3 CN=hex91
+- 四道门：`deps_check` 0 命中、`catch_check` **335（基线 335，新增代码零空 catch）**、
+  `lang_check` PASS（379 键，中英各 379）、`action_check` PASS（53 个常量 case、53 个值互不重复）
+- 新增 2 个用例：`IntentImportTest`（14 断言：路径剥离 / 非法字符 / 控制字符 / 纯点 /
+  结尾点空格 / 长名截断 / 重名 3 次 / 无扩展名）、`CrashLogTest`（17 断言：
+  环形缓冲顺序与覆盖、单行截断、7 组脱敏、大小写、普通堆栈不被误伤）
+- 桌面单测（本机有 `test/huangguo.apk`）：`QUICK=1` **57 用例 57 PASS**；`ALL` **60 用例 60 PASS**
+- 反向验证：`A_DUP = 2` 沙箱 → `action_check` `rc=1` 并指出重复值
+
+**真机测试点**（都是编译与单测覆盖不到的）：
+
+1. 设置页确认 `2.12.0 (203)`；
+2. 微信/邮件/浏览器各分享 1 个与 3 个文件 → 选「当前目录」，进度条与取消按钮出现，
+   `SHA-256` 与源一致；同名再分享一次 → 出现 `名字 (1).ext`，原件不被覆盖；
+3. 分享一个 APK → 导入后直接进 APK 信息页；分享 zip → 直接进包内浏览；
+4. 导入中途点「取消」→ 目录里不留 `.part`；导入中旋转屏幕 → 不重复导入；
+5. 图片查看器点「信息」→ 看到机型/拍摄时间/方向/曝光/焦距/是否带 GPS；
+   长按图片选「图片信息」→ 同一页；截图（无 EXIF）→ 显示「EXIF：无」而不报错；
+6. 用 root 或 adb 让应用崩一次（例如 `adb shell am broadcast` 触发不了就用
+   `kill -SEGV <pid>`）→ 重启出现「上次运行崩溃了」，进崩溃页能看到堆栈与机型；
+7. 设置 → 导出诊断包 → 把 zip 解压后 `grep -i 'pass\|token\|secret'` 应无命中。
 
 ---
 
