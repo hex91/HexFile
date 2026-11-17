@@ -424,4 +424,36 @@
     <string name="settings_diag_sub">Version / device / logs / crashes / settings, redacted</string>
     <string name="settings_diag_done">Diagnostic bundle ready</string>
     <string name="settings_diag_fail">Export failed: %1$s</string>
+    <!-- v2.13.0（F-03）：split package install (.apks / .xapk / .apkm) -->
+    <string name="split_format">Format</string>
+    <string name="split_size">Size</string>
+    <string name="split_apks">Splits</string>
+    <string name="split_apks_value">%1$d (of %2$d APKs)</string>
+    <string name="split_obb">OBB data</string>
+    <string name="split_obb_value">%1$d OBB file(s)</string>
+    <string name="split_other">Other entries</string>
+    <string name="split_install">Install</string>
+    <string name="split_browse">Browse inside</string>
+    <string name="split_cancel">Cancel</string>
+    <string name="split_scanning">Reading package…</string>
+    <string name="split_scan_failed">Cannot read package: %1$s</string>
+    <string name="split_progress_title">Install splits</string>
+    <string name="split_progress_extract">Extracting %1$d%%</string>
+    <string name="split_progress_install">Installing %1$d%%</string>
+    <string name="split_ok">Installed: %1$s</string>
+    <string name="split_ok_obb">Installed: %1$s (with %2$s OBB file(s))</string>
+    <string name="split_fail">Install failed: %1$s</string>
+    <string name="split_no_apk">No .apk entry inside — this is not a split package</string>
+    <string name="split_cancelled">Install cancelled</string>
+    <string name="split_busy">Another split install is running, please wait</string>
+    <string name="split_blocked">Blocked by the system: allow "Install unknown apps" for this app</string>
+    <string name="split_err_aborted">Install aborted</string>
+    <string name="split_err_conflict">Conflicts with the installed version (different signature — uninstall first)</string>
+    <string name="split_err_invalid">Invalid package (incomplete splits or corrupted)</string>
+    <string name="split_err_storage">Not enough storage</string>
+    <string name="split_err_incompatible">Incompatible with this device (ABI or SDK)</string>
+    <string name="split_obb_fail_hint">%1$s OBB file(s) could not be written to Android/obb; the game may report missing resources. You can extract them manually into Android/obb/&lt;package&gt;/</string>
+    <string name="split_channel">Install results</string>
+    <string name="split_notif_ok">Install finished</string>
+    <string name="split_notif_fail">Install failed</string>
 </resources>

@@ -38,6 +38,7 @@ import com.hex91.file.ui.HfDialogBuilder;
 import com.hex91.file.ui.HlsDownloadActivity;
 import com.hex91.file.ui.ImageInfoActivity;
 import com.hex91.file.ui.ImageViewerActivity;
+import com.hex91.file.ui.InstallResultReceiver;
 import com.hex91.file.ui.LanShareActivity;
 import com.hex91.file.ui.ManifestEditorActivity;
 import com.hex91.file.ui.PdfPreviewActivity;
@@ -69,6 +70,8 @@ import com.hex91.file.apk.ArchiveUtil;
 import com.hex91.file.apk.ArchiveWrite;
 import com.hex91.file.apk.FileInspect;
 import com.hex91.file.apk.SmaliTool;
+import com.hex91.file.apk.SplitInstaller;
+import com.hex91.file.apk.SplitPackage;
 import com.hex91.file.R;
 import com.hex91.file.fs.DiskScanUtil;
 import com.hex91.file.fs.FileClipboard;
@@ -208,6 +211,7 @@ public class MainActivity extends BaseActivity {
     private static final int A_TSMP4 = 51;         // TS → MP4（转封装）
     private static final int A_HLSD = 52;          // 本地 m3u8 → 下载/合并页
     private static final int A_EXIF = 53;          // 图片元数据（EXIF）
+    private static final int A_SPLITINST = 54;     // 分包安装（.apks / .xapk / .apkm）
     // 选 keystore 的请求码已随签名簇搬到 SignFlowController.REQ_CUSTOM_KEYSTORE（v2.7.0）
 
     private TextView headerPath, headerStats;
@@ -1412,6 +1416,8 @@ public class MainActivity extends BaseActivity {
     private void onFileClick(File f) {
         new RecentStore(this).record(f.getAbsolutePath());
         String lower = f.getName().toLowerCase();
+        // v2.13.0（F-03）：分包安装包本身是 zip，但用户点它的意图是「装」，不是「看里面」
+        if (SplitPackage.isSplitName(lower)) { showSplitInfo(f); return; }
         if (FileKind.isArchiveExt(lower) || lower.endsWith(".apk")) {
             // 压缩包/APK 均在当前窗格内嵌浏览（v1.14，不再全屏）
             if (lower.endsWith(".apk")) showApkInfo(f);
@@ -2464,6 +2470,133 @@ public class MainActivity extends BaseActivity {
         }
     }
 
+    // ---------------------------------------------------------- 分包安装（v2.13.0 F-03）
+
+    /**
+     * 分包安装包的信息框：先看清单，再决定装不装。
+     *
+     * <p>扫描放后台线程：几百 MB 的 xapk 列条目也要一会儿，UI 线程卡一下就会被当成
+     * 「点了没反应」。扫描结果出来才弹框，中间不弹「正在读取」，因为正常包一瞬就好。</p>
+     */
+    private void showSplitInfo(final File f) {
+        final String lower = f.getName().toLowerCase();
+        new Thread(new Runnable() {
+            public void run() {
+                SplitPackage.Contents c = null;
+                String err = null;
+                try {
+                    c = SplitPackage.scan(f);
+                } catch (Throwable t) {
+                    err = String.valueOf(t.getMessage() != null ? t.getMessage() : t);
+                }
+                final SplitPackage.Contents fc = c;
+                final String fe = err;
+                runOnUiThread(new Runnable() {
+                    public void run() { showSplitDialog(f, lower, fc, fe); }
+                });
+            }
+        }, "split-scan").start();
+    }
+
+    private void showSplitDialog(final File f, String lower, SplitPackage.Contents c, String err) {
+        if (isFinishing() || isDestroyed()) return;
+        StringBuilder sb = new StringBuilder();
+        if (c == null) {
+            sb.append(getString(R.string.split_scan_failed, err));
+        } else {
+            sb.append(getString(R.string.split_format)).append(": ")
+                    .append(SplitPackage.formatName(lower)).append('\n');
+            sb.append(getString(R.string.split_size)).append(": ")
+                    .append(FileOps.formatSize(f.length())).append('\n');
+            sb.append(getString(R.string.split_apks)).append(": ")
+                    .append(getString(R.string.split_apks_value, c.splitCount(), c.apks.size()))
+                    .append('\n');
+            if (!c.obb.isEmpty()) {
+                sb.append(getString(R.string.split_obb)).append(": ")
+                        .append(getString(R.string.split_obb_value, c.obb.size())).append('\n');
+            }
+            if (c.other > 0) {
+                sb.append(getString(R.string.split_other)).append(": ").append(c.other);
+            }
+        }
+        AlertDialog.Builder b = new HfDialogBuilder(this);
+        b.setTitle(f.getName())
+                .setMessage(sb.toString().trim())
+                .setNegativeButton(R.string.split_cancel, null);
+        if (c != null && c.hasApks()) {
+            b.setPositiveButton(R.string.split_install,
+                    new android.content.DialogInterface.OnClickListener() {
+                        public void onClick(android.content.DialogInterface d, int w) {
+                            installSplit(f);
+                        }
+                    });
+            b.setNeutralButton(R.string.split_browse,
+                    new android.content.DialogInterface.OnClickListener() {
+                        public void onClick(android.content.DialogInterface d, int w) {
+                            openArchiveInPane(active(), f);      // .apks 也是 zip，包内浏览照常
+                        }
+                    });
+        }
+        b.show();
+    }
+
+    /**
+     * 分包安装：进度条 + 显式取消按钮，其余全交给 {@link SplitInstaller}。
+     *
+     * <p>取消按钮是刻意留的：xapk 动辄一两 GB，解包一半发现选错了包，没有取消只能等。
+     * 进度条本身 {@code setCancelable(false)} —— 点外部/返回键关掉进度条会让用户以为
+     * 安装停了，实际还在后台跑，那种「静默完成」比多给一个按钮更让人困惑。</p>
+     */
+    private void installSplit(final File f) {
+        final ProgressDialog pd = new ProgressDialog(this);
+        pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+        pd.setTitle(R.string.split_progress_title);
+        pd.setMessage(getString(R.string.split_progress_extract, 0));
+        pd.setMax(100);
+        pd.setProgress(0);
+        pd.setCancelable(false);
+        pd.show();
+        pd.setButton(android.content.DialogInterface.BUTTON_NEGATIVE,
+                getString(R.string.split_cancel),
+                new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        SplitInstaller.cancel();
+                        d.dismiss();
+                    }
+                });
+        Intent result = new Intent(this, InstallResultReceiver.class);
+        SplitInstaller.install(this, f, result, new SplitInstaller.Listener() {
+            public void onProgress(int percent) {
+                if (!pd.isShowing()) return;
+                pd.setProgress(percent);
+                // 45% 之前是解包，之后是写会话（48/55 是两个阶段的分界，取 48 作判据）
+                pd.setMessage(getString(percent < 48
+                        ? R.string.split_progress_extract : R.string.split_progress_install, percent));
+            }
+
+            public void onResult(boolean ok, String msg) {
+                if (pd.isShowing()) {
+                    try {
+                        pd.dismiss();
+                    } catch (Throwable t) {
+                        // 页面已销毁（安装期间用户退出）：dismiss 抛异常不该盖掉结果
+                        LogRing.add("split", "pd.dismiss: " + t);
+                    }
+                }
+                if (isFinishing() || isDestroyed()) return;
+                if (!ok && getString(R.string.split_cancelled).equals(msg)) {
+                    toast(msg);          // 用户自己点的取消，不必再弹一个「失败」框
+                    return;
+                }
+                new HfDialogBuilder(MainActivity.this)
+                        .setTitle(ok ? R.string.split_notif_ok : R.string.split_notif_fail)
+                        .setMessage(msg)
+                        .setPositiveButton(R.string.common_ok, null)
+                        .show();
+            }
+        });
+    }
+
     /** 复制文本到剪贴板并提示 */
     private void copyToClipboard(String label, String value) {
         ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
@@ -2501,6 +2634,10 @@ public class MainActivity extends BaseActivity {
         // 本地 m3u8（整目录下好的切片）→ 打开下载页，路径已预填
         if (isFile && f.getName().toLowerCase().endsWith(".m3u8")) {
             ops.add("合并为 MP4"); acts.add(A_HLSD);
+        }
+        // v2.13.0（F-03）：分包安装包——「装」放最前面，其余动作照旧
+        if (isFile && SplitPackage.isSplitName(f.getName().toLowerCase())) {
+            ops.add("安装分包"); acts.add(A_SPLITINST);
         }
         if (isSmaliDir) { ops.add("编译为 dex"); acts.add(A_ASSEMBLE); }
         // v1.68.0：签名文件专属操作（导入签名管理 / 查看别名与证书）
@@ -2659,6 +2796,7 @@ public class MainActivity extends BaseActivity {
                 startActivity(new Intent(this, ImageInfoActivity.class)
                         .putExtra(ImageInfoActivity.EXTRA_FILE, f.getAbsolutePath()));
                 break;
+            case A_SPLITINST: installSplit(f); break;      // v2.13.0（F-03）分包安装
             case A_ASSEMBLE: assembleDexDir(f); break;     // smali 目录编译为 dex
             case A_DEX2SMALI: extractApkDexes(f, true); break;   // APK 内全部 dex 反编译
             case A_EXTRACT_DEX: extractApkDexes(f, false); break;  // 仅提取 dex

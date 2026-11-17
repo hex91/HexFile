@@ -1780,6 +1780,87 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.13.0（versionCode 205）—— F-03：分包安装（.apks / .xapk / .apkm）
+
+以前这台机器上的分包包是**装不了**的：`installApk` 发 `ACTION_INSTALL_PACKAGE`，
+系统安装器一次只认一个文件；唯一能装多包的路在 `BackupRestore` 里，靠 root 跑
+`pm install-multiple`。没 root 的机器双击 `.xapk` 只会看到「无法解析安装包」。
+
+### 三种格式是同一种东西
+
+`.apks`（bundletool）、`.xapk`（APKPure）、`.apkm`（APKMirror）都是 zip：
+base + N 个 split，外加各自的一点元数据。所以实现里**不按格式分支**，只按
+「条目是不是 `.apk`」分类：
+
+| 格式 | 典型布局 | 元数据（不读） |
+| --- | --- | --- |
+| `.apks` | `splits/base-master.apk`、`splits/base-arm64_v8a.apk` | `toc.pb` |
+| `.xapk` | `com.foo.apk`、`config.arm64_v8a.apk`、`Android/obb/…` | `manifest.json` |
+| `.apkm` | `base.apk`、`split_config.arm64_v8a.apk` | `info.json` |
+
+元数据一份都不解析：包名/版本/应用名全都能从 base apk 自己的 `AndroidManifest`
+里拿到（`getPackageArchiveInfo`）。少一套解析就少一处「某家打包器字段名不一样」的坑。
+
+### 装的过程
+
+| 阶段 | 做法 | 为什么 |
+| --- | --- | --- |
+| 识别 | 点击先于压缩包判断（它本身是 zip，但用户点它的意图是「装」） | 否则会进包内浏览，找不到安装入口 |
+| 看清单 | 后台扫一遍再弹框：格式 / 大小 / 分包数 / OBB 数 / 其他条目 | 几百 MB 的包列条目也要一会儿，UI 线程卡一下就是「点了没反应」 |
+| 解包 | 每条写到 `cache/split/<ts>/`，128 KB 一块，45% 用未压缩字节推进 | 取消要能随时生效，进度要按真实字节而不是条目数 |
+| 装 | `PackageInstaller` 会话（`MODE_FULL_INSTALL`），逐条 `openWrite` 后 `commit` | 只有会话能表达「这几份是同一个应用」；不需要 root |
+| 报 | 结果走 `PendingIntent` → `InstallResultReceiver`；界面在场就回界面，进程被杀过就发通知 | 安装可能比 Activity 活得久 |
+| 收尾 | 会话封存后立刻删临时目录 | 系统已持有字节副本，留着只是占用户空间 |
+
+### 几个刻意的选择
+
+1. **文件名只取末段**（`SplitPackage.safeLeaf`）。解包目录是临时的，层次没有意义；
+   只取末段就天然免疫 `../` 与绝对路径（zip-slip），不需要再写一套路径校验。
+   剩下清洗的是「末段本身不合法」：控制字符、Windows 保留字符、纯点、结尾点空格。
+2. **取消不删已提交的会话**：解包阶段只置标志，写会话阶段同理，只有真的中止才
+   `abandon()` —— 取消是显式按钮，不是「点了外部让它自生自灭」。
+3. **进度条 `setCancelable(false)`，但带一个取消按钮**：返回键关掉进度条会让用户
+   以为安装停了，实际还在后台跑；那种「静默完成」比多给一个按钮更让人困惑。
+4. **OBB 尽力而为**：`Android/obb/...` 写到 `/sdcard/Android/obb/<包名>/`。
+   Android 11+ 对这目录有额外限制，即便有「所有文件访问」也可能写不进去 ——
+   这种包装完仍能启动，只是游戏报「资源缺失」。所以失败数要报出来并告诉用户
+   手动解压到哪儿，而不是假装成功。
+5. **兜底看门狗**：广播万一丢了，5 分钟后解除忙标志。不解除的话下次安装会一直
+   提示「正在安装另一个分包」，只能杀进程恢复。
+6. **同时只允许一个会话**：进度、取消、OBB 统计都走静态字段，并发会互相覆盖；
+   重复点击直接回一句「正在安装另一个分包」，比悄悄排队诚实。
+
+### 已知边界
+
+- **没有 root 回退**：`PackageInstaller` 被系统拦（未允许「安装未知应用」）时只报原因，
+  不会偷偷改走 `su`。走 root 会让「明明允许了却装不上」变成「为什么它要 root」。
+- **签名冲突必须手动卸载**：`STATUS_FAILURE_CONFLICT` 翻成「与已安装版本冲突
+  （多半是签名不同，需先卸载）」，不做 `-d` 降级安装 —— 那是另一件事。
+- **不校验 split 完整性**：少一个 split 时由系统报 `INVALID`，本应用不预先猜哪份缺了
+  （判断依据只有 `toc.pb`/JSON，而这正是上面刻意不解析的东西）。
+
+### 验证
+
+- `build.sh` → **BUILD OK，v205 / 2.13.0**，APK **13,079,095 B**（+16 KB 来自新类与文案），V3 CN=hex91
+- 四道门：`deps` 0 命中、`catch` 335（基线 335，新代码零空 catch）、
+  `lang` PASS（410 键，中英各 410 键）、`action` PASS（54 个动作号互不重复）
+- 新增 `test/SplitPackageTest`（18 断言）：三种布局的条目分类、obb 不混进 apk、
+  无 apk 包不出现「-1 分包」、`safeLeaf` 的 zip-slip / 控制字符 / 纯点 / 结尾点空格 /
+  长名截断保扩展名
+- 桌面单测：`QUICK=1` **59 用例 59 PASS**；`ALL` **62 用例 62 PASS**
+
+**真机测试点**：
+
+1. 设置页确认 `2.13.0 (205)`；
+2. 点一个 `.xapk`（带 OBB）→ 清单显示分包数与 OBB 数 → 安装 → 应用出现且能启动；
+3. 装一个 `.apks`（bundletool 导出）→ 装完后「应用信息」里能看到 ABI split；
+4. 安装中途点「取消」→ `cache/split/` 不留目录，应用商店里没有半装状态；
+5. 装一个签名与已装版本不同的包 → 提示「与已安装版本冲突」，不是一句「安装失败」；
+6. 关闭本应用的「安装未知应用」再装 → 提示去系统设置放开，而不是卡住；
+7. 装完立刻退出应用 → 通知栏仍能看到「安装完成」。
+
+---
+
 ## v2.12.1（versionCode 204）—— F-12：压缩包条目对比不再只比大小
 
 `CompareUtil.compareEntries` 判「修改」只有一个条件：`sizeA != sizeB`。也就是说

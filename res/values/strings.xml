@@ -430,4 +430,37 @@
     <string name="settings_diag_sub">版本 / 设备 / 日志 / 崩溃 / 设置快照，脱敏后打包</string>
     <string name="settings_diag_done">已生成诊断包</string>
     <string name="settings_diag_fail">导出失败: %1$s</string>
+    <!-- v2.13.0（F-03）：分包安装（.apks / .xapk / .apkm）。三种格式其实是同一种 zip，
+         文案里统一叫「分包安装包」，不按格式分支，免得用户以为要按格式找入口。 -->
+    <string name="split_format">格式</string>
+    <string name="split_size">大小</string>
+    <string name="split_apks">分包</string>
+    <string name="split_apks_value">%1$d 个（共 %2$d 个 APK）</string>
+    <string name="split_obb">数据包</string>
+    <string name="split_obb_value">%1$d 个 OBB</string>
+    <string name="split_other">其他条目</string>
+    <string name="split_install">安装</string>
+    <string name="split_browse">包内浏览</string>
+    <string name="split_cancel">取消</string>
+    <string name="split_scanning">正在读取包内容…</string>
+    <string name="split_scan_failed">读取包内容失败: %1$s</string>
+    <string name="split_progress_title">安装分包</string>
+    <string name="split_progress_extract">解包 %1$d%%</string>
+    <string name="split_progress_install">安装 %1$d%%</string>
+    <string name="split_ok">已安装: %1$s</string>
+    <string name="split_ok_obb">已安装: %1$s（含 %2$s 个数据包）</string>
+    <string name="split_fail">安装失败: %1$s</string>
+    <string name="split_no_apk">这个包里没有 .apk 条目，不是分包安装包</string>
+    <string name="split_cancelled">已取消安装</string>
+    <string name="split_busy">正在安装另一个分包，请稍候</string>
+    <string name="split_blocked">系统拦下了安装: 请在系统设置里允许本应用「安装未知应用」</string>
+    <string name="split_err_aborted">安装被取消</string>
+    <string name="split_err_conflict">与已安装版本冲突（多半是签名不同，需先卸载）</string>
+    <string name="split_err_invalid">安装包无效（分包不完整或已损坏）</string>
+    <string name="split_err_storage">存储空间不足</string>
+    <string name="split_err_incompatible">与当前设备不兼容（ABI 或系统版本）</string>
+    <string name="split_obb_fail_hint">有 %1$s 个数据包（OBB）没写进 Android/obb，游戏可能提示资源缺失；可手动解压到 Android/obb/包名/ 下</string>
+    <string name="split_channel">安装结果</string>
+    <string name="split_notif_ok">安装完成</string>
+    <string name="split_notif_fail">安装失败</string>
 </resources>

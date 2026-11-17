@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hex91.file"
-    android:versionCode="204"
-    android:versionName="2.12.1">
+    android:versionCode="205"
+    android:versionName="2.13.0">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
 
@@ -473,6 +473,13 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_info"/>
         </receiver>
+
+        <!-- v2.13.0（F-03）：分包安装的会话结果。PackageInstaller 只能通过 PendingIntent
+             把结果送回来，所以必须有这个组件；exported=false —— PendingIntent 由本应用
+             自建、系统发出，不需要导出（导出等于允许任何应用伪造「安装成功」）。 -->
+        <receiver
+            android:name="com.hex91.file.ui.InstallResultReceiver"
+            android:exported="false"/>
 
         <provider
             android:name="com.hex91.file.ui.ApkFileProvider"
