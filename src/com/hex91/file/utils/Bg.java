@@ -74,6 +74,9 @@ public final class Bg {
                     r.run();
                 } catch (Throwable t) {
                     Log.e(TAG, "bg task failed: " + r.getClass().getName(), t);
+                    // v2.12.0（F-18）：release 包看不到 logcat，这里同时进环形缓冲，
+                    // 崩溃时能被带进崩溃报告（「崩之前刚失败过什么」往往才是原因）
+                    LogRing.add(TAG, "bg task failed: " + r.getClass().getName() + ": " + t);
                     if (onFail != null) {
                         try {
                             ui(new Runnable() {

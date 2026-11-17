@@ -22,9 +22,9 @@ import java.util.List;
  * <p>与主界面「对比目标」里的选择器同源，但剥掉了文件项与 APK 特判：
  * 设置页只需要一个能逐级进入、能「选当前目录」的轻量浏览器。</p>
  */
-final class DirPickerDialog {
+public final class DirPickerDialog {
 
-    interface OnPick {
+    public interface OnPick {
         void onPick(File dir);
     }
 
@@ -34,7 +34,7 @@ final class DirPickerDialog {
      * @param start 初始目录，null 时从 /sdcard 开始
      * @param cb    选中回调（回到主线程）
      */
-    static void show(final Activity a, File start, final OnPick cb) {
+    public static void show(final Activity a, File start, final OnPick cb) {
         if (a == null || a.isFinishing()) return;
 
         final File[] cur = {start != null && start.isDirectory() ? start

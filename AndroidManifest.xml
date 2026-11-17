@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hex91.file"
-    android:versionCode="202"
-    android:versionName="2.11.0">
+    android:versionCode="203"
+    android:versionName="2.12.0">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
 
@@ -36,6 +36,7 @@
          无法枚举成域名白名单，详见 res/xml/network_security_config.xml 的说明。
          usesCleartextTraffic 供 API 23~27 兜底（这批系统还不读 networkSecurityConfig）。 -->
     <application
+        android:name="com.hex91.file.HfApp"
         android:label="HexFile"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -78,6 +79,33 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+
+            <!-- v2.12.0（F-17）：接收外部应用的分享。文件名优先取 OpenableColumns.DISPLAY_NAME，
+                 内容一律先复制进工作目录（见 utils/IntentImport）—— 对方的 content:// 授权
+                 只在本进程收到 Intent 的那段时间有效，不复制的话过一会儿就读不到了。 -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <action android:name="android.intent.action.SEND_MULTIPLE"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="*/*"/>
+            </intent-filter>
+
+            <!-- v2.12.0（F-17）：「用 HexFile 打开」。刻意只列本应用真能处理的类型，
+                 不加 BROWSABLE —— 那会让 http 链接也能被本应用接管。 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="application/vnd.android.package-archive"/>
+                <data android:mimeType="application/zip"/>
+                <data android:mimeType="application/x-zip-compressed"/>
+                <data android:mimeType="application/x-7z-compressed"/>
+                <data android:mimeType="application/x-rar-compressed"/>
+                <data android:mimeType="application/x-tar"/>
+                <data android:mimeType="application/gzip"/>
+                <data android:mimeType="application/x-gzip"/>
+                <data android:mimeType="text/plain"/>
+                <data android:mimeType="image/*"/>
             </intent-filter>
         </activity>
 
@@ -127,6 +155,18 @@
 
         <activity
             android:name="com.hex91.file.ui.ImageViewerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <!-- v2.12.0（F-18）：崩溃现场（堆栈 + 环形日志 + 机型），崩溃提示也跳这里 -->
+        <activity
+            android:name="com.hex91.file.ui.CrashReportActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <!-- v2.12.0（F-09）：图片元数据（文件信息 + EXIF） -->
+        <activity
+            android:name="com.hex91.file.ui.ImageInfoActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 

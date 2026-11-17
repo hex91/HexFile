@@ -83,6 +83,16 @@ public class ImageViewerActivity extends BaseActivity {
             bSave.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) { zoom.saveRotated(); }
             });
+            // v2.12.0（F-09）：这一页最常见的下一句追问就是「哪台机器拍的 / 在哪拍的」，
+            // 入口放这里比让用户退出再长按文件找菜单少两步
+            Button bInfo = mkBtn(bar, blp, "信息");
+            bInfo.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) {
+                    startActivity(new android.content.Intent(ImageViewerActivity.this,
+                            ImageInfoActivity.class)
+                            .putExtra(ImageInfoActivity.EXTRA_FILE, file.getAbsolutePath()));
+                }
+            });
             Button bClose = mkBtn(bar, blp, "关闭");
             bClose.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) { finish(); }

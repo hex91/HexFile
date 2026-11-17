@@ -1,6 +1,8 @@
 package com.hex91.file.ui;
 
 import com.hex91.file.utils.Bg;
+import com.hex91.file.utils.CrashLog;
+import com.hex91.file.utils.LogRing;
 import com.hex91.file.utils.ShizukuBridge;
 import com.hex91.file.R;
 import com.hex91.file.fs.FileOps;
@@ -183,6 +185,21 @@ public class SettingsActivity extends BaseActivity {
         row(sys, getString(R.string.settings_saf_try), getString(R.string.settings_saf_try_sub), "",
                 new View.OnClickListener() {
                     public void onClick(View v) { openSystemPicker(); }
+                });
+
+        // v2.12.0（F-18）：崩溃现场与诊断包。放在「系统集成」里而不是单开一区：
+        // 两者都是「出问题时才用」，和 SAF/权限属于同一类工具性入口。
+        int pendingCrash = CrashLog.pendingCount(this);
+        row(sys, getString(R.string.settings_crash), getString(R.string.settings_crash_sub),
+                pendingCrash > 0 ? getString(R.string.settings_crash_pending, pendingCrash) : "",
+                new View.OnClickListener() {
+                    public void onClick(View v) {
+                        startActivity(new Intent(SettingsActivity.this, CrashReportActivity.class));
+                    }
+                });
+        row(sys, getString(R.string.settings_diag), getString(R.string.settings_diag_sub), "",
+                new View.OnClickListener() {
+                    public void onClick(View v) { exportDiag(); }
                 });
 
         // ---- 桌面小组件（v1.85.0） ----
@@ -399,6 +416,66 @@ public class SettingsActivity extends BaseActivity {
     // ---------------------------------------------------------------- 动作
 
     /** v1.84.0：拉起系统的「打开文件」界面，验证 SAF 入口是否生效 */
+    /**
+     * v2.12.0（F-18）：打包诊断包并交给系统分享。
+     *
+     * <p>为什么打出来就立刻弹分享面板：用户点这个按钮的目的就是「交给别人看」，
+     * 打完包只说一句「已生成」然后让他自己去文件管理器找，多两步且找不到。
+     * zip 落在缓存目录，分享完系统会自行回收。</p>
+     */
+    private void exportDiag() {
+        final android.app.ProgressDialog pd = android.app.ProgressDialog.show(this,
+                getString(R.string.settings_diag), getString(R.string.settings_diag_sub), true, false);
+        Bg.io(new Runnable() {
+            public void run() {
+                File zip = null;
+                String err = null;
+                try {
+                    zip = CrashLog.exportDiag(SettingsActivity.this);
+                } catch (Throwable t) {
+                    err = String.valueOf(t.getMessage() != null ? t.getMessage() : t);
+                }
+                final File fzip = zip;
+                final String ferr = err;
+                Bg.ui(new Runnable() {
+                    public void run() {
+                        try {
+                            pd.dismiss();
+                        } catch (Throwable t) {
+                            // 页面已被销毁：dismiss 抛异常不该盖掉真正的结果
+                            LogRing.add("Settings", "diag pd.dismiss: " + t);
+                        }
+                        if (fzip == null) {
+                            toast(getString(R.string.settings_diag_fail, ferr));
+                            return;
+                        }
+                        toast(getString(R.string.settings_diag_done));
+                        shareDiag(fzip);
+                    }
+                });
+            }
+        });
+    }
+
+    /** 分享诊断包（走自有 ApkFileProvider，content:// + 绝对路径） */
+    private void shareDiag(File f) {
+        try {
+            android.net.Uri uri = android.net.Uri.parse(
+                    "content://com.hex91.file.files" + f.getAbsolutePath());
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType("application/zip");
+            send.putExtra(Intent.EXTRA_STREAM, uri);
+            send.putExtra(Intent.EXTRA_SUBJECT, f.getName());
+            send.setClipData(android.content.ClipData.newRawUri(f.getName(), uri));
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Intent chooser = Intent.createChooser(send, getString(R.string.settings_diag));
+            chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(chooser);
+        } catch (Throwable t) {
+            toast(getString(R.string.settings_diag_fail, String.valueOf(t.getMessage())));
+        }
+    }
+
     private void openSystemPicker() {
         try {
             Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);

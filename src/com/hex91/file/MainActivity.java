@@ -1,10 +1,14 @@
 package com.hex91.file;
 
 import com.hex91.file.fs.FileKind;
+import com.hex91.file.utils.Bg;
+import com.hex91.file.utils.CrashLog;
 import com.hex91.file.utils.DragPlan;
 import com.hex91.file.utils.GridAction;
 import com.hex91.file.utils.ImageBatchUtil;
+import com.hex91.file.utils.IntentImport;
 import com.hex91.file.utils.KeyCipher;
+import com.hex91.file.utils.LogRing;
 import com.hex91.file.utils.OpenWith;
 import com.hex91.file.utils.StorageStat;
 import com.hex91.file.controller.ArchiveAddController;
@@ -22,7 +26,9 @@ import com.hex91.file.ui.BaseActivity;
 import com.hex91.file.ui.BatchRenameActivity;
 import com.hex91.file.ui.BookmarkStore;
 import com.hex91.file.ui.CompareActivity;
+import com.hex91.file.ui.CrashReportActivity;
 import com.hex91.file.ui.DexEditorActivity;
+import com.hex91.file.ui.DirPickerDialog;
 import com.hex91.file.ui.DupFinderActivity;
 import com.hex91.file.ui.FileAdapter;
 import com.hex91.file.ui.FileGridAdapter;
@@ -30,6 +36,7 @@ import com.hex91.file.ui.FontPreviewActivity;
 import com.hex91.file.ui.HexViewerActivity;
 import com.hex91.file.ui.HfDialogBuilder;
 import com.hex91.file.ui.HlsDownloadActivity;
+import com.hex91.file.ui.ImageInfoActivity;
 import com.hex91.file.ui.ImageViewerActivity;
 import com.hex91.file.ui.LanShareActivity;
 import com.hex91.file.ui.ManifestEditorActivity;
@@ -200,6 +207,7 @@ public class MainActivity extends BaseActivity {
     private static final int A_PLAYER = 50;        // 内置播放器
     private static final int A_TSMP4 = 51;         // TS → MP4（转封装）
     private static final int A_HLSD = 52;          // 本地 m3u8 → 下载/合并页
+    private static final int A_EXIF = 53;          // 图片元数据（EXIF）
     // 选 keystore 的请求码已随签名簇搬到 SignFlowController.REQ_CUSTOM_KEYSTORE（v2.7.0）
 
     private TextView headerPath, headerStats;
@@ -492,6 +500,36 @@ public class MainActivity extends BaseActivity {
         taskCtl.setup();
         setupPasteButton();
         handleJump(getIntent());
+        handleIncoming(getIntent());
+        promptCrash();          // v2.12.0（F-18）：上次崩溃过就问一次要不要看现场
+    }
+
+    /**
+     * v2.12.0（F-18）：启动时提示未读崩溃。
+     *
+     * <p>只在 onCreate 问，不挂 onResume —— 崩溃后用户切回来一次就问一次，会变成骚扰。
+     * 「忽略」直接把这批标记为已读，下次不再提；「查看」进崩溃页（进页即已读）。</p>
+     */
+    private void promptCrash() {
+        final int n = CrashLog.pendingCount(this);
+        if (n <= 0) return;
+        new HfDialogBuilder(this)
+                .setTitle(R.string.crash_prompt_title)
+                .setMessage(getString(R.string.crash_prompt_msg, n))
+                .setPositiveButton(R.string.crash_prompt_view,
+                        new android.content.DialogInterface.OnClickListener() {
+                            public void onClick(android.content.DialogInterface d, int w) {
+                                startActivity(new Intent(MainActivity.this,
+                                        CrashReportActivity.class));
+                            }
+                        })
+                .setNegativeButton(R.string.crash_prompt_ignore,
+                        new android.content.DialogInterface.OnClickListener() {
+                            public void onClick(android.content.DialogInterface d, int w) {
+                                CrashLog.markSeen(MainActivity.this);
+                            }
+                        })
+                .show();
     }
 
     // ============================================================ 剪贴板（v1.78.0）
@@ -2481,6 +2519,10 @@ public class MainActivity extends BaseActivity {
         if (isFile && ImageBatchUtil.supported(f.getName().toLowerCase())) {
             ops.add("图片处理"); acts.add(A_IMGBATCH);   // v1.58：缩放/转格式/水印
         }
+        // v2.12.0（F-09）：图片元数据——拍摄设备/时间/是否带 GPS，发图前先看一眼
+        if (isFile && FileKind.isImageExt(f.getName().toLowerCase())) {
+            ops.add("图片信息"); acts.add(A_EXIF);
+        }
         if (!isFile) { ops.add("查找重复文件"); acts.add(A_DUPFIND); }   // v1.59：内容级查重
         if (isFile) { ops.add("HEX 查看"); acts.add(A_HEX); }
         if (isFile) { ops.add("打开方式"); acts.add(A_OPEN); }   // v1.77.0：交给系统应用
@@ -2613,6 +2655,10 @@ public class MainActivity extends BaseActivity {
             case A_ENCRYPT: askEncryptFile(f); break;       // 加密文件（自家格式 .enc）
             case A_DECRYPT: askDecryptFile(f); break;       // 解密 .enc 文件
             case A_PROP: showProps(f); break;
+            case A_EXIF:                                   // v2.12.0（F-09）图片元数据
+                startActivity(new Intent(this, ImageInfoActivity.class)
+                        .putExtra(ImageInfoActivity.EXTRA_FILE, f.getAbsolutePath()));
+                break;
             case A_ASSEMBLE: assembleDexDir(f); break;     // smali 目录编译为 dex
             case A_DEX2SMALI: extractApkDexes(f, true); break;   // APK 内全部 dex 反编译
             case A_EXTRACT_DEX: extractApkDexes(f, false); break;  // 仅提取 dex
@@ -3891,6 +3937,152 @@ public class MainActivity extends BaseActivity {
                 .show();
     }
 
+    // ============================================================ 外部导入（v2.12.0，F-17）
+
+    /**
+     * 处理「别的应用把文件递给我们」：分享（{@code ACTION_SEND} / {@code SEND_MULTIPLE}）
+     * 与「用 HexFile 打开」（{@code ACTION_VIEW}）。
+     *
+     * <p>分两步，是因为落点必须让用户确认：用户正在 /sdcard/Download 里看东西，
+     * 微信分享进来一个 apk，直接塞进当前目录是对的；但正在浏览系统目录时，
+     * 塞进 /system 必然失败 —— 所以给一次「选择目录」的机会，默认走当前窗格。</p>
+     *
+     * <p>处理完立刻 {@link #consumeIncoming} 把 Intent 掏空：横竖屏切换会重建 Activity
+     * 并重新读同一份 getIntent()，不清掉就会再导入一遍（用户看到两份文件）。</p>
+     */
+    private void handleIncoming(Intent intent) {
+        if (!IntentImport.isIncoming(intent)) return;
+        final boolean openAfter = IntentImport.isView(intent);
+        final List<IntentImport.Item> items = IntentImport.collect(this, intent);
+        consumeIncoming(intent);
+        if (items.isEmpty()) {
+            toast("没有可导入的文件（对方可能只发了文字）");
+            return;
+        }
+        long total = 0;
+        boolean unknown = false;
+        for (IntentImport.Item it : items) {
+            if (it.size > 0) total += it.size;
+            else unknown = true;
+        }
+        String size = total > 0 ? FileOps.formatSize(total) + (unknown ? " 以上" : "") : "大小未知";
+        new HfDialogBuilder(this)
+                .setTitle("导入文件")
+                .setMessage("收到 " + items.size() + " 个文件（" + size + "）。\n"
+                        + "导入到当前目录（" + dirForImport().getName() + "），还是另选目录？")
+                .setPositiveButton("当前目录", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        startImport(items, dirForImport(), openAfter);
+                    }
+                })
+                .setNeutralButton("选择目录…", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        DirPickerDialog.show(MainActivity.this, dirForImport(),
+                                new DirPickerDialog.OnPick() {
+                                    public void onPick(File dir) {
+                                        startImport(items, dir, openAfter);
+                                    }
+                                });
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    /** 掏空已经处理过的导入 Intent，避免重建 Activity 时重复导入 */
+    private void consumeIncoming(Intent it) {
+        if (it == null) return;
+        it.setAction(Intent.ACTION_MAIN);
+        it.setData(null);          // setData 同时清掉 type
+        it.setClipData(null);
+        it.removeExtra(Intent.EXTRA_STREAM);
+    }
+
+    /** 导入落点：正在浏览压缩包时落到压缩包所在目录（压缩包内不能直接放文件） */
+    private File dirForImport() {
+        Pane p = active();
+        if (p == null) return new File("/sdcard");
+        if (p.archiveFile != null) {
+            File par = p.archiveFile.getParentFile();
+            if (par != null) return par;
+        }
+        return p.dir != null ? p.dir : new File("/sdcard");
+    }
+
+    /**
+     * 真正的复制：后台流式搬字节 + 横条进度 + 可取消，完成后刷新两栏。
+     *
+     * <p>进度条用取消按钮而不是 {@code setCancelable(true)}：导入 1 GB 文件时误触返回键
+     * 会留下半截文件（虽然 {@code .part} 会被清掉，但用户看到的是「什么都没发生」），
+     * 显式按钮至少让「取消」是一次有意的操作。</p>
+     */
+    private void startImport(final List<IntentImport.Item> items, final File dstDir,
+                             final boolean openAfter) {
+        final ProgressDialog pd = new ProgressDialog(this);
+        pd.setTitle("导入");
+        pd.setMessage("准备中…");
+        pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+        pd.setMax(100);
+        pd.setProgress(0);
+        pd.setCancelable(false);
+        final boolean[] cancel = {false};
+        pd.setButton(android.content.DialogInterface.BUTTON_NEGATIVE, "取消",
+                new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        cancel[0] = true;    // 仅置标记：真正的停在 128KB 检查点上
+                    }
+                });
+        pd.show();
+        final int[] shown = {-1};
+        Bg.io(new Runnable() {
+            public void run() {
+                final IntentImport.Result r = IntentImport.copyInto(MainActivity.this, items, dstDir,
+                        new IntentImport.Watch() {
+                            public void onProgress(final String name, final long done, final long total) {
+                                Bg.ui(new Runnable() {
+                                    public void run() {
+                                        if (!pd.isShowing()) return;
+                                        pd.setMessage(name + "  " + FileOps.formatSize(done)
+                                                + (total > 0 ? " / " + FileOps.formatSize(total) : ""));
+                                        if (total > 0) {
+                                            int pct = (int) (done * 100 / total);
+                                            if (pct != shown[0]) {
+                                                shown[0] = pct;
+                                                pd.setProgress(pct);
+                                            }
+                                        }
+                                    }
+                                });
+                            }
+
+                            public boolean cancelled() {
+                                return cancel[0];
+                            }
+                        });
+                Bg.ui(new Runnable() {
+                    public void run() {
+                        try {
+                            pd.dismiss();
+                        } catch (Throwable t) {
+                            // 界面已销毁（导入期间用户退出）时 dismiss 可能抛；
+                            // 记一行就够，不要用 toast 打扰已经离开的用户
+                            LogRing.add("import", "pd.dismiss: " + t);
+                        }
+                        String msg = r.summary();
+                        if (r.errors.size() > 0) msg = msg + "\n" + r.errors.get(0);
+                        toast(msg);
+                        refreshAll();
+                        // 「用 HexFile 打开」：导入后直接按类型打开；多选导入只落盘不抢焦点
+                        if (openAfter && r.files.size() == 1 && active() != null
+                                && active().archiveFile == null) {
+                            onFileClick(r.files.get(0));
+                        }
+                    }
+                });
+            }
+        });
+    }
+
     // ---------- 搜索结果跳转 ----------
 
     private void handleJump(Intent intent) {
@@ -3908,6 +4100,7 @@ public class MainActivity extends BaseActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleJump(intent);
+        handleIncoming(intent);
     }
 
     @Override

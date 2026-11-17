@@ -372,4 +372,56 @@
     <string name="te_unsaved_title">Unsaved changes</string>
     <string name="te_unsaved_msg">The content has changed. Save it?</string>
     <string name="te_unsaved_discard">Don\'t save</string>
+    <!-- v2.12.0（F-09）：image metadata page (ImageInfoActivity) -->
+    <string name="img_info_title">Image info</string>
+    <string name="img_info_missing">File not found — cannot read its info</string>
+    <string name="img_info_name">Name</string>
+    <string name="img_info_path">Path</string>
+    <string name="img_info_size">Size</string>
+    <string name="img_info_mtime">Modified</string>
+    <string name="img_info_dims">Pixels</string>
+    <string name="img_info_format">Format</string>
+    <string name="img_info_exif">EXIF</string>
+    <string name="img_info_no_exif">none (this image has no EXIF data)</string>
+    <string name="img_info_make">Make</string>
+    <string name="img_info_model">Model</string>
+    <string name="img_info_taken">Taken</string>
+    <string name="img_info_orientation">Orientation</string>
+    <string name="img_info_orient_normal">Normal</string>
+    <string name="img_info_orient_rot">Rotated %1$d°</string>
+    <string name="img_info_orient_flip">Mirrored + rotated %1$d°</string>
+    <string name="img_info_exposure">Exposure</string>
+    <string name="img_info_aperture">Aperture</string>
+    <string name="img_info_iso">ISO</string>
+    <string name="img_info_focal">Focal length</string>
+    <string name="img_info_flash">Flash</string>
+    <string name="img_info_flash_on">fired</string>
+    <string name="img_info_flash_off">did not fire</string>
+    <string name="img_info_white_balance">White balance</string>
+    <string name="img_info_wb_auto">auto</string>
+    <string name="img_info_wb_manual">manual</string>
+    <string name="img_info_location">Location</string>
+    <string name="img_info_row">%1$s: %2$s</string>
+    <string name="img_info_copy_all">Copy all</string>
+    <string name="img_info_copied">All info copied</string>
+    <!-- v2.12.0（F-18）：crash reports and the diagnostic bundle -->
+    <string name="crash_title">Crash log</string>
+    <string name="crash_count">%1$d reports</string>
+    <string name="crash_none">No crash reports</string>
+    <string name="crash_share">Share</string>
+    <string name="crash_delete">Delete</string>
+    <string name="crash_deleted">Crash reports cleared</string>
+    <string name="crash_share_failed">Share failed: %1$s</string>
+    <string name="crash_prompt_title">The app crashed last time</string>
+    <string name="crash_prompt_msg">%1$d crash report(s) found. They stay on this device and are never uploaded. Take a look?</string>
+    <string name="crash_prompt_view">View</string>
+    <string name="crash_prompt_ignore">Ignore</string>
+
+    <string name="settings_crash">Crash log</string>
+    <string name="settings_crash_sub">Most recent crash (stack / log / device)</string>
+    <string name="settings_crash_pending">%1$d unread</string>
+    <string name="settings_diag">Export diagnostic bundle</string>
+    <string name="settings_diag_sub">Version / device / logs / crashes / settings, redacted</string>
+    <string name="settings_diag_done">Diagnostic bundle ready</string>
+    <string name="settings_diag_fail">Export failed: %1$s</string>
 </resources>
