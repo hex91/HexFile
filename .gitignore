@@ -53,3 +53,5 @@ test/sign_edited.arsc
 # 构建日志
 build*.log
 test_*.log
+# run_core.sh 的输出（每次跑都变）
+core_*.log

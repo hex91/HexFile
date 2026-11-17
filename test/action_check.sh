@@ -8,10 +8,11 @@
 # `case 14:`，也接受 `case A_XXX:`，两者同时存在完全合法。于是下一轮改代码时很容易
 # 又写回数字，这张表就慢慢退回去了。
 #
-# 查三件事：
+# 查四件事：
 #   1. runFileAction 里不许再出现 `case <数字>`；
 #   2. 全仓不许出现 `acts.add(<数字>)`（菜单侧漏常量）；
-#   3. runFileAction 必须保留 default 分支（否则没 case 的号又变成静默无反应）。
+#   3. runFileAction 必须保留 default 分支（否则没 case 的号又变成静默无反应）；
+#   4. A_* 常量的名字与**值**都不许重复（值撞车时 javac 不报错，两个菜单项静默同动作）。
 #
 # 只扫 runFileAction 这一个方法体，不扫全仓 switch：别的 switch（菜单 id、排序模式）
 # 用数字 case 是正常的，扫全仓只会制造噪音。
@@ -65,16 +66,29 @@ for n, l in enumerate(src.split('\n'), 1):
     if re.search(r'acts\.add\(\s*\d', l):
         bad.append('%s:%d 菜单里直接写了数字动作码 → %s' % (MAIN, n, l.strip()))
 
-names = re.findall(r'private static final int (A_\w+) = \d+;', src)
+pairs = re.findall(r'private static final int (A_\w+) = (\d+);', src)
+names = [n for n, _ in pairs]
 if len(names) != len(set(names)):
     bad.append('%s: 有重复的 A_* 常量名' % MAIN)
 
+# 4) 常量值也不许重复（R-38）。名字唯一但值撞车时，javac 完全放行，两个菜单项会静默
+#    执行同一个动作 —— 这正是 O-25 那类「菜单/派发不一致」最难的形态：点了有反应，
+#    反应的是别人的活。所以值唯一性必须单独查，不能只查名字。
+seen = {}
+for n, v in pairs:
+    seen.setdefault(int(v), []).append(n)
+for v in sorted(seen):
+    if len(seen[v]) > 1:
+        bad.append('%s: A_* 动作号重复 → %d 被 %s 共用'
+                   % (MAIN, v, ' / '.join(seen[v])))
+
 if bad:
-    print('FAIL 文件动作码不一致（O-26）')
+    print('FAIL 文件动作码不一致（O-26 / R-38）')
     for b in bad:
         print('      ' + b)
     sys.exit(1)
 
-print('PASS  动作码一致：runFileAction 全是常量 case（%d 个），菜单无数字，default 在位'
-      % len(re.findall(r'case\s+A_\w+', body)))
+print('PASS  动作码一致：runFileAction 全是常量 case（%d 个），菜单无数字，default 在位，'
+      '%d 个动作号互不重复'
+      % (len(re.findall(r'case\s+A_\w+', body)), len(seen)))
 PY
