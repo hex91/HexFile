@@ -4352,7 +4352,8 @@ public class MainActivity extends BaseActivity {
 
     private void askNewFolder() {
         final Pane p = active();
-        if (p.archiveFile != null) { toast("压缩包浏览中不可新建，请先退出压缩包"); return; }
+        // v2.13.1（F-11）：压缩包内也能新建目录了（可写格式 + 非 APK，判定在控制器里）
+        if (p.archiveFile != null) { archCtl.archNewFolder(p); return; }
         final EditText et = new EditText(this);
         et.setInputType(InputType.TYPE_CLASS_TEXT);
         new HfDialogBuilder(this)

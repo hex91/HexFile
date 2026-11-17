@@ -3,9 +3,11 @@ package com.hex91.file.ui;
 import com.hex91.file.R;
 import com.hex91.file.MainActivity;
 import com.hex91.file.apk.ApkEditSession;
+import com.hex91.file.apk.ArchiveExtract;
 import com.hex91.file.apk.ArchiveUtil;
 import com.hex91.file.apk.SmaliTool;
 import com.hex91.file.fs.WorkDir;
+import android.app.ProgressDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
@@ -39,6 +41,13 @@ public class ZipBrowserActivity extends BaseActivity {
     private ListView list;
     private ZipAdapter adapter;
     private Button btnExtract;
+
+    /**
+     * 是否正在后台整包解压（v2.13.1 F-11）。
+     * 解压线程与「点条目 / 刷新列表」共用同一个 Archive 对象，并发访问没有任何保证；
+     * 这个标志在解压期间把交互挡掉，比给 Archive 加锁简单也更不容易漏。
+     */
+    private volatile boolean extracting;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -83,6 +92,7 @@ public class ZipBrowserActivity extends BaseActivity {
         list.setAdapter(adapter);
         list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             public void onItemClick(AdapterView<?> av, View v, int i, long id) {
+                if (extracting) { toast("正在解压，请稍候…"); return; }
                 ArchiveUtil.Entry e = adapter.get(i);
                 if (e.dir) {
                     prefix = e.full;
@@ -94,6 +104,7 @@ public class ZipBrowserActivity extends BaseActivity {
         });
         list.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
             public boolean onItemLongClick(AdapterView<?> av, View v, int i, long id) {
+                if (extracting) { toast("正在解压，请稍候…"); return true; }
                 showEntryMenu(adapter.get(i));
                 return true;
             }
@@ -136,7 +147,8 @@ public class ZipBrowserActivity extends BaseActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (archive != null && archiveFile != null) load();
+        // 解压中不重载：会与后台线程抢同一个 Archive（F-11）
+        if (archive != null && archiveFile != null && !extracting) load();
     }
 
     private void goUp() {
@@ -148,6 +160,7 @@ public class ZipBrowserActivity extends BaseActivity {
     }
 
     private void extractAll() {
+        if (extracting) { toast("正在解压，请稍候…"); return; }
         final File[] targets = {dest, archiveFile.getParentFile()};
         String[] labels = {
                 "解压到: " + dest.getPath(),
@@ -157,15 +170,82 @@ public class ZipBrowserActivity extends BaseActivity {
                 .setTitle("解压全部 (" + format + ")")
                 .setItems(labels, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int which) {
-                        try {
-                            archive.extractAll(targets[which]);
-                            toast("已解压全部 →\n" + targets[which].getPath());
-                        } catch (Exception e) {
-                            toast("解压失败: " + e.getMessage());
-                        }
+                        startExtract(targets[which]);
                     }
                 })
                 .show();
+    }
+
+    /**
+     * 后台解压 + 横向进度条（v2.13.1，F-11）。
+     *
+     * <p>原来直接在 UI 线程里 {@code archive.extractAll(dest)}：解一个几百 MB 的包就是
+     * 十几秒的 ANR，而且没有任何中断手段。现在按条目推进度，取消在每个条目边界生效。</p>
+     *
+     * <p>进度条 {@code setCancelable(false)} + 一个显式「取消」按钮：返回键把进度条关掉
+     * 会让用户以为解压停了，实际线程还在跑 —— 那种「静默完成」比多一个按钮更困惑。</p>
+     */
+    private void startExtract(final File target) {
+        final boolean[] cancel = {false};
+        extracting = true;
+        final ProgressDialog pd = new ProgressDialog(this);
+        pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+        pd.setTitle("解压全部 (" + format + ")");
+        pd.setMessage(target.getPath());
+        pd.setMax(100);
+        pd.setProgress(0);
+        pd.setCancelable(false);
+        pd.show();
+        pd.setButton(android.content.DialogInterface.BUTTON_NEGATIVE, "取消",
+                new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        cancel[0] = true;
+                        pd.setMessage("正在停止…（当前条目写完后停下）");
+                    }
+                });
+        new Thread(new Runnable() {
+            public void run() {
+                ArchiveExtract.Result r = ArchiveExtract.run(archive, target,
+                        new ArchiveExtract.Listener() {
+                            public void onProgress(final int done, final int total, String name) {
+                                if (total <= 0) return;
+                                final int pct = (int) (done * 100L / total);
+                                final String show = name == null ? "" : name;
+                                runOnUiThread(new Runnable() {
+                                    public void run() {
+                                        if (!pd.isShowing()) return;
+                                        pd.setProgress(pct);
+                                        pd.setMessage(done + " / " + total + " 项  " + show);
+                                    }
+                                });
+                            }
+
+                            public boolean cancelled() {
+                                return cancel[0];
+                            }
+                        });
+                final ArchiveExtract.Result fr = r;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        extracting = false;
+                        if (pd.isShowing()) {
+                            try {
+                                pd.dismiss();
+                            } catch (Throwable t) {
+                                toast("进度条关闭失败: " + t);
+                            }
+                        }
+                        if (fr.error != null) {
+                            toast("解压失败（已完成 " + fr.done + " 项）: " + fr.error);
+                        } else if (fr.cancelled) {
+                            toast("已取消，已解压 " + fr.done + " / " + fr.total + " 项");
+                        } else {
+                            toast("已解压 " + fr.done + " 项 →\n" + target.getPath());
+                        }
+                    }
+                });
+            }
+        }, "zip-extract").start();
     }
 
     private void extractEntry(ArchiveUtil.Entry e) {

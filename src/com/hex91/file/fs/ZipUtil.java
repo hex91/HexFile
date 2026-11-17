@@ -1,6 +1,7 @@
 package com.hex91.file.fs;
 
 import com.hex91.file.core.AtomicReplace;
+import com.hex91.file.core.EntryNames;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -159,14 +160,9 @@ public class ZipUtil {
      * ——本应用自身解压安全，但别的解压工具可能受影响。
      */
     public static boolean entryNameSafe(String entryName) {
-        if (entryName == null || entryName.isEmpty()) return false;
-        if (entryName.indexOf('\0') >= 0) return false;
-        String n = entryName.replace('\\', '/');
-        if (n.startsWith("/") || n.contains(":")) return false;
-        for (String seg : n.split("/")) {
-            if (seg.equals("..")) return false;
-        }
-        return true;
+        // v2.13.1（F-11）：规则搬到 core.EntryNames —— tar / 7z 后端与重命名也要用同一份，
+        // 三处各写一遍迟早出现「zip 拦了、7z 没拦」。
+        return EntryNames.safe(entryName);
     }
 
     /**
@@ -249,6 +245,47 @@ public class ZipUtil {
         }
     }
 
+    /**
+     * 重命名/移动 zip 内条目：目录条目按前缀迁移其下全部子项（{@code a} → {@code b}
+     * 会把 {@code a/1.txt} 一起搬到 {@code b/1.txt}）。一次重建完成。
+     *
+     * <p>.apk 同样剥离旧签名 —— 改了内容本来就必须重签，留一份过期签名只会让
+     * 签名校验工具给出更难懂的错。</p>
+     *
+     * <p>目标名是否已存在由调用方先查（UI 层拿着已打开归档的条目表，查一次是免费的），
+     * 本方法不做冲突合并：真撞了就得到两个同名条目，那是比「失败」更糟的结果。</p>
+     */
+    public static boolean renameEntry(File zip, String from, String to) {
+        if (!entryNameSafe(from) || !entryNameSafe(to)) return false;   // 写入侧穿越防护
+        if (from.equals(to)) return true;
+        try {
+            File tmp = tempFile(zip);
+            int hit = 0;
+            CountingOutputStream cos = new CountingOutputStream(new FileOutputStream(tmp));
+            try (ZipFile zf = new ZipFile(zip);
+                 ZipOutputStream zos = new ZipOutputStream(cos)) {
+                java.util.Enumeration<? extends ZipEntry> en = zf.entries();
+                while (en.hasMoreElements()) {
+                    ZipEntry ze = en.nextElement();
+                    if (isSignatureFile(zip, ze.getName())) continue;
+                    String nn = EntryNames.renamed(ze.getName(), from, to);
+                    if (!nn.equals(ze.getName())) hit++;
+                    copyEntry(zf, ze, zos, cos.count, nn);
+                }
+            }
+            if (hit == 0) {
+                // 一条都没匹配上（条目名写错/已经被删）：不替换原包，让调用方能报「找不到」
+                tmp.delete();
+                return false;
+            }
+            AtomicReplace.Result r = AtomicReplace.replaceWith(tmp, zip);
+            if (!r.ok) android.util.Log.w("ZipUtil", "重命名写回失败: " + r.message);
+            return r.ok;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private static String stripSlash(String s) {
         return s.endsWith("/") ? s.substring(0, s.length() - 1) : s;
     }
@@ -269,7 +306,13 @@ public class ZipUtil {
     /** 原条目按原压缩方式复制到新 zip（STORED 需缓冲算 CRC；按 locPos 对齐） */
     private static void copyEntry(ZipFile zf, ZipEntry ze, ZipOutputStream zos,
             long locPos) throws IOException {
-        ZipEntry ne = new ZipEntry(ze.getName());
+        copyEntry(zf, ze, zos, locPos, ze.getName());
+    }
+
+    /** 同上，但用 newName 写条目（重命名用；newName 为 null 时同原方法） */
+    private static void copyEntry(ZipFile zf, ZipEntry ze, ZipOutputStream zos,
+            long locPos, String newName) throws IOException {
+        ZipEntry ne = new ZipEntry(newName == null ? ze.getName() : newName);
         ne.setTime(ze.getTime());
         if (ze.getMethod() == ZipEntry.STORED) {
             byte[] data = readAll(zf.getInputStream(ze));

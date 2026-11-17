@@ -2,6 +2,7 @@ package com.hex91.file.controller;
 
 import com.hex91.file.core.AtomicReplace;
 import com.hex91.file.core.ByteIO;
+import com.hex91.file.core.EntryNames;
 import com.hex91.file.fs.FileKind;
 import com.hex91.file.utils.GridAction;
 import com.hex91.file.R;
@@ -833,7 +834,7 @@ public final class ArchiveController {
         final boolean canToArch = host.other().archiveFile != null;
         final int A_EDIT = 0, A_HERE = 1, A_OTHER = 2, A_DEL = 3, A_PROP = 4,
                 A_TOARCH_C = 5, A_TOARCH_M = 6, A_DEXPP = 7, A_SMALI = 8, A_HEX = 9, A_ARSCPP = 10, A_MANIFEST = 11,
-                A_ARSCPP2 = 12;
+                A_ARSCPP2 = 12, A_RENAME = 13;
         String low = it.archShort.toLowerCase();
         final boolean isDex = low.endsWith(".dex");
         final boolean isArs = low.endsWith(".arsc");
@@ -852,6 +853,9 @@ public final class ArchiveController {
         if (canToArch) { ops.add("复制到对面压缩包"); acts.add(A_TOARCH_C); }
         // 移动到对面压缩包需要源也可写（写完后要删原条目）
         if (canToArch && canWrite) { ops.add("移动到对面压缩包"); acts.add(A_TOARCH_M); }
+        if (canWrite && !ApkEditSession.isApk(p.archiveFile)) {
+            ops.add("重命名"); acts.add(A_RENAME);   // v2.13.1（F-11）
+        }
         if (canWrite) { ops.add("删除"); acts.add(A_DEL); }
         ops.add("属性"); acts.add(A_PROP);
         host.showGridMenu(it.archShort, ops, acts, new GridAction() {
@@ -876,6 +880,7 @@ public final class ArchiveController {
                 } else if (act == A_EDIT) editArchEntry(p, it);
                 else if (act == A_HERE) extractArchEntry(p, it.archPath(), p);
                 else if (act == A_OTHER) extractArchEntry(p, it.archPath(), host.other());
+                else if (act == A_RENAME) archRename(p, it);
                 else if (act == A_DEL) archDelete(p, java.util.Collections.singletonList(it));
                 else if (act == A_PROP) host.toast("条目: " + it.archFull
                         + "\n大小: " + FileOps.formatSize(it.archSize));
@@ -1010,6 +1015,157 @@ public final class ArchiveController {
                 });
             }
         }, "arch-xfer").start();
+    }
+
+    /**
+     * 归档能否原地改（v2.13.1，F-11）：可写格式，且不是 APK。
+     *
+     * <p>APK 单独拦下的理由不是「技术做不到」而是「两套写路径不能混」：APK 的每次修改都
+     * 走 {@code ApkEditSession}（会话内暂存 → 重打包 → 首次修改自动备份 → 退出时提示重签）。
+     * 直接在归档层改名会绕开备份与重签提示，得到的是一个「装不上、也回不去」的包。</p>
+     */
+    private boolean archEditable(Pane p) {
+        if (p.archiveFile == null) return false;
+        if (ApkEditSession.isApk(p.archiveFile)) {
+            host.toast("APK 内改名要走重打包与重签，请用「提取 → 改好 → 添加」");
+            return false;
+        }
+        if (!ArchiveWrite.canWrite(p.archiveFile)) {
+            host.toast("该格式只支持读取（如 rar），无法原地修改");
+            return false;
+        }
+        return true;
+    }
+
+    /** 重命名归档条目（v2.13.1，F-11）：目录条目连同其下全部子项一起改名 */
+    public void archRename(final Pane p, final FileItem it) {
+        if (!archEditable(p)) return;
+        final String prefix = p.archPrefix == null ? "" : p.archPrefix;
+        final EditText et = new EditText(host.ctx());
+        et.setText(it.archShort);
+        et.setSelection(et.getText().length());
+        et.setInputType(InputType.TYPE_CLASS_TEXT);
+        new HfDialogBuilder(host.ctx())
+                .setTitle("重命名: " + it.archShort)
+                .setMessage("可写子目录（如 a/b.txt）；目录会连同其下全部子项一起改名")
+                .setView(et)
+                .setPositiveButton("重命名", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        String input = EntryNames.clean(et.getText().toString());
+                        if (input.isEmpty()) { host.toast("名称不能为空"); return; }
+                        String to = prefix + input;
+                        if (EntryNames.stripSlash(to).equals(EntryNames.stripSlash(it.archFull))) {
+                            return;      // 名字没改，不必重建一遍整包
+                        }
+                        doRename(p, it.archFull, to);
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void doRename(final Pane p, final String from, final String to) {
+        if (!ZipUtil.entryNameSafe(to)) { host.toast("名称不合法: " + to); return; }
+        host.toast("重命名中…");
+        new Thread(new Runnable() {
+            public void run() {
+                String err = null;
+                try {
+                    String hit = collide(p, from, to);
+                    if (hit != null) err = "目标名已存在: " + hit;
+                    else if (!ArchiveWrite.renameEntry(p.archiveFile, from, to)) {
+                        err = AtomicReplace.failMessage("重命名失败");
+                    }
+                } catch (Throwable t) {
+                    err = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
+                }
+                final String ferr = err;
+                host.ui(new Runnable() {
+                    public void run() {
+                        if (ferr != null) { host.toast(ferr); return; }
+                        host.toast("已重命名为 " + EntryNames.lastSeg(to)
+                                + (isDirName(to) ? "/" : ""));
+                        showArchiveDir(p);
+                    }
+                });
+            }
+        }, "arch-rename").start();
+    }
+
+    /**
+     * 改名后的目标是否撞车，返回撞上的条目名（null = 没撞）。
+     *
+     * <p>两种撞法都要查：① 同一目录下已有同名的文件或目录条目；② 目标是个已有内容的目录
+     * —— 那等于把两个目录合并，用户想的几乎不可能是这个。</p>
+     */
+    private String collide(Pane p, String from, String to) throws Exception {
+        String parent = EntryNames.parentOf(to);
+        String t = EntryNames.stripSlash(to);
+        String f = EntryNames.stripSlash(from);
+        for (ArchiveUtil.Entry e : p.archive.listChildren(parent)) {
+            String n = EntryNames.stripSlash(e.full);
+            if (n.equals(f)) continue;       // 自己不算撞
+            if (n.equals(t)) return e.name;
+        }
+        if (!p.archive.listChildren(EntryNames.dir(to)).isEmpty()) return EntryNames.lastSeg(to) + "/";
+        return null;
+    }
+
+    private static boolean isDirName(String name) {
+        return name != null && name.endsWith("/");
+    }
+
+    /**
+     * 在归档当前目录新建文件夹（v2.13.1，F-11）。
+     *
+     * <p>只是加一个空目录条目，不解包重压 —— 所以 zip 上是一瞬间的事，7z 上要重建一次
+     * （7z 的格式没办法原地追加），这也如实写在进度提示里。</p>
+     */
+    public void archNewFolder(final Pane p) {
+        if (!archEditable(p)) return;
+        final String prefix = p.archPrefix == null ? "" : p.archPrefix;
+        final EditText et = new EditText(host.ctx());
+        et.setInputType(InputType.TYPE_CLASS_TEXT);
+        new HfDialogBuilder(host.ctx())
+                .setTitle("新建文件夹 @ /" + prefix)
+                .setMessage("只添加空目录条目；名称不能带 /")
+                .setView(et)
+                .setPositiveButton("创建", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        String name = EntryNames.clean(et.getText().toString());
+                        if (name.isEmpty()) { host.toast("名称不能为空"); return; }
+                        if (name.indexOf('/') >= 0) { host.toast("名称里不能带 /，请分两次创建"); return; }
+                        createArchDir(p, prefix + name);
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void createArchDir(final Pane p, final String dirPath) {
+        host.toast("创建中…");
+        new Thread(new Runnable() {
+            public void run() {
+                String err = null;
+                try {
+                    String hit = collide(p, null, dirPath);
+                    if (hit != null) err = "同名条目已存在: " + hit;
+                    else if (!ArchiveWrite.mkdir(p.archiveFile, dirPath)) {
+                        err = AtomicReplace.failMessage("创建失败");
+                    }
+                } catch (Throwable t) {
+                    err = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
+                }
+                final String ferr = err;
+                host.ui(new Runnable() {
+                    public void run() {
+                        if (ferr != null) { host.toast(ferr); return; }
+                        host.toast("已创建 " + EntryNames.stripSlash(dirPath) + "/");
+                        showArchiveDir(p);
+                    }
+                });
+            }
+        }, "arch-mkdir").start();
     }
 
     /** 从压缩包删除条目（重建 zip；APK 删除后询问自动签名） */
