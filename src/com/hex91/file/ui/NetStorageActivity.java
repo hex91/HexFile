@@ -5,6 +5,7 @@ import com.hex91.file.utils.ResumePlan;
 import com.hex91.file.R;
 import com.hex91.file.net.AliyunDriveFs;
 import com.hex91.file.net.FtpFs;
+import com.hex91.file.net.LanScan;
 import com.hex91.file.net.NetFs;
 import com.hex91.file.net.OAuthClient;
 import com.hex91.file.net.OAuthToken;
@@ -102,6 +103,12 @@ public final class NetStorageActivity extends BaseActivity {
     private ProgressDialog mProgress;
     /** v1.83.0：不支持加密的设备只提示一次，避免每次保存都弹 */
     private static boolean warnedPlaintext;
+
+    /** v2.14.0（F-20）：添加/编辑表单里的「扫描局域网」按钮（按类型显隐） */
+    private Button scan;
+    /** v2.14.0（F-20）：扫描取消标志；离开页面时置 true，后台线程下一次探测前退出 */
+    private final java.util.concurrent.atomic.AtomicBoolean mScanStop =
+            new java.util.concurrent.atomic.AtomicBoolean(true);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -370,6 +377,16 @@ public final class NetStorageActivity extends BaseActivity {
             }
         });
 
+        // v2.14.0（F-20）：把「IP / 端口 / 协议」三样从路由器后台搬进一次点击
+        scan = new Button(this);
+        scan.setText(R.string.lan_scan_btn);
+        box.addView(scan);
+        scan.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                scanLan(type, host, port);
+            }
+        });
+
         type.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             public void onItemSelected(android.widget.AdapterView<?> p, View v, int pos, long id) {
                 // 0=SMB 1=WebDAV 2=FTP 3=SFTP 4=S3 5=OneDrive 6=阿里云盘
@@ -379,6 +396,9 @@ public final class NetStorageActivity extends BaseActivity {
                 boolean od = pos == 5;          // OneDrive：只要 Client ID + 授权
                 boolean ali = pos == 6;         // 阿里云盘：只要授权（没有可填的账号密码）
                 boolean cloud = od || ali;
+                // v2.14.0（F-20）：扫描只管「填 IP 和端口」这一类的四种协议；
+                // S3 的地址是云厂商给的域名、云盘压根不用地址，扫出来也没有可填的东西
+                scan.setVisibility(pos <= 3 ? View.VISIBLE : View.GONE);
                 setRowVisible(host, !cloud);
                 setRowVisible(port, !http && !s3 && !cloud);
                 setRowVisible(share, smb || s3);
@@ -465,6 +485,136 @@ public final class NetStorageActivity extends BaseActivity {
                 })
                 .setNegativeButton("取消", null)
                 .show();
+    }
+
+    /**
+     * v2.14.0（F-20）：扫本机所在 /24 网段，把能连上的服务列出来让用户点一个。
+     *
+     * <p>为什么值得做：SMB/FTP/SFTP 的端口是固定的，但 NAS 的 IP、以及「这台机器的
+     * WebDAV 到底开在 5005 还是 5006」只有路由器后台知道。让用户先去查一遍再回来填，
+     * 是这一页最容易半途放弃的地方；而对本网段做一次 TCP connect 只要几秒。</p>
+     *
+     * <p>扫描不碰表单里已经填好的用户名/密码：选中结果只是把地址与端口写进去，
+     * 点错了重新扫一遍即可，不会清掉别的输入。</p>
+     */
+    private void scanLan(final Spinner type, final EditText host, final EditText port) {
+        final List<String> hosts = LanScan.hostsToScan();
+        if (hosts.isEmpty()) {
+            toast(getString(R.string.lan_scan_nonet));
+            return;
+        }
+        mScanStop.set(false);
+        final int[] found = {0};
+        final ProgressDialog pd = new ProgressDialog(this);
+        pd.setMessage(getString(R.string.lan_scan_scanning, 0));
+        pd.setCancelable(true);
+        pd.setCanceledOnTouchOutside(false);
+        pd.setOnCancelListener(new android.content.DialogInterface.OnCancelListener() {
+            public void onCancel(android.content.DialogInterface d) {
+                mScanStop.set(true);       // 只置标志，工作线程在下一次 connect 前退出
+            }
+        });
+        pd.show();
+        bg(new Runnable() {
+            public void run() {
+                LanScan.Result r = LanScan.scan(hosts, LanScan.PORTS, LanScan.CONNECT_MS,
+                        new LanScan.Cancel() {
+                            public boolean cancelled() {
+                                return mScanStop.get();
+                            }
+                        },
+                        new LanScan.Sink() {
+                            public void onHit(LanScan.Hit h) {
+                                // 进度文字只报「已发现几台」：扫到的东西此刻还没确认协议，
+                                // 边扫边弹列表反而会让人以为结果一直在变
+                                found[0]++;
+                                final int n = found[0];
+                                runOnUiThread(new Runnable() {
+                                    public void run() {
+                                        if (!isFinishing()) {
+                                            pd.setMessage(getString(R.string.lan_scan_scanning, n));
+                                        }
+                                    }
+                                });
+                            }
+
+                            public void onDone(LanScan.Result res) {
+                            }
+                        });
+                final LanScan.Result res = r;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        if (isFinishing()) return;
+                        if (pd.isShowing()) pd.dismiss();
+                        if (res.cancelled) {
+                            toast(getString(R.string.lan_scan_stopped));
+                            return;
+                        }
+                        if (res.hits.isEmpty()) {
+                            toast(getString(R.string.lan_scan_none, res.probed));
+                            return;
+                        }
+                        showScanHits(res.hits, type, host, port);
+                    }
+                });
+            }
+        });
+    }
+
+    /** 扫描结果选择框：一行一台（同一台机器的不同协议各占一行，因为可填的东西不一样） */
+    private void showScanHits(final List<LanScan.Hit> hits, final Spinner type,
+                              final EditText host, final EditText port) {
+        final String[] labels = new String[hits.size()];
+        for (int i = 0; i < hits.size(); i++) {
+            LanScan.Hit h = hits.get(i);
+            labels[i] = h.host + ":" + h.port + "  ·  " + scanTypeLabel(h.type)
+                    + (h.detail.isEmpty() ? "" : "\n" + h.detail);
+        }
+        android.app.AlertDialog.Builder b = new HfDialogBuilder(this);
+        b.setTitle(getString(R.string.lan_scan_pick, hits.size()));
+        b.setItems(labels, new android.content.DialogInterface.OnClickListener() {
+            public void onClick(android.content.DialogInterface d, int which) {
+                applyHit(hits.get(which), type, host, port);
+            }
+        });
+        b.setNegativeButton(R.string.common_cancel, null);
+        b.show();
+    }
+
+    /** 把一条扫描结果写进表单；先切类型再填值（切类型会重置端口，顺序反了就白填） */
+    private void applyHit(LanScan.Hit h, Spinner type, EditText host, EditText port) {
+        if (LanScan.T_SMB.equals(h.type)) {
+            type.setSelection(0);
+            host.setText(h.host);
+            port.setText(String.valueOf(h.port));
+            toast(getString(R.string.lan_scan_filled));
+        } else if (LanScan.T_FTP.equals(h.type)) {
+            type.setSelection(2);
+            host.setText(h.host);
+            port.setText(String.valueOf(h.port));
+            toast(getString(R.string.lan_scan_filled));
+        } else if (LanScan.T_SFTP.equals(h.type)) {
+            type.setSelection(3);
+            host.setText(h.host);
+            port.setText(String.valueOf(h.port));
+            toast(getString(R.string.lan_scan_filled));
+        } else {
+            // webdav / http：WebDAV 要的是完整 URL，80 端口写不写都行，省掉更干净
+            type.setSelection(1);
+            host.setText("http://" + h.host + (h.port == 80 ? "" : ":" + h.port) + "/");
+            toast(getString(LanScan.T_WEBDAV.equals(h.type)
+                    ? R.string.lan_scan_dav_hint : R.string.lan_scan_http_hint));
+        }
+    }
+
+    /** 协议名直接给业界通用写法（SMB/WebDAV/FTP/SFTP），不翻译 */
+    private static String scanTypeLabel(String type) {
+        if (LanScan.T_SMB.equals(type)) return "SMB";
+        if (LanScan.T_WEBDAV.equals(type)) return "WebDAV";
+        if (LanScan.T_HTTP.equals(type)) return "HTTP";
+        if (LanScan.T_FTP.equals(type)) return "FTP";
+        if (LanScan.T_SFTP.equals(type)) return "SFTP";
+        return type;
     }
 
     /** 对话框内容超出屏幕时包一层 ScrollView。 */
@@ -1311,6 +1461,9 @@ public final class NetStorageActivity extends BaseActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        // v2.14.0（F-20）：扫描线程可能还在连网段里最后几个地址，页面没了就该停，
+        // 否则 48 个线程会一直跑到 1270 个组合探完
+        mScanStop.set(true);
         final NetFs fs = mFs;
         mFs = null;
         if (fs != null) {

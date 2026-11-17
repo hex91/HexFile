@@ -456,4 +456,14 @@
     <string name="split_channel">Install results</string>
     <string name="split_notif_ok">Install finished</string>
     <string name="split_notif_fail">Install failed</string>
+    <!-- v2.14.0 (F-20): LAN service discovery -->
+    <string name="lan_scan_btn">Scan LAN</string>
+    <string name="lan_scan_nonet">Could not determine the local subnet (Wi-Fi off, or the system blocks interface enumeration)</string>
+    <string name="lan_scan_scanning">Scanning LAN… %1$d found</string>
+    <string name="lan_scan_none">%1$d connections probed, no usable server found. Check that you are on the same Wi-Fi as the PC/NAS and that AP isolation is off</string>
+    <string name="lan_scan_pick">Devices found (%1$d)</string>
+    <string name="lan_scan_filled">Address and port filled in</string>
+    <string name="lan_scan_dav_hint">Address filled in; if it fails, add the WebDAV path (e.g. /dav/)</string>
+    <string name="lan_scan_http_hint">This looks like a plain web server, not necessarily WebDAV; if it is, add the path (e.g. /dav/)</string>
+    <string name="lan_scan_stopped">Scan cancelled</string>
 </resources>
