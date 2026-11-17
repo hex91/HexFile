@@ -32,6 +32,8 @@ public final class CompareUtil {
         public String relPath;          // 相对路径（/ 分隔）
         public boolean dir;
         public long sizeA = -1, sizeB = -1;
+        /** v2.12.0（F-12）：归档条目对比的 CRC32（-1 = 无此信息；普通目录对比一直是 -1） */
+        public long crcA = -1, crcB = -1;
         public long timeA, timeB;
         public int status;
         public String note = "";        // 附加说明（哈希校验结果等）
@@ -167,14 +169,28 @@ public final class CompareUtil {
         public String name;
         public long size;
         public boolean dir;
+        /**
+         * v2.12.0（F-12）：条目 CRC32；-1 表示来源没给（非 zip，或读取失败）。
+         *
+         * <p>zip 的中央目录里现成带着 CRC32，读它不需要多解一次压。之所以要比它，
+         * 是因为「只比 size」会漏掉最常见的一类改动：**改了内容但长度没变**——
+         * 换一张同尺寸图标、改一个 smali 常量、替换 resources.arsc 里的同长字符串，
+         * size 一模一样，对比结果却显示「完全相同」。这正是 APK 对比最容易骗人的地方。</p>
+         */
+        public long crc = -1;
+
         public ArchEntry(String name, long size, boolean dir) {
-            this.name = name; this.size = size; this.dir = dir;
+            this(name, size, dir, -1);
+        }
+
+        public ArchEntry(String name, long size, boolean dir, long crc) {
+            this.name = name; this.size = size; this.dir = dir; this.crc = crc;
         }
     }
 
     /**
      * 对比两个归档（zip/APK）的条目清单（耗时操作，放后台线程）。
-     * 目录条目（name 以 / 结尾或 dir=true）单独归类；size 不同 → 已修改。
+     * 目录条目（name 以 / 结尾或 dir=true）单独归类；size 不同 → 已修改；size 相同但 CRC32 不同 → 也已修改（v2.12.0 F-12；两侧都没有 CRC 时退化为只比 size）。
      */
     public static Result compareEntries(List<ArchEntry> la, List<ArchEntry> lb) {
         Result r = new Result();
@@ -183,6 +199,7 @@ public final class CompareUtil {
             String key = e.dir ? e.name + "/" : e.name;
             Item it = new Item(key, e.dir);
             it.sizeA = e.dir ? 0 : e.size;
+            it.crcA = e.dir ? -1 : e.crc;
             merged.put(key, it);
         }
         for (ArchEntry e : lb) {
@@ -193,6 +210,7 @@ public final class CompareUtil {
                 merged.put(key, it);
             }
             it.sizeB = e.dir ? 0 : e.size;
+            it.crcB = e.dir ? -1 : e.crc;
         }
         for (Item it : merged.values()) {
             if (it.sizeA < 0) { it.status = ADDED; r.nAdded++; }
@@ -201,6 +219,12 @@ public final class CompareUtil {
             else if (it.sizeA != it.sizeB) {
                 it.status = MODIFIED;
                 it.note = fmtSize(it.sizeA) + " → " + fmtSize(it.sizeB);
+                r.nModified++;
+            } else if (it.crcA >= 0 && it.crcB >= 0 && it.crcA != it.crcB) {
+                // 同长度、不同内容：只比 size 看不见的那一类（F-12）
+                it.status = MODIFIED;
+                it.note = "CRC32 " + String.format(java.util.Locale.US, "%08X", it.crcA)
+                        + " → " + String.format(java.util.Locale.US, "%08X", it.crcB);
                 r.nModified++;
             } else { it.status = SAME; r.nSame++; }
             if (it.status != SAME) r.items.add(it);
@@ -223,7 +247,7 @@ public final class CompareUtil {
             java.util.Enumeration<? extends java.util.zip.ZipEntry> en = zf.entries();
             while (en.hasMoreElements()) {
                 java.util.zip.ZipEntry e = en.nextElement();
-                out.add(new ArchEntry(e.getName(), e.getSize(), e.isDirectory()));
+                out.add(new ArchEntry(e.getName(), e.getSize(), e.isDirectory(), e.getCrc()));
             }
         } catch (Exception e) {
             // 读失败返回空列表，UI 提示

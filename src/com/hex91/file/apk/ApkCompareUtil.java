@@ -13,7 +13,8 @@ import java.util.Map;
 /**
  * APK 对比（v1.17.0）：
  *  - 清单层：ApkUtil.rows() 两侧取值，按标签对齐，标出 不同/仅A/仅B
- *  - 条目层：zip 条目清单对比（CompareUtil.compareEntries），新增/修改/删除
+ *  - 条目层：zip 条目清单对比（CompareUtil.compareEntries），新增/修改/删除。
+ *    v2.12.0（F-12）起「修改」同时看 CRC32：同长度但内容不同也算修改，不再只比大小
  *  - 附加：文件大小、SHA-256 整体哈希
  */
 public final class ApkCompareUtil {

@@ -1780,6 +1780,40 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.12.1（versionCode 204）—— F-12：压缩包条目对比不再只比大小
+
+`CompareUtil.compareEntries` 判「修改」只有一个条件：`sizeA != sizeB`。也就是说
+**改了内容但长度没变**的条目会被判成「完全相同」——换一张同尺寸图标、改一个 smali 常量、
+替换 `resources.arsc` 里的同长字符串，全都看不见。这不是「不够精确」，是 APK 对比
+最容易骗人的地方：报告说两边一样，实际包已经不一样了。
+
+修法用的是 zip 中央目录里现成的 CRC32（`ZipEntry.getCrc()`），不需要多解一次压、
+不需要读条目内容，代价为零：
+
+| 场景 | 之前 | 现在 |
+| --- | --- | --- |
+| size 不同 | MODIFIED（`2.0 KB → 3.0 KB`） | 不变 |
+| **size 相同、CRC32 不同** | SAME（漏报） | MODIFIED（`CRC32 9B0D08F1 → 39DA1B3F`） |
+| size 相同、CRC32 相同 | SAME | 不变 |
+| 任一侧没有 CRC（非 zip / 读取失败） | 只比 size | **仍然只比 size**，不凭空判修改 |
+
+第三条退化方向是刻意锁住的：`ArchEntry` 的老构造器保持可用（`crc` 默认 `-1`），
+普通目录对比（`compareDirs`）本来就没有 CRC，不能被这条新判据误伤。
+
+新增 `test/ArchCompareTest`（10 断言）：同长度不同内容判修改、说明里带 CRC32 对、
+长度相同（证明判据不是 size）、长度不同仍算修改、新增/删除、汇总计数、
+两侧无 CRC 退化为只比 size、仅一侧有 CRC 不判修改。
+
+### 验证
+
+- `build.sh` → **BUILD OK，v204 / 2.12.1**，V3 CN=hex91
+- 四道门：`deps` 0 命中、`catch` 335（基线 335）、`lang` PASS（379 键）、`action` PASS（53 个值互不重复）
+- 桌面单测：`QUICK=1` **58 用例 58 PASS**；`ALL` **61 用例 61 PASS**
+- 真机测试点：APK 对比页对比同一应用的「改了字符串没改长度」两个包 →
+  该条目应出现在「已修改」并显示两个 CRC32；对比同一个包两次 → 应全绿。
+
+---
+
 ## v2.12.0（versionCode 203）—— R-38 / F-17 / F-09 / F-18：动作号唯一性进门，三个小步快赢
 
 R-38 补上一道门的能力边界；F-17 / F-09 / F-18 是 §23 里规模最小的三项（S），
