@@ -715,7 +715,7 @@ public class AppManagerActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         try { pd.dismiss(); } catch (Exception ignored) {}
-                        toast(o.message);
+                        toast(RestoreText.of(AppManagerActivity.this, o));
                         loadApps();
                     }
                 });

@@ -1190,4 +1190,32 @@
     <string name="am_err_backup_no_apk">The backup contains no APK</string>
     <string name="am_restoring">Restoring %1$s…</string>
     <string name="am_item_system_suffix">"  · system"</string>
+
+    <!-- ===== restore outcome ===== -->
+    <string name="rs_ok_data">Reinstalled and data restored</string>
+    <string name="rs_ok_no_data">Reinstalled (no valid data in the backup, app only)</string>
+    <string name="rs_ok_data_failed">Reinstalled, but data restore failed (the backup data is corrupt and could not be unpacked)</string>
+    <string name="rs_err_no_apk">The backup contains no APK, cannot restore</string>
+    <string name="rs_err_no_root">No root access: restoring needs root to reinstall the app and write to /data (grant HexFile root in Magisk or similar first)</string>
+    <string name="rs_err_copy">Failed to copy the APK (sdcard permission): %1$s — %2$s</string>
+    <string name="rs_err_timeout">Install timed out (check that root is granted and the device is not busy)</string>
+    <string name="rs_err_sign">Signature mismatch: the installed version and the backup APK are signed differently, uninstall the app first</string>
+    <string name="rs_err_split">Missing split: the backup is incomplete (a split APK is missing), cannot restore, please back up again</string>
+    <string name="rs_err_install">Install failed: %1$s</string>
+    <string name="rs_err_unknown">Reinstall failed: unknown reason (no pm output)</string>
+    <string name="rs_err_generic">Restore failed: %1$s</string>
+
+    <!-- ===== backup manager page ===== -->
+    <string name="bk_title">Backup manager</string>
+    <string name="bk_hint">Lists every backed-up app (including uninstalled ones). Restoring needs root: reinstall the APK, then restore the data directory.</string>
+    <string name="bk_empty">No backups yet. Create one via App manager → app menu → Back up app.</string>
+    <string name="bk_restore">Restore</string>
+    <string name="bk_delete_title">Delete backup</string>
+    <string name="bk_delete_msg">"Delete the backup of %1$s?\nDirectory: %2$s\nThis cannot be undone."</string>
+    <string name="bk_deleted">Deleted backup: %1$s</string>
+    <string name="bk_installed">Installed</string>
+    <string name="bk_uninstalled">Not installed</string>
+    <string name="bk_data_yes">"Data: yes"</string>
+    <string name="bk_data_no">"Data: no"</string>
+    <string name="bk_row_sub">%1$s · %2$d APKs · %3$s</string>
 </resources>

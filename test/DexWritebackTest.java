@@ -34,7 +34,7 @@ public class DexWritebackTest {
 
     /** 取 out/ 下最新 HexFile-*.apk（旧路径 out/MTClone-1.11.0.apk 已不存在，v1.60 清理） */
     static File newestApk() {
-        File[] fs = new File("out").listFiles((d, n) -> n.matches("HexFile-1\\.\\d+(\\.\\d+)?\\.apk"));
+        File[] fs = new File("out").listFiles((d, n) -> n.matches("HexFile-\\d+\\.\\d+(\\.\\d+)?\\.apk"));
         if (fs == null || fs.length == 0) throw new IllegalStateException("out/ 无 HexFile-*.apk，请先构建");
         java.util.Arrays.sort(fs, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
         return fs[0];

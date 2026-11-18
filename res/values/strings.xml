@@ -1198,4 +1198,32 @@
     <string name="am_err_backup_no_apk">备份中无 APK 文件</string>
     <string name="am_restoring">正在还原 %1$s …</string>
     <string name="am_item_system_suffix">"  · 系统"</string>
+
+    <!-- ===== 还原结果（BackupRestore.Code → 文案，F-14/13） ===== -->
+    <string name="rs_ok_data">已重装并恢复数据</string>
+    <string name="rs_ok_no_data">已重装（备份中无有效数据，仅恢复应用本体）</string>
+    <string name="rs_ok_data_failed">已重装，但数据恢复失败（备份数据损坏，无法解包）</string>
+    <string name="rs_err_no_apk">备份中无 APK 文件，无法还原</string>
+    <string name="rs_err_no_root">未获取 Root 权限：还原需 root 才能重装应用并写入 /data（请先在 Magisk 等授权 HexFile）</string>
+    <string name="rs_err_copy">复制安装包失败（sdcard 权限）：%1$s —— %2$s</string>
+    <string name="rs_err_timeout">安装超时（请确认已授予 Root 且设备未卡顿）</string>
+    <string name="rs_err_sign">签名不一致：当前已装版本与备份 APK 签名不同，请先卸载该应用再还原</string>
+    <string name="rs_err_split">分包缺失：备份不完整（漏了 split 分包），无法还原，请重新备份</string>
+    <string name="rs_err_install">安装失败：%1$s</string>
+    <string name="rs_err_unknown">重装失败：未知原因（pm 无输出）</string>
+    <string name="rs_err_generic">还原失败：%1$s</string>
+
+    <!-- ===== 备份管理页（F-14/13） ===== -->
+    <string name="bk_title">备份管理</string>
+    <string name="bk_hint">列出所有已备份的应用（含已卸载）。还原需 Root：重装 APK + 恢复数据目录。</string>
+    <string name="bk_empty">暂无备份。可在「应用管理 → 应用菜单 → 备份应用」创建备份。</string>
+    <string name="bk_restore">还原</string>
+    <string name="bk_delete_title">删除备份</string>
+    <string name="bk_delete_msg">"确定删除 %1$s 的备份吗？\n目录：%2$s\n此操作不可恢复。"</string>
+    <string name="bk_deleted">已删除备份：%1$s</string>
+    <string name="bk_installed">已安装</string>
+    <string name="bk_uninstalled">未安装</string>
+    <string name="bk_data_yes">数据:有</string>
+    <string name="bk_data_no">数据:无</string>
+    <string name="bk_row_sub">%1$s · %2$d 个APK · %3$s</string>
 </resources>

@@ -23,12 +23,14 @@ public class AttrLogicTest {
         // 1. 无 su：run → false
         eq(RootUtil.run("echo hi"), false, "run 无 su → false");
 
-        // 2. 无 su：submitOutput → Future 内异常，get 会抛（调用方 statViaSu 已兜底）
+        // 2. 无 su：submitOutput 返回已完成的 Future（值 null），不抛 —— 现契约是「无声降级」，
+        //    statViaSu 拿到 null 自行走 statFallback。v2.29.0 修正：旧断言写的是「应抛」，
+        //    与实现相反，于是长期红着（.get() 不抛 → 记 FAIL）。
         try {
-            RootUtil.submitOutput("echo hi").get(3, java.util.concurrent.TimeUnit.SECONDS);
-            eq("no-throw", "throw", "submitOutput 无 su 应抛");
+            eq(RootUtil.submitOutput("echo hi").get(3, java.util.concurrent.TimeUnit.SECONDS),
+                    null, "submitOutput 无 su → null 不抛");
         } catch (Exception e) {
-            eq("throw", "throw", "submitOutput 无 su 抛异常(detect/调用方兜底)");
+            eq("throw:" + e.getClass().getSimpleName(), "null", "submitOutput 无 su 不应抛");
         }
 
         // 3. statFallback：三段位一致（Windows canExecute 恒 true，只验格式与一致性）

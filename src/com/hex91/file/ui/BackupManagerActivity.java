@@ -43,14 +43,14 @@ public class BackupManagerActivity extends BaseActivity {
         root.setOrientation(LinearLayout.VERTICAL);
 
         TextView title = new TextView(this);
-        title.setText("备份管理");
+        title.setText(R.string.bk_title);
         title.setTextSize(20);
         title.setPadding((int) (14 * d), (int) (14 * d), (int) (14 * d), (int) (6 * d));
         title.setTextColor(ThemeManager.text(this));
         root.addView(title);
 
         hintView = new TextView(this);
-        hintView.setText("列出所有已备份的应用（含已卸载）。还原需 Root：重装 APK + 恢复数据目录。");
+        hintView.setText(R.string.bk_hint);
         hintView.setTextSize(12);
         hintView.setPadding((int) (14 * d), 0, (int) (14 * d), (int) (8 * d));
         hintView.setTextColor(ThemeManager.textSub(this));
@@ -64,7 +64,7 @@ public class BackupManagerActivity extends BaseActivity {
         root.addView(list, lp);
 
         emptyView = new TextView(this);
-        emptyView.setText("暂无备份。可在「应用管理 → 应用菜单 → 备份应用」创建备份。");
+        emptyView.setText(R.string.bk_empty);
         emptyView.setTextSize(14);
         emptyView.setGravity(Gravity.CENTER);
         emptyView.setPadding((int) (20 * d), (int) (40 * d), (int) (20 * d), 0);
@@ -106,7 +106,7 @@ public class BackupManagerActivity extends BaseActivity {
     /** 还原某个备份（后台线程 + 进度框 + 细分失败提示） */
     private void doRestore(final BackupRestore.BackupEntry e) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("正在还原 " + e.label + " …");
+        pd.setMessage(getString(R.string.am_restoring, e.label));
         pd.setCanceledOnTouchOutside(false);
         pd.show();
         new Thread(new Runnable() {
@@ -115,7 +115,7 @@ public class BackupManagerActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         try { pd.dismiss(); } catch (Exception ignored) {}
-                        toast(o.message);
+                        toast(RestoreText.of(BackupManagerActivity.this, o));
                         loadBackups();   // 刷新（已安装状态可能变化）
                     }
                 });
@@ -126,17 +126,16 @@ public class BackupManagerActivity extends BaseActivity {
     /** 删除某个备份目录（二次确认 + 递归删除） */
     private void confirmDelete(final BackupRestore.BackupEntry e) {
         new HfDialogBuilder(this)
-                .setTitle("删除备份")
-                .setMessage("确定删除 " + e.label + " 的备份吗？\n目录：" + e.dir.getPath()
-                        + "\n此操作不可恢复。")
-                .setPositiveButton("删除", new android.content.DialogInterface.OnClickListener() {
+                .setTitle(R.string.bk_delete_title)
+                .setMessage(getString(R.string.bk_delete_msg, e.label, e.dir.getPath()))
+                .setPositiveButton(R.string.common_delete, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface di, int w) {
                         deleteDir(e.dir);
-                        toast("已删除备份：" + e.label);
+                        toast(getString(R.string.bk_deleted, e.label));
                         loadBackups();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -188,12 +187,12 @@ public class BackupManagerActivity extends BaseActivity {
                 row.addView(col);
 
                 btnRestore = new Button(BackupManagerActivity.this);
-                btnRestore.setText("还原");
+                btnRestore.setText(R.string.bk_restore);
                 UiDecor.barButton(btnRestore, BackupManagerActivity.this, UiDecor.KIND_SOFT, 12f);
                 row.addView(btnRestore);
 
                 btnDelete = new Button(BackupManagerActivity.this);
-                btnDelete.setText("删除");
+                btnDelete.setText(R.string.common_delete);
                 UiDecor.barButton(btnDelete, BackupManagerActivity.this, UiDecor.KIND_DANGER, 12f);
                 UiDecor.gap(btnDelete, BackupManagerActivity.this, 4f);
                 row.addView(btnDelete);
@@ -220,8 +219,10 @@ public class BackupManagerActivity extends BaseActivity {
             icon.setImageDrawable(dr);
 
             title.setText(e.label);
-            String data = e.dataTar != null ? "数据:有" : "数据:无";
-            sub.setText((e.installed ? "已安装" : "未安装") + " · " + e.apks.length + " 个APK · " + data);
+            String data = getString(e.dataTar != null ? R.string.bk_data_yes : R.string.bk_data_no);
+            sub.setText(getString(R.string.bk_row_sub,
+                    getString(e.installed ? R.string.bk_installed : R.string.bk_uninstalled),
+                    e.apks.length, data));
 
             btnRestore.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) { doRestore(e); }

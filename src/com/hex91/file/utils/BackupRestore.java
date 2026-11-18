@@ -40,13 +40,54 @@ public final class BackupRestore {
         public String label;        // 已安装取应用名；否则取包名
     }
 
+    /**
+     * 还原结果的细分原因 —— v2.29.0（F-14/13）。
+     *
+     * <p>以前这里是 {@code public String message}，一句话中文既当结果又当提示；要出英文
+     * 只能把 Context 灌进 utils 层，或者同一句话在两处维护。现在只给码 + 数据参数，
+     * 文案由 ui 层按资源取（{@code RestoreText}），本层不产任何人类可读文案。</p>
+     */
+    public enum Code {
+        /** 已重装并恢复数据 */
+        OK_DATA,
+        /** 已重装，备份里没有有效数据 */
+        OK_NO_DATA,
+        /** 已重装，但数据解包失败 */
+        OK_DATA_FAILED,
+        /** 备份里没有 APK */
+        ERR_NO_APK,
+        /** 没有 root */
+        ERR_NO_ROOT,
+        /** 拷安装包到 /data/local/tmp 失败（参数：APK 文件名、底层输出） */
+        ERR_COPY,
+        /** pm 安装超时 */
+        ERR_TIMEOUT,
+        /** 签名不一致 */
+        ERR_SIGN,
+        /** 分包缺失 */
+        ERR_SPLIT,
+        /** 其它安装失败（参数：pm 输出） */
+        ERR_INSTALL,
+        /** 安装失败且 pm 无输出 */
+        ERR_UNKNOWN
+    }
+
     /** 还原结果（含细分失败原因，供 UI 直接提示） */
     public static class RestoreOutcome {
         public boolean rootAvailable;
         public boolean installOk;
         public boolean dataOk;
-        public String message;
+        /** 结果码；新增一个码要同步在 ui 层加译文，否则落到「通用失败」兜底 */
+        public Code code;
+        /** 码对应的数据参数（文件名、pm 输出之类），不是文案 */
+        public Object[] args = EMPTY;
+
+        public String str(int i) {
+            return args != null && i < args.length && args[i] != null ? String.valueOf(args[i]) : "";
+        }
     }
+
+    private static final Object[] EMPTY = new Object[0];
 
     /** 列出全部备份（按包名排序）。无备份或读取失败返回空列表。 */
     public static List<BackupEntry> listBackups(Context ctx) {
@@ -104,24 +145,20 @@ public final class BackupRestore {
     public static RestoreOutcome restore(BackupEntry e, String installerPkg) {
         RestoreOutcome o = new RestoreOutcome();
         if (e == null || e.apks == null || e.apks.length == 0) {
-            o.message = "备份中无 APK 文件，无法还原";
-            return o;
+            return fail(o, Code.ERR_NO_APK);
         }
         if (!RootUtil.detect() || !RootUtil.isRootAvailable()) {
             o.rootAvailable = false;
-            o.message = "未获取 Root 权限：还原需 root 才能重装应用并写入 /data（请先在 Magisk 等授权 HexFile）";
             Log.w(TAG, "restore blocked: root unavailable");
-            return o;
+            return fail(o, Code.ERR_NO_ROOT);
         }
         o.rootAvailable = true;
 
         // 1) 重装 APK（install-create / write / commit 会话流程）
         Log.i(TAG, "restore: start install pkg=" + e.pkg + " apks=" + e.apks.length);
-        String installMsg = installApkSet(e.apks, installerPkg);
-        o.installOk = installMsg == null;
+        o.installOk = installApkSet(e.apks, installerPkg, o);
         if (!o.installOk) {
-            o.message = installMsg;
-            Log.e(TAG, "restore: install failed: " + installMsg);
+            Log.e(TAG, "restore: install failed: " + o.code);
             return o;
         }
         Log.i(TAG, "restore: install ok, pkg=" + e.pkg);
@@ -133,10 +170,15 @@ public final class BackupRestore {
             Log.i(TAG, "restore: extract data from " + dataTar.getPath());
             boolean dataOk = extractData(dataTar, dd);
             o.dataOk = dataOk;
-            o.message = dataOk ? "已重装并恢复数据" : "已重装，但数据恢复失败（备份数据损坏，无法解包）";
-        } else {
-            o.message = "已重装（备份中无有效数据，仅恢复应用本体）";
+            return fail(o, dataOk ? Code.OK_DATA : Code.OK_DATA_FAILED);
         }
+        return fail(o, Code.OK_NO_DATA);
+    }
+
+    /** 把结果码（连同数据参数）落到 outcome 上，省掉每处重复两行赋值 */
+    private static RestoreOutcome fail(RestoreOutcome o, Code code, Object... args) {
+        o.code = code;
+        o.args = args == null || args.length == 0 ? EMPTY : args;
         return o;
     }
 
@@ -186,8 +228,8 @@ public final class BackupRestore {
         return null;
     }
 
-    /** 安装一组 APK；成功返回 null，失败返回友好原因。 */
-    private static String installApkSet(File[] apks, String installerPkg) {
+    /** 安装一组 APK；成功返回 true，失败时把原因码写进 outcome。 */
+    private static boolean installApkSet(File[] apks, String installerPkg, RestoreOutcome o) {
         // Android 11+：system_server 无法读取 /sdcard（fuse 标签）上的文件，
         // 必须先把 APK 拷到 /data/local/tmp，再从 tmp 安装。
         List<String> tmpFiles = new ArrayList<>();
@@ -197,7 +239,8 @@ public final class BackupRestore {
                     "cp '" + apk.getPath() + "' '" + tmp + "' 2>&1");
             if (cp == null || cp.exit != 0) {
                 cleanupTmp(tmpFiles);
-                return "复制安装包失败（sdcard 权限）：" + apk.getName() + " —— " + (cp == null ? "timeout" : cp.out);
+                fail(o, Code.ERR_COPY, apk.getName(), cp == null ? "timeout" : cp.out);
+                return false;
             }
             RootUtil.run("chmod 644 '" + tmp + "' 2>/dev/null");
             tmpFiles.add(tmp);
@@ -213,9 +256,15 @@ public final class BackupRestore {
                 + " apks=" + apks.length);
         RootUtil.RunResult r = RootUtil.runCapture(sb.toString(), 180);
         cleanupTmp(tmpFiles);
-        if (r == null) return "安装超时（请确认已授予 Root 且设备未卡顿）";
-        if (r.exit != 0) return friendlyInstallError(r.out);
-        return null;
+        if (r == null) {
+            fail(o, Code.ERR_TIMEOUT);
+            return false;
+        }
+        if (r.exit != 0) {
+            installError(r.out, o);
+            return false;
+        }
+        return true;
     }
 
     /** 清理 /data/local/tmp 下的临时安装包，避免残留。 */
@@ -223,20 +272,23 @@ public final class BackupRestore {
         for (String t : tmpFiles) RootUtil.run("rm -f '" + t + "' 2>/dev/null");
     }
 
-    /** 将 pm 安装失败输出翻译为可定位的原因 */
-    private static String friendlyInstallError(String out) {
+    /** pm 安装失败输出 → 可定位的原因码（参数保留 pm 原文，供界面展开） */
+    private static void installError(String out, RestoreOutcome o) {
         if (out == null) out = "";
         String lower = out.toLowerCase();
         if (lower.contains("update_incompatible") || lower.contains("signatures do not match")
                 || lower.contains("signature mismatch")) {
-            return "签名不一致：当前已装版本与备份 APK 签名不同，请先卸载该应用再还原";
+            fail(o, Code.ERR_SIGN);
+            return;
         }
         if (lower.contains("missing_split")) {
-            return "分包缺失：备份不完整（漏了 split 分包），无法还原，请重新备份";
+            fail(o, Code.ERR_SPLIT);
+            return;
         }
         if (lower.contains("install_failed")) {
-            return "安装失败：" + out;
+            fail(o, Code.ERR_INSTALL, out);
+            return;
         }
-        return "重装失败：" + (out.isEmpty() ? "未知原因（pm 无输出）" : out);
+        fail(o, out.isEmpty() ? Code.ERR_UNKNOWN : Code.ERR_INSTALL, out);
     }
 }

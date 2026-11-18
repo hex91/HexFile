@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：1117 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：1141 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,77 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.29.0（versionCode 222）—— F-14/13：还原结果码化 + 备份管理页 i18n
+
+上一版结账时留下的那条：`BackupRestore.RestoreOutcome.message` 是**中文成品句**，
+而且是还原结果的唯一出口（两个页面都直接 `toast(o.message)`）。这一版按 v2.26.0
+`HlsDownloader` 的同一套办法把它拆干净，顺手把整页 `BackupManagerActivity` 迁完。
+
+### utils 层不再产文案
+
+`RestoreOutcome.message`（`String`）换成 `code`（`enum Code`，11 个）+ `args`（数据参数）：
+
+```java
+public enum Code {
+    OK_DATA, OK_NO_DATA, OK_DATA_FAILED,
+    ERR_NO_APK, ERR_NO_ROOT,
+    ERR_COPY /* 参数：APK 文件名、底层输出 */,
+    ERR_TIMEOUT, ERR_SIGN, ERR_SPLIT,
+    ERR_INSTALL /* 参数：pm 输出 */, ERR_UNKNOWN
+}
+```
+
+`installApkSet` 原来返回 `String`（成功 null / 失败给中文），现在返回 `boolean`
+并把码写进 outcome；`friendlyInstallError` 改名 `installError`，只做「pm 输出 →
+码」的分类，不再拼句子。`args` 里全是**数据**：APK 文件名、`pm` 原文、`cp` 的报错，
+译文按语序自己排。
+
+### 一份映射，两个页面共用
+
+还原结果有两个消费方（备份管理页、应用管理页），所以映射不能写在任一 Activity 里。
+新增 `ui/RestoreText.of(Context, RestoreOutcome)`：`switch (o.code)` → `R.string.rs_*`，
+新增码忘了加译文时落到 `rs_err_generic`（把码名露出来），不会显示空白。
+
+### 页面迁移
+
+`BackupManagerActivity` 中文字面量 **22 行 → 0**（剩下的全是注释），24 个新键：
+
+| 组 | 键数 | 内容 |
+| --- | --- | --- |
+| `rs_*` | 12 | 11 个结果码 + 1 条兜底 |
+| `bk_*` | 12 | 标题 / 说明 / 空态 / 还原按钮 / 删除对话框 / 行状态 |
+
+两个取舍：
+
+- 「正在还原 %1$s …」**复用** `am_restoring` —— 与「备份应用」同一个动作词汇，不该两处。
+- 行状态「已安装 / 未安装」**不复用** `apk_row_installed` —— 那是 APK 信息弹窗里的
+  条目标签，这里说的是「这台设备上装没装」，英文也可能分叉，各留各的键。
+
+### 顺手修：四个测试长期空跑 / 长期红
+
+跑 `QUICK=1 test/run_all.sh` 时冒出 4 个失败，逐个查下来**都不是本版引入的**：
+
+| 测试 | 症状 | 真因 |
+| --- | --- | --- |
+| `AxmlTest` / `DexWritebackTest` / `SignTest` | `out/ 无 HexFile-*.apk，请先构建` | 取样本的正则写死 `HexFile-1\.\d+`，v2.0.0 起版本号变 2.x 后**再没匹配上过**，等于空跑 |
+| `AttrLogicTest` | `submitOutput 无 su 应抛` FAIL | 实现早改成「无 root 返回 `done(null)`」的无声降级，断言还写着「应抛」，于是一直红 |
+
+正则改 `HexFile-\d+\.\d+(\.\d+)?\.apk`；断言改成「返回 null、不抛」。修完三条链路
+测试**真正跑起来**并全过 —— 也就是说 arsc 编辑 → 重打包 → 重签名在 2.29.0 的 APK 上
+仍然成立，这条结论此前两年是没有验证过的。
+
+### 验证
+
+- `BackupManagerActivity` 中文字面量 **22 → 0**；`BackupRestore` 代码里 0 处中文字面量
+- 四道门：依赖方向通过（`ui → utils` 合法，`utils` 不反向依赖 `R`）/ 空 catch **335（= 基线）** /
+  文案 **1141 条 100% 一致**（引用 1098 键 / 27 文件）/ 动作号 55
+- `QUICK=1` **97 通过 / 0 失败 / 4 跳过**（此前 4 红）
+- `aapt2 dump resources` 抽查 `bk_delete_msg` / `bk_row_sub` / `rs_err_copy`：中英双变体齐全，
+  `\n` 为真实换行
+- APK 见 `out/HexFile-2.29.0.apk`
 
 ---
 
