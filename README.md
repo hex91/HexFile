@@ -1784,6 +1784,67 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.23.0（versionCode 216）—— F-14/7：文件操作宫格菜单 i18n
+
+长按文件 / 文件夹弹出的那个双列宫格，是日常点得最多的一个界面：普通对象 38 项、
+APK 专属 28 项，实际是同一套 `ops` / `acts` 双列表喂给 `showGridMenu`。
+这一批把 **63 处 `ops.add("…")` 全部换成资源**，落成 **51 个 `mops_` 键**
+（去重后，「Dex 编辑器++」「分享」「打开方式」等在两个菜单里共用一个键）。
+
+`MainActivity` 中文字面量 **386 → 319**（累计 444 → 319）。
+
+### 这里本来就是安全的，值得对照着看
+
+`showGridMenu` 的分派写法是：
+
+```java
+tv.setOnClickListener(... { cb.run(acts.get(idx)); });
+```
+
+**按下标取动作码**，文案只负责显示。所以即便文案翻成英文，点的还是那一条。
+这和 v2.20.0 在 `ArchiveController` 里抓到的 `op.startsWith("Dex 编辑器++")` 正好相反：
+同一个应用里，一处按索引分派、一处按文案分派，后者一翻就全线错位。
+
+迁移时逐段确认过：这两个菜单**没有**任何一处拿 `ops` 的内容做判断。
+剩下的 319 处里还有几段要按这个标准过一遍。
+
+### 专有名词不译，动作照译
+
+| 中文 | 英文 |
+| --- | --- |
+| Dex 编辑器++ | Dex Editor++ |
+| ARSC++ 编辑 | Edit ARSC++ |
+| Manifest 编辑器++ | Manifest Editor++ |
+| 反编译 dex→smali | Decompile dex→smali |
+| Zstd 压缩 / 解压 | Zstd compress / extract |
+| HEX 查看 | View as HEX |
+| strings 提取 | Extract strings |
+| 复制(剪贴板) | Copy (clipboard) |
+| 局域网快传 | LAN transfer |
+| 移入隐私空间 | （复用 `vault_move_in`） |
+
+`Dex` / `ARSC` / `Manifest` / `Zstd` / `HEX` / `strings` 这些是格式与技术名，
+不翻；跟着它们的那半句（编辑器 / 编辑 / 压缩 / 查看 / 提取）照译。
+「(剪贴板)」用半角括号——它是个补充说明，不是中文行文的停顿。
+
+### 复用与新建的分界
+
+「移入隐私空间」直接复用 v2.18.0 的 `vault_move_in`、「删除」复用 `common_delete`：
+这两处是**同一个功能**，从哪个入口进都该是同一句话。
+反过来「属性」没有复用 `arch_op_props` —— 那个是压缩包条目的属性，
+和本地文件的属性是两套不同的东西（一个只读展示，一个可改权限/时间戳）。
+
+### 验证
+
+- `build.sh` → **BUILD OK，v216 / 2.23.0**，APK **13,177,552 字节**，
+  md5 `0322bfa7…`（连续三个版本字节数完全相同；这是 zipalign 4KB 对齐的巧合，
+  51 条新资源 + 代码改动都没跨过对齐块。**看大小判断有没有改是行不通的，只能看 md5**）
+- `aapt2 dump resources` 核对 `string/mops_dexpp` 有 `()` / `(en)` 两变体，包内 `mops_` 资源 **51 条**
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 **823 条 100% 一致**（引用 790 键 / 20 文件）/ 动作号 55
+- QUICK **66/66**
+
+---
+
 ## v2.22.0（versionCode 215）—— F-14/6：多选工具条与批量操作 i18n
 
 这一批是「进入多选之后」的那整条路：底部工具条 7 个按钮、批量复制/移动、批量删除、

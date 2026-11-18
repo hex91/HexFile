@@ -2629,71 +2629,71 @@ public class MainActivity extends BaseActivity {
         // v1.91.0：视频与流清单直接给「播放」（内置播放器），不必先绕「打开方式」
         if (isFile && (MimeUtil.isVideo(f.getName().toLowerCase())
                 || MimeUtil.isPlaylist(f.getName().toLowerCase()))) {
-            ops.add("播放"); acts.add(A_PLAYER);
+            ops.add(s(R.string.mops_play)); acts.add(A_PLAYER);
         }
         // v1.92.0：TS 录像/切片换容器成 MP4（不重编码，秒级完成）
         if (isFile && f.getName().toLowerCase().endsWith(".ts") && looksLikeMpegTs(f)) {
-            ops.add("转为 MP4"); acts.add(A_TSMP4);
+            ops.add(s(R.string.mops_ts_to_mp4)); acts.add(A_TSMP4);
         }
         // 本地 m3u8（整目录下好的切片）→ 打开下载页，路径已预填
         if (isFile && f.getName().toLowerCase().endsWith(".m3u8")) {
-            ops.add("合并为 MP4"); acts.add(A_HLSD);
+            ops.add(s(R.string.mops_hls_merge)); acts.add(A_HLSD);
         }
         // v2.13.0（F-03）：分包安装包——「装」放最前面，其余动作照旧
         if (isFile && SplitPackage.isSplitName(f.getName().toLowerCase())) {
-            ops.add("安装分包"); acts.add(A_SPLITINST);
+            ops.add(s(R.string.mops_split_install)); acts.add(A_SPLITINST);
         }
-        if (isSmaliDir) { ops.add("编译为 dex"); acts.add(A_ASSEMBLE); }
+        if (isSmaliDir) { ops.add(s(R.string.mops_smali_assemble)); acts.add(A_ASSEMBLE); }
         // v1.68.0：签名文件专属操作（导入签名管理 / 查看别名与证书）
-        if (isKs) { ops.add("签名信息"); acts.add(A_KS_INFO); }
-        if (isKs) { ops.add("导入签名管理"); acts.add(A_KS_IMPORT); }
+        if (isKs) { ops.add(s(R.string.mops_sign_info)); acts.add(A_KS_INFO); }
+        if (isKs) { ops.add(s(R.string.mops_ks_import)); acts.add(A_KS_IMPORT); }
         if (!isFile && new java.io.File(f, "AndroidManifest.xml").isFile()) {
-            ops.add("打包为 APK"); acts.add(A_APK_PACK);   // v1.57：解包目录回打包
+            ops.add(s(R.string.mops_apk_pack)); acts.add(A_APK_PACK);   // v1.57：解包目录回打包
         }
-        if (isDex) { ops.add("Dex 编辑器++"); acts.add(A_DEXPP); }
-        if (isDex) { ops.add("反编译 smali"); acts.add(A_SMALI); }
-        if (isDex) { ops.add("Dex 属性"); acts.add(A_DEX_PROP); }
-        if (isDex) { ops.add("Dex 修复"); acts.add(A_DEX_FIX); }
-        if (isFile) { ops.add("文本编辑"); acts.add(A_EDIT); }
-        if (isFile) { ops.add("计算哈希"); acts.add(A_HASH);   // v1.59：MD5/SHA1/SHA256
+        if (isDex) { ops.add(s(R.string.mops_dexpp)); acts.add(A_DEXPP); }
+        if (isDex) { ops.add(s(R.string.mops_smali_decompile)); acts.add(A_SMALI); }
+        if (isDex) { ops.add(s(R.string.mops_dex_props)); acts.add(A_DEX_PROP); }
+        if (isDex) { ops.add(s(R.string.mops_dex_fix)); acts.add(A_DEX_FIX); }
+        if (isFile) { ops.add(s(R.string.mops_text_edit)); acts.add(A_EDIT); }
+        if (isFile) { ops.add(s(R.string.mops_hash)); acts.add(A_HASH);   // v1.59：MD5/SHA1/SHA256
         }
         if (isFile && ImageBatchUtil.supported(f.getName().toLowerCase())) {
-            ops.add("图片处理"); acts.add(A_IMGBATCH);   // v1.58：缩放/转格式/水印
+            ops.add(s(R.string.mops_img_batch)); acts.add(A_IMGBATCH);   // v1.58：缩放/转格式/水印
         }
         // v2.12.0（F-09）：图片元数据——拍摄设备/时间/是否带 GPS，发图前先看一眼
         if (isFile && FileKind.isImageExt(f.getName().toLowerCase())) {
-            ops.add("图片信息"); acts.add(A_EXIF);
+            ops.add(s(R.string.mops_exif)); acts.add(A_EXIF);
         }
-        if (!isFile) { ops.add("查找重复文件"); acts.add(A_DUPFIND); }   // v1.59：内容级查重
-        if (isFile) { ops.add("HEX 查看"); acts.add(A_HEX); }
-        if (isFile) { ops.add("打开方式"); acts.add(A_OPEN); }   // v1.77.0：交给系统应用
-        if (isFile) { ops.add("分享"); acts.add(A_SHARE); }
-        if (isFile) { ops.add("局域网快传"); acts.add(A_LAN); }   // v1.74.0
-        ops.add("复制到对面"); acts.add(A_COPY);
-        ops.add("移动到对面"); acts.add(A_MOVE);
+        if (!isFile) { ops.add(s(R.string.mops_dup_find)); acts.add(A_DUPFIND); }   // v1.59：内容级查重
+        if (isFile) { ops.add(s(R.string.mops_hex)); acts.add(A_HEX); }
+        if (isFile) { ops.add(s(R.string.mops_open_with)); acts.add(A_OPEN); }   // v1.77.0：交给系统应用
+        if (isFile) { ops.add(s(R.string.mops_share)); acts.add(A_SHARE); }
+        if (isFile) { ops.add(s(R.string.mops_lan)); acts.add(A_LAN); }   // v1.74.0
+        ops.add(s(R.string.mops_copy_other)); acts.add(A_COPY);
+        ops.add(s(R.string.mops_move_other)); acts.add(A_MOVE);
         // v1.78.0：剪贴板——先复制/剪切，再翻到任意目录点底部 📋 粘贴
-        ops.add("复制(剪贴板)"); acts.add(A_CLIP_C);
-        ops.add("剪切(剪贴板)"); acts.add(A_CLIP_M);
+        ops.add(s(R.string.mops_clip_copy)); acts.add(A_CLIP_C);
+        ops.add(s(R.string.mops_clip_cut)); acts.add(A_CLIP_M);
         // 对面窗格打开了压缩包 → 增加写入压缩包动作（文件/目录均可；只读格式点击时给说明）
         final boolean archDst = dst.archiveFile != null;
-        if (archDst) { ops.add("复制到对面压缩包"); acts.add(A_TOZIP_C); }
-        if (archDst) { ops.add("移动到对面压缩包"); acts.add(A_TOZIP_M); }
-        ops.add("重命名"); acts.add(A_REN);
-        ops.add("压缩为 ZIP"); acts.add(A_ZIP);
-        if (!ZstdUtil.isZstName(f.getName())) { ops.add("Zstd 压缩"); acts.add(A_ZSTDC); }
-        if (isFile && ZstdUtil.isZstName(f.getName())) { ops.add("Zstd 解压"); acts.add(A_ZSTDD); }
-        if (isFile) { ops.add("加密文件"); acts.add(A_ENCRYPT); }
-        if (isFile) { ops.add("解密文件"); acts.add(A_DECRYPT); }
+        if (archDst) { ops.add(s(R.string.mops_copy_to_arch)); acts.add(A_TOZIP_C); }
+        if (archDst) { ops.add(s(R.string.mops_move_to_arch)); acts.add(A_TOZIP_M); }
+        ops.add(s(R.string.mops_rename)); acts.add(A_REN);
+        ops.add(s(R.string.mops_zip)); acts.add(A_ZIP);
+        if (!ZstdUtil.isZstName(f.getName())) { ops.add(s(R.string.mops_zstd_compress)); acts.add(A_ZSTDC); }
+        if (isFile && ZstdUtil.isZstName(f.getName())) { ops.add(s(R.string.mops_zstd_extract)); acts.add(A_ZSTDD); }
+        if (isFile) { ops.add(s(R.string.mops_encrypt)); acts.add(A_ENCRYPT); }
+        if (isFile) { ops.add(s(R.string.mops_decrypt)); acts.add(A_DECRYPT); }
         // v2.18.0（F-22）：移入隐私空间（加密存放 + 删掉明文，才算真的藏起来）
-        if (isFile) { ops.add("移入隐私空间"); acts.add(A_VAULT); }
-        if (isFile && !FileSplit.isSplitPart(f)) { ops.add("文件分割"); acts.add(A_SPLIT); }
-        if (FileSplit.isSplitPart(f)) { ops.add("文件合并"); acts.add(A_MERGE); }
+        if (isFile) { ops.add(s(R.string.vault_move_in)); acts.add(A_VAULT); }
+        if (isFile && !FileSplit.isSplitPart(f)) { ops.add(s(R.string.mops_split)); acts.add(A_SPLIT); }
+        if (FileSplit.isSplitPart(f)) { ops.add(s(R.string.mops_merge)); acts.add(A_MERGE); }
         if (isFile && f.length() > 0 && !FileKind.isTextName(f.getName().toLowerCase(), f.length())) {
-            ops.add("strings 提取"); acts.add(A_STRINGS);
+            ops.add(s(R.string.mops_strings)); acts.add(A_STRINGS);
         }
-        ops.add("对比…"); acts.add(A_COMPARE);
-        ops.add("删除"); acts.add(A_DEL);
-        ops.add("属性"); acts.add(A_PROP);
+        ops.add(s(R.string.mops_compare)); acts.add(A_COMPARE);
+        ops.add(s(R.string.common_delete)); acts.add(A_DEL);
+        ops.add(s(R.string.mops_props)); acts.add(A_PROP);
         showGridMenu(f.getName(), ops, acts, new GridAction() {
             public void run(int act) { runFileAction(act, f, dst); }
         });
@@ -2705,35 +2705,35 @@ public class MainActivity extends BaseActivity {
         // 动作码：统一用类级 A_*（O-25 前这里是本方法内的局部 final int）
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
-        ops.add("Dex 编辑器++"); acts.add(A_DEXPP_MULTI);
-        ops.add("ARSC 编辑"); acts.add(A_ARSCPP);
-        ops.add("ARSC++ 编辑"); acts.add(A_ARSCPP2);
-        ops.add("Manifest 编辑器++"); acts.add(A_MFPP);
-        ops.add("反编译 dex→smali"); acts.add(A_DEX2SMALI);
-        ops.add("提取 dex"); acts.add(A_EXTRACT_DEX);
-        ops.add("分享"); acts.add(A_SHARE);
-        ops.add("打开方式"); acts.add(A_OPEN);   // v1.77.0
-        ops.add("局域网快传"); acts.add(A_LAN);   // v1.74.0
-        ops.add("签名信息"); acts.add(A_SIGN);
-        ops.add("APK 签名"); acts.add(A_SIGN_APK);
-        ops.add("APK 对比"); acts.add(A_APK_COMPARE);
-        ops.add("APK 共存"); acts.add(A_APK_CLONE);
-        ops.add("去除签名校验"); acts.add(A_SIGKILL);
-        ops.add("APK 信息"); acts.add(A_INFO);
-        ops.add("APK 解包"); acts.add(A_UNPACK);
-        ops.add("自定义密钥签名"); acts.add(A_SIGN_CUSTOM);
-        ops.add("去除签名"); acts.add(A_RM_SIGN);
-        ops.add("移入隐私空间"); acts.add(A_VAULT);   // v2.18.0（F-22）
-        ops.add("删除"); acts.add(A_DEL);        ops.add("复制到对面"); acts.add(A_COPY);
+        ops.add(s(R.string.mops_dexpp)); acts.add(A_DEXPP_MULTI);
+        ops.add(s(R.string.mops_arsc_edit)); acts.add(A_ARSCPP);
+        ops.add(s(R.string.mops_arscpp_edit)); acts.add(A_ARSCPP2);
+        ops.add(s(R.string.mops_mfpp)); acts.add(A_MFPP);
+        ops.add(s(R.string.mops_dex2smali)); acts.add(A_DEX2SMALI);
+        ops.add(s(R.string.mops_extract_dex)); acts.add(A_EXTRACT_DEX);
+        ops.add(s(R.string.mops_share)); acts.add(A_SHARE);
+        ops.add(s(R.string.mops_open_with)); acts.add(A_OPEN);   // v1.77.0
+        ops.add(s(R.string.mops_lan)); acts.add(A_LAN);   // v1.74.0
+        ops.add(s(R.string.mops_sign_info)); acts.add(A_SIGN);
+        ops.add(s(R.string.mops_apk_sign)); acts.add(A_SIGN_APK);
+        ops.add(s(R.string.mops_apk_compare)); acts.add(A_APK_COMPARE);
+        ops.add(s(R.string.mops_apk_clone)); acts.add(A_APK_CLONE);
+        ops.add(s(R.string.mops_sigkill)); acts.add(A_SIGKILL);
+        ops.add(s(R.string.mops_apk_info)); acts.add(A_INFO);
+        ops.add(s(R.string.mops_apk_unpack)); acts.add(A_UNPACK);
+        ops.add(s(R.string.mops_sign_custom)); acts.add(A_SIGN_CUSTOM);
+        ops.add(s(R.string.mops_rm_sign)); acts.add(A_RM_SIGN);
+        ops.add(s(R.string.vault_move_in)); acts.add(A_VAULT);   // v2.18.0（F-22）
+        ops.add(s(R.string.common_delete)); acts.add(A_DEL);        ops.add(s(R.string.mops_copy_other)); acts.add(A_COPY);
         // v1.78.0：剪贴板（APK 也走同一套，翻到别的目录再粘贴）
-        ops.add("复制(剪贴板)"); acts.add(A_CLIP_C);
-        ops.add("剪切(剪贴板)"); acts.add(A_CLIP_M);
+        ops.add(s(R.string.mops_clip_copy)); acts.add(A_CLIP_C);
+        ops.add(s(R.string.mops_clip_cut)); acts.add(A_CLIP_M);
         // 对面窗格打开了压缩包 → 增加写入压缩包动作（只读格式点击时给说明）
         final boolean archDst = dst.archiveFile != null;
-        if (archDst) { ops.add("复制到对面压缩包"); acts.add(A_TOZIP_C); }
-        if (archDst) { ops.add("移动到对面压缩包"); acts.add(A_TOZIP_M); }
-        ops.add("重命名"); acts.add(A_REN);
-        ops.add("属性"); acts.add(A_PROP);
+        if (archDst) { ops.add(s(R.string.mops_copy_to_arch)); acts.add(A_TOZIP_C); }
+        if (archDst) { ops.add(s(R.string.mops_move_to_arch)); acts.add(A_TOZIP_M); }
+        ops.add(s(R.string.mops_rename)); acts.add(A_REN);
+        ops.add(s(R.string.mops_props)); acts.add(A_PROP);
         showGridMenu(f.getName(), ops, acts, new GridAction() {
             public void run(int act) { runFileAction(act, f, dst); }
         });
