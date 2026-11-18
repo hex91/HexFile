@@ -89,7 +89,7 @@ public class HlsPlaylistTest {
         ok(p.hasEndList, "有 ENDLIST → 点播");
         ok(!p.isLive(), "点播不是直播");
         ok(!p.encrypted(), "未加密");
-        eqs("未加密", p.encryptionText(), "加密说明");
+        ok(p.crypt() == HlsPlaylist.Crypt.NONE, "加密概况：未加密");
         eqs("https://cdn.example.com/vod/seg0.ts", p.segments().get(0).url, "相对路径补成绝对");
         eqs("https://cdn.example.com/vod/sub/seg2.ts?token=abc",
                 p.segments().get(2).url, "子目录 + 查询串保留");
@@ -137,9 +137,10 @@ public class HlsPlaylistTest {
         ok(k.isAes128(), "AES-128");
         eqs("https://cdn.example.com/v/key.bin", k.uri, "KEY 相对地址解析");
         eqb(hex("000102030405060708090A0B0C0D0E0F"), k.ivFor(999), "显式 IV 与序列号无关");
-        eqs("AES-128", p.encryptionText(), "加密说明 AES-128");
+        ok(p.crypt() == HlsPlaylist.Crypt.UNIFORM, "加密概况：统一密钥");
+        eqs("AES-128", p.uniformKey().label(), "方案名 = AES-128");
         ok(p.uniformKey() != null, "全片同一把 key");
-        ok(p.blockReason() == null, "AES-128 可自行解密");
+        ok(p.blockingKey() == null, "AES-128 可自行解密");
 
         // 隐式 IV + MEDIA-SEQUENCE
         String implicit =
@@ -167,6 +168,8 @@ public class HlsPlaylistTest {
         ok(r.segments().get(1).encrypted(), "第 2 片加密");
         ok(!r.segments().get(2).encrypted(), "METHOD=NONE 之后第 3 片明文");
         ok(r.uniformKey() == null, "混用密钥/明文时没有统一 key");
+        ok(r.crypt() == HlsPlaylist.Crypt.MIXED, "加密概况：混用也算多把");
+        ok(r.blockingKey() == null, "混用但都是 AES-128，不阻断");
 
         // 多把 key
         String multi =
@@ -174,13 +177,16 @@ public class HlsPlaylistTest {
                 + "#EXT-X-KEY:METHOD=AES-128,URI=\"k2\"\n#EXTINF:1,\nb.ts\n";
         HlsPlaylist m = HlsPlaylist.parse(multi, "https://cdn.example.com/v/a.m3u8");
         ok(m.uniformKey() == null, "两把 key → 无统一 key");
-        eqs("多把密钥", m.encryptionText(), "加密说明：多把密钥");
+        ok(m.crypt() == HlsPlaylist.Crypt.MIXED, "加密概况：多把密钥");
 
         // SAMPLE-AES 不可解
         String drm = "#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"skd://x\"\n#EXTINF:1,\na.ts\n";
         HlsPlaylist d = HlsPlaylist.parse(drm, "https://cdn.example.com/v/a.m3u8");
-        ok(d.blockReason() != null, "SAMPLE-AES 给出阻断原因");
-        ok(d.blockReason().contains("DRM"), "阻断原因提到 DRM");
+        ok(d.blockingKey() != null, "SAMPLE-AES 给出阻断密钥");
+        ok(d.blockingKey().kind() == HlsKey.Kind.DRM, "归到 DRM 一类（文案由 ui 层取）");
+        ok(!d.blockingKey().kind().supported(), "DRM 一类不支持");
+        ok(HlsKey.Kind.OTHER.supported() == false, "未知方法保守当成不支持");
+        eqs("SAMPLE-AES", d.blockingKey().label(), "label 是协议标识，不翻译");
         ok(!d.segments().get(0).key.supported(), "SAMPLE-AES 不支持");
 
         // IV 长度不足要左补 0；超长截尾

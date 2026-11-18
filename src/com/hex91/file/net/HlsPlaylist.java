@@ -163,23 +163,34 @@ public final class HlsPlaylist {
         return sawPlain ? null : k;
     }
 
-    /** 有没有解不了的加密（SAMPLE-AES / FairPlay） */
-    public String blockReason() {
+    /** 第一把解不了的密钥（SAMPLE-AES / FairPlay）；全都能解返回 null */
+    public HlsKey blockingKey() {
         for (Segment s : segments) {
             if (s.key == null || s.key.supported()) continue;
-            return s.key.unsupportedReason();
+            return s.key;
         }
         return null;
     }
 
-    /** 加密说明：未加密 / AES-128 / SAMPLE-AES */
-    public String encryptionText() {
-        HlsKey u = uniformKey();
-        if (u != null) return u.label();
-        for (Segment s : segments) {
-            if (s.encrypted()) return "多把密钥";
-        }
-        return "未加密";
+    /**
+     * 加密概况 —— 只给分类，不给文案（v2.26.0 / F-14/10）。
+     *
+     * <p>{@link Crypt#UNIFORM} 时具体方法名看 {@link #uniformKey()} 的
+     * {@link HlsKey#label()}（协议标识，不翻译）。</p>
+     */
+    public enum Crypt {
+        /** 全明文 */
+        NONE,
+        /** 所有分片同一把密钥 */
+        UNIFORM,
+        /** 多把密钥，或加密与明文混用（切码率时 KEY 没清干净） */
+        MIXED
+    }
+
+    /** 这条清单的加密概况 */
+    public Crypt crypt() {
+        if (uniformKey() != null) return Crypt.UNIFORM;
+        return encrypted() ? Crypt.MIXED : Crypt.NONE;
     }
 
     /** fMP4 分片（有 MAP 或分片后缀是 m4s/mp4）：拼接方式与 TS 不同 */

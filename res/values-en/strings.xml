@@ -984,4 +984,35 @@
     <string name="hls_back_ok">Cancel and go back</string>
     <string name="hls_back_continue">Keep downloading</string>
     <string name="hls_unknown_error">Unknown error</string>
+    <!-- ===== HLS: encryption labels / error codes (F-14/10) ===== -->
+    <string name="hls_crypt_none">Not encrypted</string>
+    <string name="hls_crypt_mixed">Multiple keys</string>
+    <string name="hls_block_drm">Segments use %1$s encryption (Apple DRM); a device key is required, so this app cannot decrypt them</string>
+    <string name="hls_block_other">Segments use %1$s encryption; only AES-128 is supported</string>
+    <string name="hls_note_small">The file is small (%1$s KB); the source may be incomplete</string>
+    <string name="hls_note_remux_fail">Merged as TS, but the MP4 remux failed: %1$s\n(The TS plays as it is; you may also convert it on a desktop)</string>
+    <string name="hls_err_empty_url">The address is empty</string>
+    <string name="hls_err_no_segments">The playlist has no segments</string>
+    <string name="hls_err_master_empty">The top-quality sub-playlist has no segments</string>
+    <string name="hls_err_not_m3u8">Not a valid m3u8 (the first line should be #EXTM3U): %1$s</string>
+    <string name="hls_err_mkdir">Cannot create the folder: %1$s</string>
+    <string name="hls_err_all_gap">Every segment is marked as missing (EXT-X-GAP)</string>
+    <string name="hls_err_tmp_dir">Cannot create the temp folder: %1$s</string>
+    <string name="hls_err_key_uri">A segment declares AES-128 but gives no key URI</string>
+    <string name="hls_err_key_size">The key file should be 16 bytes but is %1$d (an error page may have been fetched)</string>
+    <string name="hls_err_cancelled_keep">Cancelled (downloaded segments are kept, so you can resume)</string>
+    <string name="hls_err_cancelled">Cancelled</string>
+    <string name="hls_err_rename">Cannot rename the merged file: %1$s</string>
+    <string name="hls_err_empty_output">The merged file is empty</string>
+    <string name="hls_err_seg_empty">The segment is empty (the server may have returned an error page)</string>
+    <string name="hls_err_range_ignored">The server ignored Range (expected %1$d bytes, got %2$d)</string>
+    <string name="hls_err_seg_write">Cannot write the segment: %1$s</string>
+    <string name="hls_err_seg_fetch">Segment download failed: %1$s</string>
+    <string name="hls_err_decrypt">Cannot decrypt segment %1$d: %2$s (the key or IV does not match the playlist)</string>
+    <string name="hls_err_http">HTTP %1$d: %2$s</string>
+    <string name="hls_err_too_large">The response is too large (over %1$d MB)</string>
+    <string name="hls_err_short_range">The response is shorter than the declared Range</string>
+    <string name="hls_err_file_missing">File not found: %1$s</string>
+    <string name="hls_err_range_eof">The byte range is beyond the end of the file: %1$s</string>
+    <string name="hls_err_generic">Error: %1$s</string>
 </resources>

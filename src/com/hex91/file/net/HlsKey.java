@@ -50,18 +50,40 @@ public final class HlsKey {
         return METHOD_AES_128.equals(method);
     }
 
-    /** 能自己解密（AES-128）；SAMPLE-AES 之类需要 DRM，返回 false */
-    public boolean supported() {
-        return isNone() || isAes128();
+    /**
+     * 加密方案分类 —— 只回答「能不能解、是哪一类」，不含任何文案。
+     *
+     * <p>v2.26.0（F-14/10）：原先这里是 {@code unsupportedReason()} 直接返回中文，
+     * 于是纯 Java 的 net 层成了「文案产地」，想翻英文只能往这层塞 Context。
+     * 现在改成枚举，文案由 ui 层按 {@link Kind} 取资源。</p>
+     */
+    public enum Kind {
+        /** 明文 */
+        NONE,
+        /** AES-128 整段加密 —— 唯一能在应用内自行解开的方案 */
+        AES_128,
+        /** Apple DRM 体系（SAMPLE-AES / SAMPLE-AES-CTR / FairPlay）：要设备密钥 */
+        DRM,
+        /** 其它没见过的方法：保守当成解不了 */
+        OTHER;
+
+        /** 能否在应用内解密 */
+        public boolean supported() {
+            return this == NONE || this == AES_128;
+        }
     }
 
-    /** 有加密但不能自行解密时的原因（给用户看的人话），能处理返回 null */
-    public String unsupportedReason() {
-        if (supported()) return null;
-        if (METHOD_SAMPLE_AES.equals(method) || METHOD_SAMPLE_AES_CTR.equals(method)) {
-            return "分片使用 " + method + " 加密（Apple DRM 体系），需要设备密钥，无法在应用内解密";
-        }
-        return "分片使用 " + method + " 加密，本应用只支持 AES-128";
+    /** 本片的加密方案分类 */
+    public Kind kind() {
+        if (isNone()) return Kind.NONE;
+        if (isAes128()) return Kind.AES_128;
+        if (METHOD_SAMPLE_AES.equals(method) || METHOD_SAMPLE_AES_CTR.equals(method)) return Kind.DRM;
+        return Kind.OTHER;
+    }
+
+    /** 能自己解密（AES-128）；SAMPLE-AES 之类需要 DRM，返回 false */
+    public boolean supported() {
+        return kind().supported();
     }
 
     /**
@@ -136,9 +158,12 @@ public final class HlsKey {
         return ivHex == null ? o.ivHex == null : ivHex.equals(o.ivHex);
     }
 
-    /** 界面展示用：AES-128 / 未加密 / 其他方案名 */
+    /**
+     * 方案名（{@code AES-128} / {@code SAMPLE-AES} / {@code NONE}）。
+     *
+     * <p>这是协议标识，不是用户文案 —— 不翻译。明文的中文说法在 ui 层。</p>
+     */
     public String label() {
-        if (isNone()) return "未加密";
         return method;
     }
 

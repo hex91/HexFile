@@ -34,8 +34,9 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：753 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
-│                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单）
+│   ├── values-en/               # 英文全量：944 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
+│                                #   HLS 下载与错误码）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
 │   ├── values-sw600dp/          # 平板：pane_divider 从 1dp 装饰线变 6dp 可拖
 │   ├── drawable/                # 矢量图标（ic_folder / ic_file）+ 自适应底板 ic_launcher_background
@@ -1781,6 +1782,76 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.26.0（versionCode 219）—— F-14/10：net 层去中文（HLS 加密信息与错误码）
+
+下载页翻完之后还剩一条尾巴：页面文案走了资源，但**报错文字仍出自 `net/`**。
+上一版记了这笔账，这一版还上。
+
+问题不在「没翻译」，而在**翻译不了** —— 纯 Java 层拿不到 `Context`：
+
+```java
+// 改之前
+public String unsupportedReason() {
+    return "分片使用 " + method + " 加密（Apple DRM 体系），需要设备密钥，无法在应用内解密";
+}
+```
+
+两个选择：往 `net/` 传 `Context`（把 Android 依赖拖进纯 Java 层，`deps_check` 也不答应），
+或者在**这一层只给数据、文案回到 ui 层**。选了后者。
+
+### 三处改造
+
+**1. 加密方案 → 枚举**（`HlsKey.Kind` / `HlsPlaylist.Crypt`）
+
+```java
+public enum Kind { NONE, AES_128, DRM, OTHER;  public boolean supported() {...} }
+public enum Crypt { NONE, UNIFORM, MIXED }
+```
+
+`label()` 从「未加密 / AES-128」收敛成纯协议标识（`NONE` / `AES-128` / `SAMPLE-AES`），
+不再掺中文；「未加密」这种说法改由 ui 层按 `Crypt.NONE` 取。
+`blockReason()`（返回中文）换成 `blockingKey()`（返回那把解不了的 `HlsKey`）。
+
+**2. 下载错误 → 错误码**（新增 `HlsError extends IOException`）
+
+24 个码，参数只放**数据**（路径、字节数、HTTP 状态码）：
+
+```java
+throw new HlsError(HlsError.Code.KEY_BAD_SIZE, kb.length);
+throw new HlsError(HlsError.Code.HTTP_STATUS, code, shortUrl(url));
+throw new HlsError(HlsError.Code.SEG_FETCH_FAIL, last);   // last 进 cause，原因不丢
+```
+
+`getMessage()` 仍给一句 ASCII 诊断串（`HLS HTTP_STATUS: 404 http://…`），只进日志与单测。
+`extends IOException` 让所有既有 `catch (IOException)` 原封不动。
+
+**3. 结果提示 → 枚举**（`HlsDownloader.Note`）
+
+`Result.note` 从 `String` 变成 `Note + noteArg`：`SMALL_FILE`（参数是 KB）、`REMUX_FAILED`（参数是底层原因）。
+
+### ui 层：一张映射表
+
+`errorText(HlsError)` 一个 switch 把码翻成文案，`SEG_FETCH_FAIL` 递归取 `cause` ——
+于是「分片下载失败：HTTP 404：…」这种嵌套仍然是完整的一句话，而不是只留下外层壳子。
+`default` 分支输出「错误：+ 诊断串」：将来加了码忘了加译文，界面上至少还有字，不会空白。
+
+生成 30 个键：`hls_crypt_*` 2 / `hls_block_*` 2 / `hls_note_*` 2 / `hls_err_*` 24。
+
+### 验证
+
+- `HlsKey` / `HlsPlaylist` / `HlsDownloader` 三个类的中文字面量**清零**（注释除外）
+- 单测跟着改口径：`encryptionText()` 的三条断言 → `crypt()` 枚举；`blockReason().contains("DRM")`
+  → `blockingKey().kind() == Kind.DRM`；「取消」断言 → `code == CANCELLED_KEEP`；
+  404 断言改成**顺 cause 链找 `HTTP_STATUS`**，并新增一条「诊断串不含中文」
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 **944 条 100% 一致**（引用 902 键 / 23 文件）/ 动作号 55
+- `QUICK=1` **66/66**（含 `HlsPlaylistTest`、`HlsDownloaderTest` 的本地 HTTP 服务用例）
+- APK **13,193,936 B**，md5 `a169763d…`
+
+> 又一次踩到「看大小判断有没有改」的坑：v2.25.0 与 v2.26.0 的 APK **字节数完全相同**
+> （13,193,936），只有 md5 不同 —— 增量没跨过 zipalign 的 4KB 对齐块。
 
 ---
 

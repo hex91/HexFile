@@ -50,19 +50,30 @@ public final class HlsDownloader {
         void onProgress(int done, int total, long bytes, long speedBps);
     }
 
+    /** 下载结果的补充说明（只有这两种，文案由 ui 层按码取） */
+    public enum Note {
+        /** 合并出的文件偏小，源可能本身不完整（参数：KB 数） */
+        SMALL_FILE,
+        /** 转 MP4 失败，已保留 TS（参数：底层原因） */
+        REMUX_FAILED
+    }
+
     /** 下载结果 */
     public static final class Result {
         /** 最终文件（remuxed 为 true 时是 mp4，否则是合并出的 ts/mp4） */
         public final File file;
         /** 是否成功转成 MP4 */
         public final boolean remuxed;
-        /** 给用户看的补充说明（例如「转 MP4 失败，已保留 TS，可直接播放」） */
-        public final String note;
+        /** 补充说明；null 表示没有。文案在 ui 层按 {@link Note} 取 */
+        public final Note note;
+        /** {@link #note} 的参数字符串（SMALL_FILE 是 KB 数，REMUX_FAILED 是底层原因） */
+        public final String noteArg;
 
-        Result(File file, boolean remuxed, String note) {
+        Result(File file, boolean remuxed, Note note, String noteArg) {
             this.file = file;
             this.remuxed = remuxed;
             this.note = note;
+            this.noteArg = noteArg;
         }
     }
 
@@ -115,7 +126,7 @@ public final class HlsDownloader {
      */
     public static Fetched fetch(String url, String referer, boolean deep, Escape esc)
             throws IOException {
-        if (url == null || url.trim().isEmpty()) throw new IOException("地址为空");
+        if (url == null || url.trim().isEmpty()) throw new HlsError(HlsError.Code.EMPTY_URL);
         String u = localize(url.trim());
         String text = readText(u, referer, 0, -1, esc);
         M3u8Playlist m = M3u8Playlist.parseOrEmpty(text, u);
@@ -124,14 +135,14 @@ public final class HlsDownloader {
             if (best == null) {
                 // 是 master 但一个变体都没解析出来：把原文再按 media 试一次
                 HlsPlaylist hp = HlsPlaylist.parseOrEmpty(text, u);
-                if (hp.isEmpty()) throw new IOException("清单里没有可用的分片");
+                if (hp.isEmpty()) throw new HlsError(HlsError.Code.NO_SEGMENTS);
                 return new Fetched(null, hp, u);
             }
             if (deep) {
                 String sub = best.url;
                 String t2 = readText(sub, referer == null ? origin(u) : referer, 0, -1, esc);
                 HlsPlaylist hp = HlsPlaylist.parseOrEmpty(t2, sub);
-                if (hp.isEmpty()) throw new IOException("最高画质的子清单里没有分片");
+                if (hp.isEmpty()) throw new HlsError(HlsError.Code.MASTER_EMPTY);
                 return new Fetched(m, hp, sub);
             }
             return new Fetched(m, null, u);
@@ -139,7 +150,7 @@ public final class HlsDownloader {
         HlsPlaylist hp = HlsPlaylist.parseOrEmpty(text, u);
         if (hp.isEmpty()) {
             String head = text.length() > 120 ? text.substring(0, 120) : text;
-            throw new IOException("这不是有效的 m3u8（首行应为 #EXTM3U）：" + head.replace('\n', ' '));
+            throw new HlsError(HlsError.Code.NOT_M3U8, head.replace('\n', ' '));
         }
         return new Fetched(null, hp, u);
     }
@@ -159,10 +170,12 @@ public final class HlsDownloader {
     public static Result download(HlsPlaylist playlist, String m3u8Url, File outDir,
                                   String baseName, boolean toMp4, Cb cb, Escape esc)
             throws IOException {
-        if (playlist == null || playlist.isEmpty()) throw new IOException("清单里没有分片");
-        String block = playlist.blockReason();
-        if (block != null) throw new IOException(block);
-        if (!outDir.exists() && !outDir.mkdirs()) throw new IOException("无法创建目录：" + outDir);
+        if (playlist == null || playlist.isEmpty()) throw new HlsError(HlsError.Code.NO_SEGMENTS);
+        HlsKey bad = playlist.blockingKey();
+        if (bad != null) throw new HlsError(HlsError.Code.BLOCKED, bad);
+        if (!outDir.exists() && !outDir.mkdirs()) {
+            throw new HlsError(HlsError.Code.MKDIR_FAIL, outDir);
+        }
 
         String base = safeName(baseName);
         if (base.isEmpty()) base = safeName(deriveName(m3u8Url));
@@ -174,7 +187,7 @@ public final class HlsDownloader {
         for (int i = 0; i < segs.size(); i++) {
             if (!segs.get(i).gap) todo.add(i);
         }
-        if (todo.isEmpty()) throw new IOException("所有分片都被标记为缺失（EXT-X-GAP）");
+        if (todo.isEmpty()) throw new HlsError(HlsError.Code.ALL_GAP);
 
         File parts = new File(outDir, "." + base + ".parts");
 
@@ -188,7 +201,9 @@ public final class HlsDownloader {
         String stampHave = parts.isDirectory() ? readTextFile(stamp) : null;
         if (!stampWant.equals(stampHave)) {
             deleteDir(parts);                       // 清单对不上，旧分片全部作废
-            if (!parts.exists() && !parts.mkdirs()) throw new IOException("无法创建临时目录：" + parts);
+            if (!parts.exists() && !parts.mkdirs()) {
+                throw new HlsError(HlsError.Code.TMP_DIR_FAIL, parts);
+            }
             writeTextFile(stamp, stampWant);
         }
 
@@ -204,12 +219,11 @@ public final class HlsDownloader {
         for (int i : todo) {
             HlsKey k = segs.get(i).key;
             if (k == null || !k.isAes128()) continue;
-            if (k.uri == null) throw new IOException("分片声明了 AES-128 但没有给密钥地址");
+            if (k.uri == null) throw new HlsError(HlsError.Code.KEY_URI_MISSING);
             if (keys.containsKey(k.uri)) continue;
             byte[] kb = readBytes(k.uri, referer, 0, -1, MAX_TEXT, esc);
             if (kb.length != 16) {
-                throw new IOException("密钥文件长度应为 16 字节，实际 " + kb.length
-                        + "（可能取到了错误页面）");
+                throw new HlsError(HlsError.Code.KEY_BAD_SIZE, kb.length);
             }
             keys.put(k.uri, kb);
         }
@@ -296,7 +310,7 @@ public final class HlsDownloader {
             }
             pool.shutdownNow();
             if (cancel.get() || esc != null && esc.cancelled()) {
-                throw new IOException("已取消（已下载的分片会保留，下次可继续）");
+                throw new HlsError(HlsError.Code.CANCELLED_KEEP);
             }
             if (fatal[0] != null) throw fatal[0];
         }
@@ -318,7 +332,7 @@ public final class HlsDownloader {
             }
             byte[] buf = new byte[BUF];
             for (int i : todo) {
-                if (esc != null && esc.cancelled()) throw new IOException("已取消");
+                if (esc != null && esc.cancelled()) throw new HlsError(HlsError.Code.CANCELLED);
                 File f = segFile(parts, i);
                 InputStream in = new java.io.FileInputStream(f);
                 try {
@@ -340,17 +354,18 @@ public final class HlsDownloader {
                     + (playlist.likelyFmp4() ? ".mp4" : ".ts"));
         }
         if (!tmp.renameTo(merged)) {
-            throw new IOException("合并文件重命名失败：" + merged.getAbsolutePath());
+            throw new HlsError(HlsError.Code.MERGE_RENAME_FAIL, merged.getAbsolutePath());
         }
         deleteDir(parts);
 
         if (!toMp4) {
-            return new Result(merged, false, merged.length() < 1024 * 1024
-                    ? "文件偏小（" + (merged.length() / 1024) + " KB），源可能本身不完整" : null);
+            boolean small = merged.length() < 1024 * 1024;
+            return new Result(merged, false, small ? Note.SMALL_FILE : null,
+                    small ? String.valueOf(merged.length() / 1024) : null);
         }
         if (playlist.likelyFmp4()) {
             // fMP4 分片拼出来已经是可播的 mp4（init + media segments）
-            return new Result(merged, true, null);
+            return new Result(merged, true, null, null);
         }
         File mp4 = new File(outDir, base + ".mp4");
         if (mp4.exists() && !mp4.delete()) {
@@ -359,17 +374,16 @@ public final class HlsDownloader {
         try {
             TsRemuxer.remuxToMp4(merged, mp4, null);
             long size = mp4.length();
-            if (size <= 0) throw new IOException("输出为空");
+            if (size <= 0) throw new HlsError(HlsError.Code.EMPTY_OUTPUT);
             // 转成功就删掉中间 TS：手机空间紧张，且两份内容完全一样
             if (!merged.delete()) {
                 // 删不掉也不影响使用
             }
-            return new Result(mp4, true, null);
+            return new Result(mp4, true, null, null);
         } catch (Throwable t) {
             String why = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
             // 转封装失败不是灾难：TS 本身就能播（内置播放器/电脑都能放），保留它
-            return new Result(merged, false,
-                    "已合并为 TS，但转 MP4 失败：" + why + "\n（TS 可直接播放，也可能需要在电脑上用工具转）");
+            return new Result(merged, false, Note.REMUX_FAILED, why);
         }
     }
 
@@ -380,13 +394,13 @@ public final class HlsDownloader {
                                      byte[] key, AtomicBoolean cancel) throws IOException {
         IOException last = null;
         for (int attempt = 0; attempt <= RETRY; attempt++) {
-            if (cancel.get()) throw new IOException("已取消");
+            if (cancel.get()) throw new HlsError(HlsError.Code.CANCELLED);
             if (attempt > 0) {
                 try {
                     Thread.sleep(400L * attempt * attempt);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    throw new IOException("已取消");
+                    throw new HlsError(HlsError.Code.CANCELLED);
                 }
             }
             try {
@@ -396,14 +410,15 @@ public final class HlsDownloader {
                     try {
                         data = HlsCrypto.decrypt(data, key, s.key.ivFor(s.sequence));
                     } catch (java.security.GeneralSecurityException e) {
-                        throw new DecryptError("分片 " + (s.sequence + 1) + " 解密失败：" + e.getMessage());
+                        throw new DecryptError(HlsError.Code.DECRYPT_FAIL,
+                                s.sequence + 1, e.getMessage());
                     }
                 }
-                if (data.length == 0) throw new IOException("分片内容为空");
+                if (data.length == 0) throw new HlsError(HlsError.Code.SEG_EMPTY);
                 if (s.hasRange() && data.length != s.rangeLength) {
                     // 服务器忽略 Range 返回了整文件：这里必须报错，否则拼出来是「整片重复」
-                    throw new IOException("服务器未按 Range 返回（期望 " + s.rangeLength
-                            + " 字节，实际 " + data.length + "）");
+                    throw new HlsError(HlsError.Code.RANGE_IGNORED,
+                            s.rangeLength, data.length);
                 }
                 // v2.4.0（R-11）：分片临时名统一 .part。这里刻意不登记 TempFiles：
                 // 文件落在 .parts 恢复目录里，而遗留扫描跳过以 .parts 结尾的目录
@@ -419,7 +434,7 @@ public final class HlsDownloader {
                 }
                 if (!tmp.renameTo(out)) {
                     tmp.delete();
-                    throw new IOException("分片写入失败：" + out.getName());
+                    throw new HlsError(HlsError.Code.SEG_WRITE_FAIL, out.getName());
                 }
                 return data.length;
             } catch (IOException e) {
@@ -428,7 +443,7 @@ public final class HlsDownloader {
                 last = e;
             }
         }
-        throw new IOException("分片下载失败：" + last.getMessage());
+        throw new HlsError(HlsError.Code.SEG_FETCH_FAIL, last);
     }
 
     /** 整读一个 URL（受 max 限制），支持 Range */
@@ -439,7 +454,7 @@ public final class HlsDownloader {
         try {
             int code = c.getResponseCode();
             if (code / 100 != 2) {
-                throw new IOException("HTTP " + code + "：" + shortUrl(url));
+                throw new HlsError(HlsError.Code.HTTP_STATUS, code, shortUrl(url));
             }
             boolean ranged = off >= 0 && len > 0;
             boolean serverHonored = code == 206;
@@ -464,10 +479,11 @@ public final class HlsDownloader {
                     } else {
                         bo.write(buf, 0, n);
                         read += n;
-                        if (bo.size() > max) throw new IOException("响应过大（超过 "
-                                + (max / 1024 / 1024) + "MB）");
+                        if (bo.size() > max) {
+                            throw new HlsError(HlsError.Code.TOO_LARGE, max / 1024 / 1024);
+                        }
                     }
-                    if (esc != null && esc.cancelled()) throw new IOException("已取消");
+                    if (esc != null && esc.cancelled()) throw new HlsError(HlsError.Code.CANCELLED);
                 }
             } finally {
                 try { in.close(); } catch (IOException ignore) {}
@@ -513,7 +529,7 @@ public final class HlsDownloader {
         while (left > 0) {
             long s = in.skip(left);
             if (s <= 0) {
-                if (in.read() < 0) throw new IOException("响应比声明的 Range 短");
+                if (in.read() < 0) throw new HlsError(HlsError.Code.SHORT_RANGE);
                 s = 1;
             }
             left -= s;
@@ -555,11 +571,11 @@ public final class HlsDownloader {
     /** 本地文件按 Range 读（大 TS 分片只取需要的一段） */
     private static byte[] readLocal(String url, long off, long len, int max) throws IOException {
         File f = new File(localPath(url));
-        if (!f.isFile()) throw new IOException("文件不存在：" + f.getAbsolutePath());
+        if (!f.isFile()) throw new HlsError(HlsError.Code.FILE_MISSING, f.getAbsolutePath());
         long start = off >= 0 ? off : 0;
         long want = len > 0 ? len : (f.length() - start);
-        if (want <= 0) throw new IOException("区间超出文件长度：" + f.getName());
-        if (want > max) throw new IOException("文件过大（超过 " + (max / 1024 / 1024) + "MB）");
+        if (want <= 0) throw new HlsError(HlsError.Code.RANGE_BEYOND_EOF, f.getName());
+        if (want > max) throw new HlsError(HlsError.Code.TOO_LARGE, max / 1024 / 1024);
         byte[] out = new byte[(int) want];
         java.io.RandomAccessFile raf = new java.io.RandomAccessFile(f, "r");
         try {
@@ -699,8 +715,8 @@ public final class HlsDownloader {
     }
 
     /** 解密失败：密钥或 IV 与清单不匹配，重试无意义，直接终止整次下载 */
-    static final class DecryptError extends IOException {
-        DecryptError(String msg) { super(msg); }
+    static final class DecryptError extends HlsError {
+        DecryptError(HlsError.Code code, Object... args) { super(code, args); }
     }
 
     private static void deleteDir(File dir) {

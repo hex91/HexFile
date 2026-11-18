@@ -1,4 +1,5 @@
 import com.hex91.file.net.HlsDownloader;
+import com.hex91.file.net.HlsError;
 import com.hex91.file.net.HlsPlaylist;
 
 import java.io.BufferedReader;
@@ -189,7 +190,8 @@ public class HlsDownloaderTest {
                 public boolean cancelled() { return stop.get(); }
             });
         } catch (IOException e) {
-            cancelled = e.getMessage() != null && e.getMessage().contains("取消");
+            cancelled = e instanceof HlsError
+                    && ((HlsError) e).code == HlsError.Code.CANCELLED_KEEP;
         }
         ok(cancelled, "第一次下载按预期取消");
 
@@ -211,6 +213,17 @@ public class HlsDownloaderTest {
     }
 
     // ---------------------------------------------------------------- P0-2
+
+    /** 顺着 cause 链找某个 HTTP 状态码（SEG_FETCH_FAIL 会把真实原因包在 cause 里） */
+    static boolean hasHttp(Throwable t, int code) {
+        for (Throwable c = t; c != null; c = c.getCause()) {
+            if (c instanceof HlsError) {
+                HlsError e = (HlsError) c;
+                if (e.code == HlsError.Code.HTTP_STATUS && e.num(0) == code) return true;
+            }
+        }
+        return false;
+    }
 
     static void failFastCase() throws Exception {
         failSeg1 = true;
@@ -245,7 +258,9 @@ public class HlsDownloaderTest {
             System.exit(1);
         }
         ok(err[0] instanceof IOException, "抛出 IOException 而不是别的");
+        ok(err[0] instanceof HlsError, "是结构化错误（文案由 ui 层取）");
+        ok(hasHttp(err[0], 404), "错误链带上真实状态码 404");
         String msg = err[0] == null ? "" : String.valueOf(err[0].getMessage());
-        ok(msg.contains("404"), "错误信息带上真实原因（" + msg + "）");
+        ok(!msg.matches(".*[\u4e00-\u9fff].*"), "诊断串不含中文，界面文案由 ui 层取（" + msg + "）");
     }
 }

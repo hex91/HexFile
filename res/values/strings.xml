@@ -992,4 +992,35 @@
     <string name="hls_back_ok">取消并返回</string>
     <string name="hls_back_continue">继续下载</string>
     <string name="hls_unknown_error">未知错误</string>
+    <!-- ===== HLS：加密说明 / 错误码文案（F-14/10） ===== -->
+    <string name="hls_crypt_none">未加密</string>
+    <string name="hls_crypt_mixed">多把密钥</string>
+    <string name="hls_block_drm">分片使用 %1$s 加密（Apple DRM 体系），需要设备密钥，无法在应用内解密</string>
+    <string name="hls_block_other">分片使用 %1$s 加密，本应用只支持 AES-128</string>
+    <string name="hls_note_small">文件偏小（%1$s KB），源可能本身不完整</string>
+    <string name="hls_note_remux_fail">已合并为 TS，但转 MP4 失败：%1$s\n（TS 可直接播放，也可能需要在电脑上用工具转）</string>
+    <string name="hls_err_empty_url">地址为空</string>
+    <string name="hls_err_no_segments">清单里没有分片</string>
+    <string name="hls_err_master_empty">最高画质的子清单里没有分片</string>
+    <string name="hls_err_not_m3u8">这不是有效的 m3u8（首行应为 #EXTM3U）：%1$s</string>
+    <string name="hls_err_mkdir">无法创建目录：%1$s</string>
+    <string name="hls_err_all_gap">所有分片都被标记为缺失（EXT-X-GAP）</string>
+    <string name="hls_err_tmp_dir">无法创建临时目录：%1$s</string>
+    <string name="hls_err_key_uri">分片声明了 AES-128 但没有给密钥地址</string>
+    <string name="hls_err_key_size">密钥文件长度应为 16 字节，实际 %1$d（可能取到了错误页面）</string>
+    <string name="hls_err_cancelled_keep">已取消（已下载的分片会保留，下次可继续）</string>
+    <string name="hls_err_cancelled">已取消</string>
+    <string name="hls_err_rename">合并文件重命名失败：%1$s</string>
+    <string name="hls_err_empty_output">合并后的文件为空</string>
+    <string name="hls_err_seg_empty">分片内容为空（服务器可能返回了错误页面）</string>
+    <string name="hls_err_range_ignored">服务器未按 Range 返回（期望 %1$d 字节，实际 %2$d）</string>
+    <string name="hls_err_seg_write">分片写入失败：%1$s</string>
+    <string name="hls_err_seg_fetch">分片下载失败：%1$s</string>
+    <string name="hls_err_decrypt">第 %1$d 片解密失败：%2$s（密钥或 IV 与清单不匹配）</string>
+    <string name="hls_err_http">HTTP %1$d：%2$s</string>
+    <string name="hls_err_too_large">响应过大（超过 %1$dMB）</string>
+    <string name="hls_err_short_range">响应比声明的 Range 短</string>
+    <string name="hls_err_file_missing">文件不存在：%1$s</string>
+    <string name="hls_err_range_eof">区间超出文件长度：%1$s</string>
+    <string name="hls_err_generic">错误：%1$s</string>
 </resources>

@@ -1,6 +1,8 @@
 package com.hex91.file.ui;
 
 import com.hex91.file.net.HlsDownloader;
+import com.hex91.file.net.HlsError;
+import com.hex91.file.net.HlsKey;
 import com.hex91.file.net.HlsPlaylist;
 import com.hex91.file.net.M3u8Playlist;
 import com.hex91.file.net.StreamUrl;
@@ -217,7 +219,7 @@ public class HlsDownloadActivity extends BaseActivity {
         if (media.hasDiscontinuity) {
             log(s(R.string.hls_discontinuity));
         }
-        log(s(R.string.hls_parse_done, media.downloadableCount(), media.encryptionText(),
+        log(s(R.string.hls_parse_done, media.downloadableCount(), cryptText(media),
                 media.likelyFmp4() ? "fMP4" : "MPEG-TS"));
     }
 
@@ -233,7 +235,7 @@ public class HlsDownloadActivity extends BaseActivity {
         long dur = p.totalDurationMs();
         if (dur > 0) sb.append(s(R.string.hls_duration_suffix, clock(dur)));
         sb.append('\n');
-        sb.append(s(R.string.hls_encrypt_line, p.encryptionText()));
+        sb.append(s(R.string.hls_encrypt_line, cryptText(p)));
         sb.append(s(R.string.hls_container_suffix, p.likelyFmp4() ? "fMP4" : "MPEG-TS"));
         long est = estimateBytes(srcUrl, p, dur);
         if (est > 0) {
@@ -334,9 +336,9 @@ public class HlsDownloadActivity extends BaseActivity {
             toast(s(R.string.hls_need_parse));
             return;
         }
-        String block = media.blockReason();
-        if (block != null) {
-            alert(s(R.string.hls_block_title), block);
+        HlsKey bad = media.blockingKey();
+        if (bad != null) {
+            alert(s(R.string.hls_block_title), blockText(bad));
             return;
         }
         final String src = cleanInput();
@@ -399,7 +401,7 @@ public class HlsDownloadActivity extends BaseActivity {
                             pb.setProgress(100);
                             tvStatus.setText(s(R.string.hls_done_status, fr.file.getName(), bytes(fr.file.length())));
                             log(s(R.string.hls_done_log, fr.file.getAbsolutePath()), true);
-                            if (fr.note != null) log(fr.note);
+                            if (fr.note != null) log(noteText(fr.note, fr.noteArg));
                             showDone(fr);
                         }
                     });
@@ -421,7 +423,7 @@ public class HlsDownloadActivity extends BaseActivity {
     private void showDone(final HlsDownloader.Result r) {
         StringBuilder m = new StringBuilder();
         m.append(r.file.getAbsolutePath()).append('\n').append(bytes(r.file.length()));
-        if (r.note != null) m.append('\n').append('\n').append(r.note);
+        if (r.note != null) m.append('\n').append('\n').append(noteText(r.note, r.noteArg));
         new HfDialogBuilder(this)
                 .setTitle(r.remuxed ? s(R.string.hls_dlg_mp4_done) : s(R.string.hls_dlg_merged))
                 .setMessage(m.toString())
@@ -554,10 +556,105 @@ public class HlsDownloadActivity extends BaseActivity {
                 .setPositiveButton(s(R.string.common_got_it), null).show();
     }
 
+    /**
+     * 异常 → 给人看的一句话。
+     *
+     * <p>{@link HlsError} 只带错误码，文案在这里按资源取（F-14/10）；
+     * 其它异常（SocketTimeoutException 之类）本来就是系统文案，原样透出。</p>
+     */
     private String msg(Throwable t) {
         if (t == null) return s(R.string.hls_unknown_error);
+        if (t instanceof HlsError) return errorText((HlsError) t);
         String m = t.getMessage();
         return m == null || m.isEmpty() ? t.getClass().getSimpleName() : m;
+    }
+
+    /** 加密说明：未加密 / 统一方案名（协议标识，不翻）/ 多把密钥 */
+    private String cryptText(HlsPlaylist p) {
+        switch (p.crypt()) {
+            case UNIFORM:
+                return p.uniformKey().label();
+            case MIXED:
+                return s(R.string.hls_crypt_mixed);
+            default:
+                return s(R.string.hls_crypt_none);
+        }
+    }
+
+    /** 解不了的加密：把方案名嵌进去，说清卡在哪一类 */
+    private String blockText(HlsKey bad) {
+        if (bad == null) return s(R.string.hls_block_title);
+        return bad.kind() == HlsKey.Kind.DRM
+                ? s(R.string.hls_block_drm, bad.method)
+                : s(R.string.hls_block_other, bad.method);
+    }
+
+    /** 下载结果的补充说明 */
+    private String noteText(HlsDownloader.Note note, String arg) {
+        String a = arg == null ? "" : arg;
+        switch (note) {
+            case SMALL_FILE:
+                return s(R.string.hls_note_small, a);
+            default:
+                return s(R.string.hls_note_remux_fail, a);
+        }
+    }
+
+    /** 错误码 → 文案（参数是路径 / 长度这类数据，语序交给译文） */
+    private String errorText(HlsError e) {
+        switch (e.code) {
+            case EMPTY_URL:
+                return s(R.string.hls_err_empty_url);
+            case NO_SEGMENTS:
+                return s(R.string.hls_err_no_segments);
+            case MASTER_EMPTY:
+                return s(R.string.hls_err_master_empty);
+            case NOT_M3U8:
+                return s(R.string.hls_err_not_m3u8, e.str(0));
+            case BLOCKED:
+                return blockText((HlsKey) e.arg(0));
+            case MKDIR_FAIL:
+                return s(R.string.hls_err_mkdir, e.str(0));
+            case ALL_GAP:
+                return s(R.string.hls_err_all_gap);
+            case TMP_DIR_FAIL:
+                return s(R.string.hls_err_tmp_dir, e.str(0));
+            case KEY_URI_MISSING:
+                return s(R.string.hls_err_key_uri);
+            case KEY_BAD_SIZE:
+                return s(R.string.hls_err_key_size, e.num(0));
+            case CANCELLED_KEEP:
+                return s(R.string.hls_err_cancelled_keep);
+            case CANCELLED:
+                return s(R.string.hls_err_cancelled);
+            case MERGE_RENAME_FAIL:
+                return s(R.string.hls_err_rename, e.str(0));
+            case EMPTY_OUTPUT:
+                return s(R.string.hls_err_empty_output);
+            case SEG_EMPTY:
+                return s(R.string.hls_err_seg_empty);
+            case RANGE_IGNORED:
+                return s(R.string.hls_err_range_ignored, e.num(0), e.num(1));
+            case SEG_WRITE_FAIL:
+                return s(R.string.hls_err_seg_write, e.str(0));
+            case SEG_FETCH_FAIL:
+                return s(R.string.hls_err_seg_fetch, msg(e.getCause()));
+            case DECRYPT_FAIL:
+                return s(R.string.hls_err_decrypt, e.num(0), e.str(1));
+            case HTTP_STATUS:
+                return s(R.string.hls_err_http, e.num(0), e.str(1));
+            case TOO_LARGE:
+                return s(R.string.hls_err_too_large, e.num(0));
+            case SHORT_RANGE:
+                return s(R.string.hls_err_short_range);
+            case FILE_MISSING:
+                return s(R.string.hls_err_file_missing, e.str(0));
+            case RANGE_BEYOND_EOF:
+                return s(R.string.hls_err_range_eof, e.str(0));
+            default:
+                // 新增了错误码却忘了加译文时，至少把诊断串露出来，别显示空白
+                return s(R.string.hls_err_generic, e.getMessage());
+        }
     }
 
     static String bytes(long b) {
