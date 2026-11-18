@@ -788,4 +788,34 @@
         <item quantity="one">Deleted %1$d item</item>
         <item quantity="other">Deleted %1$d items</item>
     </plurals>
+    <!-- ===== Main screen: ⋮ menu / sort / new (F-14) ===== -->
+    <string name="main_extract_all_here">Extract all here</string>
+    <string name="main_search">Search</string>
+    <string name="main_select_all">Select all</string>
+    <string name="main_sort">Sort by</string>
+    <string name="main_view_list">List view (two panes)</string>
+    <string name="main_view_grid">Grid view (large icons)</string>
+    <string name="main_hide_dot">Hide dotfiles</string>
+    <string name="main_show_dot">Show dotfiles</string>
+    <string name="main_bookmarks">Bookmarks</string>
+    <string name="main_trash">Trash</string>
+    <string name="main_swap">Swap panes</string>
+    <string name="main_paste_empty">Paste (clipboard empty)</string>
+    <string name="main_paste_label">Paste: %1$s</string>
+    <string name="main_recent">Recent</string>
+    <string name="main_cloud_sync">Cloud sync…</string>
+    <string name="main_play_url">Play link / stream…</string>
+    <string name="main_hls_download">Download video (m3u8 → MP4)…</string>
+    <string name="main_sort_name">Name</string>
+    <string name="main_sort_size">Size</string>
+    <string name="main_sort_time">Modified time</string>
+    <string name="main_new">New</string>
+    <string name="main_new_folder">Folder</string>
+    <string name="main_new_file">Text file</string>
+    <string name="main_new_in_arch">Cannot create items inside an archive; exit the archive first</string>
+    <string name="main_new_file_title">New text file @ %1$s</string>
+    <string name="main_new_folder_title">New folder @ %1$s</string>
+    <string name="main_created">Created: %1$s</string>
+    <string name="main_create_fail">Could not create (already exists or permission denied)</string>
+    <string name="common_create">Create</string>
 </resources>

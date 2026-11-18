@@ -796,4 +796,34 @@
     <plurals name="arch_deleted">
         <item quantity="other">已删除 %1$d 项</item>
     </plurals>
+    <!-- ===== 主界面：⋮ 菜单 / 排序 / 新建（F-14） ===== -->
+    <string name="main_extract_all_here">解压全部到此目录</string>
+    <string name="main_search">搜索</string>
+    <string name="main_select_all">全选</string>
+    <string name="main_sort">排序方式</string>
+    <string name="main_view_list">列表视图（双栏）</string>
+    <string name="main_view_grid">网格视图（大图）</string>
+    <string name="main_hide_dot">隐藏 .文件</string>
+    <string name="main_show_dot">显示 .文件</string>
+    <string name="main_bookmarks">书签</string>
+    <string name="main_trash">回收站</string>
+    <string name="main_swap">交换窗口</string>
+    <string name="main_paste_empty">粘贴（剪贴板为空）</string>
+    <string name="main_paste_label">粘贴：%1$s</string>
+    <string name="main_recent">最近打开</string>
+    <string name="main_cloud_sync">云同步…</string>
+    <string name="main_play_url">播放链接 / 串流…</string>
+    <string name="main_hls_download">下载视频（m3u8 → MP4）…</string>
+    <string name="main_sort_name">按名称</string>
+    <string name="main_sort_size">按大小</string>
+    <string name="main_sort_time">按修改时间</string>
+    <string name="main_new">新建</string>
+    <string name="main_new_folder">文件夹</string>
+    <string name="main_new_file">文本文件</string>
+    <string name="main_new_in_arch">压缩包浏览中不可新建，请先退出压缩包</string>
+    <string name="main_new_file_title">新建文本文件 @ %1$s</string>
+    <string name="main_new_folder_title">新建文件夹 @ %1$s</string>
+    <string name="main_created">已创建：%1$s</string>
+    <string name="main_create_fail">创建失败（已存在或无权限）</string>
+    <string name="common_create">创建</string>
 </resources>

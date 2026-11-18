@@ -685,31 +685,33 @@ public class MainActivity extends BaseActivity {
         Menu menu = popup.getMenu();
         // 压缩包浏览模式：置顶提供「解压全部到此目录」一键入口
         if (p.archiveFile != null) {
-            menu.add(Menu.NONE, 900, 0, "解压全部到此目录");
+            menu.add(Menu.NONE, 900, 0, s(R.string.main_extract_all_here));
         }
-        menu.add(Menu.NONE, 0, 1, "刷新");
-        menu.add(Menu.NONE, 1, 1, "搜索");
-        menu.add(Menu.NONE, 2, 2, "全选");
-        menu.add(Menu.NONE, 3, 3, "排序方式");
+        menu.add(Menu.NONE, 0, 1, s(R.string.refresh));
+        menu.add(Menu.NONE, 1, 1, s(R.string.main_search));
+        menu.add(Menu.NONE, 2, 2, s(R.string.main_select_all));
+        menu.add(Menu.NONE, 3, 3, s(R.string.main_sort));
         // v1.80.0：列表 ⇄ 网格（大图）切换，偏好持久化
-        menu.add(Menu.NONE, 10, 3, viewMode == VIEW_GRID ? "列表视图（双栏）" : "网格视图（大图）");
-        menu.add(Menu.NONE, 4, 4, p.adapter.showHidden ? "隐藏 .文件" : "显示 .文件");
-        menu.add(Menu.NONE, 5, 5, "书签");
-        menu.add(Menu.NONE, 6, 6, "回收站");
-        menu.add(Menu.NONE, 7, 7, "交换窗口");
+        menu.add(Menu.NONE, 10, 3, viewMode == VIEW_GRID
+                ? s(R.string.main_view_list) : s(R.string.main_view_grid));
+        menu.add(Menu.NONE, 4, 4, p.adapter.showHidden
+                ? s(R.string.main_hide_dot) : s(R.string.main_show_dot));
+        menu.add(Menu.NONE, 5, 5, s(R.string.main_bookmarks));
+        menu.add(Menu.NONE, 6, 6, s(R.string.main_trash));
+        menu.add(Menu.NONE, 7, 7, s(R.string.main_swap));
         // v1.78.0：剪贴板非空时把粘贴放到显眼位置，并带上「复制 3 项」这样的摘要
         menu.add(Menu.NONE, 9, 0, FileClipboard.get().isEmpty()
-                ? "粘贴（剪贴板为空）"
-                : "粘贴：" + FileClipboard.get().label());
-        menu.add(Menu.NONE, 8, 8, "最近打开");
+                ? s(R.string.main_paste_empty)
+                : s(R.string.main_paste_label, FileClipboard.get().label()));
+        menu.add(Menu.NONE, 8, 8, s(R.string.main_recent));
         // v1.87.0：云同步（WebDAV 双向）
-        menu.add(Menu.NONE, 13, 9, "云同步…");
+        menu.add(Menu.NONE, 13, 9, s(R.string.main_cloud_sync));
         // v1.91.0：播放网络地址（m3u8 / mpd / rtsp / 直链）
-        menu.add(Menu.NONE, 14, 9, "播放链接 / 串流…");
+        menu.add(Menu.NONE, 14, 9, s(R.string.main_play_url));
         // v1.92.0：把 m3u8 拉成单个 MP4（下载 + 合并 + 换容器）
-        menu.add(Menu.NONE, 15, 9, "下载视频（m3u8 → MP4）…");
+        menu.add(Menu.NONE, 15, 9, s(R.string.main_hls_download));
         // v1.83.0：设置页（主题 / 工作目录 / Root / 回收站策略 / 版本）
-        menu.add(Menu.NONE, 12, 9, "设置");
+        menu.add(Menu.NONE, 12, 9, s(R.string.settings_title));
         // 让菜单右边缘与锚点（右上角 ⋮ 按钮）对齐，呈现“吸附右上角”效果
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             popup.setGravity(Gravity.END);
@@ -782,9 +784,10 @@ public class MainActivity extends BaseActivity {
     private void askSortMode() {
         final Pane p = active();
         new HfDialogBuilder(this)
-                .setTitle("排序方式")
+                .setTitle(s(R.string.main_sort))
                 .setSingleChoiceItems(
-                        new String[]{"按名称", "按大小", "按修改时间"}, p.adapter.sortMode,
+                        new String[]{s(R.string.main_sort_name), s(R.string.main_sort_size),
+                                s(R.string.main_sort_time)}, p.adapter.sortMode,
                         new android.content.DialogInterface.OnClickListener() {
                             public void onClick(android.content.DialogInterface d, int which) {
                                 saveSortMode(which);
@@ -793,15 +796,15 @@ public class MainActivity extends BaseActivity {
                                 d.dismiss();
                             }
                         })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(s(R.string.common_cancel), null)
                 .show();
     }
 
     /** ＋ 新建：文件夹 / 文本文件 */
     private void askCreateNew() {
         new HfDialogBuilder(this)
-                .setTitle("新建")
-                .setItems(new String[]{"文件夹", "文本文件"},
+                .setTitle(s(R.string.main_new))
+                .setItems(new String[]{s(R.string.main_new_folder), s(R.string.main_new_file)},
                         new android.content.DialogInterface.OnClickListener() {
                             public void onClick(android.content.DialogInterface d, int which) {
                                 if (which == 0) askNewFolder();
@@ -813,13 +816,13 @@ public class MainActivity extends BaseActivity {
 
     private void askNewFile() {
         final Pane p = active();
-        if (p.archiveFile != null) { toast("压缩包浏览中不可新建，请先退出压缩包"); return; }
+        if (p.archiveFile != null) { toast(s(R.string.main_new_in_arch)); return; }
         final EditText et = new EditText(this);
         et.setInputType(InputType.TYPE_CLASS_TEXT);
         new HfDialogBuilder(this)
-                .setTitle("新建文本文件 @ " + p.dir.getName())
+                .setTitle(s(R.string.main_new_file_title, p.dir.getName()))
                 .setView(et)
-                .setPositiveButton("创建", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(s(R.string.common_create), new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         String name = et.getText().toString().trim();
                         if (name.isEmpty()) return;
@@ -829,14 +832,14 @@ public class MainActivity extends BaseActivity {
                         // v1.44.0：root 区回退（su 写空文件）
                         if (!ok && !nf.exists()) ok = RootIO.writeBytes(nf, new byte[0]);
                         if (ok) {
-                            toast("已创建: " + name);
+                            toast(s(R.string.main_created, name));
                             loadDir(p, p.dir);
                         } else {
-                            toast("创建失败（已存在或无权限）");
+                            toast(s(R.string.main_create_fail));
                         }
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(s(R.string.common_cancel), null)
                 .show();
     }
 
@@ -4367,9 +4370,9 @@ public class MainActivity extends BaseActivity {
         final EditText et = new EditText(this);
         et.setInputType(InputType.TYPE_CLASS_TEXT);
         new HfDialogBuilder(this)
-                .setTitle("新建文件夹 @ " + p.dir.getName())
+                .setTitle(s(R.string.main_new_folder_title, p.dir.getName()))
                 .setView(et)
-                .setPositiveButton("创建", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(s(R.string.common_create), new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         String name = et.getText().toString().trim();
                         if (!name.isEmpty()) {
@@ -4378,7 +4381,7 @@ public class MainActivity extends BaseActivity {
                         }
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(s(R.string.common_cancel), null)
                 .show();
     }
 
@@ -4394,6 +4397,15 @@ public class MainActivity extends BaseActivity {
 
     private void toast(String s) {
         Toast.makeText(this, s, Toast.LENGTH_LONG).show();
+    }
+
+    /** 取资源文案（F-14：页面文案全部走 values/values-en，不在代码里留硬编码） */
+    private String s(int id) {
+        return getString(id);
+    }
+
+    private String s(int id, Object... args) {
+        return getString(id, args);
     }
 
     @Override

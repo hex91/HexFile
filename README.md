@@ -34,8 +34,9 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文：设置页 / 任务中心 / 通知 / 工具栏 / 签名管理 / 文本编辑器
-│                                #   （未迁移页面回退中文，见 test/lang_check.sh 的覆盖率统计）
+│   ├── values-en/               # 英文全量：753 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单）
+│                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
 │   ├── values-sw600dp/          # 平板：pane_divider 从 1dp 装饰线变 6dp 可拖
 │   ├── drawable/                # 矢量图标（ic_folder / ic_file）+ 自适应底板 ic_launcher_background
 │   └── mipmap-*/                # 启动图标：ic_launcher / ic_launcher_round / ic_launcher_foreground
@@ -1780,6 +1781,75 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.21.0（versionCode 214）—— F-14/5：主菜单 / 排序 / 新建 i18n
+
+`MainActivity` 是 F-14 最后一块，也是最大一块：审计口径 426 处，
+光中文字符串字面量就有 444 个，一页塞不下一次提交。这一批先做**用户一进应用就看见的那一层**：
+⋮ 溢出菜单、排序方式、新建文件夹 / 新建文本文件，连带 `+` 按钮背后的命名对话框。
+
+落成 **28 个 `main_` 键 + 1 个通用 `common_create`**，`MainActivity` 中文字面量 **444 → 408**。
+
+### 菜单项：能复用的不新建
+
+主菜单里「刷新」「设置」这两个词在别处已经存在（`refresh` / `settings_title`），
+直接复用 —— 菜单项跟着设置页标题一起改，本来就应该联动。反过来「回收站」不复用
+`settings_section_trash`：那是设置页里一个分区的小标题，语义不是同一个东西，
+将来设置页分区改名不该把主菜单也带走。
+
+判断标准就一条：**同一个概念才共用键，同一个词不算。**
+
+### 拼接改带参
+
+```java
+// 之前
+menu.add(..., FileClipboard.get().isEmpty() ? "粘贴（剪贴板为空）" : "粘贴：" + FileClipboard.get().label());
+// 现在
+menu.add(..., FileClipboard.get().isEmpty() ? s(R.string.main_paste_empty)
+                                            : s(R.string.main_paste_label, FileClipboard.get().label()));
+```
+
+带参形式的好处不只是少一次 `+`：整句的语序由译文自己决定。英文写 `Paste: %1$s`，
+日文将来若要改成「%1$s を貼り付け」也不用碰代码。
+
+「新建文本文件 @ 目录名」同理，`main_new_file_title` 里把 `%1$s` 放在 `@` 后面。
+
+### 中英对照（节选）
+
+| 中文 | 英文 |
+| --- | --- |
+| 解压全部到此目录 | Extract all here |
+| 列表视图（双栏） | List view (two panes) |
+| 网格视图（大图） | Grid view (large icons) |
+| 隐藏 .文件 / 显示 .文件 | Hide dotfiles / Show dotfiles |
+| 交换窗口 | Swap panes |
+| 粘贴（剪贴板为空） | Paste (clipboard empty) |
+| 下载视频（m3u8 → MP4）… | Download video (m3u8 → MP4)… |
+| 按修改时间 | Modified time |
+| 压缩包浏览中不可新建，请先退出压缩包 | Cannot create items inside an archive; exit the archive first |
+| 创建失败（已存在或无权限） | Could not create (already exists or permission denied) |
+
+「列表视图（双栏）」那句其实是**动作**不是状态：当前是网格时，菜单项写「列表视图（双栏）」，
+点下去变成列表。英文沿用同样的写法（`List view (two panes)`），不写成动词短语，
+因为菜单项的语法要和它所在的那一组保持一致。
+
+### 验证
+
+- `build.sh` → **BUILD OK，v214 / 2.21.0**，APK **13,177,552 字节**，
+  md5 `dea2ce99…`（比 v2.20.0 大 16,384——新增资源正好跨过一个 4096 对齐块）
+- `aapt2 dump resources` 核对 `string/main_sort_name` 有 `()` / `(en)` 两个变体，
+  包内 `main_` 资源 **28 条**
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 **753 条 100% 一致**（引用 724 键 / 20 文件）/ 动作号 55
+- QUICK **66/66**
+
+### 还没迁的
+
+`MainActivity` 剩 408 处。下一步按屏拆：批量操作 / 多选工具条 → 侧栏与历史 → 文件操作菜单
+（`showOpsMenu` / `showApkOpsMenu` / `runFileAction` 那一大片）→ 各种一次性提示。
+迁移每一段都要复核**该段内部**有没有拿文案当下标或比较 —— v2.20.0 在
+`ArchiveController` 里抓到的那个 bug，就是这种写法。
 
 ---
 
