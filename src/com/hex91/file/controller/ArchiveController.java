@@ -100,6 +100,15 @@ public final class ArchiveController {
         this.host = host;
     }
 
+    /** 资源文案。控制器没有 Context，统一从 host 取；带参重载只为省掉一长串 getString(id, args) */
+    private String s(int id) {
+        return host.ctx().getString(id);
+    }
+
+    private String s(int id, Object... args) {
+        return host.ctx().getString(id, args);
+    }
+
     public void closeArchiveQuiet(Pane p) {
         // v1.66.0：退出 APK 浏览时，有未签名修改版 → 统一弹窗（不签名/内置签名文件/自有签名文件）
         if (p.archiveFile != null && ApkEditSession.isApk(p.archiveFile)
@@ -116,7 +125,7 @@ public final class ArchiveController {
 
     /** 在指定窗格内打开压缩包（替代全屏 ZipBrowserActivity）；加密时弹密码框重试 */
     public void openArchiveInPane(final Pane p, final File f) {
-        host.toast("正在打开压缩包…");
+        host.toast(s(R.string.arch_opening));
         new Thread(new Runnable() {
             public void run() {
                 ArchiveUtil.Archive a = null;
@@ -149,7 +158,7 @@ public final class ArchiveController {
                             promptArchivePassword(p, f, wrong);
                             return;
                         }
-                        if (fa == null) { host.toast("打开失败: " + ferr); return; }
+                        if (fa == null) { host.toast(s(R.string.arch_open_fail, ferr)); return; }
                         boolean same = p.archiveFile != null
                                 && p.archiveFile.getAbsolutePath().equals(f.getAbsolutePath());
                         if (!same) closeArchiveQuiet(p);
@@ -225,7 +234,7 @@ public final class ArchiveController {
                         host.updateHeader();
                         // v1.79.0：下拉刷新走的是这条异步路径，列表真正拿到数据后收起转圈
                         if (p.pull != null && p.pull.isRefreshing()) p.pull.finishRefresh();
-                        if (ferr != null && fe == null) host.toast("读取压缩包失败: " + ferr);
+                        if (ferr != null && fe == null) host.toast(s(R.string.arch_list_fail, ferr));
                     }
                 });
             }
@@ -288,24 +297,23 @@ public final class ArchiveController {
             }
         });
         AlertDialog dlg = new HfDialogBuilder(host.ctx())
-                .setTitle(wrong ? "密码错误" : "输入密码")
-                .setMessage(wrong
-                        ? f.getName() + " 密码不正确，请重新输入"
-                        : f.getName() + " 已加密，请输入密码（会话内记住，不落盘）")
+                .setTitle(wrong ? R.string.arch_pw_wrong_title : R.string.arch_pw_title)
+                .setMessage(wrong ? s(R.string.arch_pw_wrong_msg, f.getName())
+                        : s(R.string.arch_pw_msg, f.getName()))
                 .setView(et)
-                .setPositiveButton("确定", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.common_confirm, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         String pw = et.getText().toString();
-                        if (pw.isEmpty()) { host.toast("密码为空，已取消打开"); ArchivePasswords.clear(f); return; }
+                        if (pw.isEmpty()) { host.toast(s(R.string.arch_pw_empty)); ArchivePasswords.clear(f); return; }
                         ArchivePasswords.put(f, pw);
                         if (p != null) openArchiveInPane(p, f);     // 带密码重开；密码错会再次弹框提示
                         else if (afterOk != null) afterOk.run();
                     }
                 })
-                .setNegativeButton("取消", new android.content.DialogInterface.OnClickListener() {
+                .setNegativeButton(R.string.common_cancel, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         ArchivePasswords.clear(f);
-                        host.toast("已取消：加密压缩包需要密码才能打开");
+                        host.toast(s(R.string.arch_pw_cancel));
                     }
                 })
                 .create();
@@ -335,9 +343,9 @@ public final class ArchiveController {
         }
         final boolean canToArch = host.other().archiveFile != null;
         java.util.List<String> ops = new ArrayList<String>();
-        ops.add("提取到当前窗格目录");
-        ops.add("提取到对面窗格");
-        if (canToArch) ops.add("写入对面压缩包");
+        ops.add(s(R.string.arch_op_extract_here));
+        ops.add(s(R.string.arch_op_extract_other));
+        if (canToArch) ops.add(s(R.string.arch_op_write_other));
         new HfDialogBuilder(host.ctx())
                 .setTitle(it.archShort)
                 .setItems(ops.toArray(new String[0]),
@@ -349,7 +357,7 @@ public final class ArchiveController {
                                         java.util.Collections.singletonList(it), host.other(), false);
                             }
                         })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -358,11 +366,11 @@ public final class ArchiveController {
         new HfDialogBuilder(host.ctx())
                 .setTitle(it.archShort)
                 .setItems(new String[] {
-                        "Manifest 编辑器++（可视化改属性）",
-                        "XML 编辑（文本方式，保存自动编译回 APK）",
-                        "XML 查看（只读预览）",
-                        "HEX 查看",
-                        "提取到当前窗格目录" },
+                        s(R.string.arch_op_manifest_pp),
+                        s(R.string.arch_op_xml_edit),
+                        s(R.string.arch_op_xml_view),
+                        s(R.string.arch_op_hex),
+                        s(R.string.arch_op_extract_here) },
                         new android.content.DialogInterface.OnClickListener() {
                             public void onClick(android.content.DialogInterface d, int w) {
                                 if (w == 0) {
@@ -381,7 +389,7 @@ public final class ArchiveController {
                                 }
                             }
                         })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -392,7 +400,7 @@ public final class ArchiveController {
     void editArchEntryXml(final Pane p, final FileItem it) {
         final File zip = p.archiveFile;
         final File tmpDir = new File(host.ctx().getCacheDir(), "arch_edit_xml");
-        host.toast("正在读取…");
+        host.toast(s(R.string.arch_reading));
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -408,12 +416,12 @@ public final class ArchiveController {
                 // v1.66.0：会话中有该条目未落地修改则取最新内容
                 ApkEditSession.overlayPending(p.archiveFile, it.archPath(), tmpFile);
                 final String ferr = (err == null && tmpFile.isFile()) ? null
-                        : (err != null ? err : "提取失败");
+                        : (err != null ? err : s(R.string.arch_extract_fail));
                 host.ui(new Runnable() {
                     public void run() {
-                        if (ferr != null) { host.toast("读取失败: " + ferr); return; }
+                        if (ferr != null) { host.toast(s(R.string.arch_read_fail, ferr)); return; }
                         if (!isAxml(tmpFile)) {
-                            host.toast("不是二进制 XML，请用普通文本编辑");
+                            host.toast(s(R.string.arch_not_axml));
                             return;
                         }
                         try {
@@ -430,7 +438,7 @@ public final class ArchiveController {
                             i.putExtra(TextEditorActivity.EXTRA_RT_APK, zip.getAbsolutePath());
                             host.open(i);
                         } catch (Throwable t) {
-                            host.toast("解析失败: " + t);
+                            host.toast(s(R.string.arch_parse_fail, t));
                         }
                     }
                 });
@@ -440,7 +448,7 @@ public final class ArchiveController {
 
     /** 提取压缩包内条目（含子树）到目标窗格目录（后台） */
     void extractArchEntry(final Pane p, final String entryName, final Pane dst) {
-        host.toast("提取中…");
+        host.toast(s(R.string.arch_extracting));
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -453,9 +461,9 @@ public final class ArchiveController {
                 host.ui(new Runnable() {
                     public void run() {
                         if (ferr == null) {
-                            host.toast("已提取 → " + dst.dir.getPath());
+                            host.toast(s(R.string.arch_extracted, dst.dir.getPath()));
                             if (dst.archiveFile == null) host.loadDir(dst, dst.dir, true);
-                        } else host.toast("提取失败: " + ferr);
+                        } else host.toast(s(R.string.arch_extract_fail_detail, ferr));
                     }
                 });
             }
@@ -466,7 +474,7 @@ public final class ArchiveController {
     public void extractArchAll(final Pane p) {
         if (p.archive == null || p.archiveFile == null) return;
         final File outDir = p.dir;
-        host.toast("解压全部中…");
+        host.toast(s(R.string.arch_extract_all_running));
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -479,9 +487,9 @@ public final class ArchiveController {
                 host.ui(new Runnable() {
                     public void run() {
                         if (ferr == null) {
-                            host.toast("已解压全部 →\n" + outDir.getPath());
+                            host.toast(s(R.string.arch_extract_all_done, outDir.getPath()));
                         } else {
-                            host.toast("解压失败: " + ferr);
+                            host.toast(s(R.string.arch_extract_all_fail, ferr));
                         }
                     }
                 });
@@ -493,7 +501,7 @@ public final class ArchiveController {
     void editArchEntry(final Pane p, final FileItem it) {
         final File zip = p.archiveFile;
         final File tmpDir = new File(host.ctx().getCacheDir(), "arch_edit");
-        host.toast("正在读取…");
+        host.toast(s(R.string.arch_reading));
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -509,10 +517,10 @@ public final class ArchiveController {
                 // v1.66.0：会话中有该条目未落地修改则取最新内容
                 ApkEditSession.overlayPending(p.archiveFile, it.archPath(), tmpFile);
                 final String ferr = (err == null && tmpFile.isFile()) ? null
-                        : (err != null ? err : "提取失败");
+                        : (err != null ? err : s(R.string.arch_extract_fail));
                 host.ui(new Runnable() {
                     public void run() {
-                        if (ferr != null) { host.toast("读取失败: " + ferr); return; }
+                        if (ferr != null) { host.toast(s(R.string.arch_read_fail, ferr)); return; }
                         File openFile = tmpFile;
                         boolean converted = false;
                         // AXML 二进制（APK 内 AndroidManifest / res 下编译过的 xml）→ 转 pretty 文本查看
@@ -576,21 +584,24 @@ public final class ArchiveController {
     void askArchDexAction(final Pane p, final FileItem it) {
         // v1.66.5：属性/修复放点击弹窗（对标 NP 打开方式），长按菜单不再重复
         final java.util.List<String> ops = new ArrayList<String>();
-        ops.add("Dex 编辑器++（可多选 dex，直接改指令）");
-        ops.add("反编译为 smali");
-        ops.add("Dex 属性");
+        ops.add(s(R.string.arch_op_dex_editor));
+        ops.add(s(R.string.arch_op_smali));
+        ops.add(s(R.string.arch_op_dex_props));
         final boolean isApk = ApkEditSession.isApk(p.archiveFile);
-        if (isApk) ops.add("Dex 修复");
-        ops.add("HEX 查看");
-        ops.add("提取到当前窗格");
+        // 分派用下标，不再比对文案：i18n 之后 ops 里装的是当前语言的字串，
+        // 原来的 op.startsWith("Dex 编辑器++") 在英文下一条都对不上
+        final int iFix = isApk ? ops.size() : -1;
+        if (isApk) ops.add(s(R.string.arch_op_dex_fix));
+        final int iHex = ops.size();
+        ops.add(s(R.string.arch_op_hex));
+        final int iExtract = ops.size();
+        ops.add(s(R.string.arch_op_extract_here));
         new HfDialogBuilder(host.ctx())
                 .setTitle(it.archShort)
                 .setItems(ops.toArray(new String[0]),
                         new android.content.DialogInterface.OnClickListener() {
                             public void onClick(android.content.DialogInterface d, int w) {
-                                // 用文案分派（Dex 修复仅 APK 归档出现，索引会移位）
-                                String op = ops.get(w);
-                                if (op.startsWith("Dex 编辑器++")) {
+                                if (w == 0) {
                                     Intent i = new Intent(host.ctx(),
                                             DexEditorActivity.class);
                                     i.putExtra(DexEditorActivity.EXTRA_APK,
@@ -598,15 +609,15 @@ public final class ArchiveController {
                                     i.putExtra(DexEditorActivity.EXTRA_DEXES,
                                             new String[]{it.archPath()});
                                     host.open(i);
-                                } else if (op.equals("反编译为 smali")) {
+                                } else if (w == 1) {
                                     decompileArchDex(p, it);
-                                } else if (op.equals("Dex 属性")) {
+                                } else if (w == 2) {
                                     showArchDexProps(p, it);
-                                } else if (op.equals("Dex 修复")) {
+                                } else if (w == iFix) {
                                     askArchDexFix(p, it);
-                                } else if (op.equals("HEX 查看")) {
+                                } else if (w == iHex) {
                                     hexArchEntry(p, it);
-                                } else {
+                                } else if (w == iExtract) {
                                     extractArchEntry(p, it.archPath(), p);
                                 }
                             }
@@ -619,8 +630,8 @@ public final class ArchiveController {
         new HfDialogBuilder(host.ctx())
                 .setTitle(it.archShort)
                 .setItems(new String[] {
-                        "ARSC 编辑（传统资源表编辑器）",
-                        "ARSC++ 编辑（树状列表 + XML 源码）" },
+                        s(R.string.arch_op_arsc),
+                        s(R.string.arch_op_arscpp) },
                         new android.content.DialogInterface.OnClickListener() {
                             public void onClick(android.content.DialogInterface d, int w) {
                                 if (w == 0) {
@@ -635,7 +646,7 @@ public final class ArchiveController {
                                 }
                             }
                         })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -654,7 +665,7 @@ public final class ArchiveController {
         final String base = FileKind.stripExt(new File(it.archPath()).getName());
         final File outRoot = new File(WorkDir.base(),
                 "Smali/" + FileKind.stripExt(apk.getName()) + "/" + base);
-        host.toast("反编译中…（大型 dex 可能需要较长时间）");
+        host.toast(s(R.string.arch_decompiling));
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -662,7 +673,7 @@ public final class ArchiveController {
                     FileOps.deleteRecursive(cacheTmp);
                     cacheTmp.mkdirs();
                     if (!ZipUtil.extractEntry(apk, it.archPath(), cacheTmp))
-                        throw new IllegalStateException("提取失败: " + it.archPath());
+                        throw new IllegalStateException(s(R.string.arch_extract_fail_detail, it.archPath()));
                     File tmpDex = new File(cacheTmp, it.archPath());
                     err = SmaliTool.decompile(tmpDex, outRoot, 4);
                 } catch (Throwable t) {
@@ -672,8 +683,8 @@ public final class ArchiveController {
                 final String ferr = err;
                 host.ui(new Runnable() {
                     public void run() {
-                        if (ferr != null) { host.toast("反编译失败: " + ferr); return; }
-                        host.toast("已生成 smali →\n" + outRoot.getPath());
+                        if (ferr != null) { host.toast(s(R.string.arch_decompile_fail, ferr)); return; }
+                        host.toast(s(R.string.arch_decompiled, outRoot.getPath()));
                         Intent i = new Intent(host.ctx(), MainActivity.class);
                         i.putExtra("dir", outRoot.getAbsolutePath());
                         host.open(i);
@@ -687,7 +698,7 @@ public final class ArchiveController {
     void showArchDexProps(final Pane p, final FileItem it) {
         final File apk = p.archiveFile;
         final File tmpDir = new File(host.ctx().getCacheDir(), "arch_dexprops");
-        host.toast("正在读取…");
+        host.toast(s(R.string.arch_reading));
         new Thread(new Runnable() {
             public void run() {
                 String info = null, err = null;
@@ -695,7 +706,7 @@ public final class ArchiveController {
                     FileOps.deleteRecursive(tmpDir);
                     tmpDir.mkdirs();
                     if (!ZipUtil.extractEntry(apk, it.archPath(), tmpDir))
-                        throw new IllegalStateException("提取失败: " + it.archPath());
+                        throw new IllegalStateException(s(R.string.arch_extract_fail_detail, it.archPath()));
                     info = SmaliTool.dexProps(new File(tmpDir, it.archPath()));
                 } catch (Throwable t) {
                     err = t.getClass().getSimpleName() + ": " + t.getMessage();
@@ -705,7 +716,7 @@ public final class ArchiveController {
                 host.ui(new Runnable() {
                     public void run() {
                         if (fErr != null) { host.toast(fErr); return; }
-                        if (fInfo == null) { host.toast("不是有效的 DEX 文件"); return; }
+                        if (fInfo == null) { host.toast(s(R.string.arch_not_dex)); return; }
                         host.showTextDialog(new File(it.archPath()).getName(), fInfo);
                     }
                 });
@@ -717,13 +728,11 @@ public final class ArchiveController {
     void askArchDexFix(final Pane p, final FileItem it) {
         final File apk = p.archiveFile;
         new HfDialogBuilder(host.ctx())
-                .setTitle("Dex 修复")
-                .setMessage("对 " + it.archShort + " 修正 file_size / header_size / endian_tag，"
-                        + "重算 SHA-1 签名与 Adler-32 校验和，并用 dexlib2 实际解析验证。\n"
-                        + "修复直接写回该 APK（首次修改自动备份 <名>_bak.apk）。")
-                .setPositiveButton("修复", new android.content.DialogInterface.OnClickListener() {
+                .setTitle(R.string.arch_op_dex_fix)
+                .setMessage(s(R.string.arch_dexfix_msg, it.archShort))
+                .setPositiveButton(R.string.arch_dexfix_btn, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
-                        host.toast("修复中…");
+                        host.toast(s(R.string.arch_dexfix_running));
                         new Thread(new Runnable() {
                             public void run() {
                                 final File tmpDir = new File(host.ctx().getCacheDir(), "arch_dexfix");
@@ -733,7 +742,7 @@ public final class ArchiveController {
                                     FileOps.deleteRecursive(tmpDir);
                                     tmpDir.mkdirs();
                                     if (!ZipUtil.extractEntry(apk, it.archPath(), tmpDir))
-                                        throw new IllegalStateException("提取失败: " + it.archPath());
+                                        throw new IllegalStateException(s(R.string.arch_extract_fail_detail, it.archPath()));
                                     File dex = new File(tmpDir, it.archPath());
                                     err = SmaliTool.repairDex(dex, rep);
                                     if (err == null) {
@@ -747,8 +756,8 @@ public final class ArchiveController {
                                     err = t.getClass().getSimpleName() + ": " + t.getMessage();
                                 }
                                 FileOps.deleteRecursive(tmpDir);
-                                final String msg = err != null ? "修复失败: " + err
-                                        : "修复完成，已写回:\n" + rep;
+                                final String msg = err != null ? s(R.string.arch_dexfix_fail, err)
+                                        : s(R.string.arch_dexfix_done, rep);
                                 host.ui(new Runnable() {
                                     public void run() {
                                         host.toast(msg);
@@ -759,14 +768,14 @@ public final class ArchiveController {
                         }, "arch-dex-fix").start();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     /** 压缩包内任意条目 → 提取到缓存后 HEX 查看 */
     void hexArchEntry(final Pane p, final FileItem it) {
         final File tmpDir = new File(host.ctx().getCacheDir(), "arch_hex");
-        host.toast("正在读取…");
+        host.toast(s(R.string.arch_reading));
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -782,10 +791,10 @@ public final class ArchiveController {
                 // v1.66.0：会话中有该条目未落地修改则取最新内容
                 ApkEditSession.overlayPending(p.archiveFile, it.archPath(), tmpFile);
                 final String ferr = (err == null && tmpFile.isFile()) ? null
-                        : (err != null ? err : "提取失败");
+                        : (err != null ? err : s(R.string.arch_extract_fail));
                 host.ui(new Runnable() {
                     public void run() {
-                        if (ferr != null) { host.toast("读取失败: " + ferr); return; }
+                        if (ferr != null) { host.toast(s(R.string.arch_read_fail, ferr)); return; }
                         Intent i = new Intent(host.ctx(), HexViewerActivity.class);
                         i.putExtra(HexViewerActivity.EXTRA_FILE, tmpFile.getAbsolutePath());
                         host.open(i);
@@ -798,7 +807,7 @@ public final class ArchiveController {
     /** 压缩包内图片条目 → 解到缓存后进查看器（只读展示，不写回） */
     void viewArchEntry(final Pane p, final FileItem it) {
         final File tmpDir = new File(host.ctx().getCacheDir(), "arch_view");
-        host.toast("正在读取…");
+        host.toast(s(R.string.arch_reading));
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -814,10 +823,10 @@ public final class ArchiveController {
                 // v1.66.0：会话中有该条目未落地修改则取最新内容
                 ApkEditSession.overlayPending(p.archiveFile, it.archPath(), tmpFile);
                 final String ferr = (err == null && tmpFile.isFile()) ? null
-                        : (err != null ? err : "提取失败");
+                        : (err != null ? err : s(R.string.arch_extract_fail));
                 host.ui(new Runnable() {
                     public void run() {
-                        if (ferr != null) { host.toast("读取失败: " + ferr); return; }
+                        if (ferr != null) { host.toast(s(R.string.arch_read_fail, ferr)); return; }
                         Intent i = new Intent(host.ctx(), ImageViewerActivity.class);
                         i.putExtra(ImageViewerActivity.EXTRA_FILE, tmpFile.getAbsolutePath());
                         host.open(i);
@@ -841,23 +850,23 @@ public final class ArchiveController {
         final boolean isManifest = low.equals("androidmanifest.xml");
         final java.util.List<String> ops = new ArrayList<String>();
         final java.util.List<Integer> acts = new ArrayList<Integer>();
-        if (isManifest) { ops.add("Manifest 编辑器++"); acts.add(A_MANIFEST); }
-        if (isDex) { ops.add("Dex 编辑器++"); acts.add(A_DEXPP); }
-        if (isDex) { ops.add("反编译 smali"); acts.add(A_SMALI); }
-        if (isArs) { ops.add("ARSC 编辑"); acts.add(A_ARSCPP); }
-        if (isArs) { ops.add("ARSC++ 编辑"); acts.add(A_ARSCPP2); }
-        if (isText) { ops.add("文本编辑"); acts.add(A_EDIT); }
-        if (isDex || isArs) { ops.add("HEX 查看"); acts.add(A_HEX); }
-        ops.add("提取到当前窗格"); acts.add(A_HERE);
-        ops.add("提取到对面窗格"); acts.add(A_OTHER);
-        if (canToArch) { ops.add("复制到对面压缩包"); acts.add(A_TOARCH_C); }
+        if (isManifest) { ops.add(s(R.string.arch_grid_manifest)); acts.add(A_MANIFEST); }
+        if (isDex) { ops.add(s(R.string.arch_grid_dex)); acts.add(A_DEXPP); }
+        if (isDex) { ops.add(s(R.string.arch_grid_smali)); acts.add(A_SMALI); }
+        if (isArs) { ops.add(s(R.string.arch_grid_arsc)); acts.add(A_ARSCPP); }
+        if (isArs) { ops.add(s(R.string.arch_grid_arscpp)); acts.add(A_ARSCPP2); }
+        if (isText) { ops.add(s(R.string.arch_grid_edit)); acts.add(A_EDIT); }
+        if (isDex || isArs) { ops.add(s(R.string.arch_op_hex)); acts.add(A_HEX); }
+        ops.add(s(R.string.arch_op_extract_here)); acts.add(A_HERE);
+        ops.add(s(R.string.arch_op_extract_other)); acts.add(A_OTHER);
+        if (canToArch) { ops.add(s(R.string.arch_op_copy_to_arch)); acts.add(A_TOARCH_C); }
         // 移动到对面压缩包需要源也可写（写完后要删原条目）
-        if (canToArch && canWrite) { ops.add("移动到对面压缩包"); acts.add(A_TOARCH_M); }
+        if (canToArch && canWrite) { ops.add(s(R.string.arch_op_move_to_arch)); acts.add(A_TOARCH_M); }
         if (canWrite && !ApkEditSession.isApk(p.archiveFile)) {
-            ops.add("重命名"); acts.add(A_RENAME);   // v2.13.1（F-11）
+            ops.add(s(R.string.arch_op_rename)); acts.add(A_RENAME);   // v2.13.1（F-11）
         }
-        if (canWrite) { ops.add("删除"); acts.add(A_DEL); }
-        ops.add("属性"); acts.add(A_PROP);
+        if (canWrite) { ops.add(s(R.string.common_delete)); acts.add(A_DEL); }
+        ops.add(s(R.string.arch_op_props)); acts.add(A_PROP);
         host.showGridMenu(it.archShort, ops, acts, new GridAction() {
             public void run(int act) {
                 if (act == A_MANIFEST) {
@@ -882,8 +891,8 @@ public final class ArchiveController {
                 else if (act == A_OTHER) extractArchEntry(p, it.archPath(), host.other());
                 else if (act == A_RENAME) archRename(p, it);
                 else if (act == A_DEL) archDelete(p, java.util.Collections.singletonList(it));
-                else if (act == A_PROP) host.toast("条目: " + it.archFull
-                        + "\n大小: " + FileOps.formatSize(it.archSize));
+                else if (act == A_PROP) host.toast(s(R.string.arch_entry_info,
+                        it.archFull, FileOps.formatSize(it.archSize)));
                 else if (act == A_TOARCH_C) askAddEntriesToArchive(p,
                         java.util.Collections.singletonList(it), host.other(), false);
                 else if (act == A_TOARCH_M) askAddEntriesToArchive(p,
@@ -900,7 +909,7 @@ public final class ArchiveController {
             final Pane dst, final boolean move) {
         if (!host.ensureArchiveWritable(dst.archiveFile)) return;
         if (move && !ArchiveWrite.canWrite(src.archiveFile)) {
-            host.toast("源压缩包为只读格式，无法删除原条目（改为复制）");
+            host.toast(s(R.string.arch_readonly_move));
             addEntriesToArchive(src, entries, dst, null, false);
             return;
         }
@@ -910,10 +919,12 @@ public final class ArchiveController {
             et.setText(it.archShort);
             et.setInputType(InputType.TYPE_CLASS_TEXT);
             new HfDialogBuilder(host.ctx())
-                    .setTitle((move ? "移动" : "复制") + "到压缩包: " + dst.archiveFile.getName())
-                    .setMessage("目标条目名（含后缀；目录将作为前缀，可写 a/b 加入子目录）")
+                    .setTitle(s(R.string.arch_xfer_title,
+                            s(move ? R.string.arch_word_move : R.string.arch_word_copy),
+                            dst.archiveFile.getName()))
+                    .setMessage(R.string.arch_xfer_msg)
                     .setView(et)
-                    .setPositiveButton(move ? "移动" : "复制",
+                    .setPositiveButton(move ? R.string.arch_word_move : R.string.arch_word_copy,
                             new android.content.DialogInterface.OnClickListener() {
                                 public void onClick(android.content.DialogInterface d, int w) {
                                     String target = et.getText().toString().trim()
@@ -922,11 +933,11 @@ public final class ArchiveController {
                                     while (target.endsWith("/")) {
                                         target = target.substring(0, target.length() - 1);
                                     }
-                                    if (target.isEmpty()) { host.toast("条目名不能为空"); return; }
+                                    if (target.isEmpty()) { host.toast(s(R.string.arch_name_empty)); return; }
                                     addEntriesToArchive(src, entries, dst, target, move);
                                 }
                             })
-                    .setNegativeButton("取消", null)
+                    .setNegativeButton(R.string.common_cancel, null)
                     .show();
         } else {
             addEntriesToArchive(src, entries, dst, null, move);
@@ -937,7 +948,7 @@ public final class ArchiveController {
     public void addEntriesToArchive(final Pane src, final List<FileItem> entries,
             final Pane dst, final String nameOverride, final boolean move) {
         AtomicReplace.lastError = null;      // R-06：旧失败原因不能安到这次头上
-        host.toast("写入压缩包…");
+        host.toast(s(R.string.arch_writing));
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -968,10 +979,10 @@ public final class ArchiveController {
                                 if (dstApk) {
                                     ApkEditSession.stageAdd(host.ctx(), dst.archiveFile, root, extracted);
                                 } else if (!ArchiveWrite.writeEntry(dst.archiveFile, root, extracted)) {
-                                    throw new RuntimeException(AtomicReplace.failMessage("写入失败: " + root));
+                                    throw new RuntimeException(AtomicReplace.failMessage(s(R.string.arch_write_fail, root)));
                                 }
                             } else {
-                                throw new RuntimeException("提取失败: " + it.archPath());
+                                throw new RuntimeException(s(R.string.arch_extract_fail_detail, it.archPath()));
                             }
                         }
                         // 批量登记完成 → 一次性重打包写回
@@ -985,7 +996,7 @@ public final class ArchiveController {
                                 ApkEditSession.putRemove(host.ctx(), src.archiveFile, names);
                             } else if (!ArchiveWrite.removeEntries(src.archiveFile, names)) {
                                 throw new RuntimeException(
-                                        AtomicReplace.failMessage("源归档删除失败（内容已复制）"));
+                                        AtomicReplace.failMessage(s(R.string.arch_src_del_fail)));
                             }
                         }
                     } catch (Throwable t) {
@@ -997,13 +1008,13 @@ public final class ArchiveController {
                 final String ferr = err;
                 host.ui(new Runnable() {
                     public void run() {
-                        if (ferr != null) { host.toast("失败: " + ferr); return; }
+                        if (ferr != null) { host.toast(s(R.string.arch_fail, ferr)); return; }
                         if (dst.archiveFile != null && ApkEditSession.isApk(dst.archiveFile)
                                 && ApkEditSession.hasEdits(dst.archiveFile)) {
-                            host.toast((move ? "已移动进压缩包" : "已复制进压缩包")
-                                    + "（已写回原包，首次修改自动备份 _bak.apk）");
+                            host.toast((move ? s(R.string.arch_moved_in) : s(R.string.arch_copied_in))
+                                    + s(R.string.arch_written_back));
                         } else {
-                            host.toast(move ? "已移动进压缩包" : "已复制进压缩包");
+                            host.toast(move ? s(R.string.arch_moved_in) : s(R.string.arch_copied_in));
                         }
                         showArchiveDir(dst);
                         if (src.archiveFile != null) {
@@ -1027,11 +1038,11 @@ public final class ArchiveController {
     private boolean archEditable(Pane p) {
         if (p.archiveFile == null) return false;
         if (ApkEditSession.isApk(p.archiveFile)) {
-            host.toast("APK 内改名要走重打包与重签，请用「提取 → 改好 → 添加」");
+            host.toast(s(R.string.arch_apk_rename_hint));
             return false;
         }
         if (!ArchiveWrite.canWrite(p.archiveFile)) {
-            host.toast("该格式只支持读取（如 rar），无法原地修改");
+            host.toast(s(R.string.arch_readonly_format));
             return false;
         }
         return true;
@@ -1046,13 +1057,14 @@ public final class ArchiveController {
         et.setSelection(et.getText().length());
         et.setInputType(InputType.TYPE_CLASS_TEXT);
         new HfDialogBuilder(host.ctx())
-                .setTitle("重命名: " + it.archShort)
-                .setMessage("可写子目录（如 a/b.txt）；目录会连同其下全部子项一起改名")
+                .setTitle(s(R.string.arch_rename_title, it.archShort))
+                .setMessage(R.string.arch_rename_msg)
                 .setView(et)
-                .setPositiveButton("重命名", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.arch_op_rename,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         String input = EntryNames.clean(et.getText().toString());
-                        if (input.isEmpty()) { host.toast("名称不能为空"); return; }
+                        if (input.isEmpty()) { host.toast(s(R.string.arch_name_empty)); return; }
                         String to = prefix + input;
                         if (EntryNames.stripSlash(to).equals(EntryNames.stripSlash(it.archFull))) {
                             return;      // 名字没改，不必重建一遍整包
@@ -1060,21 +1072,21 @@ public final class ArchiveController {
                         doRename(p, it.archFull, to);
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     private void doRename(final Pane p, final String from, final String to) {
-        if (!ZipUtil.entryNameSafe(to)) { host.toast("名称不合法: " + to); return; }
-        host.toast("重命名中…");
+        if (!ZipUtil.entryNameSafe(to)) { host.toast(s(R.string.arch_name_invalid, to)); return; }
+        host.toast(s(R.string.arch_renaming));
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
                 try {
                     String hit = collide(p, from, to);
-                    if (hit != null) err = "目标名已存在: " + hit;
+                    if (hit != null) err = s(R.string.arch_name_exists, hit);
                     else if (!ArchiveWrite.renameEntry(p.archiveFile, from, to)) {
-                        err = AtomicReplace.failMessage("重命名失败");
+                        err = AtomicReplace.failMessage(s(R.string.arch_rename_fail));
                     }
                 } catch (Throwable t) {
                     err = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
@@ -1083,8 +1095,8 @@ public final class ArchiveController {
                 host.ui(new Runnable() {
                     public void run() {
                         if (ferr != null) { host.toast(ferr); return; }
-                        host.toast("已重命名为 " + EntryNames.lastSeg(to)
-                                + (isDirName(to) ? "/" : ""));
+                        host.toast(s(R.string.arch_renamed, EntryNames.lastSeg(to)
+                                + (isDirName(to) ? "/" : "")));
                         showArchiveDir(p);
                     }
                 });
@@ -1127,31 +1139,32 @@ public final class ArchiveController {
         final EditText et = new EditText(host.ctx());
         et.setInputType(InputType.TYPE_CLASS_TEXT);
         new HfDialogBuilder(host.ctx())
-                .setTitle("新建文件夹 @ /" + prefix)
-                .setMessage("只添加空目录条目；名称不能带 /")
+                .setTitle(s(R.string.arch_newfolder_title, prefix))
+                .setMessage(R.string.arch_newfolder_msg)
                 .setView(et)
-                .setPositiveButton("创建", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.arch_create,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         String name = EntryNames.clean(et.getText().toString());
-                        if (name.isEmpty()) { host.toast("名称不能为空"); return; }
-                        if (name.indexOf('/') >= 0) { host.toast("名称里不能带 /，请分两次创建"); return; }
+                        if (name.isEmpty()) { host.toast(s(R.string.arch_name_empty)); return; }
+                        if (name.indexOf('/') >= 0) { host.toast(s(R.string.arch_name_slash)); return; }
                         createArchDir(p, prefix + name);
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     private void createArchDir(final Pane p, final String dirPath) {
-        host.toast("创建中…");
+        host.toast(s(R.string.arch_creating));
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
                 try {
                     String hit = collide(p, null, dirPath);
-                    if (hit != null) err = "同名条目已存在: " + hit;
+                    if (hit != null) err = s(R.string.arch_exists, hit);
                     else if (!ArchiveWrite.mkdir(p.archiveFile, dirPath)) {
-                        err = AtomicReplace.failMessage("创建失败");
+                        err = AtomicReplace.failMessage(s(R.string.arch_create_fail));
                     }
                 } catch (Throwable t) {
                     err = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
@@ -1160,7 +1173,7 @@ public final class ArchiveController {
                 host.ui(new Runnable() {
                     public void run() {
                         if (ferr != null) { host.toast(ferr); return; }
-                        host.toast("已创建 " + EntryNames.stripSlash(dirPath) + "/");
+                        host.toast(s(R.string.arch_created, EntryNames.stripSlash(dirPath) + "/"));
                         showArchiveDir(p);
                     }
                 });
@@ -1173,11 +1186,13 @@ public final class ArchiveController {
         final List<String> names = new ArrayList<String>();
         for (FileItem it : items) names.add(it.archPath());
         new HfDialogBuilder(host.ctx())
-                .setTitle("删除确认")
-                .setMessage("从压缩包永久删除 " + names.size() + " 项（不可恢复）？")
-                .setPositiveButton("删除", new android.content.DialogInterface.OnClickListener() {
+                .setTitle(R.string.arch_del_title)
+                .setMessage(host.ctx().getResources().getQuantityString(
+                        R.plurals.arch_del_msg, names.size(), names.size()))
+                .setPositiveButton(R.string.common_delete,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
-                        host.toast("删除中…");
+                        host.toast(s(R.string.arch_deleting));
                 final boolean apkMode = ApkEditSession.isApk(p.archiveFile);
                 new Thread(new Runnable() {
                     public void run() {
@@ -1187,7 +1202,7 @@ public final class ArchiveController {
                                 // v1.66.8：APK 删除条目 → 会话登记 + 重打包写回原包
                                 ApkEditSession.putRemove(host.ctx(), p.archiveFile, names);
                             } else if (!ArchiveWrite.removeEntries(p.archiveFile, names)) {
-                                err = AtomicReplace.failMessage("删除失败");
+                                err = AtomicReplace.failMessage(s(R.string.arch_del_fail));
                             }
                         } catch (Throwable t) {
                             err = t.getMessage();
@@ -1196,8 +1211,9 @@ public final class ArchiveController {
                         host.ui(new Runnable() {
                             public void run() {
                                 if (ferr != null) { host.toast(ferr); return; }
-                                host.toast("已删除 " + names.size() + " 项"
-                                        + (apkMode ? "（已写回原包，首次修改自动备份 _bak.apk）" : ""));
+                                host.toast(host.ctx().getResources().getQuantityString(
+                                        R.plurals.arch_deleted, names.size(), names.size())
+                                        + (apkMode ? s(R.string.arch_written_back) : ""));
                                 showArchiveDir(p);
                             }
                         });
@@ -1205,7 +1221,7 @@ public final class ArchiveController {
                 }, "arch-del").start();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 }

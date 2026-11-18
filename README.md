@@ -1783,6 +1783,97 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.20.0（versionCode 213）—— F-14/4：压缩包内操作 i18n
+
+`ArchiveController` 是「压缩包内浏览」的全部行为：打开、密码、点击菜单、长按宫格、
+提取、反编译、ARSC/DEX、改名/新建/删除、条目在地在两个包之间搬运。
+审计口径 117 处硬编码中文，落成 **86 个 `arch_` 键 + 2 个 plurals + 1 个 `common_confirm`**。
+
+### 迁移时抓到一处真 bug：文案当逻辑
+
+点击 `.dex` 弹的菜单原来是这样分派的：
+
+```java
+String op = ops.get(w);
+if (op.startsWith("Dex 编辑器++")) { ... }
+else if (op.equals("反编译为 smali")) { ... }
+```
+
+只要文案一翻，英文环境下**每一条都对不上**，四个分支全部落进最后的 `else` ——
+点「Dex 属性」会变成「提取到当前窗格」。这种错编译不报、中文下也完全不显露。
+现在改成按下标分派（`Dex 修复` 只对 APK 出现，所以下标在构建 ops 时算出来）：
+
+```java
+final int iFix = isApk ? ops.size() : -1;
+if (isApk) ops.add(s(R.string.arch_op_dex_fix));
+final int iHex = ops.size();
+ops.add(s(R.string.arch_op_hex));
+final int iExtract = ops.size();
+ops.add(s(R.string.arch_op_extract_here));
+```
+
+顺带一提：`i18n` 最有价值的产出往往不是译文，而是把这些「字符串参与控制流」的地方
+逼到台面上——它们平时藏得很深。
+
+### 同一动作两个名字
+
+点击菜单叫「提取到当前窗格目录」，长按宫格叫「提取到当前窗格」，两个不同字面量。
+迁移时合成一个键 `arch_op_extract_here`（以短的那个为准）。这类重复不合并的话，
+英文侧要翻两遍、日后改文案要改两处，改漏一处就是两种语言下的菜单不一致。
+
+### 拼接文案拆成「主体 + 后缀」
+
+```java
+host.toast((move ? "已移动进压缩包" : "已复制进压缩包")
+        + "（已写回原包，首次修改自动备份 _bak.apk）");
+```
+
+后半句在删除条目那里也出现一次。现在抽成 `arch_written_back`：中文以全角括号开头、
+英文以空格开头（` (written back into the APK; ...)`），两边拼上都读得通。
+**后缀带着自己的前导空格/括号，比让每个调用点各加一次靠谱。**
+
+### 控制器里怎么取文案
+
+`ArchiveController` 没有 `Context`，只有 `Host`。加两个私有重载：
+
+```java
+private String s(int id) { return host.ctx().getString(id); }
+private String s(int id, Object... args) { return host.ctx().getString(id, args); }
+```
+
+于是 `host.toast(s(R.string.arch_opening))` 就够短了。这不是新发明——
+`TaskUiController` 早在 F-14/2 里就是 `host.ctx().getString(...)` 直写，
+这里只是把重复的 `host.ctx()` 收进一个方法。
+
+### 数字走 plurals
+
+「从压缩包永久删除 N 项」与「已删除 N 项」用 `plurals`：中文只有 `other`，
+英文分 `one` / `other`（`1 item` 不能写成 `1 items`）。文案门比较的是「位置 + 转换符」，
+两边都是 `%1$d`，中文少一条 `one` 不会误报。
+
+### 连错误信息一起迁
+
+`AtomicReplace.failMessage("写入失败: " + root)` 的结果会进 `RuntimeException`，
+最终被 `host.toast` 弹给用户看——所以它也是文案，一并换成资源键。判断标准很简单：
+**会不会出现在屏幕上**，而不是「在不在 UI 类里」。
+
+### 验证
+
+- `build.sh` → **BUILD OK，v213 / 2.20.0**，APK **13,161,168 字节**，
+  md5 `f0574b02…`（与 v2.19.0 同大小但 md5 不同：unsigned 增量正好是 4096 的倍数，
+  被 zipalign 的 STORED 对齐 padding 吃掉了，看大小会误判成「没改」）
+- `aapt2 dump resources` 核对 `string/arch_rename_title` 有 `()` / `(en)` 两个变体，
+  包内 `arch_` 资源 86 条 + 2 个 plurals
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 **724 键 100% 一致** / 动作号 55
+- QUICK **66/66**
+
+### 还没迁的
+
+只剩 `MainActivity`（审计 426 处）——主菜单、批量操作、侧栏、各种提示都在这里，
+体量是这一页的三倍多，得再拆成几次提交。
+
+---
+
 ## v2.19.0（versionCode 212）—— F-14/3：网络存储页 i18n
 
 F-14 的逐页迁移接着做。这一页审计口径 110 处硬编码中文，实际落成 **88 个 `nst_` 键
