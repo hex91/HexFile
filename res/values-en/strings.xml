@@ -595,4 +595,102 @@
     <string name="vault_load_fail">Could not read the index: %1$s</string>
     <string name="vault_move_fail">Move failed: %1$s</string>
     <string name="vault_move_keep_fail">The original could not be deleted (in use by another app); the move was rolled back</string>
+    <string name="nst_title">Network storage</string>
+    <string name="nst_add_server">"＋  Add server"</string>
+    <string name="nst_support_note">Supports SMB2/SMB3 (Windows shares, NAS) and WebDAV. The phone must be on the same LAN as the computer. Leave the SMB username empty to sign in as guest.</string>
+    <string name="nst_no_servers">(No servers yet — tap \"Add server\" below)</string>
+    <string name="nst_btn_mkdir">📁 New folder</string>
+    <string name="nst_btn_upload">⬆ Upload file</string>
+    <string name="nst_btn_disconnect">✕ Disconnect</string>
+    <string name="nst_type_aliyun">Aliyun Drive</string>
+    <string name="nst_authorized">Authorized</string>
+    <string name="nst_unauthorized">Not authorized</string>
+    <string name="nst_cfg_broken">(Broken config)</string>
+    <string name="nst_sub_unauthorized">Not authorized (Edit → Sign in / Authorize)</string>
+    <string name="nst_sub_authorized">Authorization saved</string>
+    <string name="nst_guest">Guest</string>
+    <string name="nst_user_fmt">User: %1$s</string>
+    <string name="nst_menu_connect">Connect</string>
+    <string name="nst_menu_edit">Edit</string>
+    <string name="nst_deleted">Deleted</string>
+    <string name="nst_field_type">Type</string>
+    <string name="nst_field_addr">Address (SMB/FTP/SFTP: IP or hostname / WebDAV: full URL)</string>
+    <string name="nst_field_port">Port</string>
+    <string name="nst_field_share">Share name (SMB, e.g. public)</string>
+    <string name="nst_field_domain">Domain / workgroup (SMB, optional)</string>
+    <string name="nst_field_user">Username (FTP/SFTP: depends on the server, empty may mean anonymous)</string>
+    <string name="nst_field_pass">Password</string>
+    <string name="nst_field_bucket">Bucket (S3)</string>
+    <string name="nst_field_region">Region (S3, e.g. cn-hangzhou)</string>
+    <string name="nst_field_accesskey">AccessKey (S3)</string>
+    <string name="nst_field_clientid">Client ID (Azure app client ID)</string>
+    <string name="nst_field_secretkey">SecretKey (S3)</string>
+    <string name="nst_auth_btn">Sign in / Authorize</string>
+    <string name="nst_auth_ok">Authorized — tap \"Save\" to apply</string>
+    <string name="nst_auth_aliyun">Sign in to Aliyun Drive (opens login page)</string>
+    <string name="nst_auth_onedrive">Sign in to OneDrive (device code)</string>
+    <string name="nst_hint_cloud">(Not needed for cloud drives)</string>
+    <string name="nst_add_title">Add server</string>
+    <string name="nst_edit_title">Edit server</string>
+    <string name="nst_ok">OK</string>
+    <string name="nst_err_addr_empty">Address is required</string>
+    <string name="nst_err_addr_http">A WebDAV address must start with http(s)://</string>
+    <string name="nst_err_bucket_empty">Bucket is required</string>
+    <string name="nst_err_clientid">OneDrive needs a Client ID (Azure app client ID)</string>
+    <string name="nst_err_no_auth">Not authorized yet — tap \"Sign in / Authorize\"</string>
+    <string name="nst_warn_plaintext">This device has no usable system keystore; the password will be stored in plain text</string>
+    <string name="nst_save_fail">Could not save: %1$s</string>
+    <string name="nst_connecting">Connecting to %1$s …</string>
+    <string name="nst_connect_fail">Connection failed</string>
+    <string name="nst_loading">Loading %1$s …</string>
+    <string name="nst_load_fail">Could not load</string>
+    <string name="nst_menu_resume">Resume download (%1$s so far)</string>
+    <string name="nst_menu_download">Download</string>
+    <string name="nst_menu_rename">Rename</string>
+    <string name="nst_preparing">Preparing to download %1$s …</string>
+    <string name="nst_downloading">Downloading…</string>
+    <string name="nst_dl_dir_done">Folder downloaded to %1$s</string>
+    <string name="nst_dl_done">Downloaded to %1$s</string>
+    <string name="nst_dl_fail">Download failed</string>
+    <string name="nst_dl_progress">Downloading %1$s</string>
+    <string name="nst_resuming">Resuming %1$s (%2$s so far)</string>
+    <string name="nst_no_resume">The server does not support resuming; restarting %1$s from the beginning</string>
+    <string name="nst_incomplete">Incomplete download: %1$s received only %2$s of %3$s (the partial file is kept, and the next run resumes automatically)</string>
+    <string name="nst_part_mismatch">Partial file size mismatch: %1$s != %2$s</string>
+    <string name="nst_dest_locked">The destination exists and cannot be overwritten: %1$s</string>
+    <string name="nst_picker_fail">Could not open the file picker</string>
+    <string name="nst_no_token_title">No credentials received</string>
+    <string name="nst_no_token_msg">The cloud drive login page may have changed. Try again, or use \"Paste\" in the top bar of the login page.</string>
+    <string name="nst_aliyun_logged">Signed in to Aliyun Drive — tap \"Save\" to apply</string>
+    <string name="nst_ul_resuming">Resuming %1$s (%2$s so far)…</string>
+    <string name="nst_ul_uploading">Uploading %1$s …</string>
+    <string name="nst_ul_done">Uploaded to %1$s</string>
+    <string name="nst_ul_fail">Upload failed</string>
+    <string name="nst_src_short">The upload source ended early: %1$s bytes short</string>
+    <string name="nst_mkdir_title">New folder</string>
+    <string name="nst_mkdir_label">Folder name</string>
+    <string name="nst_create">Create</string>
+    <string name="nst_mkdir_running">Creating folder …</string>
+    <string name="nst_mkdir_fail">Could not create</string>
+    <string name="nst_rename_running">Renaming …</string>
+    <string name="nst_rename_fail">Could not rename</string>
+    <string name="nst_delete_title">Delete %1$s</string>
+    <string name="nst_delete_dir_msg">The folder and everything in it will be deleted permanently.</string>
+    <string name="nst_delete_file_msg">The file will be deleted permanently.</string>
+    <string name="nst_delete_running">Deleting …</string>
+    <string name="nst_delete_fail">Could not delete</string>
+    <string name="nst_dir">Folder</string>
+    <string name="nst_err_refused">Connection refused: nothing is listening on that port (check the IP/port)</string>
+    <string name="nst_err_unreach">Network unreachable: is the phone on the same LAN as the device?</string>
+    <string name="nst_err_timeout">Timed out: check the IP/port, or the firewall on the device</string>
+    <string name="nst_err_refused2">%1$s (check whether the service is running)</string>
+    <string-array name="nst_types">
+        <item>SMB (Windows share / NAS)</item>
+        <item>WebDAV</item>
+        <item>FTP</item>
+        <item>SFTP (SSH)</item>
+        <item>S3 / object storage (OSS · COS · MinIO)</item>
+        <item>OneDrive (Microsoft)</item>
+        <item>Aliyun Drive</item>
+    </string-array>
 </resources>

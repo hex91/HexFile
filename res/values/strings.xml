@@ -603,4 +603,103 @@
     <string name="vault_load_fail">读取索引失败：%1$s</string>
     <string name="vault_move_fail">移入失败：%1$s</string>
     <string name="vault_move_keep_fail">原文件删不掉（可能被其他应用占用），已撤销移入</string>
+    <!-- v2.19.0（F-14/3）：网络存储页 i18n（NetStorageActivity，审计口径 110 处） -->
+    <string name="nst_title">网络存储</string>
+    <string name="nst_add_server">"＋  添加服务器"</string>
+    <string name="nst_support_note">支持 SMB2/SMB3（Windows 共享、NAS）与 WebDAV。手机需与电脑同一局域网。SMB 用户名留空即以访客（guest）登录。</string>
+    <string name="nst_no_servers">（还没有服务器，点下方「添加服务器」）</string>
+    <string name="nst_btn_mkdir">📁 新建目录</string>
+    <string name="nst_btn_upload">⬆ 上传文件</string>
+    <string name="nst_btn_disconnect">✕ 断开</string>
+    <string name="nst_type_aliyun">阿里云盘</string>
+    <string name="nst_authorized">已授权</string>
+    <string name="nst_unauthorized">未授权</string>
+    <string name="nst_cfg_broken">（配置损坏）</string>
+    <string name="nst_sub_unauthorized">未授权（编辑 → 登录 / 授权）</string>
+    <string name="nst_sub_authorized">授权已保存</string>
+    <string name="nst_guest">访客登录</string>
+    <string name="nst_user_fmt">用户: %1$s</string>
+    <string name="nst_menu_connect">连接</string>
+    <string name="nst_menu_edit">编辑</string>
+    <string name="nst_deleted">已删除</string>
+    <string name="nst_field_type">类型</string>
+    <string name="nst_field_addr">地址（SMB/FTP/SFTP: IP或主机名 / WebDAV: 完整URL）</string>
+    <string name="nst_field_port">端口</string>
+    <string name="nst_field_share">共享名（SMB，如 public）</string>
+    <string name="nst_field_domain">域/工作组（SMB，可留空）</string>
+    <string name="nst_field_user">用户名（FTP/SFTP 匿名/留空视协议而定）</string>
+    <string name="nst_field_pass">密码</string>
+    <string name="nst_field_bucket">存储桶 / bucket（S3）</string>
+    <string name="nst_field_region">区域 / region（S3，如 cn-hangzhou）</string>
+    <string name="nst_field_accesskey">AccessKey（S3）</string>
+    <string name="nst_field_clientid">Client ID（Azure 应用的客户端 ID）</string>
+    <string name="nst_field_secretkey">SecretKey（S3）</string>
+    <string name="nst_auth_btn">登录 / 授权</string>
+    <string name="nst_auth_ok">授权成功，点「保存」生效</string>
+    <string name="nst_auth_aliyun">登录阿里云盘（弹出登录页）</string>
+    <string name="nst_auth_onedrive">登录 OneDrive（设备码）</string>
+    <string name="nst_hint_cloud">（云盘无需填写）</string>
+    <string name="nst_add_title">添加服务器</string>
+    <string name="nst_edit_title">编辑服务器</string>
+    <string name="nst_ok">确定</string>
+    <string name="nst_err_addr_empty">地址不能为空</string>
+    <string name="nst_err_addr_http">WebDAV 地址需以 http(s):// 开头</string>
+    <string name="nst_err_bucket_empty">存储桶不能为空</string>
+    <string name="nst_err_clientid">OneDrive 需要 Client ID（Azure 应用的客户端 ID）</string>
+    <string name="nst_err_no_auth">还没有授权：请点「登录 / 授权」</string>
+    <string name="nst_warn_plaintext">当前设备无法使用系统密钥库，密码将以明文保存</string>
+    <string name="nst_save_fail">保存失败：%1$s</string>
+    <string name="nst_connecting">连接 %1$s …</string>
+    <string name="nst_connect_fail">连接失败</string>
+    <string name="nst_loading">加载 %1$s …</string>
+    <string name="nst_load_fail">加载失败</string>
+    <string name="nst_menu_resume">继续下载（已有 %1$s）</string>
+    <string name="nst_menu_download">下载到本地</string>
+    <string name="nst_menu_rename">重命名</string>
+    <string name="nst_preparing">准备下载 %1$s …</string>
+    <string name="nst_downloading">下载中…</string>
+    <string name="nst_dl_dir_done">目录已下载到 %1$s</string>
+    <string name="nst_dl_done">已下载到 %1$s</string>
+    <string name="nst_dl_fail">下载失败</string>
+    <string name="nst_dl_progress">下载 %1$s</string>
+    <string name="nst_resuming">续传 %1$s（已有 %2$s）</string>
+    <string name="nst_no_resume">服务器不支持续传，改为从头下载 %1$s</string>
+    <string name="nst_incomplete">下载不完整：%1$s 只收到 %2$s / %3$s（临时文件已保留，下次自动续传）</string>
+    <string name="nst_part_mismatch">临时文件大小不符：%1$s != %2$s</string>
+    <string name="nst_dest_locked">目标文件已存在且无法覆盖：%1$s</string>
+    <string name="nst_picker_fail">无法打开文件选择器</string>
+    <string name="nst_no_token_title">没有取到登录凭证</string>
+    <string name="nst_no_token_msg">可能是网盘登录页改版了。可以再试一次，或改用登录页顶栏的「粘贴方式」。</string>
+    <string name="nst_aliyun_logged">阿里云盘已登录，点「保存」生效</string>
+    <string name="nst_ul_resuming">续传 %1$s（已有 %2$s）…</string>
+    <string name="nst_ul_uploading">上传 %1$s …</string>
+    <string name="nst_ul_done">已上传到 %1$s</string>
+    <string name="nst_ul_fail">上传失败</string>
+    <string name="nst_src_short">上传源不足：还差 %1$s 字节</string>
+    <string name="nst_mkdir_title">新建目录</string>
+    <string name="nst_mkdir_label">目录名</string>
+    <string name="nst_create">创建</string>
+    <string name="nst_mkdir_running">创建目录 …</string>
+    <string name="nst_mkdir_fail">创建失败</string>
+    <string name="nst_rename_running">重命名 …</string>
+    <string name="nst_rename_fail">重命名失败</string>
+    <string name="nst_delete_title">删除 %1$s</string>
+    <string name="nst_delete_dir_msg">目录及其全部内容将被删除，且不可恢复。</string>
+    <string name="nst_delete_file_msg">文件将被删除，且不可恢复。</string>
+    <string name="nst_delete_running">删除 …</string>
+    <string name="nst_delete_fail">删除失败</string>
+    <string name="nst_dir">目录</string>
+    <string name="nst_err_refused">连接被拒绝：目标端口没有服务在监听（检查 IP/端口）</string>
+    <string name="nst_err_unreach">网络不可达：手机与设备是否在同一局域网？</string>
+    <string name="nst_err_timeout">连接超时：检查 IP/端口，或设备防火墙设置</string>
+    <string name="nst_err_refused2">%1$s（检查服务是否开启）</string>
+    <string-array name="nst_types">
+        <item>SMB (Windows 共享/NAS)</item>
+        <item>WebDAV</item>
+        <item>FTP</item>
+        <item>SFTP (SSH)</item>
+        <item>S3 / 对象存储（OSS·COS·MinIO）</item>
+        <item>OneDrive（微软）</item>
+        <item>阿里云盘</item>
+    </string-array>
 </resources>

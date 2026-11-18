@@ -35,7 +35,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="网络存储"
+            android:text="@string/nst_title"
             android:textSize="18sp"
             android:textStyle="bold"
             android:textColor="?attr/hfText"
@@ -76,7 +76,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="52dp"
                     android:gravity="center"
-                    android:text="＋  添加服务器"
+                    android:text="@string/nst_add_server"
                     android:textSize="15sp"
                     android:textColor="?attr/hfAccent"
                     android:background="?android:attr/selectableItemBackground"/>
@@ -85,7 +85,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:padding="16dp"
-                    android:text="支持 SMB2/SMB3（Windows 共享、NAS）与 WebDAV。手机需与电脑同一局域网。SMB 用户名留空即以访客（guest）登录。"
+                    android:text="@string/nst_support_note"
                     android:textSize="12sp"
                     android:textColor="?attr/hfTextSub"/>
             </LinearLayout>
@@ -155,7 +155,7 @@
                     android:layout_height="match_parent"
                     android:layout_weight="1"
                     android:gravity="center"
-                    android:text="📁 新建目录"
+                    android:text="@string/nst_btn_mkdir"
                     android:textSize="14sp"
                     android:textColor="?attr/hfText"
                     android:background="?android:attr/selectableItemBackground"/>
@@ -166,7 +166,7 @@
                     android:layout_height="match_parent"
                     android:layout_weight="1"
                     android:gravity="center"
-                    android:text="⬆ 上传文件"
+                    android:text="@string/nst_btn_upload"
                     android:textSize="14sp"
                     android:textColor="?attr/hfText"
                     android:background="?android:attr/selectableItemBackground"/>
@@ -177,7 +177,7 @@
                     android:layout_height="match_parent"
                     android:layout_weight="1"
                     android:gravity="center"
-                    android:text="✕ 断开"
+                    android:text="@string/nst_btn_disconnect"
                     android:textSize="14sp"
                     android:textColor="?attr/hfText"
                     android:background="?android:attr/selectableItemBackground"/>

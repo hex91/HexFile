@@ -217,7 +217,7 @@ public final class NetStorageActivity extends BaseActivity {
     }
 
     private void showServers() {
-        mTitle.setText("网络存储");
+        mTitle.setText(R.string.nst_title);
         mServersPanel.setVisibility(View.VISIBLE);
         mBrowsePanel.setVisibility(View.GONE);
         mServerContainer.removeAllViews();
@@ -228,7 +228,7 @@ public final class NetStorageActivity extends BaseActivity {
         }
         if (mServers.isEmpty()) {
             TextView empty = new TextView(this);
-            empty.setText("（还没有服务器，点下方「添加服务器」）");
+            empty.setText(R.string.nst_no_servers);
             empty.setTextSize(13);
             empty.setTextColor(ThemeManager.textSub(this));
             empty.setPadding(dp(18), dp(24), dp(18), dp(8));
@@ -245,11 +245,13 @@ public final class NetStorageActivity extends BaseActivity {
             if (TYPE_SFTP.equals(t)) return "SFTP · " + s.optString("host")
                     + (s.optInt("port", 22) == 22 ? "" : ":" + s.optInt("port"));
             if (TYPE_S3.equals(t)) return "S3 · " + stripScheme(s.optString("host")) + "/" + s.optString("share");
-            if (TYPE_ONEDRIVE.equals(t)) return "OneDrive · " + (hasToken(s) ? "已授权" : "未授权");
-            if (TYPE_ALIYUN.equals(t)) return "阿里云盘 · " + (hasToken(s) ? "已授权" : "未授权");
+            if (TYPE_ONEDRIVE.equals(t)) return "OneDrive · " + (hasToken(s)
+                    ? getString(R.string.nst_authorized) : getString(R.string.nst_unauthorized));
+            if (TYPE_ALIYUN.equals(t)) return getString(R.string.nst_type_aliyun) + " · " + (hasToken(s)
+                    ? getString(R.string.nst_authorized) : getString(R.string.nst_unauthorized));
             return "SMB · " + s.optString("host") + (s.optInt("port", 445) == 445 ? "" : ":" + s.optInt("port")) + "/" + s.optString("share");
         } catch (Exception e) {
-            return "（配置损坏）";
+            return getString(R.string.nst_cfg_broken);
         }
     }
 
@@ -258,13 +260,15 @@ public final class NetStorageActivity extends BaseActivity {
         if (TYPE_ONEDRIVE.equals(t) || TYPE_ALIYUN.equals(t)) {
             // 云盘没有「用户名/密码」，副标题用来显示授权状态，否则会显示成「访客登录」误导人
             String tok = s.optString("token");
-            if (tok.isEmpty()) return "未授权（编辑 → 登录 / 授权）";
-            return "授权已保存" + (CredentialVault.isEncrypted(tok) ? "  \uD83D\uDD12" : "");
+            if (tok.isEmpty()) return getString(R.string.nst_sub_unauthorized);
+            return getString(R.string.nst_sub_authorized)
+                    + (CredentialVault.isEncrypted(tok) ? "  \uD83D\uDD12" : "");
         }
         String u = s.optString("user");
         String p = s.optString("pass");
         String lock = CredentialVault.isEncrypted(p) ? "  \uD83D\uDD12" : "";   // 🔒 密码已加密存储
-        return ((u == null || u.isEmpty()) ? "访客登录" : "用户: " + u) + lock;
+        return ((u == null || u.isEmpty()) ? getString(R.string.nst_guest)
+                : getString(R.string.nst_user_fmt, u)) + lock;
     }
 
     private LinearLayout serverRow(final org.json.JSONObject s, String label, String sub) {
@@ -303,7 +307,9 @@ public final class NetStorageActivity extends BaseActivity {
         final int idx = mServers.indexOf(s);
         new HfDialogBuilder(this)
                 .setTitle(serverLabel(s))
-                .setItems(new String[]{"连接", "编辑", "删除"}, new android.content.DialogInterface.OnClickListener() {
+                .setItems(new String[]{getString(R.string.nst_menu_connect),
+                        getString(R.string.nst_menu_edit), getString(R.string.common_delete)},
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int which) {
                         if (which == 0) connectServer(s);
                         else if (which == 1) editServer(s);
@@ -311,7 +317,7 @@ public final class NetStorageActivity extends BaseActivity {
                             mServers.remove(idx);
                             saveServers();
                             showServers();
-                            toast("已删除");
+                            toast(getString(R.string.nst_deleted));
                         }
                     }
                 })
@@ -328,15 +334,14 @@ public final class NetStorageActivity extends BaseActivity {
         final int pad = dp(20);
         box.setPadding(pad, dp(8), pad, 0);
 
-        final Spinner type = addSpinnerRow(box, "类型",
-                new String[]{"SMB (Windows 共享/NAS)", "WebDAV", "FTP", "SFTP (SSH)",
-                        "S3 / 对象存储（OSS·COS·MinIO）", "OneDrive（微软）", "阿里云盘"});
-        final EditText host = addEditRow(box, "地址（SMB/FTP/SFTP: IP或主机名 / WebDAV: 完整URL）", "");
-        final EditText port = addEditRow(box, "端口", "445");
-        final EditText share = addEditRow(box, "共享名（SMB，如 public）", "");
-        final EditText domain = addEditRow(box, "域/工作组（SMB，可留空）", "");
-        final EditText user = addEditRow(box, "用户名（FTP/SFTP 匿名/留空视协议而定）", "");
-        final EditText pass = addEditRow(box, "密码", "");
+        final Spinner type = addSpinnerRow(box, getString(R.string.nst_field_type),
+                getResources().getStringArray(R.array.nst_types));
+        final EditText host = addEditRow(box, getString(R.string.nst_field_addr), "");
+        final EditText port = addEditRow(box, getString(R.string.nst_field_port), "445");
+        final EditText share = addEditRow(box, getString(R.string.nst_field_share), "");
+        final EditText domain = addEditRow(box, getString(R.string.nst_field_domain), "");
+        final EditText user = addEditRow(box, getString(R.string.nst_field_user), "");
+        final EditText pass = addEditRow(box, getString(R.string.nst_field_pass), "");
         pass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
                 | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
 
@@ -344,7 +349,7 @@ public final class NetStorageActivity extends BaseActivity {
         // 用 final 数组跨「授权回调 → 保存」传递（回调可能来自后台线程）
         final String[] token = {editing == null ? "" : CredentialVault.decrypt(editing.optString("token"))};
         final Button auth = new Button(this);
-        auth.setText("登录 / 授权");
+        auth.setText(R.string.nst_auth_btn);
         auth.setVisibility(View.GONE);
         box.addView(auth);
         auth.setOnClickListener(new View.OnClickListener() {
@@ -358,7 +363,7 @@ public final class NetStorageActivity extends BaseActivity {
                         runOnUiThread(new Runnable() {
                             public void run() {
                                 token[0] = rt;
-                                toast("授权成功，点「保存」生效");
+                                toast(getString(R.string.nst_auth_ok));
                             }
                         });
                     }
@@ -406,19 +411,23 @@ public final class NetStorageActivity extends BaseActivity {
                 setRowVisible(user, !ali);
                 setRowVisible(pass, !cloud);
                 auth.setVisibility(cloud ? View.VISIBLE : View.GONE);
-                auth.setText(ali ? "登录阿里云盘（弹出登录页）" : "登录 OneDrive（设备码）");
+                auth.setText(ali ? getString(R.string.nst_auth_aliyun)
+                        : getString(R.string.nst_auth_onedrive));
                 host.setHint(smb ? "192.168.1.100"
                         : http ? "http://192.168.1.100:5005/dav/"
                         : s3 ? "https://oss-cn-hangzhou.aliyuncs.com"
-                        : "（云盘无需填写）");
+                        : getString(R.string.nst_hint_cloud));
                 if (!http && !s3 && !cloud) port.setText(smb ? "445" : pos == 2 ? "21" : "22");
                 // 同一组输入框在不同类型下含义不同，标签要跟着换，否则「共享名」下面填 bucket 很容易填错
-                setRowLabel(share, smb ? "共享名（SMB，如 public）" : "存储桶 / bucket（S3）");
-                setRowLabel(domain, smb ? "域 / 工作组（SMB，可留空）" : "区域 / region（S3，如 cn-hangzhou）");
-                setRowLabel(user, s3 ? "AccessKey（S3）"
-                        : od ? "Client ID（Azure 应用的客户端 ID）"
-                        : "用户名（FTP/SFTP 匿名/留空视协议而定）");
-                setRowLabel(pass, s3 ? "SecretKey（S3）" : "密码");
+                setRowLabel(share, smb ? getString(R.string.nst_field_share)
+                        : getString(R.string.nst_field_bucket));
+                setRowLabel(domain, smb ? getString(R.string.nst_field_domain)
+                        : getString(R.string.nst_field_region));
+                setRowLabel(user, s3 ? getString(R.string.nst_field_accesskey)
+                        : od ? getString(R.string.nst_field_clientid)
+                        : getString(R.string.nst_field_user));
+                setRowLabel(pass, s3 ? getString(R.string.nst_field_secretkey)
+                        : getString(R.string.nst_field_pass));
             }
             public void onNothingSelected(android.widget.AdapterView<?> p) {}
         });
@@ -439,23 +448,29 @@ public final class NetStorageActivity extends BaseActivity {
         }
 
         new HfDialogBuilder(this)
-                .setTitle(editing == null ? "添加服务器" : "编辑服务器")
+                .setTitle(editing == null ? R.string.nst_add_title : R.string.nst_edit_title)
                 .setView(wrapScroll(box))
-                .setPositiveButton("保存", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.common_save, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         try {
                             int pos = type.getSelectedItemPosition(); // 0=SMB 1=WebDAV 2=FTP 3=SFTP 4=S3 5=OneDrive 6=阿里云盘
                             boolean smb = pos == 0, http = pos == 1, s3 = pos == 4;
                             boolean od = pos == 5, ali = pos == 6, cloud = od || ali;
                             String h = host.getText().toString().trim();
-                            if (smb && h.isEmpty()) { toast("地址不能为空"); return; }
-                            if (http && !h.startsWith("http")) { toast("WebDAV 地址需以 http(s):// 开头"); return; }
-                            if (!http && !s3 && !cloud && h.isEmpty()) { toast("地址不能为空"); return; }
-                            if (s3 && share.getText().toString().trim().isEmpty()) { toast("存储桶不能为空"); return; }
-                            if (od && user.getText().toString().trim().isEmpty()) {
-                                toast("OneDrive 需要 Client ID（Azure 应用的客户端 ID）"); return;
+                            if (smb && h.isEmpty()) { toast(getString(R.string.nst_err_addr_empty)); return; }
+                            if (http && !h.startsWith("http")) { toast(getString(R.string.nst_err_addr_http)); return; }
+                            if (!http && !s3 && !cloud && h.isEmpty()) {
+                                toast(getString(R.string.nst_err_addr_empty)); return;
                             }
-                            if (cloud && token[0].isEmpty()) { toast("还没有授权：请点「登录 / 授权」"); return; }
+                            if (s3 && share.getText().toString().trim().isEmpty()) {
+                                toast(getString(R.string.nst_err_bucket_empty)); return;
+                            }
+                            if (od && user.getText().toString().trim().isEmpty()) {
+                                toast(getString(R.string.nst_err_clientid)); return;
+                            }
+                            if (cloud && token[0].isEmpty()) {
+                                toast(getString(R.string.nst_err_no_auth)); return;
+                            }
                             int defPort = smb ? 445 : pos == 2 ? 21 : pos == 3 ? 22 : 0;
                             org.json.JSONObject o = editing == null ? new org.json.JSONObject() : editing;
                             o.put("type", smb ? TYPE_SMB : http ? TYPE_WEBDAV
@@ -473,17 +488,17 @@ public final class NetStorageActivity extends BaseActivity {
                             if (!rawPass.isEmpty() && !CredentialVault.available()
                                     && !warnedPlaintext) {
                                 warnedPlaintext = true;
-                                toast("当前设备无法使用系统密钥库，密码将以明文保存");
+                                toast(getString(R.string.nst_warn_plaintext));
                             }
                             if (editing == null) mServers.add(o);
                             saveServers();
                             showServers();
                         } catch (Exception e) {
-                            toast("保存失败: " + e.getMessage());
+                            toast(getString(R.string.nst_save_fail, String.valueOf(e.getMessage())));
                         }
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -722,7 +737,7 @@ public final class NetStorageActivity extends BaseActivity {
     // =================================================================
 
     private void connectServer(final org.json.JSONObject s) {
-        showSpin("连接 " + serverLabel(s) + " …");
+        showSpin(getString(R.string.nst_connecting, serverLabel(s)));
         bg(new Runnable() {
             public void run() {
                 try {
@@ -769,7 +784,7 @@ public final class NetStorageActivity extends BaseActivity {
                     runOnUiThread(new Runnable() {
                         public void run() {
                             hideProgress();
-                            errorDialog("连接失败", friendlyNetError(e));
+                            errorDialog(getString(R.string.nst_connect_fail), friendlyNetError(e));
                         }
                     });
                 }
@@ -778,7 +793,7 @@ public final class NetStorageActivity extends BaseActivity {
     }
 
     private void browse(final String path) {
-        showSpin("加载 " + (path.isEmpty() ? "/" : path) + " …");
+        showSpin(getString(R.string.nst_loading, path.isEmpty() ? "/" : path));
         bg(new Runnable() {
             public void run() {
                 try {
@@ -801,7 +816,7 @@ public final class NetStorageActivity extends BaseActivity {
                     runOnUiThread(new Runnable() {
                         public void run() {
                             hideProgress();
-                            errorDialog("加载失败", friendlyNetError(e));
+                            errorDialog(getString(R.string.nst_load_fail), friendlyNetError(e));
                         }
                     });
                 }
@@ -829,9 +844,11 @@ public final class NetStorageActivity extends BaseActivity {
         boolean canResume = !e.dir && partProbe.exists() && partProbe.length() > 0 && !probe.exists();
 
         List<String> ops = new ArrayList<>();
-        ops.add(canResume ? "继续下载（已有 " + FileOps.formatSize(partProbe.length()) + "）" : "下载到本地");
-        ops.add("重命名");
-        ops.add("删除");
+        ops.add(canResume
+                ? getString(R.string.nst_menu_resume, FileOps.formatSize(partProbe.length()))
+                : getString(R.string.nst_menu_download));
+        ops.add(getString(R.string.nst_menu_rename));
+        ops.add(getString(R.string.common_delete));
         new HfDialogBuilder(this)
                 .setTitle((e.dir ? "📁 " : "📄 ") + e.name
                         + (e.dir ? "" : " · " + FileOps.formatSize(e.size)))
@@ -851,7 +868,7 @@ public final class NetStorageActivity extends BaseActivity {
     // ----------------------------------------------------------------
 
     private void download(final NetFs.NetEntry e, final String path) {
-        showSpin("准备下载 " + e.name + " …");
+        showSpin(getString(R.string.nst_preparing, e.name));
         bg(new Runnable() {
             public void run() {
                 try {
@@ -859,22 +876,22 @@ public final class NetStorageActivity extends BaseActivity {
                     File destDir = new File(WorkDir.base(), "NetStorage/" + e.name);
                     final File baseDir = destDir;
                     runOnUiThread(new Runnable() {
-                        public void run() { mProgress.setMessage("下载中…"); }
+                        public void run() { mProgress.setMessage(getString(R.string.nst_downloading)); }
                     });
                     if (e.dir) {
                         downloadDir(path, baseDir);
-                        doneOnUiThread("目录已下载到 " + baseDir.getAbsolutePath());
+                        doneOnUiThread(getString(R.string.nst_dl_dir_done, baseDir.getAbsolutePath()));
                     } else {
                         baseDir.getParentFile().mkdirs();
                         final File dest = pickDest(baseDir.getParentFile(), baseDir.getName());
                         downloadFile(path, dest, e.name, e.size, e.mtime);
-                        doneOnUiThread("已下载到 " + dest.getAbsolutePath());
+                        doneOnUiThread(getString(R.string.nst_dl_done, dest.getAbsolutePath()));
                     }
                 } catch (final Exception ex) {
                     runOnUiThread(new Runnable() {
                         public void run() {
                             hideProgress();
-                            errorDialog("下载失败", friendlyNetError(ex));
+                            errorDialog(getString(R.string.nst_dl_fail), friendlyNetError(ex));
                         }
                     });
                 }
@@ -887,7 +904,7 @@ public final class NetStorageActivity extends BaseActivity {
         local.mkdirs();
         for (NetFs.NetEntry c : mFs.list(remote)) {
             File child = new File(local, c.name);
-            setMsgOnUiThread("下载 " + c.name);
+            setMsgOnUiThread(getString(R.string.nst_dl_progress, c.name));
             if (c.dir) downloadDir(NetFs.join(remote, c.name), child);
             else {
                 child.getParentFile().mkdirs();
@@ -948,7 +965,9 @@ public final class NetStorageActivity extends BaseActivity {
         }
 
         long offset = plan.isResume() ? plan.offset : 0;
-        if (offset > 0) setMsgOnUiThread("续传 " + name + "（已有 " + FileOps.formatSize(offset) + "）");
+        if (offset > 0) {
+            setMsgOnUiThread(getString(R.string.nst_resuming, name, FileOps.formatSize(offset)));
+        }
 
         InputStream in = null;
         try {
@@ -959,7 +978,7 @@ public final class NetStorageActivity extends BaseActivity {
             deleteQuiet(part);
             writeSmall(meta, ResumePlan.metaText(remoteSize, remoteMtime));
             offset = 0;
-            setMsgOnUiThread("服务器不支持续传，改为从头下载 " + name);
+            setMsgOnUiThread(getString(R.string.nst_no_resume, name));
             in = mFs.openRead(remotePath);
         }
 
@@ -973,17 +992,18 @@ public final class NetStorageActivity extends BaseActivity {
 
         long got = part.length();
         if (remoteSize > 0 && got != remoteSize)
-            throw new IOException("下载不完整：" + name + " 只收到 " + FileOps.formatSize(got)
-                    + " / " + FileOps.formatSize(remoteSize) + "（临时文件已保留，下次自动续传）");
+            throw new IOException(getString(R.string.nst_incomplete, name,
+                    FileOps.formatSize(got), FileOps.formatSize(remoteSize)));
         finishPart(part, meta, dest, remoteSize);
     }
 
     /** 校验通过：.hpart → 目标文件，并清掉校验文件。 */
     private void finishPart(File part, File meta, File dest, long size) throws IOException {
         if (size > 0 && part.length() != size)
-            throw new IOException("临时文件大小不符: " + part.length() + " != " + size);
+            throw new IOException(getString(R.string.nst_part_mismatch,
+                    String.valueOf(part.length()), String.valueOf(size)));
         if (dest.exists() && !dest.delete())
-            throw new IOException("目标文件已存在且无法覆盖: " + dest.getAbsolutePath());
+            throw new IOException(getString(R.string.nst_dest_locked, dest.getAbsolutePath()));
         if (!part.renameTo(dest)) {
             // 极端情况（跨挂载点/FUSE 不支持 rename）退化为复制
             InputStream in = new java.io.FileInputStream(part);
@@ -1096,7 +1116,7 @@ public final class NetStorageActivity extends BaseActivity {
         try {
             startActivityForResult(it, REQ_PICK_UPLOAD);
         } catch (Exception e) {
-            toast("无法打开文件选择器");
+            toast(getString(R.string.nst_picker_fail));
         }
     }
 
@@ -1117,11 +1137,10 @@ public final class NetStorageActivity extends BaseActivity {
         if (resultCode != RESULT_OK || data == null) return;
         final String rt = OAuthToken.extractRefresh(data.getStringExtra(CloudLoginActivity.EXTRA_REFRESH));
         if (rt.isEmpty()) {
-            errorDialog("没有取到登录凭证", "可能是网盘登录页改版了。可以再试一次，"
-                    + "或改用登录页顶栏的「粘贴方式」。");
+            errorDialog(getString(R.string.nst_no_token_title), getString(R.string.nst_no_token_msg));
             return;
         }
-        toast("阿里云盘已登录，点「保存」生效");
+        toast(getString(R.string.nst_aliyun_logged));
         if (mAuthCb != null) mAuthCb.onAuthorized(rt);
     }
 
@@ -1148,8 +1167,8 @@ public final class NetStorageActivity extends BaseActivity {
         final long total = localSize;
 
         showSpin(resumeFrom > 0
-                ? "续传 " + mUploadName + "（已有 " + FileOps.formatSize(resumeFrom) + "）…"
-                : "上传 " + mUploadName + " …");
+                ? getString(R.string.nst_ul_resuming, mUploadName, FileOps.formatSize(resumeFrom))
+                : getString(R.string.nst_ul_uploading, mUploadName));
         bg(new Runnable() {
             public void run() {
                 InputStream in = null;
@@ -1161,12 +1180,12 @@ public final class NetStorageActivity extends BaseActivity {
                             ? mFs.openWriteFrom(destPath, resumeFrom)
                             : mFs.openWrite(destPath);
                     copyStream(in, out, mUploadName, resumeFrom, total);
-                    doneOnUiThread("已上传到 " + destPath);
+                    doneOnUiThread(getString(R.string.nst_ul_done, destPath));
                 } catch (final Exception e) {
                     runOnUiThread(new Runnable() {
                         public void run() {
                             hideProgress();
-                            errorDialog("上传失败", friendlyNetError(e));
+                            errorDialog(getString(R.string.nst_ul_fail), friendlyNetError(e));
                         }
                     });
                 } finally {
@@ -1177,7 +1196,7 @@ public final class NetStorageActivity extends BaseActivity {
     }
 
     /** 跳过 n 字节（InputStream.skip 对部分 content:// 流会提前返回，这里循环补齐）。 */
-    private static void skipFully(InputStream in, long n) throws IOException {
+    private void skipFully(InputStream in, long n) throws IOException {
         long left = n;
         byte[] waste = null;
         while (left > 0) {
@@ -1185,7 +1204,7 @@ public final class NetStorageActivity extends BaseActivity {
             if (s > 0) { left -= s; continue; }
             if (waste == null) waste = new byte[64 * 1024];
             int r = in.read(waste, 0, (int) Math.min(waste.length, left));
-            if (r <= 0) throw new IOException("上传源不足：还差 " + left + " 字节");
+            if (r <= 0) throw new IOException(getString(R.string.nst_src_short, String.valueOf(left)));
             left -= r;
         }
     }
@@ -1226,15 +1245,15 @@ public final class NetStorageActivity extends BaseActivity {
     // ----------------------------------------------------------------
 
     private void doMkdir() {
-        final EditText e = inputDialog("新建目录", "目录名", "");
+        final EditText e = inputDialog("");
         new HfDialogBuilder(this)
-                .setTitle("新建目录")
+                .setTitle(R.string.nst_mkdir_title)
                 .setView(wrapScroll(inputBox(e)))
-                .setPositiveButton("创建", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.nst_create, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         final String name = e.getText().toString().trim();
                         if (name.isEmpty()) return;
-                        showSpin("创建目录 …");
+                        showSpin(getString(R.string.nst_mkdir_running));
                         bg(new Runnable() {
                             public void run() {
                                 try {
@@ -1246,7 +1265,7 @@ public final class NetStorageActivity extends BaseActivity {
                                     runOnUiThread(new Runnable() {
                                         public void run() {
                                             hideProgress();
-                                            errorDialog("创建失败", friendlyNetError(ex));
+                                            errorDialog(getString(R.string.nst_mkdir_fail), friendlyNetError(ex));
                                         }
                                     });
                                 }
@@ -1254,7 +1273,7 @@ public final class NetStorageActivity extends BaseActivity {
                         });
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -1267,7 +1286,8 @@ public final class NetStorageActivity extends BaseActivity {
         return box;
     }
 
-    private EditText inputDialog(String title, String label, String value) {
+    /** 单行输入框。原来还带 title / label 两个参数，但两者从未被读过（标题由对话框自己设） */
+    private EditText inputDialog(String value) {
         EditText e = new EditText(this);
         e.setSingleLine(true);
         e.setText(value);
@@ -1282,13 +1302,13 @@ public final class NetStorageActivity extends BaseActivity {
         e.setTextSize(14);
         LinearLayout box = inputBox(e);
         new HfDialogBuilder(this)
-                .setTitle("重命名")
+                .setTitle(R.string.nst_menu_rename)
                 .setView(wrapScroll(box))
-                .setPositiveButton("确定", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.nst_ok, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         final String name = e.getText().toString().trim();
                         if (name.isEmpty() || name.equals(en.name)) return;
-                        showSpin("重命名 …");
+                        showSpin(getString(R.string.nst_rename_running));
                         bg(new Runnable() {
                             public void run() {
                                 try {
@@ -1300,7 +1320,7 @@ public final class NetStorageActivity extends BaseActivity {
                                     runOnUiThread(new Runnable() {
                                         public void run() {
                                             hideProgress();
-                                            errorDialog("重命名失败", friendlyNetError(ex));
+                                            errorDialog(getString(R.string.nst_rename_fail), friendlyNetError(ex));
                                         }
                                     });
                                 }
@@ -1308,17 +1328,18 @@ public final class NetStorageActivity extends BaseActivity {
                         });
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     private void doDelete(final NetFs.NetEntry en, final String path) {
         new HfDialogBuilder(this)
-                .setTitle("删除 " + en.name)
-                .setMessage(en.dir ? "目录及其全部内容将被删除，且不可恢复。" : "文件将被删除，且不可恢复。")
-                .setPositiveButton("删除", new android.content.DialogInterface.OnClickListener() {
+                .setTitle(getString(R.string.nst_delete_title, en.name))
+                .setMessage(getString(en.dir ? R.string.nst_delete_dir_msg
+                        : R.string.nst_delete_file_msg))
+                .setPositiveButton(R.string.common_delete, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
-                        showSpin("删除 …");
+                        showSpin(getString(R.string.nst_delete_running));
                         bg(new Runnable() {
                             public void run() {
                                 try {
@@ -1330,7 +1351,7 @@ public final class NetStorageActivity extends BaseActivity {
                                     runOnUiThread(new Runnable() {
                                         public void run() {
                                             hideProgress();
-                                            errorDialog("删除失败", friendlyNetError(ex));
+                                            errorDialog(getString(R.string.nst_delete_fail), friendlyNetError(ex));
                                         }
                                     });
                                 }
@@ -1338,7 +1359,7 @@ public final class NetStorageActivity extends BaseActivity {
                         });
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -1393,17 +1414,21 @@ public final class NetStorageActivity extends BaseActivity {
         new HfDialogBuilder(this)
                 .setTitle(title)
                 .setMessage(msg)
-                .setPositiveButton("知道了", null)
+                .setPositiveButton(R.string.common_got_it, null)
                 .show();
     }
 
     /** 网络错误信息人性化。 */
-    private static String friendlyNetError(Throwable e) {
+    private String friendlyNetError(Throwable e) {
         String m = e.getMessage() == null ? e.toString() : e.getMessage();
-        if (m.contains("ECONNREFUSED")) return "连接被拒绝：目标端口没有服务在监听（检查 IP/端口）";
-        if (m.contains("ENETUNREACH") || m.contains("EHOSTUNREACH")) return "网络不可达：手机与设备是否在同一局域网？";
-        if (m.contains("ETIMEDOUT") || m.contains("timeout") || m.contains("Timed out")) return "连接超时：检查 IP/端口，或设备防火墙设置";
-        if (m.contains("Connection refused")) return m + "（检查服务是否开启）";
+        if (m.contains("ECONNREFUSED")) return getString(R.string.nst_err_refused);
+        if (m.contains("ENETUNREACH") || m.contains("EHOSTUNREACH")) {
+            return getString(R.string.nst_err_unreach);
+        }
+        if (m.contains("ETIMEDOUT") || m.contains("timeout") || m.contains("Timed out")) {
+            return getString(R.string.nst_err_timeout);
+        }
+        if (m.contains("Connection refused")) return getString(R.string.nst_err_refused2, m);
         return m;
     }
 
@@ -1436,7 +1461,7 @@ public final class NetStorageActivity extends BaseActivity {
             NetFs.NetEntry e = mEntries.get(position);
             ((TextView) v.findViewById(R.id.net_icon)).setText(e.dir ? "📁" : "📄");
             ((TextView) v.findViewById(R.id.net_name)).setText(e.name);
-            String sub = e.dir ? "目录" : FileOps.formatSize(e.size);
+            String sub = e.dir ? getString(R.string.nst_dir) : FileOps.formatSize(e.size);
             if (e.mtime > 0) {
                 sub += " · " + new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(new Date(e.mtime));
             }
