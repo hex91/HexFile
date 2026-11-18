@@ -203,7 +203,7 @@ public class CompareActivity extends BaseActivity {
     }
 
     private void doApk() {
-        final ApkCompareUtil.Result r = ApkCompareUtil.compare(fa, fb, getPackageManager());
+        final ApkCompareUtil.Result r = ApkCompareUtil.compare(fa, fb, getPackageManager(), this);
         runOnUiThread(new Runnable() {
             public void run() {
                 done = true;

@@ -48,21 +48,21 @@
         <TextView
             android:id="@+id/apk_act_features"
             style="@style/ApkActionText"
-            android:text="功能"/>
+            android:text="@string/apk_info_btn_features"/>
 
         <TextView
             android:id="@+id/apk_act_view"
             style="@style/ApkActionText"
-            android:text="查看"/>
+            android:text="@string/apk_info_btn_view"/>
 
         <TextView
             android:id="@+id/apk_act_install"
             style="@style/ApkActionText"
-            android:text="安装"/>
+            android:text="@string/apk_info_btn_install"/>
 
         <TextView
             android:id="@+id/apk_act_close"
             style="@style/ApkActionText"
-            android:text="关闭"/>
+            android:text="@string/common_close"/>
     </LinearLayout>
 </LinearLayout>

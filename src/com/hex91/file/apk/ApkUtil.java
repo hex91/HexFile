@@ -1,6 +1,8 @@
 package com.hex91.file.apk;
 
+import com.hex91.file.R;
 import com.hex91.file.fs.FileOps;
+import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -19,8 +21,8 @@ import java.util.zip.ZipFile;
  */
 public class ApkUtil {
 
-    /** 返回 {label, value} 行列表；解析失败返回 null */
-    public static List<String[]> rows(File apk, PackageManager pm) {
+    /** 返回 {label, value} 行列表；解析失败返回 null（标签按 ctx 的语言取，行序与标签文案无关） */
+    public static List<String[]> rows(File apk, PackageManager pm, Context ctx) {
         try {
             PackageInfo pi = pm.getPackageArchiveInfo(apk.getPath(),
                     PackageManager.GET_SIGNATURES);
@@ -29,36 +31,41 @@ public class ApkUtil {
             ApplicationInfo ai = pi.applicationInfo;
             if (ai != null && ai.sourceDir == null) ai.sourceDir = apk.getPath();
 
-            rows.add(new String[]{"包名", pi.packageName});
-            rows.add(new String[]{"版本号", String.valueOf(pi.versionCode)});
-            rows.add(new String[]{"安装包大小", FileOps.formatSize(apk.length())});
+            rows.add(new String[]{ctx.getString(R.string.apk_row_pkg), pi.packageName});
+            rows.add(new String[]{ctx.getString(R.string.apk_row_version), String.valueOf(pi.versionCode)});
+            rows.add(new String[]{ctx.getString(R.string.apk_row_size), FileOps.formatSize(apk.length())});
 
             int cert = pi.signatures == null ? 0 : pi.signatures.length;
-            rows.add(new String[]{"签名状态", cert == 0 ? "未签名" : "检测中…"});
-            rows.add(new String[]{"证书数量", String.valueOf(cert)});
-            rows.add(new String[]{"加固状态", packStatus(apk)});
+            rows.add(new String[]{ctx.getString(R.string.apk_row_sign),
+                    cert == 0 ? ctx.getString(R.string.apk_row_unsigned)
+                            : ctx.getString(R.string.apk_row_detecting)});
+            rows.add(new String[]{ctx.getString(R.string.apk_row_cert_count), String.valueOf(cert)});
+            rows.add(new String[]{ctx.getString(R.string.apk_row_shell), packStatus(apk, ctx)});
 
             if (ai != null) {
-                rows.add(new String[]{"目标系统", apiText(ai.targetSdkVersion)});
+                rows.add(new String[]{ctx.getString(R.string.apk_row_target), apiText(ai.targetSdkVersion)});
                 if (Build.VERSION.SDK_INT >= 24)
-                    rows.add(new String[]{"最低系统", apiText(ai.minSdkVersion)});
-                rows.add(new String[]{"权限数", pi.requestedPermissions == null
+                    rows.add(new String[]{ctx.getString(R.string.apk_row_min), apiText(ai.minSdkVersion)});
+                rows.add(new String[]{ctx.getString(R.string.apk_row_perm_count), pi.requestedPermissions == null
                         ? "0" : String.valueOf(pi.requestedPermissions.length)});
             }
 
             // 设备上已安装的同包名应用信息
             try {
                 PackageInfo inst = pm.getPackageInfo(pi.packageName, 0);
-                rows.add(new String[]{"已安装", inst.versionName + " (" + inst.versionCode + ")"});
+                rows.add(new String[]{ctx.getString(R.string.apk_row_installed),
+                        inst.versionName + " (" + inst.versionCode + ")"});
                 if (inst.applicationInfo != null) {
-                    rows.add(new String[]{"数据目录", inst.applicationInfo.dataDir});
+                    rows.add(new String[]{ctx.getString(R.string.apk_row_data_dir), inst.applicationInfo.dataDir});
                     rows.add(new String[]{"UID", String.valueOf(inst.applicationInfo.uid)});
                 }
-                rows.add(new String[]{"首次安装", FileOps.formatTime(inst.firstInstallTime)});
-                rows.add(new String[]{"最后更新", FileOps.formatTime(inst.lastUpdateTime)});
+                rows.add(new String[]{ctx.getString(R.string.apk_row_first_install),
+                        FileOps.formatTime(inst.firstInstallTime)});
+                rows.add(new String[]{ctx.getString(R.string.apk_row_last_update),
+                        FileOps.formatTime(inst.lastUpdateTime)});
             } catch (Exception ignored) { }
 
-            rows.add(new String[]{"APK 路径", apk.getAbsolutePath()});
+            rows.add(new String[]{ctx.getString(R.string.apk_row_path), apk.getAbsolutePath()});
             return rows;
         } catch (Exception e) {
             return null;
@@ -92,7 +99,7 @@ public class ApkUtil {
     }
 
     /** 加固检测：扫描 zip 条目名匹配常见加固方案特征 */
-    private static String packStatus(File apk) {
+    private static String packStatus(File apk, Context ctx) {
         ZipFile zf = null;
         try {
             zf = new ZipFile(apk);
@@ -107,14 +114,14 @@ public class ApkUtil {
                         || n.contains("libmobisec")    // 阿里聚安全
                         || n.contains("libnesec")      // 网易易盾
                         || n.contains("libtup") || n.contains("libexecmain")) {
-                    return "疑似加固 (" + n + ")";
+                    return ctx.getString(R.string.apk_row_shell_found, n);
                 }
             }
         } catch (Exception ignored) {
         } finally {
             if (zf != null) try { zf.close(); } catch (Exception ignored) { }
         }
-        return "未检测到加固";
+        return ctx.getString(R.string.apk_row_shell_none);
     }
 
     /** API 级别 → "Android X.X (API N)" */

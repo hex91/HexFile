@@ -2326,22 +2326,22 @@ public class MainActivity extends BaseActivity {
 
     private void showApkInfo(final File f) {
         final PackageManager pm = getPackageManager();
-        List<String[]> rows = ApkUtil.rows(f, pm);
+        List<String[]> rows = ApkUtil.rows(f, pm, this);
         final boolean broken = rows == null;
         if (broken) {
             // 解析失败（如未重签名导致 arsc 校验不过）：降级显示基本信息，仍可查看/功能/安装
             rows = new ArrayList<String[]>();
-            rows.add(new String[]{"包名", "(无法解析)"});
-            rows.add(new String[]{"安装包大小", FileOps.formatSize(f.length())});
-            rows.add(new String[]{"签名状态", "未签名/已失效"});
-            rows.add(new String[]{"说明", "内容已修改且未重新签名，系统解析失败；仍可查看、编辑或长按菜单选「APK 签名」"});
-            rows.add(new String[]{"APK 路径", f.getAbsolutePath()});
+            rows.add(new String[]{s(R.string.apk_row_pkg), s(R.string.apk_info_unparsable)});
+            rows.add(new String[]{s(R.string.apk_row_size), FileOps.formatSize(f.length())});
+            rows.add(new String[]{s(R.string.apk_row_sign), s(R.string.apk_info_bad_sign)});
+            rows.add(new String[]{s(R.string.apk_row_note), s(R.string.apk_info_bad_desc)});
+            rows.add(new String[]{s(R.string.apk_row_path), f.getAbsolutePath()});
         }
         final List<String[]> rowsF = rows;
         // v1.66.7：备份文件角色说明——_bak 永远保持原厂签名（设计如此，用于还原）；
         // v1.66.8 起修改直接写回原包，签名状态行即可判断当前包是否已重签
-        String role = FileKind.apkFileRole(f);
-        if (role != null) rowsF.add(1, new String[]{"文件角色", role});
+        String role = FileKind.apkFileRole(f, this);
+        if (role != null) rowsF.add(1, new String[]{s(R.string.apk_row_role), role});
 
         View view = getLayoutInflater().inflate(R.layout.dialog_apk_info, null);
         Drawable icon = ApkUtil.icon(f, pm);
@@ -2354,7 +2354,8 @@ public class MainActivity extends BaseActivity {
         lv.setAdapter(rowsAdapter);
         lv.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             public void onItemClick(AdapterView<?> av, View v, int i, long id) {
-                if ("签名状态".equals(rowsF.get(i)[0])) {
+                // 与 ApkUtil 生成的标签同源（同一个资源键），换语言也不会错位
+                if (s(R.string.apk_row_sign).equals(rowsF.get(i)[0])) {
                     showSignDialog(f);          // 进入签名详情页
                 } else {
                     copyToClipboard(rowsF.get(i)[0], rowsF.get(i)[1]);
@@ -2389,7 +2390,7 @@ public class MainActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         for (String[] r : rowsF) {
-                            if ("签名状态".equals(r[0])) {
+                            if (s(R.string.apk_row_sign).equals(r[0])) {
                                 r[1] = sc;
                                 rowsAdapter.notifyDataSetChanged();
                             }

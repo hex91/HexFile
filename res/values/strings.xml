@@ -899,4 +899,36 @@
     <string name="mops_apk_unpack">APK 解包</string>
     <string name="mops_sign_custom">自定义密钥签名</string>
     <string name="mops_rm_sign">去除签名</string>
+    <!-- ===== APK 信息弹窗 / 文件角色（F-14） ===== -->
+    <string name="apk_row_pkg">包名</string>
+    <string name="apk_row_version">版本号</string>
+    <string name="apk_row_size">安装包大小</string>
+    <string name="apk_row_sign">签名状态</string>
+    <string name="apk_row_unsigned">未签名</string>
+    <string name="apk_row_detecting">检测中…</string>
+    <string name="apk_row_cert_count">证书数量</string>
+    <string name="apk_row_shell">加固状态</string>
+    <string name="apk_row_shell_found">疑似加固 (%1$s)</string>
+    <string name="apk_row_shell_none">未检测到加固</string>
+    <string name="apk_row_target">目标系统</string>
+    <string name="apk_row_min">最低系统</string>
+    <string name="apk_row_perm_count">权限数</string>
+    <string name="apk_row_installed">已安装</string>
+    <string name="apk_row_data_dir">数据目录</string>
+    <string name="apk_row_first_install">首次安装</string>
+    <string name="apk_row_last_update">最后更新</string>
+    <string name="apk_row_path">APK 路径</string>
+    <string name="apk_row_role">文件角色</string>
+    <string name="apk_row_note">说明</string>
+    <string name="apk_info_unparsable">(无法解析)</string>
+    <string name="apk_info_bad_sign">未签名/已失效</string>
+    <string name="apk_info_bad_desc">内容已修改且未重新签名，系统解析失败；仍可查看、编辑或长按菜单选「APK 签名」</string>
+    <string name="apk_info_btn_features">功能</string>
+    <string name="apk_info_btn_view">查看</string>
+    <string name="apk_info_btn_install">安装</string>
+    <string name="role_edit">修改版（v1.66.7 及更早版本生成；新版本修改直接写回原包，不再生成 _edit）</string>
+    <string name="role_bak">原包备份（首次修改时自动生成，保持原厂签名，用于还原；勿安装）</string>
+    <string name="role_signed">签名副本（长按「APK 签名」用内置密钥生成的独立文件）</string>
+    <string name="role_csigned">自定义签名副本（用自有 keystore 签名的独立文件）</string>
+    <string name="role_unsigned">去除签名副本（仅剥离签名文件，内容同原包）</string>
 </resources>

@@ -40,7 +40,7 @@ public final class ApkCompareUtil {
     private ApkCompareUtil() {}
 
     /** 对比两个 APK（耗时操作，放后台线程） */
-    public static Result compare(File a, File b, PackageManager pm) {
+    public static Result compare(File a, File b, PackageManager pm, android.content.Context ctx) {
         Result r = new Result();
         r.sizeA = a.length();
         r.sizeB = b.length();
@@ -51,8 +51,8 @@ public final class ApkCompareUtil {
             r.shaB = HashUtil.hash(b, "SHA-256");
         } catch (Throwable ignored) {}
         // 清单层
-        Map<String, String> ma = toMap(ApkUtil.rows(a, pm));
-        Map<String, String> mb = toMap(ApkUtil.rows(b, pm));
+        Map<String, String> ma = toMap(ApkUtil.rows(a, pm, ctx));
+        Map<String, String> mb = toMap(ApkUtil.rows(b, pm, ctx));
         // 以 A 的顺序为基准，B 多出的标签附在后面
         List<String> labels = new ArrayList<String>(ma.keySet());
         for (String k : mb.keySet()) if (!ma.containsKey(k)) labels.add(k);

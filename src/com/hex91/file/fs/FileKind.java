@@ -1,5 +1,7 @@
 package com.hex91.file.fs;
 
+import com.hex91.file.R;
+
 import java.io.File;
 
 /**
@@ -55,19 +57,19 @@ public final class FileKind {
      * <p>这几个后缀是本应用自己的产物，说明文字必须写清「能不能装、能不能删」——
      * 用户看到 {@code xxx_bak.apk} 最容易直接点安装，装上去就是旧版本。</p>
      */
-    public static String apkFileRole(File f) {
+    public static String apkFileRole(File f, android.content.Context ctx) {
         if (f == null) return null;
         String n = f.getName().toLowerCase();
         if (n.endsWith("_edit.apk"))
-            return "修改版（v1.66.7 及更早版本生成；新版本修改直接写回原包，不再生成 _edit）";
+            return ctx.getString(R.string.role_edit);
         if (n.endsWith("_bak.apk"))
-            return "原包备份（首次修改时自动生成，保持原厂签名，用于还原；勿安装）";
+            return ctx.getString(R.string.role_bak);
         if (n.endsWith("_signed.apk"))
-            return "签名副本（长按「APK 签名」用内置密钥生成的独立文件）";
+            return ctx.getString(R.string.role_signed);
         if (n.endsWith("_csigned.apk"))
-            return "自定义签名副本（用自有 keystore 签名的独立文件）";
+            return ctx.getString(R.string.role_csigned);
         if (n.endsWith("_unsigned.apk"))
-            return "去除签名副本（仅剥离签名文件，内容同原包）";
+            return ctx.getString(R.string.role_unsigned);
         return null;
     }
 

@@ -1784,6 +1784,89 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.24.0（versionCode 217）—— F-14/8：APK 信息弹窗 i18n（又抓到一处「文案当逻辑」）
+
+这一屏不止一个文件：弹窗本体在 `MainActivity.showApkInfo`，16 行标签值由
+`ApkUtil.rows()` 生成，加固判定在 `ApkUtil.packStatus`，文件角色在 `FileKind.apkFileRole`，
+再加上 `dialog_apk_info.xml` 的 4 个按钮。落成 **31 个键**（含 `role_*` 5 条）。
+
+`MainActivity` 中文字面量 **319 → 308**；`ApkUtil` 与 `FileKind` 这一屏相关的字面量清零。
+
+### 点「签名状态」那一行进不去签名详情
+
+弹窗里每行点一下是「复制这一行的值」，唯独「签名状态」那行是进签名详情页：
+
+```java
+// 之前
+if ("签名状态".equals(rowsF.get(i)[0])) { showSignDialog(f); }
+else { copyToClipboard(rowsF.get(i)[0], rowsF.get(i)[1]); }
+```
+
+翻译之后这一行叫 `Signature`，`"签名状态".equals("Signature")` 恒为 false ——
+**英文环境下点签名状态只会把「已签名」两个字复制走**，功能静默失效。
+它比 v2.20.0 那处分派 bug 更隐蔽：那处是「四选一全错」，点下去会有明显异常行为；
+这里只是「少了一个入口」，用户大概会以为自己记错了。
+
+修法是让比较的两边**同源**：
+
+```java
+if (s(R.string.apk_row_sign).equals(rowsF.get(i)[0])) { ... }
+```
+
+左边是当前语言的资源值，右边是 `ApkUtil` 用**同一个** `R.string.apk_row_sign` 生成的标签。
+两边永远相等，与语言无关。这比「按下标判断第几行」更稳 —— 行序将来要是变了，
+下标方案会指错行，同源比较不会。
+
+### 纯逻辑类要拿 Context，只能加参数
+
+`ApkUtil.rows(File, PackageManager)` 原本不碰 Context，只输出中文标签。
+现在要按语言取标签，就得传：
+
+```java
+ApkUtil.rows(f, pm, ctx)              // + Context
+ApkUtil.packStatus(apk, ctx)          // 私有，跟着改
+FileKind.apkFileRole(f, ctx)          // + Context
+ApkCompareUtil.compare(a, b, pm, ctx) // 透传给 rows
+```
+
+`deps_check.sh` 仍然通过：`apk/` `fs/` 引用 `com.hex91.file.R` 不构成反向依赖
+（R 是编译期生成的资源索引，不是某个包里的类），依赖方向依旧是
+`core → utils → fs/apk → ui/controller → MainActivity`。
+
+`ApkCompareUtil` 拿标签当 Map key 做两侧对齐 —— 只要两侧用同一种语言，
+标签就一致，对齐不受影响。
+
+### aapt2 不认裸单引号
+
+英文里写 `pick 'Sign APK' from the menu`，aapt2 直接报
+`unescaped apostrophe in string` / `not a valid string`，整个 `values-en` 编译失败。
+AAPT 里单引号是**语法字符**（用来包住含空白的值），必须写 `\'`：
+
+```xml
+<string name="role_signed">Signed copy (separate file made by \'Sign APK\' with the built-in key)</string>
+```
+
+中文侧没有这个问题，所以只有英文文件会炸 —— 翻译完记得先单独跑一次 `aapt2 compile`。
+
+### 验证
+
+- `build.sh` → **BUILD OK，v217 / 2.24.0**，APK **13,177,552 字节**，
+  md5 `cfb331a0…`（连续第四个版本字节数一模一样：31 条资源 + 一处方法签名改动，
+  增量仍然没跨过 4096 对齐块。`unzip -l` 看 `classes.dex` 时间戳已变，
+  md5 也已变——**判断「有没有改」只能靠 md5，大小会骗人**）
+- `aapt2 dump resources` 核对 `string/apk_row_sign` 有 `()` / `(en)` 两变体、
+  `string/role_bak` 两侧都是完整句子
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 **854 条 100% 一致**（引用 818 键 / 22 文件）/ 动作号 55
+- QUICK **66/66**
+
+### 真机可先看这几处
+
+1. 长按 APK →「APK 信息」→ 点「签名状态」那行，是否进签名详情（英文环境下尤其要看）
+2. 同一弹窗底部四个按钮：功能 / 查看 / 安装 / 关闭
+3. `_bak.apk`、`_signed.apk` 打开信息，第一行下面是否有「文件角色」及其说明
+
+---
+
 ## v2.23.0（versionCode 216）—— F-14/7：文件操作宫格菜单 i18n
 
 长按文件 / 文件夹弹出的那个双列宫格，是日常点得最多的一个界面：普通对象 38 项、

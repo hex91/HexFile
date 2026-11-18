@@ -891,4 +891,36 @@
     <string name="mops_apk_unpack">Unpack APK</string>
     <string name="mops_sign_custom">Sign with custom key</string>
     <string name="mops_rm_sign">Remove signature</string>
+    <!-- ===== APK info dialog / file roles (F-14) ===== -->
+    <string name="apk_row_pkg">Package</string>
+    <string name="apk_row_version">Version</string>
+    <string name="apk_row_size">APK size</string>
+    <string name="apk_row_sign">Signature</string>
+    <string name="apk_row_unsigned">Not signed</string>
+    <string name="apk_row_detecting">Detecting…</string>
+    <string name="apk_row_cert_count">Certificates</string>
+    <string name="apk_row_shell">Packing</string>
+    <string name="apk_row_shell_found">Possibly packed (%1$s)</string>
+    <string name="apk_row_shell_none">No packing detected</string>
+    <string name="apk_row_target">Target SDK</string>
+    <string name="apk_row_min">Min SDK</string>
+    <string name="apk_row_perm_count">Permissions</string>
+    <string name="apk_row_installed">Installed</string>
+    <string name="apk_row_data_dir">Data dir</string>
+    <string name="apk_row_first_install">First install</string>
+    <string name="apk_row_last_update">Last update</string>
+    <string name="apk_row_path">APK path</string>
+    <string name="apk_row_role">File role</string>
+    <string name="apk_row_note">Note</string>
+    <string name="apk_info_unparsable">(unparsable)</string>
+    <string name="apk_info_bad_sign">Unsigned or invalid</string>
+    <string name="apk_info_bad_desc">Changed without re-signing, so the system cannot parse it. You can still browse, edit, or pick \'Sign APK\' from the long-press menu</string>
+    <string name="apk_info_btn_features">Actions</string>
+    <string name="apk_info_btn_view">Browse</string>
+    <string name="apk_info_btn_install">Install</string>
+    <string name="role_edit">Edited copy (produced by v1.66.7 and earlier; newer versions write back to the original APK)</string>
+    <string name="role_bak">Original backup (made on the first edit, keeps the vendor signature, used for restore; do not install)</string>
+    <string name="role_signed">Signed copy (separate file made by \'Sign APK\' with the built-in key)</string>
+    <string name="role_csigned">Custom-signed copy (separate file signed with your own keystore)</string>
+    <string name="role_unsigned">Unsigned copy (signature files stripped, contents otherwise identical)</string>
 </resources>
