@@ -23,6 +23,25 @@ public final class DragPlan {
 
     private DragPlan() {}
 
+    /**
+     * 拖放被拦的原因码 —— v2.30.0（F-14/14）。
+     *
+     * <p>原本这里是 {@code String reason}，直接塞中文句子给调用方念。文案要出英文时，
+     * 纯 Java 层既拿不到 Context 也不该拿，所以改成码；文案在 ui 层按资源取。</p>
+     */
+    public enum Block {
+        /** 可以放 */
+        NONE,
+        /** 目标是压缩包内或不是文件夹 */
+        TARGET_INVALID,
+        /** 没有可拖动的项 */
+        NO_ITEMS,
+        /** 不能把文件夹拖进它自己（含子目录）里面 */
+        SELF,
+        /** 已经在目标目录里 */
+        SAME
+    }
+
     /** 判定结果 */
     public static final class Check {
         /** 真正需要传输的项（已剔除同目录/自我嵌套的） */
@@ -31,14 +50,14 @@ public final class DragPlan {
         public final int skippedSame;
         /** 因为「目标在源目录内部」被跳过的项数 */
         public final int skippedSelf;
-        /** 不可拖放时的人话原因；可拖放为空串 */
-        public final String reason;
+        /** 不可拖放时的原因码；可拖放为 {@link Block#NONE} */
+        public final Block block;
 
-        Check(List<File> items, int skippedSame, int skippedSelf, String reason) {
+        Check(List<File> items, int skippedSame, int skippedSelf, Block block) {
             this.items = items;
             this.skippedSame = skippedSame;
             this.skippedSelf = skippedSelf;
-            this.reason = reason;
+            this.block = block;
         }
 
         public boolean ok() {
@@ -59,9 +78,9 @@ public final class DragPlan {
      */
     public static Check check(List<File> srcs, File dstDir) {
         if (dstDir == null || !dstDir.isDirectory())
-            return new Check(new ArrayList<File>(), 0, 0, "目标是压缩包内或不是文件夹，不能作为拖放目标");
+            return new Check(new ArrayList<File>(), 0, 0, Block.TARGET_INVALID);
         if (srcs == null || srcs.isEmpty())
-            return new Check(new ArrayList<File>(), 0, 0, "没有可拖动的项");
+            return new Check(new ArrayList<File>(), 0, 0, Block.NO_ITEMS);
 
         List<File> out = new ArrayList<File>(srcs.size());
         int same = 0, self = 0;
@@ -79,13 +98,13 @@ public final class DragPlan {
             out.add(s);
         }
 
-        String reason = "";
+        Block block = Block.NONE;
         if (out.isEmpty()) {
-            if (self > 0) reason = "不能把文件夹拖进它自己里面";
-            else if (same > 0) reason = "已经在目标目录里了";
-            else reason = "没有可拖动的项";
+            if (self > 0) block = Block.SELF;
+            else if (same > 0) block = Block.SAME;
+            else block = Block.NO_ITEMS;
         }
-        return new Check(out, same, self, reason);
+        return new Check(out, same, self, block);
     }
 
     /** child 是否在 parent 内部（不含相等）。 */
@@ -101,11 +120,5 @@ public final class DragPlan {
     public static boolean samePath(File a, File b) {
         if (a == null || b == null) return false;
         return a.getAbsolutePath().equals(b.getAbsolutePath());
-    }
-
-    /** 对话框标题，如「3 项 → Download」 */
-    public static String title(Check ck, File dstDir) {
-        String n = ck.items.size() == 1 ? ck.items.get(0).getName() : ck.items.size() + " 项";
-        return n + " → " + (dstDir == null ? "?" : dstDir.getName());
     }
 }

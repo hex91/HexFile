@@ -75,7 +75,7 @@ public class DragPlanTest {
         DragPlan.Check c3 = DragPlan.check(l(a1), srcdir);
         ok(!c3.ok(), "拖回原目录：不可放");
         eq(1, c3.skippedSame, "拖回原目录：计一次跳过");
-        ok(c3.reason.contains("已经在目标目录"), "拖回原目录：原因文案");
+        ok(c3.block == DragPlan.Block.SAME, "拖回原目录：原因码 SAME");
 
         // 混合：一个在目标目录里，一个不在 → 只传后者
         DragPlan.Check c4 = DragPlan.check(l(b1, a1), other);
@@ -88,7 +88,7 @@ public class DragPlanTest {
         DragPlan.Check c5 = DragPlan.check(l(a2), a2);
         ok(!c5.ok(), "文件夹拖进它自己：不可放");
         eq(1, c5.skippedSelf, "文件夹拖进它自己：计一次自我嵌套");
-        ok(c5.reason.contains("它自己"), "自我嵌套：原因文案");
+        ok(c5.block == DragPlan.Block.SELF, "自我嵌套：原因码 SELF");
 
         DragPlan.Check c6 = DragPlan.check(l(a2), inner);
         ok(!c6.ok(), "文件夹拖进自己的子目录：不可放（否则递归爆炸）");
@@ -101,7 +101,7 @@ public class DragPlanTest {
         // ---------------------------------------------------------- 非法目标
         DragPlan.Check c8 = DragPlan.check(l(a1), null);
         ok(!c8.ok(), "目标为 null（压缩包模式）：不可放");
-        ok(c8.reason.contains("压缩包") || c8.reason.contains("文件夹"), "null 目标：原因文案");
+        ok(c8.block == DragPlan.Block.TARGET_INVALID, "null 目标：原因码 TARGET_INVALID");
 
         DragPlan.Check c9 = DragPlan.check(l(a1), b1);
         ok(!c9.ok(), "目标是文件而不是目录：不可放");
@@ -112,7 +112,7 @@ public class DragPlanTest {
         // ---------------------------------------------------------- 空源
         DragPlan.Check c11 = DragPlan.check(l(), other);
         ok(!c11.ok(), "空源：不可放");
-        ok(c11.reason.contains("没有可拖动"), "空源：原因文案");
+        ok(c11.block == DragPlan.Block.NO_ITEMS, "空源：原因码 NO_ITEMS");
 
         // 源文件已被删除 → 静默忽略，不能抛异常
         DragPlan.Check c12 = DragPlan.check(l(new File(root, "ghost.txt")), other);
@@ -134,9 +134,10 @@ public class DragPlanTest {
 
         // ---------------------------------------------------------- 标题
         DragPlan.Check c13 = DragPlan.check(l(a1), other);
-        ok(DragPlan.title(c13, other).contains("a.txt"), "单项标题含文件名");
-        ok(DragPlan.title(c13, other).contains("B"), "单项标题含目标目录名");
-        ok(DragPlan.title(c2, other).contains("2 项"), "多项标题含数量");
+        // v2.30.0：title() 已移出逻辑层（文案在 ui），这里只保证判定结果给出正确的数据
+        ok(c13.items.size() == 1 && c13.items.get(0).getName().equals("a.txt"),
+                "单项：清单里就是那个文件");
+        ok(c2.items.size() == 2, "多项：清单数量正确");
 
         System.out.println("-----------------------------------------");
         System.out.println("pass=" + pass + " fail=" + fail);

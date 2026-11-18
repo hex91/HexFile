@@ -39,6 +39,61 @@ import javax.crypto.spec.SecretKeySpec;
  */
 public class FileCrypt {
 
+    /**
+     * 加解密失败的原因码 —— v2.31.0（F-14/16）。
+     *
+     * <p>原来这里直接 {@code throw new IllegalArgumentException("源文件不存在")}，
+     * UI 侧 {@code toast(e.getMessage())} 把中文原样抛给用户。文案要出英文时，
+     * fs 层不该知道语言，所以改成码；{@link #getMessage()} 只留 ASCII 诊断串（日志/单测）。</p>
+     *
+     * <p>仍 {@code extends IllegalArgumentException}：调用方原有的 catch 一行不改。</p>
+     */
+    public enum Code {
+        /** 待加密的源文件不存在 */
+        SRC_MISSING,
+        /** 密码为空 */
+        PW_EMPTY,
+        /** 待解密的 .enc 不存在 */
+        ENC_MISSING,
+        /** 头部/流长度对不上（文件被截断） */
+        CORRUPT,
+        /** 魔数不符：不是本工具的加密文件 */
+        NOT_OURS,
+        /** 版本号不认识（参数：实际版本字节，用 num() 取） */
+        BAD_VERSION,
+        /** 头部记录的长度/迭代次数不合理 */
+        BAD_HEADER
+    }
+
+    /** 带错误码的失败（仍是 {@link IllegalArgumentException}，既有 catch 不受影响） */
+    public static class Fail extends IllegalArgumentException {
+        public final Code code;
+        private final byte[] raw;
+
+        Fail(Code code, int... raw) {
+            super(diagnose(code, raw));
+            this.code = code;
+            this.raw = raw.length == 0 ? null : new byte[]{(byte) raw[0]};
+        }
+
+        /** 参数里的第一个整数（目前只有 BAD_VERSION 用） */
+        public int num() {
+            return raw == null ? -1 : raw[0] & 0xFF;
+        }
+    }
+
+    private static String diagnose(Code code, int[] raw) {
+        switch (code) {
+            case SRC_MISSING: return "crypt: source file missing";
+            case PW_EMPTY: return "crypt: empty password";
+            case ENC_MISSING: return "crypt: .enc file missing";
+            case CORRUPT: return "crypt: truncated or corrupt container";
+            case NOT_OURS: return "crypt: bad magic";
+            case BAD_VERSION: return "crypt: unsupported version " + (raw.length > 0 ? raw[0] : -1);
+            default: return "crypt: malformed header";
+        }
+    }
+
     /** 进度回调（done/total 为字节数；在后台线程调用，UI 更新由调用方切换） */
     public interface Progress {
         void on(long done, long total);
@@ -60,8 +115,8 @@ public class FileCrypt {
     }
 
     public static File encrypt(File file, String password, Progress cb) throws Exception {
-        if (file == null || !file.isFile()) throw new IllegalArgumentException("源文件不存在");
-        if (password == null || password.isEmpty()) throw new IllegalArgumentException("密码为空");
+        if (file == null || !file.isFile()) throw new Fail(Code.SRC_MISSING);
+        if (password == null || password.isEmpty()) throw new Fail(Code.PW_EMPTY);
         byte[] salt = new byte[SALT_LEN];
         new SecureRandom().nextBytes(salt);
         byte[] iv = new byte[16];
@@ -129,34 +184,34 @@ public class FileCrypt {
     }
 
     public static File decrypt(File file, String password, Progress cb) throws Exception {
-        if (file == null || !file.isFile()) throw new IllegalArgumentException("加密文件不存在");
+        if (file == null || !file.isFile()) throw new Fail(Code.ENC_MISSING);
         long total = file.length();
         // 头部
         byte[] hb = new byte[6 + 1 + 4 + 1];
         InputStream hin = new FileInputStream(file);
         try {
-            if (readFully(hin, hb) != hb.length) throw new IllegalArgumentException("文件已损坏");
+            if (readFully(hin, hb) != hb.length) throw new Fail(Code.CORRUPT);
         } finally {
             try { hin.close(); } catch (IOException ignored) {}
         }
         if (!new String(hb, 0, 6, "US-ASCII").equals(MAGIC)) {
-            throw new IllegalArgumentException("不是本工具加密的文件（魔数不符）");
+            throw new Fail(Code.NOT_OURS);
         }
-        if (hb[6] != VERSION) throw new IllegalArgumentException("不支持的版本: " + hb[6]);
+        if (hb[6] != VERSION) throw new Fail(Code.BAD_VERSION, hb[6]);
         int iter = ((hb[7] & 0xFF) << 24) | ((hb[8] & 0xFF) << 16)
                 | ((hb[9] & 0xFF) << 8) | (hb[10] & 0xFF);
         int sl = hb[11] & 0xFF;
         int headerLen = hb.length + sl + 16;
         long ctLen = total - headerLen - 32;
-        if (ctLen < 0 || iter <= 0) throw new IllegalArgumentException("文件长度异常");
+        if (ctLen < 0 || iter <= 0) throw new Fail(Code.BAD_HEADER);
         byte[] salt = new byte[sl];
         byte[] iv = new byte[16];
         InputStream hi2 = new FileInputStream(file);
         try {
             long skip = hb.length;
             while (skip > 0) skip -= hi2.skip(skip);
-            if (readFully(hi2, salt) != sl) throw new IllegalArgumentException("文件已损坏");
-            if (readFully(hi2, iv) != 16) throw new IllegalArgumentException("文件已损坏");
+            if (readFully(hi2, salt) != sl) throw new Fail(Code.CORRUPT);
+            if (readFully(hi2, iv) != 16) throw new Fail(Code.CORRUPT);
         } finally {
             try { hi2.close(); } catch (IOException ignored) {}
         }
@@ -178,16 +233,16 @@ public class FileCrypt {
             long left = ctLen, done = 0;
             while (left > 0) {
                 int n = vi.read(buf, 0, (int) Math.min(buf.length, left));
-                if (n < 0) throw new IllegalArgumentException("文件已损坏");
+                if (n < 0) throw new Fail(Code.CORRUPT);
                 mac.update(buf, 0, n);
                 left -= n;
                 done += n;
                 if (cb != null) cb.on(done / 2, total);   // 验 MAC 占一半进度
             }
             byte[] tag = new byte[32];
-            if (readFully(vi, tag) != 32) throw new IllegalArgumentException("文件已损坏");
+            if (readFully(vi, tag) != 32) throw new Fail(Code.CORRUPT);
             if (!MessageDigest.isEqual(mac.doFinal(), tag)) {
-                throw new SecurityException("密码错误或文件被篡改");
+                throw new SecurityException("crypt: bad password or tampered data");
             }
         } finally {
             try { vi.close(); } catch (IOException ignored) {}

@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：1141 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：1352 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,68 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.30.0（versionCode 223）—— F-14/14~17：主页面剩余文案清零（两处逻辑层文案回归）
+
+`MainActivity` 是最后一个大块：迁完菜单、多选栏、宫格菜单之后还剩 **268 处**
+中文字面量，散在粘贴/拖放、媒体转封装、播放地址、签名文件、Dex 动作、图片批处理、
+哈希校验、APK 解包打包、共存、分割合并、Zstd、对比、smali 编译、分享、重命名、
+加解密、删除、书签、最近打开、外部导入、退出与权限提示里。这一版全部清零 ——
+现在整个文件里带中文的行只剩注释。
+
+顺带抓到两处**逻辑层直接产文案**，都是同一类问题，按 v2.26.0 的办法改成「码 + 数据参数」：
+
+| 位置 | 原来 | 现在 |
+| --- | --- | --- |
+| `utils/DragPlan` | `Check.reason`（中文句子）、`title()`（拼「N 项 → 目录」） | `Check.block`（`Block` 5 个码）+ ui 侧 `dragText()/dragItemDesc()` |
+| `fs/FileCrypt` | 9 处 `IllegalArgumentException("源文件不存在")` 之类，UI 直接 `toast(e.getMessage())` | `FileCrypt.Fail extends IllegalArgumentException` + `Code` 7 个码，ui 侧 `cryptError()` |
+
+两处都**保留原异常类型**（`IllegalArgumentException`），调用方与测试里的 catch 一行没改；
+`getMessage()` 退化成 ASCII 诊断串（`"crypt: bad magic"`），只给日志与单测看。
+
+`DragPlan.title()` 直接删掉而不是改成接收 `Context`：它的产物是「标题文案」，
+放在 utils 层只能是中文或需要语言参数，移到 ui 后逻辑层只剩判定。
+
+### 拼接串整句化
+
+老代码里典型的「拼一半」都按完整句拆键，译文不用再猜后缀接在谁后面：
+
+```java
+// 以前：三段后缀拼接，翻译必然错位
+String msg = "成功 " + fok + " 张";
+if (ffail > 0) msg += "，失败 " + ffail + " 张" + (ferr != null ? "（" + ferr + "）" : "");
+toast(msg + "，输出在同目录（_p 后缀）");
+```
+
+现在是三条完整句子（全成 / 全成…有失败 / 全成…有失败并带原因）按状态选一条，
+`getString` 一次成型。
+
+`runCrypt(verb, …)` 原来拿「加密 / 解密」当中文参数，用来拼「已加密: xxx」
+「加密失败: xxx」「加密文件」三种文案 —— 典型「文案当参数」。改成只传
+`boolean enc`，三处文案各自按键取。
+
+### 复用与拆键的判断
+
+- **复用**：`HEX 查看` / `属性` / `Dex 编辑器++` / `导入签名管理` / `签名信息` /
+  `Dex 修复` / `计算哈希` / `图片处理` / `APK 解包` / `去除签名` / `重命名` /
+  `播放链接` 等，宫格菜单（`mops_*`）里同一动作的已有键直接吃过来，不新建。
+- **拆开**：`APK 对比：另一个目录` 这种四选一的标题（apk/普通 × 目录/文件）写成
+  四个完整键，而不是 `(apkMode ? a : b) + "：另一个" + (dir ? c : d)` —— 后者
+  在英文里语序不同，拼不出来。
+
+### 验证
+
+- `MainActivity` 中文字面量 **268 → 0**（`grep -P '"[^"]*[\x{4e00}-\x{9fa5}]'` 只剩注释行）
+- `DragPlan` / `FileCrypt` 代码里 0 处中文字面量；`DragPlanTest` 断言从「文案含某词」
+  改为「码是 SAME / SELF / NO_ITEMS / TARGET_INVALID」
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 **1352 条 100% 一致**
+  （引用 1309 键 / 27 文件）/ 动作号 55
+- `QUICK=1` **97 通过 / 0 失败 / 4 跳过**
+- `aapt2 dump resources` 抽查 `main_enc_msg`（`%1$s` 用两次）/ `main_split_info`（6 个参数）/
+  `drag_msg_skip` / `crypt_bad_version`：中英双变体齐全
+- APK **13,259,472 B**，md5 `6f83295c…`
 
 ---
 

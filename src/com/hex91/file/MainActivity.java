@@ -567,24 +567,25 @@ public class MainActivity extends BaseActivity {
         FileClipboard cb = FileClipboard.get();
         cb.prune();
         if (cb.isEmpty()) {
-            toast("剪贴板是空的：长按文件选「复制(剪贴板)」或「剪切(剪贴板)」");
+            toast(s(R.string.main_paste_clip_empty));
             updatePasteButton();
             return;
         }
-        if (p.archiveFile != null) { toast("正在浏览压缩包，先返回到目录再粘贴"); return; }
-        if (p.dir == null || !p.dir.isDirectory()) { toast("当前没有可写入的目录"); return; }
+        if (p.archiveFile != null) { toast(s(R.string.main_paste_in_arch)); return; }
+        if (p.dir == null || !p.dir.isDirectory()) { toast(s(R.string.main_paste_no_dir)); return; }
         final List<File> srcs = cb.alive();
         if (srcs.isEmpty()) {
             cb.clear();
             updatePasteButton();
-            toast("剪贴板里的文件已不存在");
+            toast(s(R.string.main_paste_gone));
             return;
         }
         final boolean move = cb.isMove();
         FileTaskEngine.get().submit(move ? FileTask.MOVE : FileTask.COPY, srcs, p.dir);
         cb.clearIfMove();                 // 剪切是一次性的；复制可以连着粘多处
         updatePasteButton();
-        toast((move ? "开始移动 " : "开始复制 ") + srcs.size() + " 项 → " + p.dir.getName());
+        toast(move ? s(R.string.main_move_started, srcs.size(), p.dir.getName())
+                : s(R.string.main_copy_started, srcs.size(), p.dir.getName()));
     }
 
     // ============================================================ 文件任务条（v1.77.0）
@@ -1088,10 +1089,33 @@ public class MainActivity extends BaseActivity {
         p.pull.setBackgroundColor((c & 0x00FFFFFF) | 0x22000000);
     }
 
+    /** 拖放被拦的原因码 → 文案（F-14/14：DragPlan 只给 {@link DragPlan.Block}） */
+    private String dragText(DragPlan.Block b) {
+        switch (b) {
+            case TARGET_INVALID:
+                return s(R.string.drag_block_invalid);
+            case NO_ITEMS:
+                return s(R.string.drag_block_no_items);
+            case SELF:
+                return s(R.string.drag_block_self);
+            case SAME:
+                return s(R.string.drag_block_same);
+            default:
+                return "";
+        }
+    }
+
+    /** 拖放标题里的「被拖的东西」：单项给文件名，多项给数量 */
+    private String dragItemDesc(DragPlan.Check ck) {
+        return ck.items.size() == 1
+                ? ck.items.get(0).getName()
+                : s(R.string.drag_items_n, ck.items.size());
+    }
+
     /** 落到某个窗格：先判定，再让用户选复制还是移动 */
     private boolean handleDrop(final Pane dst) {
         if (dst.archiveFile != null) {
-            toast("暂不支持拖进压缩包，请用长按菜单里的「复制到对面压缩包」");
+            toast(s(R.string.drag_arch_readonly));
             return false;
         }
         final DragPlan.Check ck = DragPlan.check(new ArrayList<File>(mDragSrcs), dst.dir);
@@ -1099,26 +1123,29 @@ public class MainActivity extends BaseActivity {
             // 拖回自己这一栏（长按后没动就松手）不算失败：接着会弹长按菜单，
             // 这时再弹一句「已经在目标目录里了」纯属噪音
             boolean backHome = dst == mDragFrom && ck.skippedSame > 0 && ck.skippedSelf == 0;
-            if (!backHome && !ck.reason.isEmpty()) toast(ck.reason);
+            if (!backHome && ck.block != DragPlan.Block.NONE) toast(dragText(ck.block));
             return false;
         }
         final File dir = dst.dir;
-        String extra = "";
-        if (ck.skippedSame > 0) extra = "\n（" + ck.skippedSame + " 项已在目标目录，已跳过）";
+        String msg = ck.skippedSame > 0
+                ? s(R.string.drag_msg_skip, dir.getPath(), ck.skippedSame)
+                : s(R.string.drag_msg, dir.getPath());
         new HfDialogBuilder(this)
-                .setTitle("拖放 " + DragPlan.title(ck, dir))
-                .setMessage("目标：" + dir.getPath() + extra)
-                .setPositiveButton("复制到此处", new android.content.DialogInterface.OnClickListener() {
+                .setTitle(s(R.string.drag_title, dragItemDesc(ck), dir.getName()))
+                .setMessage(msg)
+                .setPositiveButton(R.string.drag_copy_here,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         submitDrop(ck.items, dir, false);
                     }
                 })
-                .setNeutralButton("移动到此处", new android.content.DialogInterface.OnClickListener() {
+                .setNeutralButton(R.string.drag_move_here,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         submitDrop(ck.items, dir, true);
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
         return true;
     }
@@ -1127,7 +1154,8 @@ public class MainActivity extends BaseActivity {
     private void submitDrop(List<File> items, File dir, boolean move) {
         if (items.isEmpty()) return;
         FileTaskEngine.get().submit(move ? FileTask.MOVE : FileTask.COPY, items, dir);
-        toast("已加入" + (move ? "移动" : "复制") + "队列 " + items.size() + " 项 →\n" + dir.getPath());
+        toast(move ? s(R.string.main_queued_move, items.size(), dir.getPath())
+                : s(R.string.main_queued_copy, items.size(), dir.getPath()));
         if (selPanel != null) exitSelection(selPanel);
     }
 
@@ -1390,8 +1418,8 @@ public class MainActivity extends BaseActivity {
                 if (it.isArchUp() || it.upEntry) continue;
                 if (it.isDir()) dirs++; else files++;
             }
-            headerStats.setText("文件夹: " + dirs + "  文件: " + files
-                    + "  [" + (p.archive != null ? p.archive.format() : "ZIP") + "]");
+            headerStats.setText(s(R.string.main_stat_counts_arch, dirs, files,
+                    p.archive != null ? p.archive.format() : "ZIP"));
             return;
         }
         if (p.dir == null) return;
@@ -1401,20 +1429,21 @@ public class MainActivity extends BaseActivity {
         // 会以为读错了目录，甚至照着旧数字做删除。读取期间明确写「读取中…」，
         // 顺便跳过下面的 usageOf（那是一次 statfs，读目录期间没必要连着做）。
         if (p.adapter.isLoading()) {
-            headerStats.setText("读取中…");
+            headerStats.setText(R.string.main_stat_loading);
             return;
         }
         // v1.96.0：计数由 DirReader 读目录时顺带算好（原来这里每次再遍历一遍适配器，
         // 几千项时和读目录叠加成双份开销，而且读目录已经不在主线程了，这里也不能留 O(n)）
         int dirs = p.dirCount, files = p.fileCount;
-        String store = "";
         // v1.72.0：根目录/系统分区统一按 /data 统计，避免顶层显示「987M/987M」
         long[] u = StorageStat.usageOf(p.dir.getAbsolutePath());
         if (u != null) {
             long used = u[0] > u[1] ? u[0] - u[1] : 0;
-            store = "  储存: " + FileOps.formatSize(used) + "/" + FileOps.formatSize(u[0]);
+            headerStats.setText(s(R.string.main_stat_counts_store, dirs, files,
+                    FileOps.formatSize(used), FileOps.formatSize(u[0])));
+        } else {
+            headerStats.setText(s(R.string.main_stat_counts, dirs, files));
         }
-        headerStats.setText("文件夹: " + dirs + "  文件: " + files + store);
     }
 
     private void onFileClick(File f) {
@@ -1450,7 +1479,7 @@ public class MainActivity extends BaseActivity {
         } else if (!OpenWith.open(this, f)) {
             // v1.77.0：以前所有不认识的文件一律弹属性，视频/Office 在文件管理器里等于打不开。
             // 先交给系统找应用；真没应用能处理时才退回属性页，并说清原因。
-            toast("没有可打开该类型的应用");
+            toast(s(R.string.main_no_app_for_type));
             showProps(f);
         }
     }
@@ -1486,7 +1515,7 @@ public class MainActivity extends BaseActivity {
         int pad = (int) (16 * den);
         box.setPadding(pad, (int) (6 * den), pad, 0);
         final TextView tv = new TextView(this);
-        tv.setText("正在读取索引…");
+        tv.setText(R.string.main_reading_index);
         tv.setTextSize(13);
         final ProgressBar pb = new ProgressBar(this, null,
                 android.R.attr.progressBarStyleHorizontal);
@@ -1497,7 +1526,7 @@ public class MainActivity extends BaseActivity {
         box.addView(tv);
         box.addView(pb, plp);
         final AlertDialog dlg = new HfDialogBuilder(this)
-                .setTitle("转为 MP4（只换容器，不重新编码）")
+                .setTitle(R.string.main_remux_title)
                 .setView(box)
                 .create();
         dlg.setCanceledOnTouchOutside(false);
@@ -1515,9 +1544,9 @@ public class MainActivity extends BaseActivity {
                                     if (total > 0) {
                                         int pct = (int) Math.min(100, us * 100 / total);
                                         pb.setProgress(pct);
-                                        tv.setText("已处理 " + sec + " 秒 · " + pct + "%");
+                                        tv.setText(s(R.string.main_remux_progress, sec, pct));
                                     } else {
-                                        tv.setText("已处理 " + sec + " 秒");
+                                        tv.setText(s(R.string.main_remux_progress_bare, sec));
                                     }
                                 }
                             });
@@ -1529,8 +1558,8 @@ public class MainActivity extends BaseActivity {
                             if (isFinishing()) return;
                             dlg.dismiss();
                             refreshAll();
-                            toast("已生成 " + dst.getName() + "（"
-                                    + (fs / 1024 / 1024) + " MB）");
+                            toast(s(R.string.main_remux_done, dst.getName(),
+                                    fs / 1024 / 1024));
                         }
                     });
                 } catch (final Throwable t) {
@@ -1539,7 +1568,8 @@ public class MainActivity extends BaseActivity {
                             if (isFinishing()) return;
                             dlg.dismiss();
                             String m = t.getMessage();
-                            toast("转换失败：" + (m == null ? t.getClass().getSimpleName() : m));
+                            toast(s(R.string.main_remux_fail,
+                                    m == null ? t.getClass().getSimpleName() : m));
                         }
                     });
                 }
@@ -1560,7 +1590,7 @@ public class MainActivity extends BaseActivity {
      */
     private void promptPlayUrl() {
         final android.widget.EditText input = new android.widget.EditText(this);
-        input.setHint("http(s)://…/index.m3u8  或  rtsp://…");
+        input.setHint(R.string.main_url_hint);
         input.setTextSize(13);
         input.setSingleLine(true);
         try {
@@ -1578,27 +1608,27 @@ public class MainActivity extends BaseActivity {
         input.setPadding(pad, pad / 2, pad, pad / 2);
 
         new HfDialogBuilder(this)
-                .setTitle("播放网络地址 / 串流")
+                .setTitle(R.string.main_url_title)
                 .setView(input)
-                .setMessage("支持 m3u8（HLS）、mpd（DASH）、rtsp 摄像头、直链视频。\n"
-                        + "m3u8 会自动解析多档画质，可在播放器里锁定。")
-                .setPositiveButton("播放", new android.content.DialogInterface.OnClickListener() {
+                .setMessage(R.string.main_url_msg)
+                .setPositiveButton(R.string.mops_play,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         String raw = input.getText() == null ? "" : input.getText().toString();
                         String url = StreamUrl.normalize(raw);
                         if (url == null) {
-                            toast("不是可播放的地址（只支持 http/https/rtsp）");
+                            toast(s(R.string.main_url_bad));
                             return;
                         }
                         if (StreamUrl.kindOf(url) == StreamUrl.KIND_RTMP) {
-                            toast("RTMP 需要额外解码扩展，当前版本请改用 m3u8/HLS 地址");
+                            toast(s(R.string.main_url_rtmp));
                             return;
                         }
                         startActivity(new Intent(MainActivity.this, VideoPlayerActivity.class)
                                 .putExtra(VideoPlayerActivity.EXTRA_URL, url));
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -1616,7 +1646,8 @@ public class MainActivity extends BaseActivity {
 
     /** 点击签名文件：导入签名管理 / 查看签名信息 / HEX 查看 / 属性 */
     private void showKeystoreAction(final File f) {
-        final String[] ops = {"导入到签名管理", "查看签名信息", "HEX 查看", "属性"};
+        final String[] ops = {s(R.string.mops_ks_import), s(R.string.mops_sign_info),
+                s(R.string.mops_hex), s(R.string.mops_props)};
         new HfDialogBuilder(this)
                 .setTitle(f.getName())
                 .setItems(ops, new android.content.DialogInterface.OnClickListener() {
@@ -1627,14 +1658,14 @@ public class MainActivity extends BaseActivity {
                         else showProps(f);
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     /** 读取文件字节并弹出「导入签名」对话框（复用签名管理里的同一套流程） */
     private void importKeystore(final File f) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("读取签名文件…");
+        pd.setMessage(s(R.string.main_ks_reading));
         pd.setCancelable(false);
         pd.show();
         new Thread(new Runnable() {
@@ -1648,11 +1679,11 @@ public class MainActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         pd.dismiss();
-                        if (fb == null) { toast("读取失败: " + fe); return; }
+                        if (fb == null) { toast(s(R.string.ksm_err_read, fe)); return; }
                         SignKeyManagerActivity.promptImport(MainActivity.this, fb, f.getName(),
                                 new Runnable() {
                                     public void run() {
-                                        toast("已导入签名管理（抽屉 → 签名管理 可查看）");
+                                        toast(s(R.string.main_ks_imported));
                                     }
                                 });
                     }
@@ -1664,18 +1695,19 @@ public class MainActivity extends BaseActivity {
     /** 查看签名文件信息（keystore 一定需要密码，先问再解析） */
     private void showKeystoreInfo(final File f) {
         final EditText et = new EditText(this);
-        et.setHint("keystore 密码");
+        et.setHint(R.string.main_ks_pw_hint);
         et.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         new HfDialogBuilder(this)
-                .setTitle("查看签名信息")
-                .setMessage(f.getName() + "\n\n请输入 keystore 密码（私钥密码不同时留空即可）")
+                .setTitle(R.string.mops_sign_info)
+                .setMessage(s(R.string.main_ks_info_msg, f.getName()))
                 .setView(et)
-                .setPositiveButton("解析", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.main_ks_parse,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         signFlow.parseKeystore(f, et.getText().toString());
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -1687,7 +1719,8 @@ public class MainActivity extends BaseActivity {
 
     /** 点击 .dex → 操作菜单（Dex 编辑器++ / 反编译 / HEX / 属性） */
     private void askDexAction(final File f) {
-        String[] ops = {"Dex 编辑器++", "反编译为 smali", "HEX 查看", "属性"};
+        String[] ops = {s(R.string.mops_dexpp), s(R.string.mops_smali_decompile),
+                s(R.string.mops_hex), s(R.string.mops_props)};
         new HfDialogBuilder(this)
                 .setTitle(f.getName())
                 .setItems(ops, new android.content.DialogInterface.OnClickListener() {
@@ -1711,19 +1744,19 @@ public class MainActivity extends BaseActivity {
         int dot = name.lastIndexOf('.');
         if (dot > 0) name = name.substring(0, dot);
         final File outDir = new File(WorkDir.base(), "Smali/" + name);
-        toast("反编译中…（大型 dex 可能需要较长时间）");
+        toast(s(R.string.main_baksmali_running));
         new Thread(new Runnable() {
             public void run() {
                 final String err = SmaliTool.decompile(dexFile, outDir, 4);
                 runOnUiThread(new Runnable() {
                     public void run() {
                         if (err == null) {
-                            toast("已生成 smali →\n" + outDir.getPath());
+                            toast(s(R.string.main_baksmali_done, outDir.getPath()));
                             Intent i = new Intent(MainActivity.this, MainActivity.class);
                             i.putExtra("dir", outDir.getAbsolutePath());
                             startActivity(i);   // singleTop：onNewIntent 跳转目录
                         } else {
-                            toast("反编译失败: " + err);
+                            toast(s(R.string.main_decompile_fail, err));
                         }
                     }
                 });
@@ -1735,10 +1768,10 @@ public class MainActivity extends BaseActivity {
 
     /** 写归档前校验：RAR 弹「转存为 ZIP」，其余只读格式给说明；返回 false 中止操作 */
     private boolean ensureArchiveWritable(File f) {
-        if (f == null) { toast("对面窗格未打开压缩包"); return false; }
+        if (f == null) { toast(s(R.string.main_arch_none)); return false; }
         if (ArchiveWrite.canWrite(f)) return true;
         if (f.getName().toLowerCase().endsWith(".rar")) { askRarToZip(f); return false; }
-        toast("该格式暂不支持写入；可先「提取到对面目录」再操作");
+        toast(s(R.string.main_arch_readonly));
         return false;
     }
 
@@ -1748,22 +1781,21 @@ public class MainActivity extends BaseActivity {
      */
     private void askRarToZip(final File rar) {
         new HfDialogBuilder(this)
-                .setTitle("RAR 为只读格式")
-                .setMessage("RAR 是专有压缩格式，任何通用库都无法写入（MT 亦只读）。\n\n"
-                        + "可立即转存为同名 ZIP（内容不变），之后即可像文件夹一样增删改。\n"
-                        + "转存文件将生成在: " + rar.getParent())
-                .setPositiveButton("转存为 ZIP", new android.content.DialogInterface.OnClickListener() {
+                .setTitle(R.string.main_rar_title)
+                .setMessage(s(R.string.main_rar_msg, rar.getParent()))
+                .setPositiveButton(R.string.main_rar_conv,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         convertRarToZip(rar);
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     /** RAR → 同名 ZIP：解压到缓存再打包（带密码的 RAR 用会话密码解密） */
     private void convertRarToZip(final File rar) {
-        toast("转存中…");
+        toast(s(R.string.main_rar_converting));
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -1775,10 +1807,10 @@ public class MainActivity extends BaseActivity {
                     ArchiveUtil.Archive a = ArchiveUtil.open(rar, ArchivePasswords.get(rar));
                     try { a.extractAll(tmp); } finally { a.close(); }
                     File[] kids = tmp.listFiles();
-                    if (kids == null || kids.length == 0) throw new RuntimeException("RAR 内容为空");
-                    if (!out.createNewFile() && !out.isFile()) throw new RuntimeException("无法创建 " + out.getName());
+                    if (kids == null || kids.length == 0) throw new RuntimeException("rar empty");
+                    if (!out.createNewFile() && !out.isFile()) throw new RuntimeException("cannot create " + out.getName());
                     if (!ZipUtil.createZip(out, java.util.Arrays.asList(kids))) {
-                        throw new RuntimeException("打包 ZIP 失败");
+                        throw new RuntimeException("zip create failed");
                     }
                 } catch (Throwable t) {
                     if (t instanceof ArchiveUtil.NeedsPasswordException
@@ -1796,8 +1828,8 @@ public class MainActivity extends BaseActivity {
                 final File fout = out.isFile() ? out : null;
                 runOnUiThread(new Runnable() {
                     public void run() {
-                        if (ferr != null) { toast("转存失败: " + ferr); return; }
-                        toast("已转存 → " + fout.getName() + "（RAR 原件保留）");
+                        if (ferr != null) { toast(s(R.string.main_rar_fail, ferr)); return; }
+                        toast(s(R.string.main_rar_done, fout.getName()));
                         refreshAll();
                     }
                 });
@@ -1837,13 +1869,13 @@ public class MainActivity extends BaseActivity {
 
     /** Dex 属性（v1.66.5）：版本 + String/Type/Proto/Field/Method/Class 数量 + 校验状态 */
     private void showDexProps(final File dex) {
-        toast("正在读取…");
+        toast(s(R.string.main_reading));
         new Thread(new Runnable() {
             public void run() {
                 final String info = SmaliTool.dexProps(dex);
                 runOnUiThread(new Runnable() {
                     public void run() {
-                        if (info == null) { toast("不是有效的 DEX 文件"); return; }
+                        if (info == null) { toast(s(R.string.main_dex_invalid)); return; }
                         showTextDialog(dex.getName(), info);
                     }
                 });
@@ -1863,21 +1895,19 @@ public class MainActivity extends BaseActivity {
         new HfDialogBuilder(this)
                 .setTitle(title)
                 .setView(tv)
-                .setPositiveButton("确定", null)
+                .setPositiveButton(R.string.common_confirm, null)
                 .show();
     }
 
     /** Dex 修复（v1.66.5，独立 dex）：确认 → 备份 → 修头部校验 → dexlib2 验证 */
     private void askDexFix(final File dex) {
         new HfDialogBuilder(this)
-                .setTitle("Dex 修复")
-                .setMessage("将修正 file_size / header_size / endian_tag，重算 SHA-1 签名与 "
-                        + "Adler-32 校验和，并用 dexlib2 实际解析验证。\n"
-                        + "首次修改自动备份 <名>_bak.dex。适用于头部被十六进制编辑改坏的 "
-                        + "dex；结构级损坏（索引区/数据区错乱）无法恢复。")
-                .setPositiveButton("修复", new android.content.DialogInterface.OnClickListener() {
+                .setTitle(R.string.mops_dex_fix)
+                .setMessage(R.string.main_dexfix_msg)
+                .setPositiveButton(R.string.main_dexfix_do,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
-                        toast("修复中…");
+                        toast(s(R.string.main_dexfix_running));
                         new Thread(new Runnable() {
                             public void run() {
                                 String err = null;
@@ -1888,8 +1918,9 @@ public class MainActivity extends BaseActivity {
                                 } catch (Throwable t) {
                                     err = t.getClass().getSimpleName() + ": " + t.getMessage();
                                 }
-                                final String msg = err != null ? "修复失败: " + err
-                                        : "修复完成:\n" + rep;
+                                final String msg = err != null
+                                        ? s(R.string.main_dexfix_fail, err)
+                                        : s(R.string.main_dexfix_done, rep);
                                 runOnUiThread(new Runnable() {
                                     public void run() {
                                         toast(msg);
@@ -1900,14 +1931,14 @@ public class MainActivity extends BaseActivity {
                         }, "dex-fix").start();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
 
     /** 用内置密钥给 APK 签名：产物 同名_signed.apk（长按菜单「APK 签名」与修改后询问共用） */
     private void signApkBuiltin(final File apk) {
-        toast("签名中…");
+        toast(s(R.string.main_signing));
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -1928,8 +1959,8 @@ public class MainActivity extends BaseActivity {
                 final File fout = out;
                 runOnUiThread(new Runnable() {
                     public void run() {
-                        toast(ferr != null ? "签名失败: " + ferr
-                                : "已签名 → " + fout.getName());
+                        toast(ferr != null ? s(R.string.main_sign_fail, ferr)
+                                : s(R.string.main_signed, fout.getName()));
                         refreshAll();
                     }
                 });
@@ -1959,7 +1990,7 @@ public class MainActivity extends BaseActivity {
 
     /** 内置密钥原地签名（v1.66.1 引入，v1.66.8 起为修改 APK 的默认签名方式）：临时文件 → 原子覆盖 */
     private void signApkInPlace(final File apk) {
-        toast("签名中…");
+        toast(s(R.string.main_signing));
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -1982,8 +2013,8 @@ public class MainActivity extends BaseActivity {
                 final String ferr = err;
                 runOnUiThread(new Runnable() {
                     public void run() {
-                        toast(ferr != null ? "签名失败: " + ferr
-                                : "已签名（原地覆盖）→ " + apk.getName());
+                        toast(ferr != null ? s(R.string.main_sign_fail, ferr)
+                                : s(R.string.main_signed_inplace, apk.getName()));
                         refreshAll();
                     }
                 });
@@ -2001,7 +2032,7 @@ public class MainActivity extends BaseActivity {
         box.setPadding(p16, (int) (8 * den), p16, 0);
 
         TextView l1 = new TextView(this);
-        l1.setText("缩放（%）");
+        l1.setText(R.string.main_img_scale);
         l1.setTextSize(13);
         l1.setTextColor(ThemeManager.textSub(this));
         box.addView(l1);
@@ -2011,7 +2042,7 @@ public class MainActivity extends BaseActivity {
         box.addView(scale);
 
         TextView l2 = new TextView(this);
-        l2.setText("输出格式");
+        l2.setText(R.string.main_img_format);
         l2.setTextSize(13);
         l2.setTextColor(ThemeManager.textSub(this));
         l2.setPadding(0, (int) (8 * den), 0, 0);
@@ -2023,7 +2054,7 @@ public class MainActivity extends BaseActivity {
         box.addView(fmt);
 
         TextView l3 = new TextView(this);
-        l3.setText("质量（JPEG/WebP 有效，1-100）");
+        l3.setText(R.string.main_img_quality);
         l3.setTextSize(13);
         l3.setTextColor(ThemeManager.textSub(this));
         l3.setPadding(0, (int) (8 * den), 0, 0);
@@ -2034,19 +2065,20 @@ public class MainActivity extends BaseActivity {
         box.addView(quality);
 
         TextView l4 = new TextView(this);
-        l4.setText("水印文字（留空不加）");
+        l4.setText(R.string.main_img_watermark);
         l4.setTextSize(13);
         l4.setTextColor(ThemeManager.textSub(this));
         l4.setPadding(0, (int) (8 * den), 0, 0);
         box.addView(l4);
         final EditText wm = new EditText(this);
-        wm.setHint("如：© HexFile");
+        wm.setHint(R.string.main_img_wm_hint);
         box.addView(wm);
 
         new HfDialogBuilder(this)
-                .setTitle("图片处理（" + paths.size() + " 张）")
+                .setTitle(s(R.string.main_img_title, paths.size()))
                 .setView(box)
-                .setPositiveButton("开始处理", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.main_img_start,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         ImageBatchUtil.Options o = new ImageBatchUtil.Options();
                         try {
@@ -2063,13 +2095,13 @@ public class MainActivity extends BaseActivity {
                         doImageBatch(paths, o);
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     private void doImageBatch(final java.util.List<String> paths, final ImageBatchUtil.Options o) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setTitle("图片处理");
+        pd.setTitle(R.string.mops_img_batch);
         pd.setMax(paths.size());
         pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
         pd.setCancelable(false);
@@ -2094,9 +2126,12 @@ public class MainActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         pd.dismiss();
-                        String msg = "成功 " + fok + " 张";
-                        if (ffail > 0) msg += "，失败 " + ffail + " 张" + (ferr != null ? "（" + ferr + "）" : "");
-                        toast(msg + "，输出在同目录（_p 后缀）");
+                        String msg = ffail == 0
+                                ? s(R.string.main_img_done, fok)
+                                : (ferr != null
+                                        ? s(R.string.main_img_done_err, fok, ffail, ferr)
+                                        : s(R.string.main_img_done_fail, fok, ffail));
+                        toast(msg);
                         refreshAll();
                     }
                 });
@@ -2106,7 +2141,8 @@ public class MainActivity extends BaseActivity {
 
     /** 哈希校验（v1.59）：MD5/SHA1/SHA256 流式计算 + 期望值比对 + 点击复制 */
     private void doHash(final File f) {
-        final ProgressDialog pd = ProgressDialog.show(this, "计算哈希", f.getName(), true, false);
+        final ProgressDialog pd = ProgressDialog.show(this, s(R.string.mops_hash),
+                f.getName(), true, false);
         new Thread(new Runnable() {
             String md5, sha1, sha256, err;
             public void run() {
@@ -2118,7 +2154,7 @@ public class MainActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         pd.dismiss();
-                        if (err != null) { toast("计算失败: " + err); return; }
+                        if (err != null) { toast(s(R.string.main_hash_fail, err)); return; }
                         showHashDialog(f, md5, sha1, sha256);
                     }
                 });
@@ -2141,13 +2177,13 @@ public class MainActivity extends BaseActivity {
         hashRowClick(sha256v, sha256);
 
         TextView l = new TextView(this);
-        l.setText("比对值（可选，粘贴期望的哈希）");
+        l.setText(R.string.main_hash_expect);
         l.setTextSize(13);
         l.setTextColor(ThemeManager.textSub(this));
         l.setPadding(0, (int) (10 * den), 0, 0);
         box.addView(l);
         final EditText expect = new EditText(this);
-        expect.setHint("粘贴 MD5/SHA1/SHA256 任一值");
+        expect.setHint(R.string.main_hash_hint);
         expect.setTextSize(13);
         box.addView(expect);
         final TextView result = new TextView(this);
@@ -2162,15 +2198,15 @@ public class MainActivity extends BaseActivity {
                 String v = s.toString().trim().toLowerCase();
                 if (v.isEmpty()) { result.setText(""); return; }
                 boolean m = v.equals(md5) || v.equals(sha1) || v.equals(sha256);
-                result.setText(m ? "✅ 校验一致" : "❌ 不匹配");
+                result.setText(m ? R.string.main_hash_match : R.string.main_hash_mismatch);
                 result.setTextColor(m ? 0xFF2E7D32 : 0xFFC62828);
             }
         });
 
         new HfDialogBuilder(this)
-                .setTitle("文件校验 · " + f.getName() + "（点击哈希值可复制）")
+                .setTitle(s(R.string.main_hash_dlg_title, f.getName()))
                 .setView(box)
-                .setPositiveButton("关闭", null)
+                .setPositiveButton(R.string.common_close, null)
                 .show();
     }
 
@@ -2192,7 +2228,7 @@ public class MainActivity extends BaseActivity {
                 android.content.ClipboardManager cm = (android.content.ClipboardManager)
                         getSystemService(CLIPBOARD_SERVICE);
                 cm.setPrimaryClip(android.content.ClipData.newPlainText("hash", value));
-                toast("已复制 " + value);
+                toast(s(R.string.main_copied, value));
             }
         });
     }
@@ -2206,7 +2242,7 @@ public class MainActivity extends BaseActivity {
             if (ImageBatchUtil.supported(it.file.getName().toLowerCase()))
                 imgs.add(it.file.getAbsolutePath());
         }
-        if (imgs.isEmpty()) { toast("选中的项里没有可处理的图片"); return; }
+        if (imgs.isEmpty()) { toast(s(R.string.main_img_none)); return; }
         askImageBatch(imgs);
     }
 
@@ -2214,10 +2250,11 @@ public class MainActivity extends BaseActivity {
     private void doApkUnpack(final File apk) {
         File out = new File(apk.getParentFile(), FileKind.stripExt(apk.getName()) + "_unpack");
         if (out.exists()) {
-            toast("目录已存在: " + out.getName());
+            toast(s(R.string.main_dir_exists, out.getName()));
             return;
         }
-        final ProgressDialog pd = ProgressDialog.show(this, "APK 解包", apk.getName(), true, false);
+        final ProgressDialog pd = ProgressDialog.show(this,
+                s(R.string.mops_apk_unpack), apk.getName(), true, false);
         new Thread(new Runnable() {
             public void run() {
                 String err = null, ok = null;
@@ -2230,9 +2267,9 @@ public class MainActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         pd.dismiss();
-                        if (ferr != null) toast("解包失败: " + ferr);
+                        if (ferr != null) toast(s(R.string.main_unpack_fail, ferr));
                         else {
-                            toast("已解包 → " + out.getName() + "（" + fok + "）");
+                            toast(s(R.string.main_unpack_done, out.getName(), fok));
                             refreshAll();
                         }
                     }
@@ -2244,7 +2281,8 @@ public class MainActivity extends BaseActivity {
     /** 去除签名（v1.57）：重写包并剥离 META-INF 签名文件 → <name>_unsigned.apk */
     private void doRemoveSignature(final File apk) {
         File out = new File(apk.getParentFile(), FileKind.stripExt(apk.getName()) + "_unsigned.apk");
-        final ProgressDialog pd = ProgressDialog.show(this, "去除签名", apk.getName(), true, false);
+        final ProgressDialog pd = ProgressDialog.show(this,
+                s(R.string.mops_rm_sign), apk.getName(), true, false);
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -2259,9 +2297,9 @@ public class MainActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         pd.dismiss();
-                        if (ferr != null) toast("失败: " + ferr);
+                        if (ferr != null) toast(s(R.string.main_fail, ferr));
                         else {
-                            toast("未签名包 → " + fout.getName());
+                            toast(s(R.string.main_unsigned_out, fout.getName()));
                             refreshAll();
                         }
                     }
@@ -2273,7 +2311,8 @@ public class MainActivity extends BaseActivity {
     /** 解包目录 → 打包为 APK（v1.57）：产物未签名，询问是否用内置密钥直接签 */
     private void doApkPack(final File dir) {
         File out = new File(dir.getParentFile(), FileKind.stripExt(dir.getName()) + "_packed.apk");
-        final ProgressDialog pd = ProgressDialog.show(this, "打包 APK", dir.getName(), true, false);
+        final ProgressDialog pd = ProgressDialog.show(this,
+                s(R.string.mops_apk_pack), dir.getName(), true, false);
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -2287,23 +2326,24 @@ public class MainActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         pd.dismiss();
-                        if (ferr != null) { toast("打包失败: " + ferr); return; }
+                        if (ferr != null) { toast(s(R.string.main_pack_fail, ferr)); return; }
                         refreshAll();
                         new HfDialogBuilder(MainActivity.this)
-                                .setTitle("打包完成")
-                                .setMessage(fout.getName()
-                                        + "（未签名）\n\n选择签名方式：")
-                                .setPositiveButton("内置密钥签名", new android.content.DialogInterface.OnClickListener() {
+                                .setTitle(R.string.main_pack_done_title)
+                                .setMessage(s(R.string.main_pack_done_msg, fout.getName()))
+                                .setPositiveButton(R.string.main_sign_builtin,
+                                        new android.content.DialogInterface.OnClickListener() {
                                     public void onClick(android.content.DialogInterface d, int w) {
                                         signApkBuiltin(fout);
                                     }
                                 })
-                                .setNeutralButton("自定义密钥签名", new android.content.DialogInterface.OnClickListener() {
+                                .setNeutralButton(R.string.mops_sign_custom,
+                                        new android.content.DialogInterface.OnClickListener() {
                                     public void onClick(android.content.DialogInterface d, int w) {
                                         signFlow.askCustomSign(fout, false);
                                     }
                                 })
-                                .setNegativeButton("先不签", null)
+                                .setNegativeButton(R.string.main_sign_skip, null)
                                 .show();
                     }
                 });
@@ -2436,7 +2476,7 @@ public class MainActivity extends BaseActivity {
 
     /** 签名详情页：后台读取 apksig 结果，逐行展示，点击行复制 */
     private void showSignDialog(final File f) {
-        toast("正在读取签名信息…");
+        toast(s(R.string.main_sign_reading));
         new Thread(new Runnable() {
             public void run() {
                 final List<String[]> rows = ApkSignCheck.detailRows(f);
@@ -2452,9 +2492,9 @@ public class MainActivity extends BaseActivity {
                             }
                         });
                         new HfDialogBuilder(MainActivity.this)
-                                .setTitle("签名详情: " + f.getName())
+                                .setTitle(s(R.string.main_sign_detail_title, f.getName()))
                                 .setView(lv)
-                                .setPositiveButton("关闭", null)
+                                .setPositiveButton(R.string.common_close, null)
                                 .show();
                     }
                 });
@@ -2471,7 +2511,7 @@ public class MainActivity extends BaseActivity {
             i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(i);
         } catch (Exception e) {
-            toast("安装失败: " + e.getMessage());
+            toast(s(R.string.main_install_fail, e.getMessage()));
         }
     }
 
@@ -2605,10 +2645,10 @@ public class MainActivity extends BaseActivity {
     /** 复制文本到剪贴板并提示 */
     private void copyToClipboard(String label, String value) {
         ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        if (cm == null) { toast("剪贴板不可用"); return; }
+        if (cm == null) { toast(s(R.string.main_clip_unavailable)); return; }
         cm.setPrimaryClip(ClipData.newPlainText(label, value));
         String show = value.length() > 40 ? value.substring(0, 40) + "…" : value;
-        toast("已复制「" + label + "」: " + show);
+        toast(s(R.string.main_copied_label, label, show));
     }
 
     /** 属性/权限/哈希弹窗：实现在 PropsController（v2.0.0 O-15 刀6） */
@@ -2787,12 +2827,12 @@ public class MainActivity extends BaseActivity {
             case A_COPY:
                 FileTaskEngine.get().submit(FileTask.COPY,
                         java.util.Collections.singletonList(f), dst.dir);
-                toast("已加入复制队列");
+                toast(s(R.string.main_queued_copy_one));
                 break;
             case A_MOVE:
                 FileTaskEngine.get().submit(FileTask.MOVE,
                         java.util.Collections.singletonList(f), dst.dir);
-                toast("已加入移动队列");
+                toast(s(R.string.main_queued_move_one));
                 break;
             case A_REN: askRename(f); break;
             case A_ZIP: archiveAdd.askCompress(f); break;
@@ -2915,12 +2955,12 @@ public class MainActivity extends BaseActivity {
                 openLanShare(f);
                 break;
             case A_OPEN:                              // 打开方式（v1.77.0）
-                if (!OpenWith.open(this, f)) toast("没有可打开该类型的应用");
+                if (!OpenWith.open(this, f)) toast(s(R.string.main_no_app_for_type));
                 break;
             case A_CLIP_C:                              // 复制到剪贴板（v1.78.0）
                 FileClipboard.get().put(java.util.Collections.singletonList(f), false);
                 updatePasteButton();
-                toast("已复制 " + f.getName() + "，翻到目标目录点底部 📋 粘贴");
+                toast(s(R.string.main_clip_copy_done, f.getName()));
                 break;
             case A_PLAYER:                              // v1.91.0：内置播放器
                 openVideo(f);
@@ -2935,10 +2975,10 @@ public class MainActivity extends BaseActivity {
             case A_CLIP_M:                              // 剪切到剪贴板
                 FileClipboard.get().put(java.util.Collections.singletonList(f), true);
                 updatePasteButton();
-                toast("已剪切 " + f.getName() + "，粘贴后原位置的文件会消失");
+                toast(s(R.string.main_clip_cut_done, f.getName()));
                 break;
             default:                              // O-25：没有 case 的号不再静默
-                toast("未知动作 " + act);
+                toast(s(R.string.main_unknown_action, act));
                 break;
         }
     }
@@ -2946,7 +2986,7 @@ public class MainActivity extends BaseActivity {
     /** 带着文件进入局域网快传页：对方设备在雷达上点一下就发 */
     private void openLanShare(File f) {
         if (f == null || !f.isFile()) {
-            toast("只能传文件（文件夹请先打包）");
+            toast(s(R.string.main_lan_files_only));
             return;
         }
         try {
@@ -2954,7 +2994,7 @@ public class MainActivity extends BaseActivity {
             i.putExtra(LanShareActivity.EXTRA_PATH, f.getAbsolutePath());
             startActivity(i);
         } catch (Throwable t) {
-            toast("打开失败: " + t.getMessage());
+            toast(s(R.string.main_open_fail, t.getMessage()));
         }
     }
 
@@ -2963,7 +3003,7 @@ public class MainActivity extends BaseActivity {
     /** APK 共存入口：后台读原包名 → 弹框输入新包名 → 改清单重签名 */
     private void askApkClone(final File f) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("读取包名…");
+        pd.setMessage(s(R.string.main_clone_reading));
         pd.setCancelable(false);
         pd.show();
         new Thread(new Runnable() {
@@ -2975,7 +3015,7 @@ public class MainActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         pd.dismiss();
-                        if (e != null) { toast("读取失败: " + e); return; }
+                        if (e != null) { toast(s(R.string.ksm_err_read, e)); return; }
                         askApkCloneInput(f, pkg);
                     }
                 });
@@ -2989,28 +3029,28 @@ public class MainActivity extends BaseActivity {
         et.setInputType(InputType.TYPE_CLASS_TEXT);
         et.setSingleLine(true);
         new HfDialogBuilder(this)
-                .setTitle("APK 共存")
-                .setMessage("原包名: " + (oldPkg == null ? "(读取失败，请手动输入)" : oldPkg)
-                        + "\n\n输入新包名（provider authorities 等引用将同步替换，"
-                        + "生成后自动 v1+v2+v3 重签名，可与原版并存安装）")
+                .setTitle(R.string.mops_apk_clone)
+                .setMessage(s(R.string.main_clone_msg, oldPkg == null
+                        ? s(R.string.main_clone_old_unknown) : oldPkg))
                 .setView(et)
-                .setPositiveButton("生成", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.main_clone_generate,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         String np = et.getText().toString().trim();
                         if (!np.matches("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")) {
-                            toast("包名格式不合法（如 com.example.app）");
+                            toast(s(R.string.main_clone_bad_pkg));
                             return;
                         }
                         doApkClone(f, np);
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     private void doApkClone(final File f, final String newPkg) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("生成共存 APK …");
+        pd.setMessage(s(R.string.main_clone_working));
         pd.setCancelable(false);
         pd.show();
         String base = f.getName();
@@ -3035,8 +3075,8 @@ public class MainActivity extends BaseActivity {
                     ApkSignerTool.sign(ksIn, ApkSignerTool.KEY_PASSWORD, unsigned, out, 21);
                     ksIn.close();
                     FileOps.deleteRecursive(tmp);
-                    info = "原包名: " + r.oldPkg + "\n新包名: " + r.newPkg
-                            + "\n共修改 " + r.replaced + " 处引用\n\n输出: " + out.getAbsolutePath();
+                    info = s(R.string.main_clone_info, r.oldPkg, r.newPkg,
+                            r.replaced, out.getAbsolutePath());
                 } catch (Throwable t) {
                     err = t.getClass().getSimpleName() + ": " + t.getMessage();
                     Throwable c = t.getCause();
@@ -3051,14 +3091,14 @@ public class MainActivity extends BaseActivity {
                         pd.dismiss();
                         if (e != null) {
                             new HfDialogBuilder(MainActivity.this)
-                                    .setTitle("共存失败").setMessage(e)
-                                    .setPositiveButton("知道了", null).show();
+                                    .setTitle(R.string.main_clone_fail_title).setMessage(e)
+                                    .setPositiveButton(R.string.common_got_it, null).show();
                         } else {
                             refreshAll();
                             new HfDialogBuilder(MainActivity.this)
-                                    .setTitle("共存 APK 已生成")
+                                    .setTitle(R.string.main_clone_done_title)
                                     .setMessage(ok)
-                                    .setPositiveButton("关闭", null)
+                                    .setPositiveButton(R.string.common_close, null)
                                     .show();
                         }
                     }
@@ -3078,8 +3118,7 @@ public class MainActivity extends BaseActivity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         TextView msg = new TextView(this);
-        msg.setText("文件大小: " + FileOps.formatSize(f.length())
-                + "\n分卷输出到当前目录（<名>.001 起），原文件保留；合并时长按任一分卷选「文件合并」。");
+        msg.setText(s(R.string.main_split_size_msg, FileOps.formatSize(f.length())));
         msg.setTextSize(14);
         msg.setTextColor(ThemeManager.textSub(this));
         msg.setPadding((int) (20 * den), (int) (14 * den), (int) (20 * den), (int) (4 * den));
@@ -3088,7 +3127,7 @@ public class MainActivity extends BaseActivity {
         for (int i = 0; i < labels.length; i++) {
             final int idx = i;
             TextView tv = new TextView(this);
-            tv.setText("每卷 " + labels[i]);
+            tv.setText(s(R.string.main_split_per_vol, labels[i]));
             tv.setTextSize(16);
             tv.setTextColor(ThemeManager.accent(this));
             tv.setPadding((int) (28 * den), (int) (12 * den), (int) (20 * den), (int) (12 * den));
@@ -3101,14 +3140,14 @@ public class MainActivity extends BaseActivity {
             box.addView(tv);
         }
         holder[0] = new HfDialogBuilder(this)
-                .setTitle("文件分割")
+                .setTitle(R.string.mops_split)
                 .setView(box)
                 .show();
     }
 
     private void doSplit(final File f, final long chunkSize, final String chunkLabel) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("分割中（每卷 " + chunkLabel + "）…");
+        pd.setMessage(s(R.string.main_split_working, chunkLabel));
         pd.setCancelable(false);
         pd.show();
         new Thread(new Runnable() {
@@ -3116,10 +3155,9 @@ public class MainActivity extends BaseActivity {
                 String err = null, info = null;
                 try {
                     java.util.List<File> parts = FileSplit.split(f, f.getParentFile(), chunkSize);
-                    info = "共 " + parts.size() + " 卷（每卷 " + chunkLabel + "）\n"
-                            + parts.get(0).getName() + " ~ " + parts.get(parts.size() - 1).getName() + "\n"
-                            + "另生成清单 " + f.getName() + ".parts（合并时用于缺卷校验）\n"
-                            + "目录: " + f.getParent();
+                    info = s(R.string.main_split_info, parts.size(), chunkLabel,
+                            parts.get(0).getName(), parts.get(parts.size() - 1).getName(),
+                            f.getName(), f.getParent());
                 } catch (Throwable t) {
                     err = t.getMessage() != null ? t.getMessage()
                             : t.getClass().getSimpleName();
@@ -3129,13 +3167,13 @@ public class MainActivity extends BaseActivity {
                     public void run() {
                         pd.dismiss();
                         if (e != null) {
-                            toast("分割失败: " + e);
+                            toast(s(R.string.main_split_fail, e));
                         } else {
                             refreshAll();
                             new HfDialogBuilder(MainActivity.this)
-                                    .setTitle("分割完成")
+                                    .setTitle(R.string.main_split_done_title)
                                     .setMessage(ok)
-                                    .setPositiveButton("关闭", null)
+                                    .setPositiveButton(R.string.common_close, null)
                                     .show();
                         }
                     }
@@ -3147,7 +3185,7 @@ public class MainActivity extends BaseActivity {
     /** 分卷合并：长按任一分卷（惯例 .001）→ 按连续序号拼回原文件，输出到分卷所在目录 */
     private void doMerge(final File f) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("合并分卷…");
+        pd.setMessage(s(R.string.main_merge_working));
         pd.setCancelable(false);
         pd.show();
         new Thread(new Runnable() {
@@ -3155,8 +3193,8 @@ public class MainActivity extends BaseActivity {
                 String err = null, info = null;
                 try {
                     FileSplit.MergeResult r = FileSplit.merge(f, f.getParentFile());
-                    info = "共合并 " + r.parts + " 卷\n输出: " + r.output.getAbsolutePath()
-                            + "\n大小: " + FileOps.formatSize(r.bytes);
+                    info = s(R.string.main_merge_info, r.parts,
+                            r.output.getAbsolutePath(), FileOps.formatSize(r.bytes));
                 } catch (Throwable t) {
                     err = t.getMessage() != null ? t.getMessage()
                             : t.getClass().getSimpleName();
@@ -3167,14 +3205,14 @@ public class MainActivity extends BaseActivity {
                         pd.dismiss();
                         if (e != null) {
                             new HfDialogBuilder(MainActivity.this)
-                                    .setTitle("合并失败").setMessage(e)
-                                    .setPositiveButton("知道了", null).show();
+                                    .setTitle(R.string.main_merge_fail_title).setMessage(e)
+                                    .setPositiveButton(R.string.common_got_it, null).show();
                         } else {
                             refreshAll();
                             new HfDialogBuilder(MainActivity.this)
-                                    .setTitle("合并完成")
+                                    .setTitle(R.string.main_merge_done_title)
                                     .setMessage(ok)
-                                    .setPositiveButton("关闭", null)
+                                    .setPositiveButton(R.string.common_close, null)
                                     .show();
                         }
                     }
@@ -3197,7 +3235,7 @@ public class MainActivity extends BaseActivity {
             use = out;
         }
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("Zstd 压缩中…");
+        pd.setMessage(s(R.string.main_zstd_c_working));
         pd.setCancelable(false);
         pd.show();
         new Thread(new Runnable() {
@@ -3207,10 +3245,10 @@ public class MainActivity extends BaseActivity {
                     java.util.List<File> srcs = new java.util.ArrayList<File>();
                     srcs.add(f);
                     ZstdUtil.compress(use, srcs, ZstdUtil.DEFAULT_LEVEL);
-                    info = "输出: " + use.getAbsolutePath() + "\n大小: "
-                            + FileOps.formatSize(use.length()) + "（原 "
-                            + FileOps.formatSize(f.isFile() ? f.length() : dirSize(f)) + "）\n"
-                            + "级别: " + ZstdUtil.DEFAULT_LEVEL;
+                    info = s(R.string.main_zstd_info, use.getAbsolutePath(),
+                            FileOps.formatSize(use.length()),
+                            FileOps.formatSize(f.isFile() ? f.length() : dirSize(f)),
+                            ZstdUtil.DEFAULT_LEVEL);
                 } catch (Throwable t) {
                     err = t.getMessage() != null ? t.getMessage()
                             : t.getClass().getSimpleName();
@@ -3220,10 +3258,10 @@ public class MainActivity extends BaseActivity {
                     public void run() {
                         pd.dismiss();
                         if (e != null) {
-                            toast("Zstd 压缩失败: " + e);
+                            toast(s(R.string.main_zstd_c_fail, e));
                         } else {
                             refreshAll();
-                            toast("Zstd 压缩完成 → " + use.getName());
+                            toast(s(R.string.main_zstd_c_done, use.getName()));
                         }
                     }
                 });
@@ -3241,7 +3279,7 @@ public class MainActivity extends BaseActivity {
         }
         final File outDir = t;
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("Zstd 解压中…");
+        pd.setMessage(s(R.string.main_zstd_x_working));
         pd.setCancelable(false);
         pd.show();
         new Thread(new Runnable() {
@@ -3249,7 +3287,7 @@ public class MainActivity extends BaseActivity {
                 String err = null, info = null;
                 try {
                     File r = ZstdUtil.extract(f, outDir);
-                    info = "已解压 → " + r.getAbsolutePath();
+                    info = s(R.string.main_zstd_x_info, r.getAbsolutePath());
                 } catch (Throwable t) {
                     err = t.getMessage() != null ? t.getMessage()
                             : t.getClass().getSimpleName();
@@ -3259,7 +3297,7 @@ public class MainActivity extends BaseActivity {
                     public void run() {
                         pd.dismiss();
                         if (e != null) {
-                            toast("Zstd 解压失败: " + e);
+                            toast(s(R.string.main_zstd_x_fail, e));
                         } else {
                             refreshAll();
                             toast(ok);
@@ -3306,7 +3344,7 @@ public class MainActivity extends BaseActivity {
         } catch (Throwable ignored) {}
         final EditText et = new EditText(this);
         et.setText(prefill);
-        et.setHint("对面窗格路径，或手动输入");
+        et.setHint(R.string.main_cmp_path_hint);
         et.setTextSize(13);
         // 目录对比可选内容校验（mtime 不同但内容相同时不误判；慢）
         LinearLayout box = new LinearLayout(this);
@@ -3320,13 +3358,13 @@ public class MainActivity extends BaseActivity {
         LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
         Button bBrowse = new Button(this);
-        bBrowse.setText("浏览…");
+        bBrowse.setText(R.string.main_cmp_browse);
         UiDecor.barButton(bBrowse, this, UiDecor.KIND_SOFT, 12f);
         bBrowse.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { pickComparePath(f, startDir, et); }
         });
         Button bOther = new Button(this);
-        bOther.setText("对面窗格");
+        bOther.setText(R.string.main_cmp_other_pane);
         UiDecor.barButton(bOther, this, UiDecor.KIND_SOFT, 12f);
         UiDecor.gap(bOther, this, 4f);
         bOther.setOnClickListener(new View.OnClickListener() {
@@ -3336,26 +3374,31 @@ public class MainActivity extends BaseActivity {
         row.addView(bOther, blp);
         box.addView(row);
         final android.widget.CheckBox cbHash = new android.widget.CheckBox(this);
-        cbHash.setText("内容校验（SHA-256，慢但准）");
+        cbHash.setText(R.string.main_cmp_hash);
         cbHash.setTextSize(13);
         cbHash.setPadding(0, (int) (8 * getResources().getDisplayMetrics().density), 0, 0);
         box.addView(cbHash);
         new HfDialogBuilder(this)
-                .setTitle((apkMode ? "APK 对比" : "对比") + "：另一个"
-                        + (f.isDirectory() ? "目录" : "文件"))
-                .setMessage("A: " + f.getAbsolutePath()
-                        + (prefill.isEmpty() ? "" : "\n默认: " + prefill))
+                .setTitle(apkMode
+                        ? (f.isDirectory() ? R.string.main_cmp_title_apk_dir
+                                : R.string.main_cmp_title_apk_file)
+                        : (f.isDirectory() ? R.string.main_cmp_title_dir
+                                : R.string.main_cmp_title_file))
+                .setMessage(prefill.isEmpty()
+                        ? s(R.string.main_cmp_msg_a, f.getAbsolutePath())
+                        : s(R.string.main_cmp_msg_a_default, f.getAbsolutePath(), prefill))
                 .setView(box)
-                .setPositiveButton("开始对比", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.main_cmp_start,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         String p = et.getText().toString().trim();
-                        if (p.isEmpty()) { toast("请输入对比目标路径"); return; }
+                        if (p.isEmpty()) { toast(s(R.string.main_cmp_need_path)); return; }
                         File b = new File(p);
-                        if (!b.exists()) { toast("路径不存在: " + p); return; }
+                        if (!b.exists()) { toast(s(R.string.main_cmp_not_exist, p)); return; }
                         startCompare(f, b, apkMode, cbHash.isChecked());
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -3395,7 +3438,7 @@ public class MainActivity extends BaseActivity {
                                 + (k.isDirectory() ? "/" : ""));
                     }
                 }
-                holder[0].setTitle("选择对比目标\n" + d.getAbsolutePath());
+                holder[0].setTitle(s(R.string.main_cmp_pick_title_path, d.getAbsolutePath()));
             }
         };
         lv.setOnItemClickListener(new AdapterView.OnItemClickListener() {
@@ -3407,7 +3450,7 @@ public class MainActivity extends BaseActivity {
                 if (idx < 0 || idx >= curKids.size()) return;
                 File k = curKids.get(idx);
                 if (k.isDirectory()) { cur[0] = k; refresh[0].run(); return; }
-                if (f.isDirectory()) { toast("A 是目录，请选目录（或点「选此目录」）"); return; }
+                if (f.isDirectory()) { toast(s(R.string.main_cmp_pick_dir_a)); return; }
                 et.setText(k.getAbsolutePath());
                 holder[0].dismiss();
             }
@@ -3417,14 +3460,15 @@ public class MainActivity extends BaseActivity {
         wrap.addView(lv, new android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
         holder[0] = new HfDialogBuilder(this)
-                .setTitle("选择对比目标")
+                .setTitle(R.string.main_cmp_pick_title)
                 .setView(wrap)
-                .setPositiveButton("选此目录", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.main_cmp_pick_ok,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         et.setText(cur[0].getAbsolutePath());
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .create();
         holder[0].show();
         refresh[0].run();
@@ -3443,7 +3487,7 @@ public class MainActivity extends BaseActivity {
             // 任一像文本且都能按文本解码 → 文本对比；否则哈希对比
             mode = textA ? CompareActivity.MODE_TEXT : CompareActivity.MODE_HASH;
         } else {
-            toast("无法对比：目录只能与目录比，文件只能与文件比");
+            toast(s(R.string.main_cmp_type_mismatch));
             return;
         }
         startActivity(new Intent(this, CompareActivity.class)
@@ -3456,20 +3500,20 @@ public class MainActivity extends BaseActivity {
     /** smali 目录后台编译为 dex → 输出到同级 <目录名>.dex */
     private void assembleDexDir(final File dir) {
         final File out = new File(dir.getParentFile(), dir.getName() + ".dex");
-        toast("编译中…（大量 smali 可能需要较长时间）");
+        toast(s(R.string.main_asm_running));
         new Thread(new Runnable() {
             public void run() {
                 final String err = SmaliTool.assemble(dir, out, 4);
                 runOnUiThread(new Runnable() {
                     public void run() {
                         if (err == null) {
-                            toast("已编译 → " + out.getPath());
+                            toast(s(R.string.main_asm_done, out.getPath()));
                             refreshAll();
                         } else {
                             new HfDialogBuilder(MainActivity.this)
-                                    .setTitle("编译失败")
-                                    .setMessage(err + "\n\n提示：可打开输出侧 .smali 排查语法错误")
-                                    .setPositiveButton("关闭", null)
+                                    .setTitle(R.string.main_asm_fail_title)
+                                    .setMessage(s(R.string.main_asm_fail_msg, err))
+                                    .setPositiveButton(R.string.common_close, null)
                                     .show();
                         }
                     }
@@ -3501,7 +3545,7 @@ public class MainActivity extends BaseActivity {
         final File outRoot = decompile
                 ? new File(WorkDir.base(), "Smali/" + FileKind.stripExt(apk.getName()))
                 : new File(other().dir, FileKind.stripExt(apk.getName()) + "_dex");
-        toast(decompile ? "反编译中…（APK 内 dex 越多耗时越长）" : "提取中…");
+        toast(decompile ? s(R.string.main_dex_decompiling) : s(R.string.main_dex_extracting));
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -3509,11 +3553,11 @@ public class MainActivity extends BaseActivity {
                     FileOps.deleteRecursive(cacheTmp);
                     cacheTmp.mkdirs();
                     List<String> dexes = apkDexEntries(apk);
-                    if (dexes.isEmpty()) { err = "APK 内未找到 dex"; }
+                    if (dexes.isEmpty()) { err = s(R.string.main_dex_none_in_apk); }
                     for (String entry : dexes) {
                         if (err != null) break;
                         if (!ZipUtil.extractEntry(apk, entry, cacheTmp)) {
-                            err = "提取失败: " + entry; break;
+                            err = s(R.string.main_extract_entry_fail, entry); break;
                         }
                         File tmpDex = new File(cacheTmp, entry);
                         if (decompile) {
@@ -3523,7 +3567,7 @@ public class MainActivity extends BaseActivity {
                         } else {
                             FileOps.copy(tmpDex, outRoot);   // 复制保留原名
                             if (!new File(outRoot, tmpDex.getName()).exists())
-                                err = "写入失败: " + entry;
+                                err = s(R.string.main_write_entry_fail, entry);
                         }
                     }
                 } catch (Throwable t) {
@@ -3534,8 +3578,9 @@ public class MainActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         if (ferr == null) {
-                            toast(decompile ? "已生成 smali →\n" + outRoot.getPath()
-                                    : "已提取 dex → " + outRoot.getPath());
+                            toast(decompile
+                                    ? s(R.string.main_baksmali_done, outRoot.getPath())
+                                    : s(R.string.main_dex_extracted, outRoot.getPath()));
                             refreshAll();
                             if (decompile) {
                                 Intent i = new Intent(MainActivity.this, MainActivity.class);
@@ -3543,7 +3588,7 @@ public class MainActivity extends BaseActivity {
                                 startActivity(i);   // singleTop：onNewIntent 跳转
                             }
                         } else {
-                            toast("失败: " + ferr);
+                            toast(s(R.string.main_fail, ferr));
                         }
                     }
                 });
@@ -3561,7 +3606,7 @@ public class MainActivity extends BaseActivity {
      */
     private void shareFile(final File f) {
         if (f == null || !f.isFile()) {
-            toast("只能分享文件（文件夹请先打包）");
+            toast(s(R.string.main_share_files_only));
             return;
         }
         try {
@@ -3572,11 +3617,11 @@ public class MainActivity extends BaseActivity {
             send.putExtra(Intent.EXTRA_SUBJECT, f.getName());
             send.setClipData(ClipData.newRawUri(f.getName(), uri));
             send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            Intent chooser = Intent.createChooser(send, "分享 " + f.getName());
+            Intent chooser = Intent.createChooser(send, s(R.string.main_share_chooser, f.getName()));
             chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(chooser);
         } catch (Throwable t) {
-            toast("分享失败: " + t.getMessage());
+            toast(s(R.string.main_share_fail, t.getMessage()));
         }
     }
 
@@ -3584,20 +3629,21 @@ public class MainActivity extends BaseActivity {
         final EditText et = new EditText(this);
         et.setText(f.getName());
         new HfDialogBuilder(this)
-                .setTitle("重命名")
+                .setTitle(R.string.mops_rename)
                 .setView(et)
-                .setPositiveButton("确定", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.common_confirm,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         String name = et.getText().toString().trim();
                         if (!name.isEmpty() && FileOps.rename(f, name)) {
-                            toast("已重命名");
+                            toast(s(R.string.main_rename_ok));
                             refreshAll();
                         } else {
-                            toast("重命名失败");
+                            toast(s(R.string.main_rename_fail));
                         }
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -3608,27 +3654,28 @@ public class MainActivity extends BaseActivity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding((int) (24 * den), (int) (8 * den), (int) (24 * den), (int) (8 * den));
         final EditText pw = new EditText(this);
-        pw.setHint("输入加密密码");
+        pw.setHint(R.string.main_pw_hint_enc);
         pw.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         final EditText pw2 = new EditText(this);
-        pw2.setHint("再次确认密码");
+        pw2.setHint(R.string.main_pw_hint_confirm);
         pw2.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         root.addView(pw);
         root.addView(pw2);
         new HfDialogBuilder(this)
-                .setTitle("加密文件")
-                .setMessage("将 " + f.getName() + " 加密为 " + f.getName() + ".enc\n（AES-256-CBC + HMAC-SHA256 认证，仅本工具可解密）")
+                .setTitle(R.string.mops_encrypt)
+                .setMessage(s(R.string.main_enc_msg, f.getName()))
                 .setView(root)
-                .setPositiveButton("加密", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.main_enc_btn,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         String p = pw.getText().toString();
                         String p2 = pw2.getText().toString();
-                        if (p.isEmpty()) { toast("密码不能为空"); return; }
-                        if (!p.equals(p2)) { toast("两次密码不一致"); return; }
-                        runCrypt("加密", f, p, true);
+                        if (p.isEmpty()) { toast(s(R.string.main_pw_empty)); return; }
+                        if (!p.equals(p2)) { toast(s(R.string.main_pw_mismatch)); return; }
+                        runCrypt(f, p, true);
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -3636,9 +3683,9 @@ public class MainActivity extends BaseActivity {
      * 后台执行加/解密并显示进度对话框。
      * PBKDF2（10 万次迭代）+ 流式加解密耗时明显，绝不可在 UI 线程执行。
      */
-    private void runCrypt(final String verb, final File f, final String pw, final boolean enc) {
+    private void runCrypt(final File f, final String pw, final boolean enc) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setTitle(verb + "文件");
+        pd.setTitle(enc ? R.string.mops_encrypt : R.string.mops_decrypt);
         pd.setMessage(f.getName());
         pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
         pd.setMax(100);
@@ -3665,7 +3712,8 @@ public class MainActivity extends BaseActivity {
                     runOnUiThread(new Runnable() {
                         public void run() {
                             try { pd.dismiss(); } catch (Exception ignored) {}
-                            toast("已" + verb + ": " + out.getName());
+                            toast(enc ? s(R.string.main_crypt_done_enc, out.getName())
+                                    : s(R.string.main_crypt_done_dec, out.getName()));
                             refreshAll();
                         }
                     });
@@ -3673,21 +3721,22 @@ public class MainActivity extends BaseActivity {
                     runOnUiThread(new Runnable() {
                         public void run() {
                             try { pd.dismiss(); } catch (Exception ignored) {}
-                            toast("密码错误或文件被篡改");
+                            toast(s(R.string.main_crypt_bad_pw));
                         }
                     });
                 } catch (final IllegalArgumentException e) {
                     runOnUiThread(new Runnable() {
                         public void run() {
                             try { pd.dismiss(); } catch (Exception ignored) {}
-                            toast(e.getMessage());
+                            toast(cryptError(e));
                         }
                     });
                 } catch (final Exception e) {
                     runOnUiThread(new Runnable() {
                         public void run() {
                             try { pd.dismiss(); } catch (Exception ignored) {}
-                            toast(verb + "失败: " + e.getMessage());
+                            toast(enc ? s(R.string.main_crypt_fail_enc, e.getMessage())
+                                    : s(R.string.main_crypt_fail_dec, e.getMessage()));
                         }
                     });
                 }
@@ -3695,38 +3744,65 @@ public class MainActivity extends BaseActivity {
         }, "file-crypt").start();
     }
 
+    /** 加解密失败码 → 文案（F-14/16：FileCrypt 只给 {@link FileCrypt.Code}） */
+    private String cryptError(IllegalArgumentException e) {
+        if (!(e instanceof FileCrypt.Fail)) {
+            String m = e.getMessage();
+            return m == null || m.isEmpty() ? e.getClass().getSimpleName() : m;
+        }
+        FileCrypt.Fail f = (FileCrypt.Fail) e;
+        switch (f.code) {
+            case SRC_MISSING:
+                return s(R.string.crypt_src_missing);
+            case PW_EMPTY:
+                return s(R.string.main_pw_empty);
+            case ENC_MISSING:
+                return s(R.string.crypt_enc_missing);
+            case CORRUPT:
+                return s(R.string.crypt_corrupt);
+            case NOT_OURS:
+                return s(R.string.crypt_not_ours);
+            case BAD_VERSION:
+                return s(R.string.crypt_bad_version, f.num());
+            default:
+                return s(R.string.crypt_bad_header);
+        }
+    }
+
     /** 解密 .enc 文件（自家私有格式） */
     private void askDecryptFile(final File f) {
         final EditText pw = new EditText(this);
-        pw.setHint("输入解密密码");
+        pw.setHint(R.string.main_pw_hint_dec);
         pw.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         new HfDialogBuilder(this)
-                .setTitle("解密文件")
-                .setMessage("解密 " + f.getName())
+                .setTitle(R.string.mops_decrypt)
+                .setMessage(s(R.string.main_dec_msg, f.getName()))
                 .setView(pw)
-                .setPositiveButton("解密", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.main_dec_btn,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         String p = pw.getText().toString();
-                        if (p.isEmpty()) { toast("密码不能为空"); return; }
-                        runCrypt("解密", f, p, false);
+                        if (p.isEmpty()) { toast(s(R.string.main_pw_empty)); return; }
+                        runCrypt(f, p, false);
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     private void confirmDelete(final File f) {
         new HfDialogBuilder(this)
-                .setTitle("删除确认")
-                .setMessage("将 " + f.getName() + " 移入回收站（可恢复）？")
-                .setPositiveButton("移入回收站", new android.content.DialogInterface.OnClickListener() {
+                .setTitle(R.string.main_del_title)
+                .setMessage(s(R.string.main_del_msg, f.getName()))
+                .setPositiveButton(R.string.main_del_do,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         Trash.Entry e = Trash.moveToTrash(f);
-                        toast(e != null ? "已移入回收站" : "删除失败（可能无权限）");
+                        toast(s(e != null ? R.string.main_trashed : R.string.main_del_fail));
                         refreshAll();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -3749,7 +3825,7 @@ public class MainActivity extends BaseActivity {
                     it.selected = true;
                     p.adapter.refreshRow(pos);   // v2.0.1：只重画这一行
                     updateSelDone();
-                    if (!alreadySelMode) toast("多选模式：下滑连选，右滑取消");
+                    if (!alreadySelMode) toast(s(R.string.main_sel_mode_hint));
                 }
             } else {
                 toggleSelectionMode(p); // 空白处左滑 = 进入/退出多选
@@ -3773,7 +3849,7 @@ public class MainActivity extends BaseActivity {
         File up = p.dir.getParentFile();
         if (up != null && up.canRead()) {
             loadDir(p, up);
-            toast("已返回上一级");
+            toast(s(R.string.main_back_up));
         }
     }
 
@@ -4023,39 +4099,39 @@ public class MainActivity extends BaseActivity {
         final String cur = active().dir.getAbsolutePath();
         String[] items = new String[marks.size() + 2];
         for (int i = 0; i < marks.size(); i++) items[i] = marks.get(i);
-        items[marks.size()] = "+ 添加当前目录: " + cur;
-        items[marks.size() + 1] = "- 删除书签";
+        items[marks.size()] = s(R.string.main_bm_add_cur, cur);
+        items[marks.size() + 1] = s(R.string.main_bm_del);
         new HfDialogBuilder(this)
-                .setTitle("书签")
+                .setTitle(R.string.main_bookmarks)
                 .setItems(items, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int which) {
                         if (which < marks.size()) {
                             File f = new File(marks.get(which));
                             if (f.isDirectory()) loadDir(active(), f);
-                            else toast("目录不存在: " + marks.get(which));
+                            else toast(s(R.string.main_bm_dir_missing, marks.get(which)));
                         } else if (which == marks.size()) {
-                            toast(store.add(cur) ? "已添加书签" : "该书签已存在");
+                            toast(s(store.add(cur) ? R.string.main_bm_added : R.string.main_bm_exists));
                         } else {
                             showBookmarkRemove(store, marks);
                         }
                     }
                 })
-                .setNegativeButton("关闭", null)
+                .setNegativeButton(R.string.common_close, null)
                 .show();
     }
 
     private void showBookmarkRemove(final BookmarkStore store, final List<String> marks) {
-        if (marks.isEmpty()) { toast("暂无书签"); return; }
+        if (marks.isEmpty()) { toast(s(R.string.main_bm_none)); return; }
         new HfDialogBuilder(this)
-                .setTitle("点击删除书签")
+                .setTitle(R.string.main_bm_del_title)
                 .setItems(marks.toArray(new String[marks.size()]),
                         new android.content.DialogInterface.OnClickListener() {
                             public void onClick(android.content.DialogInterface d, int which) {
                                 store.remove(marks.get(which));
-                                toast("已删除: " + marks.get(which));
+                                toast(s(R.string.main_bm_deleted, marks.get(which)));
                             }
                         })
-                .setNegativeButton("完成", null)
+                .setNegativeButton(R.string.main_bm_done, null)
                 .show();
     }
 
@@ -4064,29 +4140,29 @@ public class MainActivity extends BaseActivity {
     private void showRecent() {
         final RecentStore store = new RecentStore(this);
         final List<RecentStore.Item> items = store.list();
-        if (items.isEmpty()) { toast("暂无最近打开记录"); return; }
+        if (items.isEmpty()) { toast(s(R.string.main_recent_none)); return; }
         String[] opts = new String[items.size() + 1];
         for (int i = 0; i < items.size(); i++) {
             RecentStore.Item it = items.get(i);
             opts[i] = it.name() + "\n" + FileOps.formatTime(it.time) + "  ·  " + it.path;
         }
-        opts[items.size()] = "- 清空记录";
+        opts[items.size()] = s(R.string.main_recent_clear);
         new HfDialogBuilder(this)
-                .setTitle("最近打开")
+                .setTitle(R.string.main_recent)
                 .setItems(opts, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         if (w >= items.size()) {
                             store.clear();
-                            toast("已清空记录");
+                            toast(s(R.string.main_recent_cleared));
                             return;
                         }
                         RecentStore.Item it = items.get(w);
                         File f = new File(it.path);
-                        if (!f.exists()) { toast("文件已不存在: " + it.path); return; }
+                        if (!f.exists()) { toast(s(R.string.main_recent_gone, it.path)); return; }
                         onFileClick(f);
                     }
                 })
-                .setNegativeButton("关闭", null)
+                .setNegativeButton(R.string.common_close, null)
                 .show();
     }
 
@@ -4109,7 +4185,7 @@ public class MainActivity extends BaseActivity {
         final List<IntentImport.Item> items = IntentImport.collect(this, intent);
         consumeIncoming(intent);
         if (items.isEmpty()) {
-            toast("没有可导入的文件（对方可能只发了文字）");
+            toast(s(R.string.main_import_none));
             return;
         }
         long total = 0;
@@ -4118,17 +4194,21 @@ public class MainActivity extends BaseActivity {
             if (it.size > 0) total += it.size;
             else unknown = true;
         }
-        String size = total > 0 ? FileOps.formatSize(total) + (unknown ? " 以上" : "") : "大小未知";
+        String size = total > 0
+                ? FileOps.formatSize(total) + (unknown ? s(R.string.main_import_size_above) : "")
+                : s(R.string.main_import_size_unknown);
         new HfDialogBuilder(this)
-                .setTitle("导入文件")
-                .setMessage("收到 " + items.size() + " 个文件（" + size + "）。\n"
-                        + "导入到当前目录（" + dirForImport().getName() + "），还是另选目录？")
-                .setPositiveButton("当前目录", new android.content.DialogInterface.OnClickListener() {
+                .setTitle(R.string.main_import_title)
+                .setMessage(s(R.string.main_import_msg, items.size(), size,
+                        dirForImport().getName()))
+                .setPositiveButton(R.string.main_import_here,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         startImport(items, dirForImport(), openAfter);
                     }
                 })
-                .setNeutralButton("选择目录…", new android.content.DialogInterface.OnClickListener() {
+                .setNeutralButton(R.string.main_import_pick,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         DirPickerDialog.show(MainActivity.this, dirForImport(),
                                 new DirPickerDialog.OnPick() {
@@ -4138,7 +4218,7 @@ public class MainActivity extends BaseActivity {
                                 });
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -4172,14 +4252,14 @@ public class MainActivity extends BaseActivity {
     private void startImport(final List<IntentImport.Item> items, final File dstDir,
                              final boolean openAfter) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setTitle("导入");
-        pd.setMessage("准备中…");
+        pd.setTitle(R.string.main_import_pd_title);
+        pd.setMessage(s(R.string.main_import_preparing));
         pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
         pd.setMax(100);
         pd.setProgress(0);
         pd.setCancelable(false);
         final boolean[] cancel = {false};
-        pd.setButton(android.content.DialogInterface.BUTTON_NEGATIVE, "取消",
+        pd.setButton(android.content.DialogInterface.BUTTON_NEGATIVE, s(R.string.common_cancel),
                 new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         cancel[0] = true;    // 仅置标记：真正的停在 128KB 检查点上
@@ -4361,7 +4441,7 @@ public class MainActivity extends BaseActivity {
             super.onBackPressed();
         } else {
             lastBackPress = now;
-            toast("再按一次退出程序");
+            toast(s(R.string.main_exit_hint));
         }
     }
 
@@ -4414,7 +4494,7 @@ public class MainActivity extends BaseActivity {
     public void onRequestPermissionsResult(int req, String[] perms, int[] grants) {
         if (req == REQ_STORAGE) {
             boolean ok = grants.length > 0 && grants[0] == PackageManager.PERMISSION_GRANTED;
-            if (!ok) toast("未授予存储权限，功能将受限");
+            if (!ok) toast(s(R.string.main_storage_perm_limited));
             refreshAll();
         }
     }
@@ -4433,7 +4513,7 @@ public class MainActivity extends BaseActivity {
     }
 
     private void requestManageAllFiles() {
-        toast("需授予「所有文件访问」权限才能浏览手机存储");
+        toast(s(R.string.main_perm_all_files));
         try {
             Intent i = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
                     Uri.parse("package:" + getPackageName()));
