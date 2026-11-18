@@ -34,9 +34,9 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：1041 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：1117 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
-│                                #   HLS 下载与错误码 / 视频播放页）
+│                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
 │   ├── values-sw600dp/          # 平板：pane_divider 从 1dp 装饰线变 6dp 可拖
 │   ├── drawable/                # 矢量图标（ic_folder / ic_file）+ 自适应底板 ic_launcher_background
@@ -1782,6 +1782,53 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.28.0（versionCode 221）—— F-14/12：应用管理页 i18n
+
+`AppManagerActivity` 的界面是**纯代码搭出来的**（`setContentView(root)`，没有布局文件），
+所以文案全在 Java 里：96 处 / 88 个不同字面量，含筛选 chip、应用信息头、9 个操作项、
+卸载/清理/冻结/导出/备份/还原的全套进度与结果提示、权限列表与批量授予。
+全部迁完，落成 **76 个 `am_` 键**。
+
+### 拼接串整句化
+
+页面里大量「拼一半」的写法：
+
+```java
+hs.append("包名: ").append(r.pkg).append("\n版本: ").append(r.version)
+  .append("\n类型: ").append(r.system ? "系统应用" : "第三方应用");
+```
+
+改成一行一个格式键（`am_hdr_pkg` = `包名: %1$s`），`\n` 由代码补。
+备份结果那句最绕（`" + 数据"` / `（数据备份失败）` / `（未 Root，仅 APK）` 三段后缀拼接），
+拆成三条完整的句子按状态选键 —— 译文不必再猜「后缀接在谁的后面」。
+
+### 一个只有真编译才会暴露的错
+
+这一页原本**一次都没用过 `R`**，所以文件里没有 `import com.hex91.file.R;`。
+加了 `R.string.am_*` 之后，javac 报的却是：
+
+```
+错误: 找不到符号
+符号: 变量 am_search_hint
+位置: 类 AppManagerActivity
+```
+
+看着像「资源没生成」，实际是 `R` 根本没 import。补上就好 —— 记在这里是因为
+错误信息把人往 aapt2 方向带，容易白查一轮。
+
+### 验证
+
+- `AppManagerActivity` 中文字面量 **96 → 0**
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 **1117 条 100% 一致**（引用 1074 键 / 25 文件）/ 动作号 55
+- `QUICK=1` **66/66**
+- APK **13,226,704 B**，md5 `2b729bf6…`
+
+> 记账：`BackupRestore` 的 `o.message` 仍是中文（还原结果的唯一出口）。
+> 它和 v2.26.0 的 `HlsDownloader` 是同一类问题 —— 纯逻辑层直接产出文案，
+> 下一批按「错误码 + ui 层映射」处理。
 
 ---
 

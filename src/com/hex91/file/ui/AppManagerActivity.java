@@ -1,5 +1,6 @@
 package com.hex91.file.ui;
 
+import com.hex91.file.R;
 import com.hex91.file.utils.BackupRestore;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.fs.RootUtil;
@@ -107,7 +108,7 @@ public class AppManagerActivity extends BaseActivity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         searchBox = new EditText(this);
-        searchBox.setHint("搜索应用名 / 包名");
+        searchBox.setHint(s(R.string.am_search_hint));
         searchBox.setSingleLine(true);
         int p = (int) (10 * getResources().getDisplayMetrics().density);
         root.setPadding(p, p, p, 0);
@@ -116,7 +117,8 @@ public class AppManagerActivity extends BaseActivity {
         // v1.47.0：筛选条 全部 / 第三方 / 系统
         LinearLayout chipsRow = new LinearLayout(this);
         chipsRow.setOrientation(LinearLayout.HORIZONTAL);
-        String[] chipNames = {"全部", "第三方", "系统"};
+        String[] chipNames = {s(R.string.am_filter_all), s(R.string.am_filter_third),
+                s(R.string.am_filter_system)};
         for (int i = 0; i < 3; i++) {
             final int idx = i;
             TextView c = new TextView(this);
@@ -245,10 +247,10 @@ public class AppManagerActivity extends BaseActivity {
             }
         }
         adapter.notifyDataSetChanged();
-        String mode = filterMode == FILTER_ALL ? "全部"
-                : filterMode == FILTER_THIRD ? "第三方" : "系统";
-        countView.setText("已安装应用[" + mode + "]: " + shown.size() + " / " + all.size()
-                + "（第三方 " + third + " · 系统 " + sys + "）");
+        String mode = filterMode == FILTER_ALL ? s(R.string.am_filter_all)
+                : filterMode == FILTER_THIRD ? s(R.string.am_filter_third)
+                : s(R.string.am_filter_system);
+        countView.setText(s(R.string.am_count, mode, shown.size(), all.size(), third, sys));
     }
 
     /** 导出文件名：应用名_版本.apk（清洗非法字符；实现放 AppRow，此为转发，桌面测试指向 AppRow 版） */
@@ -265,50 +267,54 @@ public class AppManagerActivity extends BaseActivity {
 
         TextView header = new TextView(this);
         StringBuilder hs = new StringBuilder();
-        hs.append("包名: ").append(r.pkg).append("\n版本: ").append(r.version)
-                .append("\n类型: ").append(r.system ? "系统应用" : "第三方应用");
-        if (r.size > 0) hs.append("\n大小: ").append(FileOps.formatSize(r.size));
-        hs.append("\n路径: ").append(r.sourceDir);
-        if (r.splitSourceDirs != null && r.splitSourceDirs.length > 0)
-            hs.append("\n分包: ").append(r.splitSourceDirs.length).append(" 个（导出为文件夹）");
-        if (!r.enabled) hs.append("\n状态: 已冻结（禁用）");
+        hs.append(s(R.string.am_hdr_pkg, r.pkg)).append('\n')
+                .append(s(R.string.am_hdr_version, r.version)).append('\n')
+                .append(s(R.string.am_hdr_type, r.system
+                        ? s(R.string.am_type_system) : s(R.string.am_type_third)));
+        if (r.size > 0) hs.append('\n').append(s(R.string.am_hdr_size, FileOps.formatSize(r.size)));
+        hs.append('\n').append(s(R.string.am_hdr_path, r.sourceDir));
+        if (r.splitSourceDirs != null && r.splitSourceDirs.length > 0) {
+            hs.append('\n').append(s(R.string.am_hdr_splits, r.splitSourceDirs.length));
+        }
+        if (!r.enabled) hs.append('\n').append(s(R.string.am_hdr_frozen));
         header.setText(hs.toString());
         header.setTextSize(13);
         header.setTextColor(ThemeManager.textSub(this));
         box.addView(header);
 
-        addActionRow(box, "提取安装包", new View.OnClickListener() {
+        addActionRow(box, s(R.string.am_act_export), new View.OnClickListener() {
             public void onClick(View v) { exportApk(r); }
         });
-        addActionRow(box, "备份应用", new View.OnClickListener() {
+        addActionRow(box, s(R.string.am_act_backup), new View.OnClickListener() {
             public void onClick(View v) { backupApp(r); }
         });
-        addActionRow(box, "还原应用", new View.OnClickListener() {
+        addActionRow(box, s(R.string.am_act_restore), new View.OnClickListener() {
             public void onClick(View v) { restoreApp(r); }
         });
-        addActionRow(box, r.enabled ? "冻结应用" : "解冻应用", new View.OnClickListener() {
+        addActionRow(box, r.enabled ? s(R.string.am_act_freeze) : s(R.string.am_act_unfreeze),
+                new View.OnClickListener() {
             public void onClick(View v) { toggleFreeze(r); }
         });
-        addActionRow(box, "权限管理", new View.OnClickListener() {
+        addActionRow(box, s(R.string.am_act_perms), new View.OnClickListener() {
             public void onClick(View v) { showPermissions(r); }
         });
-        addActionRow(box, "清理数据缓存", new View.OnClickListener() {
+        addActionRow(box, s(R.string.am_act_clear), new View.OnClickListener() {
             public void onClick(View v) { clearData(r); }
         });
-        addActionRow(box, "卸载应用", new View.OnClickListener() {
+        addActionRow(box, s(R.string.am_act_uninstall), new View.OnClickListener() {
             public void onClick(View v) { confirmUninstall(r); }
         });
-        addActionRow(box, "应用信息", new View.OnClickListener() {
+        addActionRow(box, s(R.string.am_act_appinfo), new View.OnClickListener() {
             public void onClick(View v) { openAppInfo(r); }
         });
-        addActionRow(box, "复制包名", new View.OnClickListener() {
+        addActionRow(box, s(R.string.am_act_copypkg), new View.OnClickListener() {
             public void onClick(View v) { copyPkg(r); }
         });
 
         new HfDialogBuilder(this)
                 .setTitle(r.label)
                 .setView(box)
-                .setNegativeButton("关闭", null)
+                .setNegativeButton(s(R.string.common_close), null)
                 .show();
     }
 
@@ -328,7 +334,7 @@ public class AppManagerActivity extends BaseActivity {
             startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                     Uri.parse("package:" + r.pkg)));
         } catch (Exception e) {
-            toast("无法打开应用信息");
+            toast(s(R.string.am_err_appinfo));
         }
     }
 
@@ -337,19 +343,19 @@ public class AppManagerActivity extends BaseActivity {
                 getSystemService(CLIPBOARD_SERVICE);
         if (cm != null) {
             cm.setPrimaryClip(android.content.ClipData.newPlainText("pkg", r.pkg));
-            toast("已复制包名");
+            toast(s(R.string.am_pkg_copied));
         }
     }
 
     /** v1.51.0：清理应用数据与缓存（需 Root；pm clear 同时清 data 与 cache） */
     private void clearData(final AppRow r) {
-        if (r.pkg.equals(getPackageName())) { toast("不能清理本应用数据"); return; }
+        if (r.pkg.equals(getPackageName())) { toast(s(R.string.am_err_clear_self)); return; }
         if (!RootUtil.detect() || !RootUtil.isRootAvailable()) {
-            toast("清理数据需要 Root 权限");
+            toast(s(R.string.am_err_root_clear));
             return;
         }
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("正在清理 " + r.label + " 的数据与缓存 …");
+        pd.setMessage(s(R.string.am_clearing, r.label));
         pd.setCanceledOnTouchOutside(false);
         pd.show();
         new Thread(new Runnable() {
@@ -358,7 +364,7 @@ public class AppManagerActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         try { pd.dismiss(); } catch (Exception ignored) {}
-                        toast(ok ? "已清理 " + r.label + " 的数据与缓存" : "清理失败");
+                        toast(ok ? s(R.string.am_cleared, r.label) : s(R.string.am_clear_fail));
                     }
                 });
             }
@@ -368,18 +374,18 @@ public class AppManagerActivity extends BaseActivity {
     /** v1.51.0：卸载应用（Root 走 su pm uninstall --user 0；无 Root 走系统卸载器） */
     private void confirmUninstall(final AppRow r) {
         new HfDialogBuilder(this)
-                .setTitle("卸载应用")
-                .setMessage("确定卸载 " + r.label + "（" + r.pkg + "）？此操作不可撤销。")
-                .setPositiveButton("卸载", new android.content.DialogInterface.OnClickListener() {
+                .setTitle(s(R.string.am_uninstall_title))
+                .setMessage(s(R.string.am_uninstall_msg, r.label, r.pkg))
+                .setPositiveButton(s(R.string.am_uninstall_ok), new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) { uninstallApp(r); }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(s(R.string.common_cancel), null)
                 .show();
     }
 
     private void uninstallApp(final AppRow r) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("正在卸载 " + r.label + " …");
+        pd.setMessage(s(R.string.am_uninstalling, r.label));
         pd.setCanceledOnTouchOutside(false);
         pd.show();
         new Thread(new Runnable() {
@@ -390,7 +396,7 @@ public class AppManagerActivity extends BaseActivity {
                     runOnUiThread(new Runnable() {
                         public void run() {
                             try { pd.dismiss(); } catch (Exception ignored) {}
-                            toast(ok ? "已卸载 " + r.label : "卸载失败（可能被系统保护）");
+                            toast(ok ? s(R.string.am_uninstalled, r.label) : s(R.string.am_uninstall_fail));
                             loadApps();
                         }
                     });
@@ -402,7 +408,7 @@ public class AppManagerActivity extends BaseActivity {
                                 startActivity(new Intent(Intent.ACTION_DELETE,
                                         Uri.parse("package:" + r.pkg)));
                             } catch (Exception e) {
-                                toast("无法启动卸载");
+                                toast(s(R.string.am_err_uninstall_start));
                             }
                         }
                     });
@@ -412,9 +418,9 @@ public class AppManagerActivity extends BaseActivity {
     }
 
     private void exportApk(final AppRow r) {
-        if (r.sourceDir == null) { toast("无法获取 APK 路径"); return; }
+        if (r.sourceDir == null) { toast(s(R.string.am_err_no_apk_path)); return; }
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("正在导出 " + r.label + " …");
+        pd.setMessage(s(R.string.am_exporting, r.label));
         pd.setCanceledOnTouchOutside(false);
         pd.show();
         new Thread(new Runnable() {
@@ -452,11 +458,12 @@ public class AppManagerActivity extends BaseActivity {
                     public void run() {
                         try { pd.dismiss(); } catch (Exception ignored) {}
                         if (fok) {
-                            String tail = fsplit ? "（含 " + (r.splitSourceDirs.length + 1)
-                                    + " 个 APK 的文件夹）" : "";
-                            toast("已导出到 " + dstPath + tail);
+                            toast(fsplit
+                                    ? s(R.string.am_exported_splits, dstPath,
+                                            r.splitSourceDirs.length + 1)
+                                    : s(R.string.am_exported_to, dstPath));
                         } else {
-                            toast("导出失败（需要 Root 授权）");
+                            toast(s(R.string.am_export_fail));
                         }
                     }
                 });
@@ -468,6 +475,15 @@ public class AppManagerActivity extends BaseActivity {
         Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
     }
 
+    /** 取资源文案（F-14/12：本页文案全部走 values/values-en） */
+    private String s(int id) {
+        return getString(id);
+    }
+
+    private String s(int id, Object... args) {
+        return getString(id, args);
+    }
+
     private boolean rootReady() {
         return RootUtil.detect() && RootUtil.isRootAvailable();
     }
@@ -476,11 +492,12 @@ public class AppManagerActivity extends BaseActivity {
 
     /** 冻结 / 解冻（Root：pm disable-user / pm enable）。禁用即「冻结」应用。 */
     private void toggleFreeze(final AppRow r) {
-        if (r.pkg.equals(getPackageName())) { toast("不能冻结本应用"); return; }
-        if (!rootReady()) { toast("冻结 / 解冻需要 Root 权限"); return; }
+        if (r.pkg.equals(getPackageName())) { toast(s(R.string.am_err_freeze_self)); return; }
+        if (!rootReady()) { toast(s(R.string.am_err_root_freeze)); return; }
         final boolean freezing = r.enabled;   // 当前启用 → 执行禁用（冻结）
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage((freezing ? "正在冻结 " : "正在解冻 ") + r.label + " …");
+        pd.setMessage(freezing ? s(R.string.am_freezing, r.label)
+                : s(R.string.am_unfreezing, r.label));
         pd.setCanceledOnTouchOutside(false);
         pd.show();
         new Thread(new Runnable() {
@@ -491,8 +508,10 @@ public class AppManagerActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         try { pd.dismiss(); } catch (Exception ignored) {}
-                        toast(ok ? (freezing ? "已冻结 " : "已解冻 ") + r.label
-                                : (freezing ? "冻结" : "解冻") + "失败");
+                        if (ok) toast(freezing ? s(R.string.am_frozen, r.label)
+                                : s(R.string.am_unfrozen, r.label));
+                        else toast(freezing ? s(R.string.am_freeze_fail)
+                                : s(R.string.am_unfreeze_fail));
                         loadApps();   // 刷新启用状态
                     }
                 });
@@ -506,10 +525,10 @@ public class AppManagerActivity extends BaseActivity {
         try {
             pi = getPackageManager().getPackageInfo(r.pkg,
                     android.content.pm.PackageManager.GET_PERMISSIONS);
-        } catch (Exception e) { toast("读取权限失败"); return; }
+        } catch (Exception e) { toast(s(R.string.am_err_read_perms)); return; }
         final String[] perms = pi.requestedPermissions;
         final int[] flags = pi.requestedPermissionsFlags;
-        if (perms == null || perms.length == 0) { toast("该应用未声明权限"); return; }
+        if (perms == null || perms.length == 0) { toast(s(R.string.am_no_perms)); return; }
 
         float d = getResources().getDisplayMetrics().density;
         ScrollView sv = new ScrollView(this);
@@ -518,48 +537,50 @@ public class AppManagerActivity extends BaseActivity {
         box.setPadding((int) (16 * d), (int) (12 * d), (int) (16 * d), (int) (4 * d));
         for (int i = 0; i < perms.length; i++) {
             final String perm = perms[i];
-            String level = "普通";
+            String level = s(R.string.am_perm_level_normal);
             String label = perm;
             try {
                 PermissionInfo info = getPackageManager().getPermissionInfo(perm, 0);
                 if (info.loadLabel(getPackageManager()) != null) label = info.loadLabel(getPackageManager()).toString();
                 int base = info.protectionLevel & PermissionInfo.PROTECTION_MASK_BASE;
-                if (base == PermissionInfo.PROTECTION_DANGEROUS) level = "危险";
-                else if (base == PermissionInfo.PROTECTION_SIGNATURE) level = "签名";
-                else if (base == PermissionInfo.PROTECTION_SIGNATURE_OR_SYSTEM) level = "签名/系统";
+                if (base == PermissionInfo.PROTECTION_DANGEROUS) level = s(R.string.am_perm_level_dangerous);
+                else if (base == PermissionInfo.PROTECTION_SIGNATURE) level = s(R.string.am_perm_level_signature);
+                else if (base == PermissionInfo.PROTECTION_SIGNATURE_OR_SYSTEM) {
+                level = s(R.string.am_perm_level_sig_system);
+            }
             } catch (Exception ignored) {}
             boolean granted = (flags[i] & PackageInfo.REQUESTED_PERMISSION_GRANTED) != 0;
             TextView t = new TextView(this);
             t.setTextSize(13);
             t.setPadding(0, (int) (8 * d), 0, (int) (8 * d));
-            t.setText("• " + label + "\n   " + perm + "  [" + level + "]  "
-                    + (granted ? "已授予" : "未授予"));
+            t.setText(s(R.string.am_perm_row, label, perm, level,
+                    granted ? s(R.string.am_perm_granted) : s(R.string.am_perm_denied)));
             t.setTextColor(granted ? ThemeManager.accent(this) : ThemeManager.textSub(this));
             box.addView(t);
         }
         sv.addView(box);
 
         new HfDialogBuilder(this)
-                .setTitle("权限 — " + r.label)
+                .setTitle(s(R.string.am_perms_title, r.label))
                 .setView(sv)
-                .setPositiveButton("授予全部危险", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(s(R.string.am_perm_grant_all), new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         grantOrRevokeDangerous(r, perms, true);
                     }
                 })
-                .setNegativeButton("撤销全部危险", new android.content.DialogInterface.OnClickListener() {
+                .setNegativeButton(s(R.string.am_perm_revoke_all), new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         grantOrRevokeDangerous(r, perms, false);
                     }
                 })
-                .setNeutralButton("关闭", null)
+                .setNeutralButton(s(R.string.common_close), null)
                 .show();
     }
 
     private void grantOrRevokeDangerous(final AppRow r, final String[] perms, final boolean grant) {
-        if (!rootReady()) { toast("授予 / 撤销需要 Root 权限"); return; }
+        if (!rootReady()) { toast(s(R.string.am_err_root_grant)); return; }
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage((grant ? "授予" : "撤销") + "危险权限中 …");
+        pd.setMessage(grant ? s(R.string.am_granting) : s(R.string.am_revoking));
         pd.setCanceledOnTouchOutside(false);
         pd.show();
         new Thread(new Runnable() {
@@ -578,7 +599,7 @@ public class AppManagerActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         try { pd.dismiss(); } catch (Exception ignored) {}
-                        toast("已" + (grant ? "授予" : "撤销") + " " + fdone + " 项危险权限（重新打开查看状态）");
+                        toast(grant ? s(R.string.am_granted_n, fdone) : s(R.string.am_revoked_n, fdone));
                     }
                 });
             }
@@ -587,10 +608,10 @@ public class AppManagerActivity extends BaseActivity {
 
     /** 备份应用：APK（含 split 分包）复制到 HexFile/Backups/<pkg>/；Root 下额外打包数据目录。 */
     private void backupApp(final AppRow r) {
-        if (r.sourceDir == null) { toast("无法获取 APK 路径"); return; }
+        if (r.sourceDir == null) { toast(s(R.string.am_err_no_apk_path)); return; }
         final File dir = new File(WorkDir.base(), "Backups/" + r.pkg);
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("正在备份 " + r.label + " …");
+        pd.setMessage(s(R.string.am_backing_up, r.label));
         pd.setCanceledOnTouchOutside(false);
         pd.show();
         new Thread(new Runnable() {
@@ -627,10 +648,10 @@ public class AppManagerActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         try { pd.dismiss(); } catch (Exception ignored) {}
-                        String msg = "已备份 " + r.label + "：" + fApk + " 个 APK → " + dir.getPath();
-                        if (fRoot) msg += fData ? " + 数据" : "（数据备份失败）";
-                        else msg += "（未 Root，仅 APK）";
-                        toast(msg);
+                        int key = !fRoot ? R.string.am_backed_up_no_root
+                                : (fData ? R.string.am_backed_up_with_data
+                                        : R.string.am_backed_up_data_fail);
+                        toast(s(key, r.label, fApk, dir.getPath()));
                     }
                 });
             }
@@ -673,11 +694,11 @@ public class AppManagerActivity extends BaseActivity {
     /** 还原应用：从 HexFile/Backups/<pkg>/ 重装 APK（含 split），Root 下恢复数据目录。 */
     private void restoreApp(final AppRow r) {
         final File dir = new File(WorkDir.base(), "Backups/" + r.pkg);
-        if (!dir.isDirectory()) { toast("未找到 " + r.label + " 的备份"); return; }
+        if (!dir.isDirectory()) { toast(s(R.string.am_err_no_backup, r.label)); return; }
         File[] apks = dir.listFiles(new FileFilter() {
             public boolean accept(File f) { return f.isFile() && f.getName().endsWith(".apk"); }
         });
-        if (apks == null || apks.length == 0) { toast("备份中无 APK 文件"); return; }
+        if (apks == null || apks.length == 0) { toast(s(R.string.am_err_backup_no_apk)); return; }
         final File gz = new File(dir, "data.tar.gz");
         final File plain = new File(dir, "data.tar");
         final File dataTar = gz.exists() ? gz : (plain.exists() ? plain : null);
@@ -685,7 +706,7 @@ public class AppManagerActivity extends BaseActivity {
         e.pkg = r.pkg; e.dir = dir; e.apks = apks; e.dataTar = dataTar;
         e.installed = true; e.label = r.label;
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("正在还原 " + r.label + " …");
+        pd.setMessage(s(R.string.am_restoring, r.label));
         pd.setCanceledOnTouchOutside(false);
         pd.show();
         new Thread(new Runnable() {
@@ -747,7 +768,8 @@ public class AppManagerActivity extends BaseActivity {
             }
             title.setText(r.label);
             sub.setText(r.pkg + "  " + r.version + (r.size > 0
-                    ? "  " + FileOps.formatSize(r.size) : "") + (r.system ? "  · 系统" : ""));
+                    ? "  " + FileOps.formatSize(r.size) : "")
+                    + (r.system ? s(R.string.am_item_system_suffix) : ""));
 
             // 图标：缓存命中即设；否则后台 loadIcon，tag 校验防复用串图
             Drawable c = icons().get(r.pkg);
