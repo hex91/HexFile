@@ -1784,6 +1784,117 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.25.0（versionCode 218）—— F-14/9：HLS 下载页 i18n（第三处「文案当逻辑」）
+
+「下载视频」整页：粘贴 → 解析 → 选画质 → 下载 → 转封装，一条路走完。
+落成 **60 个 `hls_` 键**（含布局 6 处），`HlsDownloadActivity` 的中文字面量**清零**（69 → 0）。
+
+顺带修掉一处一直藏着的问题 —— 不是迁移时撞上的，是**扫出来的**。
+
+### 靠文案前缀决定要不要写日志
+
+日志有 150ms 节流（逐片刷屏会把 UI 线程拖慢），但收尾行必须放行：
+
+```java
+// 之前
+if (now - lastLogAt < 150 && !s.startsWith("完成") && !s.startsWith("失败")) return;
+```
+
+「完成 → 路径」「失败：xxx」靠**中文前缀**拿到豁免。文案一进资源并翻成 `Done` / `Failed`，
+`startsWith("完成")` 恒为 false —— 收尾那行就被节流吃掉。后果不是报错、也不是点错，
+只是**日志里少了最后一行**，属于最难被发现的一类。
+
+改法是把「要不要强写」变成一个显式参数，判断与文案彻底脱钩：
+
+```java
+private void log(String line) { log(line, false); }
+private void log(String line, boolean force) {
+    if (!force && now - lastLogAt < 150) return;
+    ...
+}
+// 收尾两行
+log(s(R.string.hls_done_log, fr.file.getAbsolutePath()), true);
+log(s(R.string.hls_fail_log, msg(e)), true);
+```
+
+### 三处「文案当逻辑」的对照
+
+| 版本 | 位置 | 写法 | 失效表现 |
+| --- | --- | --- | --- |
+| v2.20.0 | `ArchiveController` | `op.startsWith("Dex 编辑器++")` | 四个菜单项全落到 else，点「Dex 属性」变「提取」 |
+| v2.24.0 | `MainActivity.showApkInfo` | `"签名状态".equals(label)` | 点签名状态只复制值，进不去详情 |
+| v2.25.0 | `HlsDownloadActivity.log` | `s.startsWith("完成")` | 日志少最后一行，静默 |
+
+前两处是迁移时撞上的，第三处是收尾时用
+
+```
+grep -E '(equals|startsWith|contains|indexOf|case)\s*\(?\s*"[^"]*[\u4e00-\u9fff]'
+```
+
+在全仓扫出来的。剩下 3 处扫到的都是**对数据**而不是对 UI 文案的判断
+（zip 条目名里找「密码」、反编译出的 smali 源码里找「控制流扁平化」），不该改。
+
+### 空白与百分号：aapt 会吃掉它们
+
+` · 时长 3:20` 这种**以空格开头**的片段，如果直接写进 `<string>`，aapt2 会把前导空格裁掉；
+`画质：` 后面那三个空格也会被折叠成一个。整值加双引号才保留：
+
+```xml
+<string name="hls_duration_suffix">" · 时长 %1$s"</string>
+<string name="hls_quality_row">"画质：%1$s%2$s   ›"</string>
+```
+
+进度行里要输出字面量 `%` 得写 `%%`：
+
+```xml
+<string name="hls_progress">已下载 %1$d/%2$d 片 · %3$s%4$s · %5$d%%</string>
+```
+
+`aapt2 dump resources` 可以直接验：包里的值是 `" · 时长 %1$s"`（空格还在）、
+`%5$d%%`（转义保留，运行时输出 `50%`）。
+
+### 摘要句从 8 段拼接改成 6 个带参键
+
+```java
+// 之前：语序焊死在代码里
+sb.append("分片：").append(n).append(" 个");
+if (dur > 0) sb.append(" · 时长 ").append(clock(dur));
+sb.append('\n').append("加密：").append(text);
+sb.append(" · 容器：").append(fmp4 ? "fMP4" : "MPEG-TS");
+// 现在：每段由译文自己排
+sb.append(s(R.string.hls_segments, n));
+if (dur > 0) sb.append(s(R.string.hls_duration_suffix, clock(dur)));
+sb.append('\n').append(s(R.string.hls_encrypt_line, text));
+sb.append(s(R.string.hls_container_suffix, fmp4 ? "fMP4" : "MPEG-TS"));
+```
+
+`describe()` 现在是 6 行，读起来和最终显示的样子一致 —— 这也算迁移的副产品。
+
+### 还没做的（记一笔）
+
+`HlsKey.unsupportedReason()`、`HlsPlaylist.encryptionText()` 返回的
+「未加密 / 多把密钥 / 本应用只支持 AES-128」仍是中文 —— 它们在 `net/` 层，没有 Context。
+要迁得往 `net/` 传 Context（像 v2.24.0 给 `ApkUtil` 那样），或者把返回值改成枚举、
+到 UI 层再取文案。后者更干净，但改动面比这一批大，留作单独一次。
+
+### 验证
+
+- `build.sh` → **BUILD OK，v218 / 2.25.0**，APK **13,193,936 字节**，
+  md5 `5b520f94…`（这次终于跨过对齐块，比上版大 16,384 = 两个 4096 块）
+- `aapt2 dump resources` 核对 `hls_duration_suffix` 前导空格保留、`hls_progress` 的 `%%` 保留
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 **914 条 100% 一致**（引用 872 键 / 23 文件）/ 动作号 55
+- QUICK **66/66**
+- `HlsDownloadActivity` 中文字面量 **69 → 0**；全仓 **3695 → 3525**
+
+### 真机可先看这几处
+
+1. 粘贴一个 m3u8 → 解析：结果区那几行（分片 / 时长 / 加密 / 容器 / 预计大小）是否成句
+2. 下载过程中日志是否还在滚，**结束那行「完成 → 路径」有没有出现**（这是本次修的 bug）
+3. 画质那一行 `画质：自动（最高）   ›` 的间距是否正常（三个空格没被吃掉）
+4. 帮助「?」弹窗的六行说明
+
+---
+
 ## v2.24.0（versionCode 217）—— F-14/8：APK 信息弹窗 i18n（又抓到一处「文案当逻辑」）
 
 这一屏不止一个文件：弹窗本体在 `MainActivity.showApkInfo`，16 行标签值由

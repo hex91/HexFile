@@ -142,12 +142,12 @@ public class HlsDownloadActivity extends BaseActivity {
         String raw = etUrl.getText().toString();
         String u = StreamUrl.firstUrl(raw);
         if (TextUtils.isEmpty(u)) {
-            toast("没找到有效地址");
+            toast(s(R.string.hls_no_valid_url));
             return null;
         }
         if (!HlsDownloader.isLocal(u)
                 && !(u.startsWith("http://") || u.startsWith("https://"))) {
-            toast("只支持 http/https 的 m3u8，或本地 .m3u8 文件路径");
+            toast(s(R.string.hls_http_only));
             return null;
         }
         return u;
@@ -161,7 +161,7 @@ public class HlsDownloadActivity extends BaseActivity {
         setActionsEnabled(false);
         cancel.set(false);
         tvResult.setVisibility(View.VISIBLE);
-        tvResult.setText("正在解析清单…");
+        tvResult.setText(s(R.string.hls_parsing));
         rowQuality.setVisibility(View.GONE);
         log("GET " + url);
 
@@ -182,8 +182,8 @@ public class HlsDownloadActivity extends BaseActivity {
                         public void run() {
                             working = false;
                             setActionsEnabled(true);
-                            tvResult.setText("解析失败：" + msg(e));
-                            log("解析失败：" + msg(e));
+                            tvResult.setText(s(R.string.hls_parse_fail, msg(e)));
+                            log(s(R.string.hls_parse_fail, msg(e)));
                         }
                     });
                 }
@@ -207,41 +207,40 @@ public class HlsDownloadActivity extends BaseActivity {
         }
 
         if (media == null) {
-            tvResult.setText("解析到 master 清单，但没有可用的画质档位。");
+            tvResult.setText(s(R.string.hls_master_no_variant));
             return;
         }
         tvResult.setText(describe(srcUrl, media));
         if (media.isLive()) {
-            log("这是直播流（没有 ENDLIST），只会下载当前窗口的 "
-                    + media.downloadableCount() + " 个分片");
+            log(s(R.string.hls_live_note, media.downloadableCount()));
         }
         if (media.hasDiscontinuity) {
-            log("清单里有 DISCONTINUITY：合并后时间轴可能有一次跳变");
+            log(s(R.string.hls_discontinuity));
         }
-        log("解析完成：" + media.downloadableCount() + " 个分片 · "
-                + media.encryptionText() + " · " + (media.likelyFmp4() ? "fMP4" : "MPEG-TS"));
+        log(s(R.string.hls_parse_done, media.downloadableCount(), media.encryptionText(),
+                media.likelyFmp4() ? "fMP4" : "MPEG-TS"));
     }
 
     /** 解析结果的一句话摘要 */
     private String describe(String srcUrl, HlsPlaylist p) {
         StringBuilder sb = new StringBuilder();
-        sb.append(p.isLive() ? "HLS 直播" : "HLS 点播");
+        sb.append(p.isLive() ? s(R.string.hls_kind_live) : s(R.string.hls_kind_vod));
         if (master != null && master.hasChoice()) {
-            sb.append("（master，").append(master.variants().size()).append(" 档）");
+            sb.append(s(R.string.hls_master_suffix, master.variants().size()));
         }
         sb.append('\n');
-        sb.append("分片：").append(p.downloadableCount()).append(" 个");
+        sb.append(s(R.string.hls_segments, p.downloadableCount()));
         long dur = p.totalDurationMs();
-        if (dur > 0) sb.append(" · 时长 ").append(clock(dur));
+        if (dur > 0) sb.append(s(R.string.hls_duration_suffix, clock(dur)));
         sb.append('\n');
-        sb.append("加密：").append(p.encryptionText());
-        sb.append(" · 容器：").append(p.likelyFmp4() ? "fMP4" : "MPEG-TS");
+        sb.append(s(R.string.hls_encrypt_line, p.encryptionText()));
+        sb.append(s(R.string.hls_container_suffix, p.likelyFmp4() ? "fMP4" : "MPEG-TS"));
         long est = estimateBytes(srcUrl, p, dur);
         if (est > 0) {
-            sb.append('\n').append("预计大小：约 ").append(bytes(est));
+            sb.append('\n').append(s(R.string.hls_est_size, bytes(est)));
         }
         if (p.likelyFmp4()) {
-            sb.append('\n').append("fMP4 分片拼接后本身就是 MP4，不再额外转封装。");
+            sb.append('\n').append(s(R.string.hls_fmp4_note));
         }
         return sb.toString();
     }
@@ -260,13 +259,13 @@ public class HlsDownloadActivity extends BaseActivity {
     }
 
     private void updateQualityRow() {
-        String v = qualityLabel == null ? "自动（最高）" : qualityLabel;
+        String v = qualityLabel == null ? s(R.string.hls_quality_auto) : qualityLabel;
         String detail = "";
         if (master != null) {
             M3u8Playlist.Variant var = qualityLabel == null ? null : master.byLabel(qualityLabel);
             if (var != null) detail = " · " + var.detail();
         }
-        rowQuality.setText("画质：" + v + detail + "   ›");
+        rowQuality.setText(s(R.string.hls_quality_row, v, detail));
     }
 
     private void pickQuality() {
@@ -278,7 +277,7 @@ public class HlsDownloadActivity extends BaseActivity {
             labels[i] = v.label + "  " + v.detail();
         }
         new HfDialogBuilder(this)
-                .setTitle("选择画质")
+                .setTitle(s(R.string.hls_pick_quality))
                 .setItems(labels, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int which) {
                         M3u8Playlist.Variant v = list.get(which);
@@ -287,7 +286,7 @@ public class HlsDownloadActivity extends BaseActivity {
                         loadVariant(v);
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(s(R.string.common_cancel), null)
                 .show();
     }
 
@@ -295,8 +294,8 @@ public class HlsDownloadActivity extends BaseActivity {
     private void loadVariant(final M3u8Playlist.Variant v) {
         working = true;
         setActionsEnabled(false);
-        tvResult.setText("正在读取 " + v.label + " 的分片…");
-        log("切换到 " + v.label + " → " + v.url);
+        tvResult.setText(s(R.string.hls_variant_loading, v.label));
+        log(s(R.string.hls_switch_log, v.label, v.url));
         new Thread(new Runnable() {
             public void run() {
                 try {
@@ -308,7 +307,7 @@ public class HlsDownloadActivity extends BaseActivity {
                             media = f.media;
                             mediaUrl = f.url;
                             if (media == null) {
-                                tvResult.setText("这一档没有可用的分片，请换一档。");
+                                tvResult.setText(s(R.string.hls_variant_empty));
                                 return;
                             }
                             tvResult.setText(describe(v.url, media));
@@ -319,7 +318,7 @@ public class HlsDownloadActivity extends BaseActivity {
                         public void run() {
                             working = false;
                             setActionsEnabled(true);
-                            tvResult.setText("切换画质失败：" + msg(e));
+                            tvResult.setText(s(R.string.hls_variant_fail, msg(e)));
                         }
                     });
                 }
@@ -332,12 +331,12 @@ public class HlsDownloadActivity extends BaseActivity {
     private void doStart() {
         if (working) return;
         if (media == null || media.isEmpty()) {
-            toast("请先点「解析」，确认分片清单");
+            toast(s(R.string.hls_need_parse));
             return;
         }
         String block = media.blockReason();
         if (block != null) {
-            alert("无法下载", block);
+            alert(s(R.string.hls_block_title), block);
             return;
         }
         final String src = cleanInput();
@@ -345,11 +344,11 @@ public class HlsDownloadActivity extends BaseActivity {
         final boolean toMp4 = cbMp4.isChecked();
         final File dir = outDir;
         if (dir == null) {
-            toast("请选择保存目录");
+            toast(s(R.string.hls_no_dir));
             return;
         }
         if (!dir.exists() && !dir.mkdirs()) {
-            toast("无法创建目录：" + dir.getAbsolutePath());
+            toast(s(R.string.hls_dir_create_fail, dir.getAbsolutePath()));
             return;
         }
 
@@ -360,10 +359,10 @@ public class HlsDownloadActivity extends BaseActivity {
         pb.setVisibility(View.VISIBLE);
         pb.setProgress(0);
         tvStatus.setVisibility(View.VISIBLE);
-        tvStatus.setText("准备下载…");
+        tvStatus.setText(s(R.string.hls_preparing));
         tvLog.setVisibility(View.VISIBLE);
         tvLog.setText("");
-        log("保存到 " + dir.getAbsolutePath());
+        log(s(R.string.hls_saved_to_log, dir.getAbsolutePath()));
 
         final HlsPlaylist pl = media;
         final String useUrl = mediaUrl;
@@ -379,10 +378,10 @@ public class HlsDownloadActivity extends BaseActivity {
                                             if (isFinishing()) return;
                                             pb.setProgress(total <= 0 ? 0 : (int) (done * 100L / total));
                                             long pct = total <= 0 ? 0 : done * 100L / total;
-                                            tvStatus.setText("已下载 " + done + "/" + total
-                                                    + " 片 · " + bytes(bytes)
-                                                    + (speed > 0 ? " · " + bytes(speed) + "/s" : "")
-                                                    + " · " + pct + "%");
+                                            String sp = speed > 0
+                                                    ? s(R.string.hls_speed_suffix, bytes(speed)) : "";
+                                            tvStatus.setText(s(R.string.hls_progress,
+                                                    done, total, bytes(bytes), sp, pct));
                                         }
                                     });
                                 }
@@ -398,8 +397,8 @@ public class HlsDownloadActivity extends BaseActivity {
                             btnCancel.setVisibility(View.GONE);
                             setActionsEnabled(true);
                             pb.setProgress(100);
-                            tvStatus.setText("完成：" + fr.file.getName() + " · " + bytes(fr.file.length()));
-                            log("完成 → " + fr.file.getAbsolutePath());
+                            tvStatus.setText(s(R.string.hls_done_status, fr.file.getName(), bytes(fr.file.length())));
+                            log(s(R.string.hls_done_log, fr.file.getAbsolutePath()), true);
                             if (fr.note != null) log(fr.note);
                             showDone(fr);
                         }
@@ -410,8 +409,8 @@ public class HlsDownloadActivity extends BaseActivity {
                             working = false;
                             btnCancel.setVisibility(View.GONE);
                             setActionsEnabled(true);
-                            tvStatus.setText("失败：" + msg(e));
-                            log("失败：" + msg(e));
+                            tvStatus.setText(s(R.string.hls_fail_status, msg(e)));
+                            log(s(R.string.hls_fail_log, msg(e)), true);
                         }
                     });
                 }
@@ -424,52 +423,46 @@ public class HlsDownloadActivity extends BaseActivity {
         m.append(r.file.getAbsolutePath()).append('\n').append(bytes(r.file.length()));
         if (r.note != null) m.append('\n').append('\n').append(r.note);
         new HfDialogBuilder(this)
-                .setTitle(r.remuxed ? "已生成 MP4" : "已合并完成")
+                .setTitle(r.remuxed ? s(R.string.hls_dlg_mp4_done) : s(R.string.hls_dlg_merged))
                 .setMessage(m.toString())
-                .setPositiveButton("播放", new DialogInterface.OnClickListener() {
+                .setPositiveButton(s(R.string.hls_play), new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         startActivity(new Intent(HlsDownloadActivity.this, VideoPlayerActivity.class)
                                 .putExtra(VideoPlayerActivity.EXTRA_FILE, r.file.getAbsolutePath())
                                 .putExtra(VideoPlayerActivity.EXTRA_TITLE, r.file.getName()));
                     }
                 })
-                .setNegativeButton("关闭", null)
+                .setNegativeButton(s(R.string.common_close), null)
                 .show();
     }
 
     private void confirmCancel() {
         if (!working) return;
         new HfDialogBuilder(this)
-                .setTitle("取消下载？")
-                .setMessage("已经下载的分片会保留，下次对同一地址再点开始时可以接着下。")
-                .setPositiveButton("取消下载", new DialogInterface.OnClickListener() {
+                .setTitle(s(R.string.hls_cancel_title))
+                .setMessage(s(R.string.hls_cancel_msg))
+                .setPositiveButton(s(R.string.hls_cancel_ok), new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         cancel.set(true);
                         btnCancel.setEnabled(false);
-                        tvStatus.setText("正在取消…");
+                        tvStatus.setText(s(R.string.hls_canceling));
                     }
                 })
-                .setNegativeButton("继续", null)
+                .setNegativeButton(s(R.string.hls_continue), null)
                 .show();
     }
 
     // ---------------------------------------------------------------- 杂项
 
     private void showHelp() {
-        alert("说明",
-                "· 支持 m3u8（HLS）：AES-128 加密、字节区间切片、fMP4 分片都能下。\n"
-                + "· 有 master 清单时可选画质；默认取最高一档。\n"
-                + "· 「转为 MP4」只是换容器（TS → MP4），不重新编码，画质不变、速度快。\n"
-                + "· 转封装失败时会保留 TS 文件 —— TS 本身就能播放。\n"
-                + "· 直播流没有 ENDLIST，只能下载点开始那一刻的窗口。\n\n"
-                + "不支持的：SAMPLE-AES（Apple DRM）加密、需登录 Cookie 的私有流。");
+        alert(s(R.string.hls_help_title), s(R.string.hls_help_body));
     }
 
     private void pasteFromClipboard() {
         String t = getClipboardText();
         String u = StreamUrl.firstUrl(t);
         if (TextUtils.isEmpty(u)) {
-            toast("剪贴板里没有可用的链接");
+            toast(s(R.string.hls_clip_empty));
             return;
         }
         etUrl.setText(u);
@@ -487,7 +480,8 @@ public class HlsDownloadActivity extends BaseActivity {
     }
 
     private void updateDirRow() {
-        rowDir.setText("保存到：" + (outDir == null ? "未选择" : outDir.getAbsolutePath()) + "   ›");
+        rowDir.setText(s(R.string.hls_dir_row, outDir == null
+                ? s(R.string.hls_dir_unset) : outDir.getAbsolutePath()));
     }
 
     private void setActionsEnabled(boolean on) {
@@ -497,14 +491,27 @@ public class HlsDownloadActivity extends BaseActivity {
         if (on) btnCancel.setVisibility(View.GONE);
     }
 
-    private void log(String s) {
+    private void log(String line) {
+        log(line, false);
+    }
+
+    /**
+     * 追加一行日志。150ms 内的重复行会被节流（逐片刷屏会拖慢 UI 线程）。
+     *
+     * <p>{@code force=true} 用于「完成 / 失败」这类收尾行 —— 它们可能紧跟在
+     * 一串进度行之后，节流吃掉就看不到结果了。
+     *
+     * <p>早先这里是 {@code !s.startsWith("完成") && !s.startsWith("失败")}，
+     * 靠**文案前缀**判断要不要放行。文案一旦进资源并翻译，这个判断就永远为真，
+     * 收尾行会被静默吞掉 —— 所以改成显式的 {@code force} 参数。</p>
+     */
+    private void log(String line, boolean force) {
         if (tvLog == null) return;
         long now = System.currentTimeMillis();
-        // 日志只做「发生了什么」，不做实时逐片刷屏（那会把 UI 线程拖慢）
-        if (now - lastLogAt < 150 && !s.startsWith("完成") && !s.startsWith("失败")) return;
+        if (!force && now - lastLogAt < 150) return;
         lastLogAt = now;
         CharSequence old = tvLog.getText();
-        String all = (old == null ? "" : old.toString()) + s + "\n";
+        String all = (old == null ? "" : old.toString()) + line + "\n";
         if (all.length() > 4000) all = all.substring(all.length() - 4000);
         tvLog.setText(all);
         tvLog.setVisibility(View.VISIBLE);
@@ -517,16 +524,25 @@ public class HlsDownloadActivity extends BaseActivity {
             return;
         }
         new HfDialogBuilder(this)
-                .setTitle("正在下载")
-                .setMessage("返回会取消本次下载。已下载的分片会保留。")
-                .setPositiveButton("取消并返回", new DialogInterface.OnClickListener() {
+                .setTitle(s(R.string.hls_back_title))
+                .setMessage(s(R.string.hls_back_msg))
+                .setPositiveButton(s(R.string.hls_back_ok), new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         cancel.set(true);
                         finish();
                     }
                 })
-                .setNegativeButton("继续下载", null)
+                .setNegativeButton(s(R.string.hls_back_continue), null)
                 .show();
+    }
+
+    /** 取资源文案（F-14：页面文案全部走 values/values-en） */
+    private String s(int id) {
+        return getString(id);
+    }
+
+    private String s(int id, Object... args) {
+        return getString(id, args);
     }
 
     private void toast(String s) {
@@ -535,11 +551,11 @@ public class HlsDownloadActivity extends BaseActivity {
 
     private void alert(String title, String msg) {
         new HfDialogBuilder(this).setTitle(title).setMessage(msg)
-                .setPositiveButton("知道了", null).show();
+                .setPositiveButton(s(R.string.common_got_it), null).show();
     }
 
-    private static String msg(Throwable t) {
-        if (t == null) return "未知错误";
+    private String msg(Throwable t) {
+        if (t == null) return s(R.string.hls_unknown_error);
         String m = t.getMessage();
         return m == null || m.isEmpty() ? t.getClass().getSimpleName() : m;
     }

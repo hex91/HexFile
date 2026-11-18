@@ -36,7 +36,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:paddingLeft="2dp"
-            android:text="下载视频 / 合并为 MP4"
+            android:text="@string/hls_title"
             android:textColor="?attr/hfTopBarText"
             android:textSize="16sp"
             android:textStyle="bold"/>
@@ -71,7 +71,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="粘贴 m3u8 地址（或本地 .m3u8 文件路径）。支持 AES-128 加密、按字节区间切片、fMP4 分片。"
+                android:text="@string/hls_hint"
                 android:textColor="?attr/hfTextSub"
                 android:textSize="12sp"
                 android:lineSpacingExtra="2dp"/>
@@ -102,7 +102,7 @@
                     android:layout_width="0dp"
                     android:layout_height="42dp"
                     android:layout_weight="1"
-                    android:text="粘贴剪贴板"/>
+                    android:text="@string/hls_paste_clip"/>
 
                 <Button
                     android:id="@+id/btn_parse"
@@ -110,7 +110,7 @@
                     android:layout_height="42dp"
                     android:layout_weight="1"
                     android:layout_marginLeft="8dp"
-                    android:text="解析"/>
+                    android:text="@string/hls_parse"/>
             </LinearLayout>
 
             <!-- ==== 解析结果 ==== -->
@@ -151,7 +151,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:checked="true"
-                android:text="下载后转为 MP4（只换容器，不重新编码）"
+                android:text="@string/hls_opt_mp4"
                 android:textColor="?attr/hfText"
                 android:textSize="13sp"/>
 
@@ -160,7 +160,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
                 android:layout_marginTop="6dp"
-                android:text="开始下载"/>
+                android:text="@string/hls_start"/>
 
             <ProgressBar
                 android:id="@+id/pb"
@@ -187,7 +187,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="42dp"
                 android:layout_marginTop="8dp"
-                android:text="取消"
+                android:text="@string/common_cancel"
                 android:visibility="gone"/>
 
             <TextView
