@@ -22,7 +22,17 @@ public class ZipAdapter extends BaseAdapter {
     private final Context ctx;
     private final List<ArchiveUtil.Entry> items = new ArrayList<>();
 
+    /**
+     * v2.16.0（F-21）：搜索结果显示完整路径而不是短名。
+     *
+     * <p>目录浏览时短名是对的（当前目录已经写在标题里）；搜索结果来自整个包，
+     * 只显示 {@code AndroidManifest.xml} 会出现多行一模一样、点下去却是不同文件的情况。</p>
+     */
+    private boolean showPath;
+
     public ZipAdapter(Context c) { this.ctx = c; }
+
+    public void setShowPath(boolean v) { this.showPath = v; }
 
     public void set(List<ArchiveUtil.Entry> list) {
         items.clear();
@@ -49,7 +59,8 @@ public class ZipAdapter extends BaseAdapter {
         bg.setCornerRadius(TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP, 7, ctx.getResources().getDisplayMetrics()));
         icon.setBackground(bg);
-        name.setText(e.name + (e.dir ? "/" : ""));
+        String shown = showPath ? e.full : e.name;
+        name.setText(shown + (e.dir && !shown.endsWith("/") ? "/" : ""));
         detail.setText(e.dir ? "文件夹" : FileOps.formatSize(e.size));
         return cv;
     }

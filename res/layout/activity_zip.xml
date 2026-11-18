@@ -16,6 +16,8 @@
         android:background="?attr/hfSurfaceAlt"
         android:minHeight="44dp"/>
 
+    <!-- v2.16.0（F-21）：四个按钮等分。「搜索」紧跟「上级」，包内找文件是高频动作；
+         破坏性的「关闭」仍在最右。 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -27,7 +29,15 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="40dp"
-            android:text="上级"
+            android:text="@string/zip_up"
+            android:textSize="12sp"/>
+
+        <Button
+            android:id="@+id/zip_search"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:text="@string/zip_search"
             android:textSize="12sp"/>
 
         <Button
@@ -35,7 +45,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="40dp"
-            android:text="解压全部"
+            android:text="@string/zip_extract_all"
             android:textSize="12sp"/>
 
         <Button
@@ -43,7 +53,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="40dp"
-            android:text="关闭"
+            android:text="@string/zip_close"
             android:textSize="12sp"/>
     </LinearLayout>
 

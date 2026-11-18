@@ -478,4 +478,22 @@
     <string name="lan_scan_dav_hint">已填入地址；若连不上，请补上 WebDAV 的路径（如 /dav/）</string>
     <string name="lan_scan_http_hint">对方是普通网页服务，不一定开了 WebDAV；若确认有，请补上路径（如 /dav/）</string>
     <string name="lan_scan_stopped">扫描已取消</string>
+    <!-- v2.16.0（F-21）：包内搜索 -->
+    <string name="zip_up">上级</string>
+    <string name="zip_search">搜索</string>
+    <string name="zip_extract_all">解压全部</string>
+    <string name="zip_close">关闭</string>
+    <string name="zip_search_msg">支持 * ? 通配；空格分隔多个条件表示要同时满足</string>
+    <string name="zip_search_hint">文件名或路径片段</string>
+    <string name="zip_search_empty_query">请输入搜索内容</string>
+    <string name="zip_searching">正在搜索包内条目…</string>
+    <string name="zip_search_done">搜索「%1$s」：命中 %2$d 项</string>
+    <string name="zip_search_truncated">搜索「%1$s」：命中 %2$d 项，只显示前 %3$d 项</string>
+    <string name="zip_search_none">没有匹配「%1$s」的条目</string>
+    <string name="zip_search_failed">搜索失败: %1$s</string>
+    <string name="zip_search_back">返回目录</string>
+    <string name="zip_title_search">%1$s [%2$s]\n%3$s</string>
+    <string name="zip_busy">正在处理，请稍候…</string>
+    <string name="zip_extracted_one">已解压 %1$s\n→ %2$s</string>
+    <string name="zip_dialog_dismiss_failed">进度条关闭失败: %1$s</string>
 </resources>

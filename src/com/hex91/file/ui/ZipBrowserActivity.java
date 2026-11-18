@@ -4,6 +4,7 @@ import com.hex91.file.R;
 import com.hex91.file.MainActivity;
 import com.hex91.file.apk.ApkEditSession;
 import com.hex91.file.apk.ArchiveExtract;
+import com.hex91.file.apk.ArchiveSearch;
 import com.hex91.file.apk.ArchiveUtil;
 import com.hex91.file.apk.SmaliTool;
 import com.hex91.file.fs.WorkDir;
@@ -13,6 +14,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -40,7 +42,20 @@ public class ZipBrowserActivity extends BaseActivity {
     private TextView titleView;
     private ListView list;
     private ZipAdapter adapter;
-    private Button btnExtract;
+    private Button btnExtract, btnUp;
+
+    /**
+     * v2.16.0（F-21）：非 null 表示当前列表是搜索结果，不是某个目录。
+     *
+     * <p>搜索和目录浏览共用同一份列表与同一个适配器，用一个字段区分两种模式，
+     * 比开第二个 Activity 省事：点击、长按、解压全部都能原地复用。</p>
+     */
+    private String query;
+    private ArchiveSearch.Result searchResult;
+    /** 搜索线程正在跑（挡住点击与被 onResume 重载） */
+    private volatile boolean searching;
+    /** Activity 已销毁：后台线程回来时不要再碰 View */
+    private volatile boolean dead;
 
     /**
      * 是否正在后台整包解压（v2.13.1 F-11）。
@@ -62,6 +77,7 @@ public class ZipBrowserActivity extends BaseActivity {
         titleView = (TextView) findViewById(R.id.zip_title);
         list = (ListView) findViewById(R.id.zip_list);
         btnExtract = (Button) findViewById(R.id.zip_extract);
+        btnUp = (Button) findViewById(R.id.zip_up);
 
         try {
             archive = ArchiveUtil.open(archiveFile);
@@ -72,8 +88,11 @@ public class ZipBrowserActivity extends BaseActivity {
             return;
         }
 
-        findViewById(R.id.zip_up).setOnClickListener(new View.OnClickListener() {
+        btnUp.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { goUp(); }
+        });
+        findViewById(R.id.zip_search).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { promptSearch(); }
         });
         findViewById(R.id.zip_close).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { finish(); }
@@ -82,7 +101,8 @@ public class ZipBrowserActivity extends BaseActivity {
             public void onClick(View v) { extractAll(); }
         });
         // v1.76.0：底栏三个系统按钮 → 胶囊（解压全部为主操作）
-        UiDecor.barButton((Button) findViewById(R.id.zip_up), this, UiDecor.KIND_SOFT, 12.5f);
+        UiDecor.barButton(btnUp, this, UiDecor.KIND_SOFT, 12.5f);
+        UiDecor.barButton((Button) findViewById(R.id.zip_search), this, UiDecor.KIND_SOFT, 12.5f);
         UiDecor.barButton(btnExtract, this, UiDecor.KIND_PRIMARY, 12.5f);
         UiDecor.barButton((Button) findViewById(R.id.zip_close), this, UiDecor.KIND_SOFT, 12.5f);
         UiDecor.gap((Button) findViewById(R.id.zip_extract), this, 4f);
@@ -92,10 +112,13 @@ public class ZipBrowserActivity extends BaseActivity {
         list.setAdapter(adapter);
         list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             public void onItemClick(AdapterView<?> av, View v, int i, long id) {
-                if (extracting) { toast("正在解压，请稍候…"); return; }
+                if (extracting || searching) { toast(getString(R.string.zip_busy)); return; }
                 ArchiveUtil.Entry e = adapter.get(i);
                 if (e.dir) {
+                    // 从搜索结果点进目录：退出搜索模式，回到以该目录为根的浏览
                     prefix = e.full;
+                    query = null;
+                    searchResult = null;
                     load();
                 } else {
                     extractEntry(e);
@@ -104,7 +127,7 @@ public class ZipBrowserActivity extends BaseActivity {
         });
         list.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
             public boolean onItemLongClick(AdapterView<?> av, View v, int i, long id) {
-                if (extracting) { toast("正在解压，请稍候…"); return true; }
+                if (extracting || searching) { toast(getString(R.string.zip_busy)); return true; }
                 showEntryMenu(adapter.get(i));
                 return true;
             }
@@ -124,6 +147,7 @@ public class ZipBrowserActivity extends BaseActivity {
 
     @Override
     protected void onDestroy() {
+        dead = true;                 // 搜索线程可能还在跑，回来后不许再碰 View
         if (archive != null) {
             try { archive.close(); } catch (IOException ignored) {}
         }
@@ -131,9 +155,15 @@ public class ZipBrowserActivity extends BaseActivity {
     }
 
     private void load() {
+        if (query != null) {          // 搜索模式由 renderSearch 负责，避免把结果冲掉
+            renderSearch();
+            return;
+        }
         try {
             List<ArchiveUtil.Entry> entries = archive.listChildren(prefix);
+            adapter.setShowPath(false);
             adapter.set(entries);
+            btnUp.setText(R.string.zip_up);
             String inner = prefix.isEmpty() ? "/" : "/" + prefix;
             titleView.setText(archiveFile.getName() + "  [" + format + "]\n内部路径: " + inner
                     + "  (" + entries.size() + " 项)");
@@ -147,11 +177,21 @@ public class ZipBrowserActivity extends BaseActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // 解压中不重载：会与后台线程抢同一个 Archive（F-11）
-        if (archive != null && archiveFile != null && !extracting) load();
+        // 解压/搜索中不重载：会与后台线程抢同一个 Archive（F-11 / F-21）。
+        // 搜索态也不重载：load() 会走 renderSearch()，那是白跑一次重绘；
+        // 包内容若在编辑器里改过，点一次「搜索」就是最新的。
+        if (archive == null || archiveFile == null || extracting || searching) return;
+        if (query != null) return;
+        load();
     }
 
     private void goUp() {
+        if (query != null) {          // 搜索态下「上级」= 返回原目录
+            query = null;
+            searchResult = null;
+            load();
+            return;
+        }
         if (prefix.isEmpty()) return;
         String up = prefix.substring(0, prefix.length() - 1); // 去掉末尾 '/'
         int idx = up.lastIndexOf('/');
@@ -160,7 +200,7 @@ public class ZipBrowserActivity extends BaseActivity {
     }
 
     private void extractAll() {
-        if (extracting) { toast("正在解压，请稍候…"); return; }
+        if (extracting || searching) { toast(getString(R.string.zip_busy)); return; }
         final File[] targets = {dest, archiveFile.getParentFile()};
         String[] labels = {
                 "解压到: " + dest.getPath(),
@@ -228,13 +268,7 @@ public class ZipBrowserActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         extracting = false;
-                        if (pd.isShowing()) {
-                            try {
-                                pd.dismiss();
-                            } catch (Throwable t) {
-                                toast("进度条关闭失败: " + t);
-                            }
-                        }
+                        dismissQuietly(pd);
                         if (fr.error != null) {
                             toast("解压失败（已完成 " + fr.done + " 项）: " + fr.error);
                         } else if (fr.cancelled) {
@@ -251,10 +285,114 @@ public class ZipBrowserActivity extends BaseActivity {
     private void extractEntry(ArchiveUtil.Entry e) {
         try {
             archive.extractEntry(e.full, dest);
-            toast("已解压: " + e.name + "\n→ " + dest.getPath());
+            // 用完整条目名：搜索结果的短名可能同名多行，只报短名分不清解的是哪个
+            toast(getString(R.string.zip_extracted_one, e.full, dest.getPath()));
         } catch (Exception ex) {
             toast("解压失败: " + ex.getMessage());
         }
+    }
+
+    /**
+     * v2.16.0（F-21）：包内搜索。
+     *
+     * <p>为什么搜整个包而不是当前目录：用户找 {@code AndroidManifest.xml} 时，绝大多数情况
+     * 并不知道它在不了几层下的哪个目录；只搜当前层等于让他先自己找到目录再来搜。</p>
+     */
+    private void promptSearch() {
+        if (extracting || searching) { toast(getString(R.string.zip_busy)); return; }
+        final EditText et = new EditText(this);
+        et.setSingleLine(true);
+        et.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        et.setHint(R.string.zip_search_hint);
+        if (query != null) et.setText(query);     // 再搜一次时把上次的词带出来好改
+        new HfDialogBuilder(this)
+                .setTitle(R.string.zip_search)
+                .setMessage(R.string.zip_search_msg)
+                .setView(et)
+                .setPositiveButton(R.string.zip_search,
+                        new android.content.DialogInterface.OnClickListener() {
+                            public void onClick(android.content.DialogInterface d, int w) {
+                                startSearch(et.getText().toString());
+                            }
+                        })
+                .setNegativeButton(R.string.common_cancel, null)
+                .show();
+    }
+
+    /**
+     * 后台执行搜索。
+     *
+     * <p>必须离开 UI 线程：ZIP/RAR/7z 的条目表在打开时已解析好，取一次是毫秒级；
+     * 但 TAR 没有索引，{@code listAll} 等于把整个包顺序读一遍，几百 MB 就是几秒。
+     * 同一份代码不能有两种线程模型，所以统一放后台。</p>
+     */
+    private void startSearch(final String raw) {
+        final String q = ArchiveSearch.normalize(raw);
+        if (q.isEmpty()) { toast(getString(R.string.zip_search_empty_query)); return; }
+        searching = true;
+        final ProgressDialog pd = new ProgressDialog(this);
+        pd.setMessage(getString(R.string.zip_searching));
+        // 与解压一致：关掉对话框不代表停下了，那就不给关
+        pd.setCancelable(false);
+        pd.show();
+        new Thread(new Runnable() {
+            public void run() {
+                ArchiveSearch.Result got = null;
+                String err = null;
+                try {
+                    got = ArchiveSearch.filter(archive.listAll(), q, ArchiveSearch.MAX_HITS);
+                } catch (Throwable t) {
+                    err = shortMsg(t);
+                }
+                final ArchiveSearch.Result fr = got;
+                final String fe = err;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        searching = false;
+                        dismissQuietly(pd);
+                        if (dead || isFinishing()) return;
+                        if (fe != null) {
+                            toast(getString(R.string.zip_search_failed, fe));
+                            return;
+                        }
+                        query = q;
+                        searchResult = fr;
+                        renderSearch();
+                    }
+                });
+            }
+        }, "zip-search").start();
+    }
+
+    /** 把搜索结果画进列表：完整路径 + 「命中多少条 / 是否截断」 */
+    private void renderSearch() {
+        ArchiveSearch.Result r = searchResult;
+        if (r == null) { query = null; load(); return; }
+        adapter.setShowPath(true);          // 必须在 set() 之前：set 里会 notifyDataSetChanged
+        adapter.set(r.items);
+        btnUp.setText(R.string.zip_search_back);
+        String head;
+        if (r.total == 0) head = getString(R.string.zip_search_none, query);
+        else if (r.truncated) head = getString(R.string.zip_search_truncated, query, r.total, r.items.size());
+        else head = getString(R.string.zip_search_done, query, r.total);
+        titleView.setText(getString(R.string.zip_title_search, archiveFile.getName(), format, head));
+    }
+
+    /** 关进度条：解压与搜索共用一份，免得同一个 try/catch 写两遍 */
+    private void dismissQuietly(ProgressDialog pd) {
+        if (pd == null || !pd.isShowing()) return;
+        try {
+            pd.dismiss();
+        } catch (Throwable t) {
+            toast(getString(R.string.zip_dialog_dismiss_failed, String.valueOf(t)));
+        }
+    }
+
+    /** 异常压成一行（ArchiveUtil 里那份是包内可见，这里跨包拿不到） */
+    private static String shortMsg(Throwable t) {
+        String m = t == null ? null : t.getMessage();
+        if (m == null || m.isEmpty()) m = t == null ? "未知错误" : t.getClass().getSimpleName();
+        return m.length() > 160 ? m.substring(0, 160) : m;
     }
 
     private void showEntryMenu(final ArchiveUtil.Entry e) {

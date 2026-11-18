@@ -65,6 +65,15 @@ public class ArchiveUtil {
     public interface Archive extends AutoCloseable {
         /** 列出 prefix 下的直接子条目（不递归） */
         List<Entry> listChildren(String prefix) throws IOException;
+        /**
+         * 列出全部条目（递归，含各级目录）—— v2.16.0（F-21）包内搜索用。
+         *
+         * <p>搜索必须跨目录：用户找 {@code AndroidManifest.xml} 时并不知道它在不在地下几层。
+         * 各后端在打开时基本已经把条目表读进内存了（7z 头、RAR 归档头、ZIP 中央目录），
+         * 所以这里是「取一份已解析好的表」，不是「再一次全包扫描」；TAR 例外，
+         * 它没有索引，只能顺序读一遍（见该实现）。</p>
+         */
+        List<Entry> listAll() throws IOException;
         /** 解压全部内容到 outDir */
         void extractAll(File outDir) throws IOException;
         /** 解压单个条目（含其下全部子项，若 entry 是目录）到 outDir */
@@ -165,6 +174,33 @@ public class ArchiveUtil {
         return out;
     }
 
+    /**
+     * 把后端内部的扁平 {@link Raw} 表转成全量 {@link Entry}（v2.16.0 F-21）。
+     *
+     * <p>与 {@link #computeChildren} 保持同一套命名约定：目录的 {@code full} 一律带尾 {@code /}
+     * （{@code extractEntry} 依赖这个尾斜杠做前缀匹配）。同一条目在归档里重复出现
+     * （ZIP 允许同名条目，后写覆盖先写）时只留第一条，避免搜索结果里出现两行一模一样的路径。</p>
+     */
+    private static List<Entry> flatEntries(List<Raw> raws) {
+        List<Entry> out = new ArrayList<>(raws.size());
+        Set<String> seen = new HashSet<>();
+        for (Raw r : raws) {
+            boolean dir = r.dir || r.name.endsWith("/");
+            String full = r.name;
+            if (dir && !full.endsWith("/")) full = full + "/";
+            if (!seen.add(full)) continue;
+            out.add(new Entry(full, lastSeg(full), dir, dir ? 0L : Math.max(r.size, 0L)));
+        }
+        return out;
+    }
+
+    /** 取最后一段路径（目录的尾斜杠不计入） */
+    private static String lastSeg(String p) {
+        String s = p.endsWith("/") ? p.substring(0, p.length() - 1) : p;
+        int i = s.lastIndexOf('/');
+        return i < 0 ? s : s.substring(i + 1);
+    }
+
     /** 路径穿越防护：确保解压目标落在 outDir 内 */
     static File safeTarget(File outDir, String entryName) {
         File f = new File(outDir, entryName);
@@ -209,6 +245,24 @@ public class ArchiveUtil {
             return out;
         }
 
+        /** 全量条目（v2.16.0 F-21）：ZipFile 读中央目录，一次遍历 */
+        public List<Entry> listAll() throws IOException {
+            List<Raw> raws = new ArrayList<>();
+            java.util.zip.ZipFile zf = new java.util.zip.ZipFile(file);
+            try {
+                java.util.Enumeration<? extends java.util.zip.ZipEntry> en = zf.entries();
+                while (en.hasMoreElements()) {
+                    java.util.zip.ZipEntry ze = en.nextElement();
+                    String nm = norm(ze.getName());
+                    if (nm.isEmpty()) continue;
+                    raws.add(new Raw(nm, ze.isDirectory(), ze.getSize()));
+                }
+            } finally {
+                zf.close();
+            }
+            return flatEntries(raws);
+        }
+
         public void extractAll(File outDir) throws IOException {
             ZipUtil.extractAll(file, outDir);
         }
@@ -238,6 +292,7 @@ public class ArchiveUtil {
         public List<Entry> listChildren(String prefix) throws IOException {
             return computeChildren(allRaw(), prefix);
         }
+        public List<Entry> listAll() { return flatEntries(allRaw()); }
         public void extractAll(File outDir) throws IOException {
             extractMatching(outDir, null);
         }
@@ -392,6 +447,9 @@ public class ArchiveUtil {
         public List<Entry> listChildren(String prefix) throws IOException {
             return computeChildren(allRaw(), prefix);
         }
+
+        /** 条目表在构造时已从归档头读全（v2.16.0 F-21） */
+        public List<Entry> listAll() { return flatEntries(allRaw()); }
 
         public void extractAll(File outDir) throws IOException {
             extractMatching(outDir, null);
@@ -553,6 +611,9 @@ public class ArchiveUtil {
             return computeChildren(raws, prefix);
         }
 
+        /** 中央目录在构造时已读进 raws（v2.16.0 F-21） */
+        public List<Entry> listAll() { return flatEntries(raws); }
+
         public void extractAll(File outDir) throws IOException {
             try {
                 if (password != null && encrypted) zip.setPassword(password.toCharArray());
@@ -640,6 +701,11 @@ public class ArchiveUtil {
         public List<Entry> listChildren(String prefix) throws IOException {
             return computeChildren(allRaw(), prefix);
         }
+        /**
+         * TAR 没有索引，只能顺序读完整个流（v2.16.0 F-21）。
+         * 所以这条路是唯一「搜一次 = 读一遍包」的格式，UI 放在后台线程里跑。
+         */
+        public List<Entry> listAll() throws IOException { return flatEntries(allRaw()); }
         public void extractAll(File outDir) throws IOException { extractMatching(outDir, null); }
         public void extractEntry(String entryName, File outDir) throws IOException {
             extractMatching(outDir, entryName);
@@ -693,6 +759,13 @@ public class ArchiveUtil {
             String nm = entryName();
             if (prefix == null || prefix.isEmpty())
                 out.add(new Entry(nm, nm, false, 0));
+            return out;
+        }
+        /** 裸 zstd frame 只有一个条目（v2.16.0 F-21） */
+        public List<Entry> listAll() {
+            String nm = entryName();
+            List<Entry> out = new ArrayList<>(1);
+            out.add(new Entry(nm, nm, false, 0));
             return out;
         }
 

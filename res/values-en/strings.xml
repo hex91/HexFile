@@ -471,4 +471,22 @@
     <string name="lan_scan_dav_hint">Address filled in; if it fails, add the WebDAV path (e.g. /dav/)</string>
     <string name="lan_scan_http_hint">This looks like a plain web server, not necessarily WebDAV; if it is, add the path (e.g. /dav/)</string>
     <string name="lan_scan_stopped">Scan cancelled</string>
+    <!-- v2.16.0 (F-21): in-archive search -->
+    <string name="zip_up">Up</string>
+    <string name="zip_search">Search</string>
+    <string name="zip_extract_all">Extract all</string>
+    <string name="zip_close">Close</string>
+    <string name="zip_search_msg">* and ? are wildcards; separate terms with spaces — all must match</string>
+    <string name="zip_search_hint">File name or path fragment</string>
+    <string name="zip_search_empty_query">Enter something to search</string>
+    <string name="zip_searching">Searching entries…</string>
+    <string name="zip_search_done">Search "%1$s": %2$d hits</string>
+    <string name="zip_search_truncated">Search "%1$s": %2$d hits, showing first %3$d</string>
+    <string name="zip_search_none">No entry matches "%1$s"</string>
+    <string name="zip_search_failed">Search failed: %1$s</string>
+    <string name="zip_search_back">Back to folder</string>
+    <string name="zip_title_search">%1$s [%2$s]\n%3$s</string>
+    <string name="zip_busy">Busy, please wait…</string>
+    <string name="zip_extracted_one">Extracted %1$s\n→ %2$s</string>
+    <string name="zip_dialog_dismiss_failed">Could not close the progress dialog: %1$s</string>
 </resources>
