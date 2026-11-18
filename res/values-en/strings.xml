@@ -489,4 +489,47 @@
     <string name="zip_busy">Busy, please wait…</string>
     <string name="zip_extracted_one">Extracted %1$s\n→ %2$s</string>
     <string name="zip_dialog_dismiss_failed">Could not close the progress dialog: %1$s</string>
+    <!-- v2.17.0 (F-23): scheduled tasks -->
+    <string name="sched_title">Schedules</string>
+    <string name="sched_new">New</string>
+    <string name="sched_close">Close</string>
+    <string name="sched_hint">Runs at the scheduled time. Deep sleep may delay it by a few minutes — cleanup does not need second-level precision.</string>
+    <string name="sched_empty">No schedules yet. Tap "New" to clear, zip or prune a folder every day or on chosen weekdays.</string>
+    <string name="sched_next">Next %1$s</string>
+    <string name="sched_off">Disabled</string>
+    <string name="sched_never">Never run</string>
+    <string name="sched_last_short">Last: %1$s</string>
+    <string name="sched_rule_invalid_short">Invalid rule</string>
+    <string name="sched_dialog_new">New schedule</string>
+    <string name="sched_dialog_edit">Edit schedule</string>
+    <string name="sched_label_rule">When to run</string>
+    <string name="sched_rule_hint">daily 23:00 or weekly 1,3 07:30</string>
+    <string name="sched_label_action">What to do</string>
+    <string name="sched_label_target">Target folder (absolute path)</string>
+    <string name="sched_target_hint">/sdcard/Download/cache</string>
+    <string name="sched_label_days">Keep files newer than (days)</string>
+    <string name="sched_rule_invalid">Unknown rule. Examples: daily 23:00, weekly 1,3 07:30 (1=Mon, 7=Sun)</string>
+    <string name="sched_target_dangerous">This folder cannot be a target (root, storage root or system mount)</string>
+    <string name="sched_target_invalid">Target folder does not exist or is not a folder</string>
+    <string name="sched_days_invalid">Days must be greater than 0</string>
+    <string name="sched_save">Save</string>
+    <string name="sched_saved">Saved</string>
+    <string name="sched_menu_enable">Enable</string>
+    <string name="sched_menu_disable">Disable</string>
+    <string name="sched_menu_run">Run now</string>
+    <string name="sched_menu_edit">Edit</string>
+    <string name="sched_menu_delete">Delete</string>
+    <string name="sched_delete_msg">Delete "%1$s"? Cleanup that already happened is not undone.</string>
+    <string name="sched_running">Running…</string>
+    <string name="sched_run_ok">Done, %1$d items</string>
+    <string name="sched_run_err">Failed: %1$s</string>
+    <string name="sched_action_clean">Clear folder</string>
+    <string name="sched_action_zip">Zip folder</string>
+    <string name="sched_action_expire">Prune old files</string>
+    <string name="sched_result_ok">OK (%1$d items)</string>
+    <string name="sched_result_err">Failed: %1$s</string>
+    <string name="sched_noti_channel">Scheduled tasks</string>
+    <string name="sched_noti_title">%1$d scheduled task(s) ran</string>
+    <string name="sched_noti_partial">Scheduled task(s) failed (%1$d)</string>
+    <string name="sched_noti_line">%1$s: %2$s</string>
 </resources>

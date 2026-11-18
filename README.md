@@ -26,7 +26,7 @@ adb install -r out/HexFile-*.apk
 
 ```
 /
-├── AndroidManifest.xml          # minSdk 21 / targetSdk 30 / 存储权限 / 55 个组件（47 Activity + 4 Service + 3 Provider + 1 Receiver）
+├── AndroidManifest.xml          # minSdk 21 / targetSdk 30 / 存储权限 / 59 个组件（48 Activity + 4 Service + 3 Provider + 4 Receiver）
 ├── build.sh                     # 一键构建（7 步：aapt2 compile→link→NDK→javac→d8→zipalign→sign，带版本守卫）
 ├── res/
 │   ├── layout/activity_main.xml # 格双栏布局（深色顶栏+统计行、底部 ‹ › ＋ ⇄ ↑ 工具栏）
@@ -70,7 +70,7 @@ adb install -r out/HexFile-*.apk
     │   ├── OneDriveFs AliyunDriveFs OAuthClient OAuthToken CloudPath StreamUrl
     │   ├── HlsPlaylist HlsCrypto HlsKey M3u8Playlist HlsDownloader TsRemuxer
     │   └── LanNet LanNode LanProtocol LanSender RemoteServer TokenHarvest SyncRunner
-    ├── ui/          (73)        # 界面：44 Activity + 7 Service/Provider + 视图/适配器/对话框
+    ├── ui/          (77)        # 界面：48 Activity + 7 Service/Provider + 视图/适配器/对话框
     │   ├── *Activity（除 MainActivity 外全部）、ActivityFloatService / ActivityTraceService
     │   ├── ApkFileProvider / HfDocumentsProvider / WidgetProvider / LanShareService / TaskService
     │   ├── FileAdapter / FileGridAdapter / ZipAdapter、PullRefreshLayout / RadarView
@@ -1777,6 +1777,132 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.17.0（versionCode 210）—— F-23：定时任务
+
+「该清缓存了」「该把截图目录打包备份了」「三个月前的录屏该删了」—— 这类事都知道要做，
+但都要靠记性。这一轮把它们交给系统的闹钟：到点自动清空目录、压缩目录、或清理超过 N 天
+的文件，结果写回列表（最近一次成功还是失败、处理了多少项）。
+
+入口在侧栏「⏰ 定时任务」。
+
+### 规则只做两种
+
+| 规则 | 含义 |
+| --- | --- |
+| `daily 23:00` | 每天 23:00 |
+| `weekly 1,3,5 07:30` | 周一、三、五 07:30（1=周一，7=周日） |
+
+**为什么不用 cron**：cron 的 `*` `/` `,` 表达能力远超这里用得上的范围，代价是用户得先学一遍；
+而写错一个字符的后果是「不执行」—— 还是静默的，列表里那条任务看起来一切正常。
+上面两种覆盖了「每天清一次」「每周某几天做一次」的全部真实需求。
+
+规则就是一段可直接改的文本，不是「小时下拉 + 分钟下拉 + 星期多选」三个控件的组合：
+想从「每天」改成「每周一三五」，改一个词比在两排控件之间来回点快得多，也更容易复制给别人。
+
+### 三个动作
+
+| 动作 | 做什么 | 不做什么 |
+| --- | --- | --- |
+| 清空目录 | 删掉目录里的全部内容 | 不删目录本身；**不进回收站** |
+| 压缩为 zip | 压成 `<目录名>.zip` 放在**父目录** | 不覆盖前先备份（同名即覆盖） |
+| 清理旧文件 | 删掉超过 N 天没修改的**文件** | 不删空目录（可能是用户刻意留的结构） |
+
+清空**不进回收站**是刻意的：定时清缓存的目的就是腾空间，进回收站等于把文件从 A 搬到 B，
+空间一点没省，用户还以为清干净了。要可逆就用「压缩为 zip」——它保留了内容，且只占一份。
+
+### 什么时候执行：单闹钟 + 计划点比对
+
+- 永远只为「最早的下一次」注册**一个**闹钟。每个任务一个 PendingIntent 要管 requestCode、
+  要处理「删任务时撤回哪个」，还容易留下改完时间忘了重排的幽灵闹钟。
+- 用 `setAndAllowWhileIdle`，不用 `setExact*`：精确闹钟在 Android 12+ 需要
+  `SCHEDULE_EXACT_ALARM`，用户得去系统设置单独授予，而「每天清一次缓存」不需要精确到秒。
+  代价是 Doze 下最多延后几分钟，这个代价换掉一个权限弹窗是值得的。
+- 判断「这一轮到点了没有」用 **`prevRun(rule, now) > lastRun`**，不用「now 与下次时间
+  差多少」的容差：Doze 会把闹钟推迟几分钟到几小时，容差写小了漏跑、写大了重跑；而
+  「最近一个计划点」与「上次执行时刻」都是确切值，没有容差可调。
+- 设备睡了三天醒来只补跑**最近一次**，不会连跑三次 —— 三次连续清空对谁都没好处。
+
+### 为什么拆成两个 receiver
+
+`BOOT_COMPLETED` 是系统广播，接收它的组件必须 `exported="true"`，否则收不到。
+而「到点执行」那个 receiver 一旦也是 exported，**任何应用都能给它发一个 tick**，
+反复触发用户的「清空目录」—— 那是实打实的数据丢失。
+
+所以拆开：
+
+| 组件 | exported | 能做什么 |
+| --- | --- | --- |
+| `BootReceiver` | `true` | 只按表重排闹钟。被恶意触发最多是把闹钟重设一次，等价操作 |
+| `ScheduleReceiver` | `false` | 执行清理动作。只有本应用自己的 PendingIntent 能唤到 |
+
+重启与覆盖安装后系统会把所有闹钟清掉，这是「定时功能用了几天就再也不响」最常见的原因，
+所以 `BootReceiver` 同时接 `BOOT_COMPLETED`、`MY_PACKAGE_REPLACED` 与国产 ROM 常用的
+`QUICKBOOT_POWERON`。
+
+### 危险目标护栏
+
+手输路径的定时任务最坏的失败不是「没执行」，而是「执行错了目录」。`/`、`/system`、
+`/sdcard` 这些路径没有一个有理由定时清空，所以 `ScheduleRunner.isDangerous` 在执行与保存
+两处都挡一遍（不是只在 UI 挡：执行入口也可能被别处调用）。系统挂载点的**子目录**放行 ——
+`/data/local/tmp` 之类是有真实用途的。
+
+### 几个刻意的决定
+
+- **「立即执行」也记 lastRun**，但按真实执行时刻记：12:00 手动跑一次，当晚 23:00 的
+  计划点仍然大于它，所以照常执行。用「计划点」当前一次执行时间去重时，这个语义天然成立。
+- **配置错误一律报错，不静默**：目标不存在、不是目录、保留 0 天、规则写错 —— 都返回原因
+  并写进「上次」。静默失败最坑：用户以为设好了，一周后才发现什么都没发生。
+- **压缩空目录报错**而不是生成一个 0 字节的 zip。
+- **不跟进符号链接**：清空与过期清理都走 `TreeOps.delete` / 先判链接再递归，
+  和 R-09 修的是同一类坑（`isDirectory()` 会跟随链接，跟进就删到目标里去了）。
+- 通知**不设点击跳转**：`sched` 包不能引用 `ui.ScheduleActivity`（依赖方向门），
+  为一条提示再加隐式 Intent filter 不值当。结果同时写进列表的「上次」。
+
+### 边界（写清免得以后当 bug 查）
+
+- 只支持每天 / 每周。不支持「每月 1 号」「每 6 小时」「连续做多个动作」—— 后者需要任务链，
+  与现有的文件任务引擎是两套模型，硬塞进来会让两边都变复杂。
+- 进程被杀不影响已注册的闹钟（闹钟在系统侧），但**执行期间**被杀会留下做了一半的结果：
+  清空可能清了一半、压缩可能留下半截 zip（`.part` 机制只在文件任务引擎里）。
+- Android 13+ 未授予通知权限时，执行结果只在列表里，不会有通知。
+- 目标目录里若有正在被写入的文件，删除会失败，结果里如实报「有 N 项删不掉」。
+
+### 验证
+
+- `build.sh` → **BUILD OK，v210 / 2.17.0**，APK **13,111,941 B**（unsigned **13,064,724 B**），
+  V3 CN=hex91
+- 四道门：`deps` 通过（本轮把新包 `sched` 纳入检查：不许依赖 `ui/controller`）、
+  `catch` 335（331 命名表态忽略 + 4 其余）、`lang` PASS（482 键，中英各 482）、
+  `action` PASS（54 个动作号互不重复）
+- 新增 `test/ScheduleTest`（**80 断言**）：
+  - 规则 32：daily/weekly 的 nextRun（今天已过点、恰好等于当前时刻、跨零点、跨周跨月）、
+    prevRun 与 nextRun 的反向边界、畸形输入（24:00 / 23:60 / 星期 8 / 缺冒号 / null）
+    一律判非法而不抛；
+  - 编解码 15：往返保真（含 `lastRun` 的 long 精度）、路径里的制表符/反斜杠/换行、
+    无格式头、半截行被丢、认不出的动作被跳过、nextId 分配；
+  - 执行 21：clean 删 2 项且保留目录、目标不存在/不是目录/为空各报错、
+    expire 按 mtime 删深层旧文件且留新文件与空目录、zip 真生成包（4 个条目含目录）、
+    空目录不生成空包；
+  - 危险目录 12：`/`、`/system`、`/data`、`/sdcard`、`/storage/emulated` 被拒，
+    子目录放行，且执行阶段也挡。
+- 桌面单测：`QUICK=1` **65 用例 65 PASS**；`ALL` **68 用例 68 PASS**
+
+**真机测试点**：
+
+1. 设置页确认 `2.17.0 (210)`；
+2. 侧栏「⏰ 定时任务」→「新建」→ 规则填 `daily <当前时间 +2 分钟>`、动作「清空目录」、
+   目标填一个放了几张图的测试目录 → 保存 → 列表显示「下次 今天 HH:MM」；
+3. 到点后：出现通知、测试目录被清空、目录本身还在、列表「上次」显示「成功（N 项）」；
+4. 规则填 `daily 25:00` → 提示「规则看不懂」且**对话框不关**（能接着改）；
+5. 目标填 `/sdcard/nonexistent` → 提示目标不存在；填 `/` → 提示不能设为目标；
+6. 动作切到「清理旧文件」→ 天数输入框出现；填 0 → 提示要大于 0；
+7. 「立即执行」→ 立刻执行，列表「上次」更新，且当晚计划点仍会再跑一次；
+8. 「停用」→ 整行压暗显示「已停用」，到点不执行；再「启用」恢复正常；
+9. 把手机重启 → 到点仍然执行（验证开机重排）；
+10. 动作选「压缩为 zip」→ 父目录出现 `<目录名>.zip`，能正常打开。
 
 ---
 

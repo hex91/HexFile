@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hex91.file"
-    android:versionCode="209"
-    android:versionName="2.16.0">
+    android:versionCode="210"
+    android:versionName="2.17.0">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
 
@@ -26,6 +26,9 @@
     <!-- v1.98.0：任务进度通知。targetSdk 30 时安装即授予；提前声明便于日后升 targetSdk -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- v1.74.0 局域网快传：UDP 广播发现 + 本机 HTTP 接收 -->
+    <!-- v2.17.0（F-23）：定时任务要在重启后重新注册闹钟 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
@@ -161,6 +164,12 @@
         <!-- v2.12.0（F-18）：崩溃现场（堆栈 + 环形日志 + 机型），崩溃提示也跳这里 -->
         <activity
             android:name="com.hex91.file.ui.CrashReportActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
+
+        <!-- v2.17.0（F-23）：定时任务列表 -->
+        <activity
+            android:name="com.hex91.file.ui.ScheduleActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
 
@@ -480,6 +489,24 @@
         <receiver
             android:name="com.hex91.file.ui.InstallResultReceiver"
             android:exported="false"/>
+
+        <!-- v2.17.0（F-23）：到点执行。exported=false —— 它会删文件，只有本应用自己的
+             闹钟 PendingIntent 能唤到它；开机重排交给下面的 BootReceiver。 -->
+        <receiver
+            android:name="com.hex91.file.sched.ScheduleReceiver"
+            android:exported="false"/>
+
+        <!-- v2.17.0（F-23）：开机 / 升级后重排闹钟。系统广播必须 exported=true；
+             即使被别的应用触发，也只是把闹钟重设一次（等价操作），不碰任何文件。 -->
+        <receiver
+            android:name="com.hex91.file.sched.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name="com.hex91.file.ui.ApkFileProvider"

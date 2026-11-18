@@ -9,6 +9,7 @@ import com.hex91.file.ui.Java2SmaliActivity;
 import com.hex91.file.ui.LanShareActivity;
 import com.hex91.file.ui.NetStorageActivity;
 import com.hex91.file.ui.RemoteActivity;
+import com.hex91.file.ui.ScheduleActivity;
 import com.hex91.file.ui.SignKeyManagerActivity;
 import com.hex91.file.ui.SmaliDocActivity;
 import com.hex91.file.ui.StorageAnalysisActivity;
@@ -140,6 +141,13 @@ public final class DrawerController {
             public void onClick(View v) {
                 closeDrawer();
                 host.open(new Intent(host.ctx(), ToolboxActivity.class));
+            }
+        });
+        // v2.17.0（F-23）：定时任务（到点自动清空目录 / 压缩目录 / 清理旧文件）
+        host.find(R.id.drawer_schedule).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                closeDrawer();
+                host.open(new Intent(host.ctx(), ScheduleActivity.class));
             }
         });
         // v1.74.0：局域网快传（雷达扫描同网设备，点光点传文件）

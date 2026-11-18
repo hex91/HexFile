@@ -37,6 +37,8 @@ check fs    '^import (static )?com\.hex91\.file\.(\*|ui\.|controller\.)'        
 check apk   '^import (static )?com\.hex91\.file\.(\*|ui\.|controller\.)'             'apk 不能依赖 ui/controller'
 check net   '^import (static )?com\.hex91\.file\.(\*|ui\.|controller\.)'             'net 不能依赖 ui/controller'
 check utils '^import (static )?com\.hex91\.file\.(\*|ui\.|controller\.|apk\.|net\.)' 'utils 只能依赖 core/fs'
+# v2.17.0（F-23）：sched 是新层（纯逻辑 + 广播/存储），界面在 ui —— 与 fs/apk/net 同级
+check sched '^import (static )?com\.hex91\.file\.(\*|ui\.|controller\.)'             'sched 不能依赖 ui/controller'
 
 # 自有包（含根包）一律精确 import：通配会让「注释里提过一个类」看起来像「依赖了整个包」
 wild=$(grep -rnE '^import (static )?com\.hex91\.file\.(\*|[A-Za-z0-9_.]+\.\*);' src --include='*.java' 2>/dev/null || true)
@@ -49,7 +51,8 @@ fi
 # 全限定名越层：下三层里直接写 ui/controller 的完整类名（没有 import 行的那条路）
 fqn=$(grep -rnE '(^|[^."])com\.hex91\.file\.(ui|controller)\.' \
       src/com/hex91/file/fs src/com/hex91/file/apk src/com/hex91/file/net \
-      src/com/hex91/file/utils src/com/hex91/file/core --include='*.java' 2>/dev/null \
+      src/com/hex91/file/utils src/com/hex91/file/core src/com/hex91/file/sched \
+      --include='*.java' 2>/dev/null \
       | grep -vE ':[0-9]+:[[:space:]]*(import |\*|//)' || true)
 if [ -n "$fqn" ]; then
   echo "FAIL 下三层出现 ui/controller 的全限定名引用（R-18）"
@@ -58,6 +61,6 @@ if [ -n "$fqn" ]; then
 fi
 
 if [ "$fail" -eq 0 ]; then
-  echo "依赖方向检查通过（core → utils → fs/apk/net → ui/controller → MainActivity）"
+  echo "依赖方向检查通过（core → utils → fs/apk/net/sched → ui/controller → MainActivity）"
 fi
 exit $fail

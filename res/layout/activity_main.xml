@@ -659,6 +659,18 @@
             android:textColor="?attr/hfText"
             android:background="?android:attr/selectableItemBackground"/>
 
+        <!-- v2.17.0（F-23）：定时任务（每天/每周固定时间清空、压缩、清理旧文件） -->
+        <TextView
+            android:id="@+id/drawer_schedule"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:gravity="center_vertical"
+            android:paddingLeft="16dp"
+            android:text="⏰  定时任务"
+            android:textSize="15sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+
         <TextView
             android:id="@+id/drawer_storage"
             android:layout_width="match_parent"
