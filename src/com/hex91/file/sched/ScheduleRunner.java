@@ -1,10 +1,10 @@
 package com.hex91.file.sched;
 
 import com.hex91.file.fs.TreeOps;
+import com.hex91.file.fs.VaultStore;
 import com.hex91.file.fs.ZipUtil;
 
 import java.io.File;
-import java.util.Arrays;
 
 /**
  * 执行一条定时任务（v2.17.0，F-23）。
@@ -86,6 +86,7 @@ public final class ScheduleRunner {
         if (kids == null) return new Result(0, "无法列出目录（权限不足，或被系统限制）");
         int ok = 0, bad = 0;
         for (int i = 0; i < kids.length; i++) {
+            if (isVaultDir(kids[i])) continue;   // v2.18.0：隐私空间绝不清
             if (TreeOps.delete(kids[i], probe)) ok++;
             else bad++;
         }
@@ -112,6 +113,7 @@ public final class ScheduleRunner {
             File k = kids[i];
             // 先判链接再判目录：isDirectory() 会跟随链接，跟进就会删到链接目标里去
             if (probe.isLink(k)) continue;
+            if (isVaultDir(k)) continue;          // v2.18.0：隐私空间绝不清
             if (k.isDirectory()) {
                 walk(k, cut, probe, cnt, depth + 1);
                 continue;
@@ -122,6 +124,19 @@ public final class ScheduleRunner {
         }
     }
 
+    /**
+     * 隐私空间目录（F-22）：定时清理 / 过期 / 压缩都必须绕开它。
+     *
+     * <p>判据是「目录名是 .vault 且里面有 v.hdr」而不是只比名字：用户完全可能自己建一个
+     * 叫 .vault 的普通目录，那种该照常清理。只看名字的话，一个要清缓存的任务会莫名其妙
+     * 跳过某个目录，而用户没有任何线索知道为什么。</p>
+     */
+    private static boolean isVaultDir(File f) {
+        if (f == null || !f.isDirectory()) return false;
+        if (!VaultStore.DIR_NAME.equals(f.getName())) return false;
+        return new File(f, "v.hdr").isFile();
+    }
+
     /** 压成「目录名.zip」，放在目录的父目录里（覆盖同名旧包） */
     private static Result zip(File dir, TreeOps.LinkProbe probe) {
         File parent = dir.getParentFile();
@@ -130,7 +145,13 @@ public final class ScheduleRunner {
         if (kids == null) return new Result(0, "无法列出目录（权限不足，或被系统限制）");
         if (kids.length == 0) return new Result(0, "目录是空的，没有可压缩的内容");
         File out = new File(parent, dir.getName() + ".zip");
-        boolean ok = ZipUtil.createZip(out, Arrays.asList(kids), probe);
-        return ok ? new Result(kids.length, null) : new Result(0, "压缩失败: " + out.getPath());
+        // 隐私空间不进压缩包：包可能被随手分享出去，而用户要的恰恰是它不出去
+        java.util.List<File> pack = new java.util.ArrayList<File>();
+        for (int i = 0; i < kids.length; i++) {
+            if (!isVaultDir(kids[i])) pack.add(kids[i]);
+        }
+        if (pack.isEmpty()) return new Result(0, "目录里只有隐私空间，没有可压缩的内容");
+        boolean ok = ZipUtil.createZip(out, pack, probe);
+        return ok ? new Result(pack.size(), null) : new Result(0, "压缩失败: " + out.getPath());
     }
 }

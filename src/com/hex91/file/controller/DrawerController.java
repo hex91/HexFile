@@ -17,6 +17,7 @@ import com.hex91.file.ui.TerminalActivity;
 import com.hex91.file.ui.ThemeActivity;
 import com.hex91.file.ui.ToolboxActivity;
 import com.hex91.file.ui.TrashActivity;
+import com.hex91.file.ui.VaultActivity;
 import com.hex91.file.fs.RootUtil;
 import android.content.Intent;
 import android.os.Environment;
@@ -148,6 +149,13 @@ public final class DrawerController {
             public void onClick(View v) {
                 closeDrawer();
                 host.open(new Intent(host.ctx(), ScheduleActivity.class));
+            }
+        });
+        // v2.18.0（F-22）：隐私空间（口令解锁的加密目录）
+        host.find(R.id.drawer_vault).setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                closeDrawer();
+                host.open(new Intent(host.ctx(), VaultActivity.class));
             }
         });
         // v1.74.0：局域网快传（雷达扫描同网设备，点光点传文件）

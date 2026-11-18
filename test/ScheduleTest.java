@@ -257,6 +257,30 @@ public class ScheduleTest {
         zt.target = empty.getAbsolutePath();
         ok(!ScheduleRunner.run(zt).ok(), "zip: 空目录 → 报错（不生成空包）");
 
+        // v2.18.0（F-22）：隐私空间目录（.vault + v.hdr）绝不能被定时任务清掉或打进压缩包
+        File home = mkdirs(new File(root, "home"));
+        write(new File(home, "junk.txt"), "x");
+        File vault = mkdirs(new File(home, com.hex91.file.fs.VaultStore.DIR_NAME));
+        write(new File(vault, "v.hdr"), "header");
+        write(new File(vault, "b/abc.bin"), "cipher");
+        ScheduleItem ct = new ScheduleItem();
+        ct.action = ScheduleItem.ACTION_CLEAN;
+        ct.target = home.getAbsolutePath();
+        ScheduleRunner.Result cr = ScheduleRunner.run(ct);
+        ok(cr.ok(), "clean: 有隐私空间时仍然成功");
+        eq(1, cr.done, "clean: 只删普通文件，不把 .vault 算进去");
+        ok(new File(vault, "v.hdr").isFile(), "clean: 隐私空间头部还在");
+        ok(new File(vault, "b/abc.bin").isFile(), "clean: 隐私空间密文还在");
+
+        // 同名但不是隐私空间（没有 v.hdr）的目录要照常清理
+        File fake = mkdirs(new File(root, "fake"));
+        write(new File(fake, "junk.txt"), "x");
+        mkdirs(new File(fake, com.hex91.file.fs.VaultStore.DIR_NAME));
+        ScheduleItem ft = new ScheduleItem();
+        ft.action = ScheduleItem.ACTION_CLEAN;
+        ft.target = fake.getAbsolutePath();
+        eq(2, ScheduleRunner.run(ft).done, "clean: 只是名字叫 .vault 的空目录照常清");
+
         deleteTree(root);
     }
 

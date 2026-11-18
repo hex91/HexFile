@@ -671,6 +671,18 @@
             android:textColor="?attr/hfText"
             android:background="?android:attr/selectableItemBackground"/>
 
+        <!-- v2.18.0（F-22）：隐私空间（口令解锁的加密目录，配「移入隐私空间」用） -->
+        <TextView
+            android:id="@+id/drawer_vault"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:gravity="center_vertical"
+            android:paddingLeft="16dp"
+            android:text="🔒  隐私空间"
+            android:textSize="15sp"
+            android:textColor="?attr/hfText"
+            android:background="?android:attr/selectableItemBackground"/>
+
         <TextView
             android:id="@+id/drawer_storage"
             android:layout_width="match_parent"

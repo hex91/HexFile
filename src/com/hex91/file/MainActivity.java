@@ -212,6 +212,7 @@ public class MainActivity extends BaseActivity {
     private static final int A_HLSD = 52;          // 本地 m3u8 → 下载/合并页
     private static final int A_EXIF = 53;          // 图片元数据（EXIF）
     private static final int A_SPLITINST = 54;     // 分包安装（.apks / .xapk / .apkm）
+    private static final int A_VAULT = 55;         // 移入隐私空间（F-22）
     // 选 keystore 的请求码已随签名簇搬到 SignFlowController.REQ_CUSTOM_KEYSTORE（v2.7.0）
 
     private TextView headerPath, headerStats;
@@ -2680,6 +2681,8 @@ public class MainActivity extends BaseActivity {
         if (isFile && ZstdUtil.isZstName(f.getName())) { ops.add("Zstd 解压"); acts.add(A_ZSTDD); }
         if (isFile) { ops.add("加密文件"); acts.add(A_ENCRYPT); }
         if (isFile) { ops.add("解密文件"); acts.add(A_DECRYPT); }
+        // v2.18.0（F-22）：移入隐私空间（加密存放 + 删掉明文，才算真的藏起来）
+        if (isFile) { ops.add("移入隐私空间"); acts.add(A_VAULT); }
         if (isFile && !FileSplit.isSplitPart(f)) { ops.add("文件分割"); acts.add(A_SPLIT); }
         if (FileSplit.isSplitPart(f)) { ops.add("文件合并"); acts.add(A_MERGE); }
         if (isFile && f.length() > 0 && !FileKind.isTextName(f.getName().toLowerCase(), f.length())) {
@@ -2717,6 +2720,7 @@ public class MainActivity extends BaseActivity {
         ops.add("APK 解包"); acts.add(A_UNPACK);
         ops.add("自定义密钥签名"); acts.add(A_SIGN_CUSTOM);
         ops.add("去除签名"); acts.add(A_RM_SIGN);
+        ops.add("移入隐私空间"); acts.add(A_VAULT);   // v2.18.0（F-22）
         ops.add("删除"); acts.add(A_DEL);        ops.add("复制到对面"); acts.add(A_COPY);
         // v1.78.0：剪贴板（APK 也走同一套，翻到别的目录再粘贴）
         ops.add("复制(剪贴板)"); acts.add(A_CLIP_C);
@@ -2791,6 +2795,12 @@ public class MainActivity extends BaseActivity {
             case A_DEL: confirmDelete(f); break;
             case A_ENCRYPT: askEncryptFile(f); break;       // 加密文件（自家格式 .enc）
             case A_DECRYPT: askDecryptFile(f); break;       // 解密 .enc 文件
+            case A_VAULT:                                   // v2.18.0（F-22）移入隐私空间
+                com.hex91.file.ui.VaultFlow.moveIn(this,
+                        java.util.Collections.singletonList(f), new Runnable() {
+                            public void run() { refreshAll(); }
+                        });
+                break;
             case A_PROP: showProps(f); break;
             case A_EXIF:                                   // v2.12.0（F-09）图片元数据
                 startActivity(new Intent(this, ImageInfoActivity.class)

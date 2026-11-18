@@ -26,7 +26,7 @@ adb install -r out/HexFile-*.apk
 
 ```
 /
-├── AndroidManifest.xml          # minSdk 21 / targetSdk 30 / 存储权限 / 59 个组件（48 Activity + 4 Service + 3 Provider + 4 Receiver）
+├── AndroidManifest.xml          # minSdk 21 / targetSdk 30 / 存储权限 / 60 个组件（49 Activity + 4 Service + 3 Provider + 4 Receiver）
 ├── build.sh                     # 一键构建（7 步：aapt2 compile→link→NDK→javac→d8→zipalign→sign，带版本守卫）
 ├── res/
 │   ├── layout/activity_main.xml # 格双栏布局（深色顶栏+统计行、底部 ‹ › ＋ ⇄ ↑ 工具栏）
@@ -49,35 +49,38 @@ adb install -r out/HexFile-*.apk
     │   ├── TaskUiController     任务条 / 任务中心 / 「上次有任务被中断」
     │   ├── DrawerController     抽屉 16 个入口 / 存储容量 / Root 状态
     │   └── PropsController      属性 / 权限 / 时间 / 所有者 / 哈希
-    ├── core/        (25)        # 基础工具：编码、加密、格式化、时间、十六进制、颜色对比
+    ├── core/        (28)        # 基础工具：编码、加密、格式化、时间、十六进制、颜色对比
     │   ├── Base64Codec Json Iso8601 FormatUtil HexCore Sm3 Sm4 CryptoCore CodecCore
     │   ├── AtomicReplace MimeUtil TimeCore TextDiffUtil Contrast ScreenPolicy ByteIO
     │   └── CredentialCodec ScanCache StringExtract RadixCore ThemeSchemes
     │       RegionTable PlaySpeed TestDataCore ArscDefs
-    ├── fs/          (29)        # 文件系统：读目录、复制移动、回收站、压缩包、Root/Shell
+    ├── fs/          (30)        # 文件系统：读目录、复制移动、回收站、压缩包、Root/Shell
     │   ├── FileItem FileOps FileAttrs FileClipboard DirReader DiskScanUtil FileKind
     │   ├── FileTask FileTaskEngine FileSplit FileCrypt Trash TrashJanitor TrashPolicy
     │   ├── ZipUtil ZstdUtil WorkDir DocPath BatchRenameCore CompareUtil ContentGrep
     │   └── LeftoverScan TreeOps RootIO RootUtil Shell LinkUtil SortMode TempFiles
-    ├── apk/         (27)        # APK / 压缩包 / 资源二进制：重打包、签名、ARSC、AXML、smali
+    ├── apk/         (31)        # APK / 压缩包 / 资源二进制：重打包、签名、ARSC、AXML、smali
     │   ├── ApkUtil ApkInfoUtil ApkPackager ApkRepack ApkEditSession ApkSignCheck
     │   ├── ApkSignerTool ApkCloneTool ApkCompareUtil ArchiveUtil ArchiveWrite ArchivePasswords
     │   ├── FileInspect ArscEditor ArscFile ArscPlus ArscValues ArscWriter
     │   └── AxmlFile AxmlTextSync AxmlWriter Decompiler SmaliTool SmaliDocs
     │       KeyStoreUtil KeystoreCreate SigKill
-    ├── net/         (27)        # 网络：云盘 / FTP / SFTP / SMB / WebDAV / S3 / HLS / 局域网
+    ├── net/         (28)        # 网络：云盘 / FTP / SFTP / SMB / WebDAV / S3 / HLS / 局域网
     │   ├── NetFs NetFsFactory FtpFs SftpFs SmbFs WebDavFs S3Fs S3Signer
     │   ├── OneDriveFs AliyunDriveFs OAuthClient OAuthToken CloudPath StreamUrl
     │   ├── HlsPlaylist HlsCrypto HlsKey M3u8Playlist HlsDownloader TsRemuxer
     │   └── LanNet LanNode LanProtocol LanSender RemoteServer TokenHarvest SyncRunner
-    ├── ui/          (77)        # 界面：48 Activity + 7 Service/Provider + 视图/适配器/对话框
+    ├── sched/       (7)         # 定时任务：规则解析 / 编解码 / 执行 / 存储 / 两个接收器
+    │   ├── ScheduleRule ScheduleItem ScheduleCodec ScheduleRunner ScheduleStore
+    │   └── ScheduleReceiver BootReceiver
+    ├── ui/          (79)        # 界面：49 Activity + 7 Service/Provider + 视图/适配器/对话框
     │   ├── *Activity（除 MainActivity 外全部）、ActivityFloatService / ActivityTraceService
     │   ├── ApkFileProvider / HfDocumentsProvider / WidgetProvider / LanShareService / TaskService
     │   ├── FileAdapter / FileGridAdapter / ZipAdapter、PullRefreshLayout / RadarView
     │   ├── LineNumbersView / HighlightingEditor、BaseActivity / ThemeManager / ThumbLoader
     │   ├── ToolUi / UiKit / UiDecor / TaskRows / 三个对话框 / PlayerPrefs / BookmarkStore / RecentStore
     │   └── ApkSignHelper（内置/自有签名流程，调用方全是本包）
-    ├── utils/       (28)        # 横切工具：与界面、文件系统都无关的可复用能力
+    ├── utils/       (31)        # 横切工具：与界面、文件系统都无关的可复用能力
     │   ├── Bg HashUtil StorageStat WidgetText GridAction ColorUnderlineSpan
     │   ├── CredentialVault KeyCipher ShizukuBridge TaskJournal TaskStore
     │   ├── SyncPlan ResumePlan DragPlan BackupRestore OpenWith
@@ -1777,6 +1780,158 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.18.0（versionCode 211）—— F-22：隐私空间
+
+有些文件不适合躺在相册或下载目录里：证件照、合同扫描件、还没发出去的截图。
+上一个版本会「加密成 .enc」，但那只是换了个扩展名——密文和明文挨着放，
+谁打开文件管理器都能看到 `.enc` 在那里，而且每加密一个文件都要重新跑一次
+PBKDF2（10 万次迭代），一百个文件就是几十秒。
+
+这一轮做的是一块**上锁的目录**：口令解锁，文件全在 `HexFile/.vault` 里，
+文件名也看不见。
+
+入口在侧栏「🔒 隐私空间」；主界面长按文件 →「移入隐私空间」。
+
+### 两把钥匙，而不是一把
+
+`FileCrypt`（v1.33.0 的文件加密）是「口令 → PBKDF2 → 直接当文件密钥」。
+隐私空间不能这么做，因为**改口令**：密钥就是口令派生出来的，改口令等于所有文件换密钥，
+几百个文件要全量重加密，中途断电还是一半新一半旧的死局。
+
+所以拆成两层（和 LUKS / BitLocker 同一个思路）：
+
+| 层 | 是什么 | 什么时候变 |
+| --- | --- | --- |
+| 主密钥 vaultKey | 64 字节随机数（32 加密 + 32 认证） | 创建时生成一次，**永不变** |
+| KEK | 口令经过 PBKDF2-HMAC-SHA256（21 万次）派生 | 每次输口令时算一遍 |
+
+KEK 把 vaultKey 包起来存进 157 字节的头部。**改口令 = 用新 KEK 重新包一次同一把
+vaultKey**，只重写头部，文件密文一个字节都不动——这条有断言盯着（改口令后解出的
+enc/mac 必须与原来完全相同）。
+
+### 三种容器
+
+```
+头部 v.hdr（157 字节定长）
+  "HFVAULT" 7  version 1  iterations 4(BE)  saltLen 1  salt 16
+  ivK 16  wrapped 80(AES-256-CBC(KEKenc, vaultKey 64B))  tag 32
+  tag = HMAC-SHA256(KEKmac, 前面全部字节)      ← 口令错 → 一次比对即判，不用试解密
+
+文件块 b/<id>.bin
+  "HFVBLOB" 7  version 1  id 16  iv 16  ciphertext  tag 32
+  tag = HMAC-SHA256(vaultKey.mac, magic|version|id|iv|ciphertext)
+
+索引 idx
+  "HFVBOX1" 7  version 1  iv 16  ciphertext  tag 32
+```
+
+两个细节值得单独说：
+
+- **id 进 MAC**。文件块头部带 16 字节条目 id，并且参与校验。这样把 A 的密文改名成
+  B 的 id 会验签失败——否则「密文没有泄露」却也「可以被随意替换」，隐私空间里出现
+  一个名字对、内容错的文件，比直接报错更难查。
+- **索引单独一套魔数**。索引里没有 id 概念，硬套文件块格式就得塞 16 个零字节进
+  文件名位置，日后看代码的人会以为那是个真 id。
+
+### 目录与索引
+
+```
+HexFile/.vault/v.hdr        头部
+HexFile/.vault/idx          加密索引（文件名、大小、时间）
+HexFile/.vault/idx.bak      上一次的索引
+HexFile/.vault/b/<id>.bin   文件密文，文件名只是随机 id
+```
+
+点开头是为了不让相册、MTP、多数第三方文件管理器列出来——**但这不是安全性**，
+只是别再往别人眼前凑。
+
+索引是唯一的目录信息，所以每次保存先把旧 `idx` 改名成 `idx.bak` 再落新的；
+主索引读不出来就回退备份，并在页面上直说「这次用的是备份，最近导入的文件可能不在列表里」。
+坏行（id 不是 32 位小写十六进制、大小为负、字段缺一半）只跳过那一行并计数，
+不会让整个空间打不开——一条记录坏了就丢掉全部文件名的设计，等于把一次磁盘小故障放大成灾难。
+
+`<id>` 会被直接拼成文件名，所以 `isId()` 只认 32 位小写十六进制。放行 `../` 就等于
+让索引里的一条记录变成任意路径读写，这条不是格式洁癖。
+
+### 交互：三态 + 离开即锁
+
+| 状态 | 看到什么 |
+| --- | --- |
+| 未建立 | 设口令 + 再输一遍，按钮「创建」 |
+| 锁定 | 一个口令框，按钮「解锁」；只显示「已锁定 · 占用 x MB」 |
+| 已解锁 | 文件列表（名字、大小、入库时间），顶栏「导入 / 更多」 |
+
+`onStop` 就把主密钥丢掉。只有两种情况例外，都是显式布尔量：
+
+1. 系统文件选择器在前台（不然选完文件回来已经锁了，导入功能等于不可用）；
+2. 后台任务正在跑（任务要用密钥，等它收尾再锁）。
+
+锁定态离开再回来，输入框里的口令也会被清掉——不清的话「离开即锁」就只剩个说法。
+
+**「移入」和「导入」是两件事**：
+
+- 主界面长按 →「移入隐私空间」：加密 → 删原文件，是真正的移动；
+- 隐私空间里「导入」：`ACTION_OPEN_DOCUMENT` 给的 `content://` 不保证能删，
+  所以只复制，并在页面上写明原文件还在原处。
+
+移动的语义是「要么整体完成，要么不动」：密文写好之后如果原文件删不掉
+（被别的应用占用、只读挂载），就把刚写的密文撤掉并计为失败。半移动状态最糟——
+原文件还在、隐私空间里也多一份，用户以为藏起来了，其实没有。
+
+### 和定时任务的关系
+
+「清空目录」如果指到 `HexFile`，会把 `.vault` 一起清掉——那不是清理，是数据丢失。
+所以 `ScheduleRunner` 的清理、过期、压缩三条路径都跳过隐私空间目录，判据是
+「目录名是 `.vault` **且**里面有 `v.hdr`」：只看名字的话，用户自己建一个叫 `.vault`
+的普通目录会莫名其妙不被清理，而且没有任何线索。
+
+### 做不到的
+
+写在「更多 → 加密细节」里，也写在这里：
+
+- 没有防截屏（解锁后的列表可以被截图）；
+- 删除只删密文，不做覆写——懂取证的人仍可能从闪存残留里恢复；
+- 口令没有后门，忘了就是打不开。这是它算得上隐私空间的**前提**，不是缺陷；
+- 目录暂不支持移入（先压缩，或逐个选文件）；
+- 索引备份只能救「索引文件本身损坏」，救不了「整个 `.vault` 被删」。
+
+### 测试
+
+`test/VaultTest.java`，**82 条断言**，分四块，各自会因为不同原因悄悄坏掉：
+
+| 块 | 钉什么 | 条数 |
+| --- | --- | --- |
+| 头部 / 口令 | 错口令解不开、头部改一字节就验签失败、迭代次数被调大（DoS）或调小（削弱）直接拒、改口令后主密钥不变 | 13 |
+| 文件块 | 往返一致、密文里搜不到明文、改一字节失败、用别人的 id 解失败、空文件、1MB 流式、进度返回 false 即中止 | 15 |
+| 索引 | 名字里的制表符/换行/反斜杠/emoji 原样回来、坏行只丢自己、`../` 不是合法 id | 14 |
+| 存储层 | 建/解锁/改口令、导入导出重名、改名、删除、取消不留残留、游离密文、主索引坏了回退备份 | 40 |
+
+`test/ScheduleTest` 另加 5 条，钉「定时清理不会清掉隐私空间」。
+
+### 踩坑
+
+- `tmp.renameTo(target)` 在 Linux 上能覆盖同名文件，**Windows 上不能**。改口令的
+  桌面单测因此报「无法写入头部」，而真机永远碰不到。这类「只在一个平台坏」的写法
+  收敛到既有的 `AtomicReplace`：先试 rename，失败再让位，还原路径它也覆盖了。
+- 关闭流写成 `try { x.close(); } catch (IOException ignored) {}` 会让空 catch 门
+  +11。按 `LanScan` 的既有做法改成 `closeQuiet(Closeable)`：返回 boolean，
+  catch 块里有语句，计数不动。
+- 测试里「删除后索引为空」一开始写错了：同一个空间里还有前一步「大小未知」导入的
+  那条记录，实际剩 1 条。断言写死 0 会让人以为是 `remove` 没生效。
+
+### 产物
+
+- 新增 `core/VaultCrypto`（加密内核）、`core/VaultIndex`（索引编解码）、
+  `fs/VaultStore`（目录/索引/导入导出）、`ui/VaultActivity`、`ui/VaultFlow`、
+  `res/layout/activity_vault.xml`。
+- 侧栏新增「🔒 隐私空间」；主菜单（普通文件 + APK）新增「移入隐私空间」（动作号 55）。
+- 组件数 59 → **60**（49 Activity + 4 Service + 3 Provider + 4 Receiver）。
+- 四道门：依赖方向通过 / 空 catch 335（= 基线）/ 文案 545 键中英一致 / 动作号 55 个互不重复。
+- QUICK 66 / ALL 69 全过；VaultTest 82 断言。
+- versionCode 211，APK **13,144,784 字节**。
 
 ---
 
