@@ -129,9 +129,14 @@
     <string name="task_center_none_finished">No finished tasks</string>
     <string name="task_center_none_active">No tasks running</string>
     <string name="task_center_cancel_all_title">Cancel all tasks</string>
-    <string name="task_center_cancel_all_msg">This stops every queued and running task. Files already copied are kept.</string>
+    <string name="task_center_cancel_all_msg">This stops every queued, running and paused task. Files already copied are kept.</string>
     <string name="task_center_cancel_all_ok">Cancel all</string>
     <string name="task_center_continue">Continue</string>
+    <!-- v2.15.0 (F-19): task pause / resume -->
+    <string name="task_pause">Pause</string>
+    <string name="task_resume">Resume</string>
+    <string name="task_bar_paused">Paused %1$s · %2$d%%</string>
+    <string name="task_bar_paused_more">Paused %1$s · %2$d%% · %3$d more paused</string>
     <string name="task_center_empty">No tasks\n\nCopy, move and archive jobs show their progress here — you can cancel or retry at any time.</string>
 
     <plurals name="task_center_cleared">

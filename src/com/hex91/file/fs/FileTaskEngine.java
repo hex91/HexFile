@@ -55,6 +55,14 @@ public final class FileTaskEngine {
         Cancel() { super("cancelled"); }
     }
 
+    /**
+     * v2.15.0（F-19）：暂停信号。与 {@link Cancel} 的区别只有一处，但很关键 ——
+     * 取消要删掉半截 {@code .part}，暂停要留着它当续传起点。
+     */
+    static final class Pause extends RuntimeException {
+        Pause() { super("paused"); }
+    }
+
     private static final FileTaskEngine INSTANCE = new FileTaskEngine();
 
     public static FileTaskEngine get() { return INSTANCE; }
@@ -68,6 +76,11 @@ public final class FileTaskEngine {
         final FileTask task;
         final List<File> srcs;
         final File dstDir;
+        /**
+         * v2.15.0（F-19）：已经量过分母。续传时不能再量一遍 ——
+         * totalBytes 会翻倍，百分比一下就掉到 50%。
+         */
+        boolean measured;
 
         Job(FileTask task, List<File> srcs, File dstDir) {
             this.task = task;
@@ -88,6 +101,14 @@ public final class FileTaskEngine {
     private final LinkedList<Job> pending = new LinkedList<Job>();
     /** 含已完成的任务，供面板回看；超出上限时从头部淘汰已结束的 */
     private final ArrayList<FileTask> all = new ArrayList<FileTask>();
+    /**
+     * v2.15.0（F-19）：暂停中的任务 → 它原来的 Job。
+     *
+     * <p>存在这里而不是任务对象上：Job 里有「量过分母」与来源列表，属于引擎内部状态；
+     * 放 {@link FileTask} 里会让界面误以为可以自己拼一个回来。任务真正结束（或被取消）
+     * 时必须移除，否则内存里会一直留着一份来源列表。</p>
+     */
+    private final java.util.HashMap<Integer, Job> pausedJobs = new java.util.HashMap<Integer, Job>();
 
     private int seq = 1;
     private Thread worker;
@@ -222,6 +243,8 @@ public final class FileTaskEngine {
                     dstDir.getPath());
             t.srcs = new ArrayList<File>(srcs);      // R-07：留一份给「重试」与账本
             t.dstDir = dstDir;
+            // v2.15.0（F-19）：记下已拷完的文件路径，续传据此跳过；任务结束即置空
+            t.copied = new java.util.HashSet<String>();
             pending.add(new Job(t, t.srcs, dstDir));
             all.add(t);
             // 淘汰策略：只从头部删「已结束」的，绝不碰队列里的
@@ -272,24 +295,134 @@ public final class FileTaskEngine {
         }
     }
 
+    /**
+     * v2.15.0（F-19）：是否还有**在做功**的任务（排队 / 运行）。
+     *
+     * <p>与 {@link #hasActive()} 的差别就是「已暂停」：暂停的任务不该继续占着前台服务
+     * 与常驻通知（用户明确说了先停一停），但任务本身没结束，所以也不能从列表里清掉。</p>
+     */
+    public boolean hasRunning() {
+        synchronized (lock) {
+            for (FileTask t : all) {
+                if (t.pausable()) return true;
+            }
+            return false;
+        }
+    }
+
+    // ------------------------------------------------------------------ 暂停 / 继续（F-19）
+
+    /**
+     * 暂停一个任务。正在跑的会在下一个 128KB 块边界停下（当前块写完），
+     * 排队中的直接转「已暂停」，不占 worker。
+     *
+     * @return 是否真的置上了暂停标志
+     */
+    public boolean pause(int id) {
+        synchronized (lock) {
+            FileTask t = findLocked(id);
+            if (t == null || !t.pausable()) return false;
+            t.pauseRequested = true;
+        }
+        fire();
+        return true;
+    }
+
+    /**
+     * 继续一个已暂停的任务：把它原来的 Job 放回队首之前（保持用户操作顺序就是放队尾，
+     * 但用户刚点了「继续」，排到一堆新任务后面等于点了没用 —— 放队首）。
+     */
+    public boolean resume(int id) {
+        Job job;
+        FileTask t;
+        synchronized (lock) {
+            t = findLocked(id);
+            if (t == null || !t.resumable()) return false;
+            job = pausedJobs.remove(id);
+            if (job == null) {
+                // 按理走不到：暂停时一定存了 Job。防御性地用任务自己的来源重建一个，
+                // 代价是「重新量一遍 + 已完成的文件靠 .part 与 copied 缺省跳过」——
+                // 能跑完，只是可能重拷几个文件
+                if (t.srcs == null || t.dstDir == null) return false;
+                job = new Job(t, t.srcs, t.dstDir);
+            }
+            t.pauseRequested = false;
+            // 注意：这里**不能**清 resumeSrc —— 它就是续传起点，由 copyFile 的
+            // resumeBase 用掉之后自己清。第一版在这里顺手清了，结果「继续」变成了
+            // 从头重拷（内容仍对，但进度虚高、白读一遍盘）
+            t.state = FileTask.QUEUED;
+            pending.addFirst(job);
+            if (worker == null) {
+                worker = new Thread(new Runnable() {
+                    public void run() { loop(); }
+                }, "hf-file-task");
+                worker.setDaemon(true);
+                worker.start();
+            }
+            lock.notifyAll();
+        }
+        fire();
+        return true;
+    }
+
     /** 取消全部未结束任务（已经在拷的当前块会先写完，再退出） */
     public void cancelAll() {
         synchronized (lock) {
             for (FileTask t : all) {
-                if (t.cancelable()) t.cancelRequested = true;
+                if (t.cancelable()) {
+                    t.cancelRequested = true;
+                    // 已暂停的任务没有线程会看到这个标志，就地收尾
+                    if (t.state == FileTask.PAUSED) endPausedLocked(t);
+                }
             }
         }
+        writeJournal();
         fire();
     }
 
     /** 只取消某个任务；排队中的会被 worker 跳过（进入 exec 时状态直接判取消） */
     public void cancel(int id) {
+        boolean paused = false;
         synchronized (lock) {
             for (FileTask t : all) {
-                if (t.id == id && t.cancelable()) t.cancelRequested = true;
+                if (t.id == id && t.cancelable()) {
+                    t.cancelRequested = true;
+                    if (t.state == FileTask.PAUSED) {
+                        endPausedLocked(t);
+                        paused = true;
+                    }
+                }
             }
         }
+        if (paused) writeJournal();
         fire();
+    }
+
+    /**
+     * v2.15.0（F-19）：暂停任务的收尾（取消时走这里）。
+     *
+     * <p>要点是**删掉 {@code .part} 并解除「正在写」登记**：暂停时故意让它继续挂在
+     * {@link TempFiles} 里（否则设置页的遗留清理会把续传起点当垃圾删掉），
+     * 一旦用户改成取消，这份半截文件就没有存在理由了。</p>
+     */
+    private void endPausedLocked(FileTask t) {
+        t.state = FileTask.CANCELLED;
+        t.finishedAt = System.currentTimeMillis();
+        pausedJobs.remove(t.id);
+        discardResume(t);
+    }
+
+    /** 丢掉续传现场：删半截文件、撤销临时文件登记、清空已拷完集合 */
+    private void discardResume(FileTask t) {
+        File part = t.resumePart;
+        if (part != null) {
+            TempFiles.end(part);        // 与暂停时的「保留登记」配对
+            part.delete();
+        }
+        t.resumeSrc = null;
+        t.resumePart = null;
+        t.resumeOffset = 0;
+        t.copied = null;
     }
 
     /** 清掉已完成/失败的历史，面板上「清理」用 */
@@ -326,22 +459,41 @@ public final class FileTaskEngine {
         if (t.cancelRequested) {                  // 排队时就被取消：不必再量体积
             t.state = FileTask.CANCELLED;
             t.finishedAt = System.currentTimeMillis();
+            discardResume(t);
+            writeJournal();
+            fire();
+            return;
+        }
+        if (t.pauseRequested) {                   // 排队时就点了暂停：不占 worker
+            t.state = FileTask.PAUSED;
+            synchronized (lock) { pausedJobs.put(t.id, job); }
             fire();
             return;
         }
         t.state = FileTask.RUNNING;
-        t.startedAt = System.currentTimeMillis();
+        // 续传不重置 startedAt：速度按「从第一次开始算」的总时均，比暂停后重新计更接近事实
+        if (t.startedAt <= 0) t.startedAt = System.currentTimeMillis();
         fire();
         try {
-            for (File f : job.srcs) measure(f, t, 0);   // 先量分母
-            fire();
+            if (!job.measured) {
+                // 量分母前先清零：暂停后再量一遍不能在上一次的结果上累加（会让分母翻倍）
+                t.totalBytes = 0;
+                t.totalFiles = 0;
+                for (File f : job.srcs) measure(f, t, 0);
+                job.measured = true;
+                fire();
+            }
             for (File f : job.srcs) {
                 if (t.cancelRequested) throw new Cancel();
+                if (t.pauseRequested) throw new Pause();
+                if (isCopied(t, f)) continue;     // 续传：这一整项上次就拷完了
                 try {
                     if (t.isMove()) moveOne(f, job.dstDir, t);
                     else copyOne(f, job.dstDir, t);
                 } catch (Cancel c) {
                     throw c;
+                } catch (Pause p) {
+                    throw p;
                 } catch (Throwable e) {
                     // 单个文件失败不该让整批停下：记下来继续，最后报「部分失败」
                     t.failedFiles++;
@@ -351,19 +503,38 @@ public final class FileTaskEngine {
             t.state = t.failedFiles > 0 ? FileTask.PARTIAL : FileTask.DONE;
         } catch (Cancel c) {
             t.state = FileTask.CANCELLED;
+        } catch (Pause p) {
+            t.state = FileTask.PAUSED;
         } catch (Throwable e) {
             t.state = FileTask.FAILED;
             t.message = shortMsg(e);
         } finally {
-            t.finishedAt = System.currentTimeMillis();
-            if (t.state == FileTask.DONE || t.state == FileTask.PARTIAL) {
-                // 补记：跳过/秒移动的项没有走过字节累加，收尾对齐总量
-                t.doneBytes = Math.max(t.doneBytes, t.totalBytes);
-                t.doneFiles = Math.max(t.doneFiles, t.totalFiles - t.failedFiles);
+            if (t.state == FileTask.PAUSED) {
+                // 暂停：留着续传现场，不记 finishedAt、不结账；账本里继续留这条，
+                // 万一进程被清掉，「上次有任务没做完」还能把来源捞回来
+                synchronized (lock) { pausedJobs.put(t.id, job); }
+                fire();
+            } else {
+                t.finishedAt = System.currentTimeMillis();
+                if (t.state == FileTask.DONE || t.state == FileTask.PARTIAL) {
+                    // 补记：跳过/秒移动的项没有走过字节累加，收尾对齐总量
+                    t.doneBytes = Math.max(t.doneBytes, t.totalBytes);
+                    t.doneFiles = Math.max(t.doneFiles, t.totalFiles - t.failedFiles);
+                }
+                synchronized (lock) { pausedJobs.remove(t.id); }
+                discardResume(t);
+                writeJournal();      // R-07：这个任务结束了，账本里就不该再有它
+                fire();
             }
-            writeJournal();      // R-07：这个任务结束了，账本里就不该再有它
-            fire();
         }
+    }
+
+    private static boolean isCopied(FileTask t, File f) {
+        return t.copied != null && f != null && t.copied.contains(f.getAbsolutePath());
+    }
+
+    private static void markCopied(FileTask t, File f) {
+        if (t.copied != null && f != null) t.copied.add(f.getAbsolutePath());
     }
 
     private void copyOne(File src, File dstDir, FileTask t) throws IOException {
@@ -372,6 +543,7 @@ public final class FileTaskEngine {
             // 复制到自己所在目录：以前 FileOps 会「先把源截断再读」，直接把文件清空。
             // 这里当无事发生（记完成），数据不会被毁。
             creditDone(src, t);
+            markCopied(t, src);
             return;
         }
         try {
@@ -381,18 +553,21 @@ public final class FileTaskEngine {
             if (r == null || !r.copy(src, dstDir)) throw e;
             creditDone(src, t);          // su cp 没有进度回调，按整份完成记
         }
+        markCopied(t, src);
     }
 
     private void moveOne(File src, File dstDir, FileTask t) throws IOException {
         File dst = new File(dstDir, src.getName());
         if (samePath(src, dst)) {
             creditDone(src, t);
+            markCopied(t, src);
             return;
         }
         if (!dstDir.isDirectory() && !dstDir.mkdirs() && !dstDir.isDirectory())
             throw new IOException("无法创建目录: " + dstDir);
         if (src.renameTo(dst)) {          // 同分区：秒完成，不需要逐字节拷
             creditDone(src, t);
+            markCopied(t, src);           // 续传时源已经不在，靠这份记录跳过
             pump(t);
             return;
         }
@@ -404,6 +579,7 @@ public final class FileTaskEngine {
             if (r == null || !r.delete(src))
                 throw new IOException("已复制，但源删除失败: " + src.getPath());
         }
+        markCopied(t, src);
     }
 
     private final Sink sink = new Sink() {
@@ -452,6 +628,8 @@ public final class FileTaskEngine {
     private static void copyNode(File src, File dst, FileTask t, Sink sink, int depth)
             throws IOException {
         if (t != null && t.cancelRequested) throw new Cancel();
+        // v2.15.0（F-19）：暂停在文件边界也生效，不必等下一个 128KB 块
+        if (t != null && t.pauseRequested) throw new Pause();
         if (depth > MAX_DEPTH) throw new IOException("目录层级过深: " + src.getPath());
         // v1.97.0：软链接不能跟进。src.isDirectory()/listFiles() 会跟随链接，
         // 于是「复制一个链接目录」会把目标整棵树复制一份（链接成环时还会递归到栈溢出）。
@@ -459,9 +637,14 @@ public final class FileTaskEngine {
         if (LinkUtil.isLink(src)) {
             // 复刻失败（FAT32 不支持链接 / 目标不可写）就跳过该条：整单不该因为一个链接失败，
             // 但也绝不能退回「跟进链接把目标复制过来」那种行为。
-            if (TreeOps.SYSTEM.copyLink(src, dst) && t != null) t.doneFiles++;
+            if (TreeOps.SYSTEM.copyLink(src, dst) && t != null) {
+                t.doneFiles++;
+                markCopied(t, src);
+            }
             return;
         }
+        // 只记文件路径（链接在上面已返回），所以这里命中一定是「上次拷完的文件」
+        if (t != null && isCopied(t, src)) return;
         if (src.isDirectory()) {
             if (dst.isFile()) {                       // 同名文件挡路：目录优先，让位
                 if (!dst.delete()) throw new IOException("目标被占用: " + dst);
@@ -475,7 +658,10 @@ public final class FileTaskEngine {
             }
         } else {
             copyFile(src, dst, t, sink);
-            if (t != null) t.doneFiles++;
+            if (t != null) {
+                t.doneFiles++;
+                markCopied(t, src);
+            }
         }
     }
 
@@ -486,13 +672,16 @@ public final class FileTaskEngine {
         if (parent != null && !parent.isDirectory() && !parent.mkdirs() && !parent.isDirectory())
             throw new IOException("无法创建: " + parent);
         File part = new File(parent, dst.getName() + TempFiles.PART);
+        // v2.15.0（F-19）：这个文件上次被暂停在 half-way 的话，从那里接着写
+        long base = resumeBase(t, src, part);
         // v2.4.0（R-08）：登记为「本进程正在写的临时文件」，遗留扫描就不会把它列出来
         // 让用户删掉 —— 删了之后 rename 必然失败，几 GB 的拷贝白跑。
         // end 必须在 rename 之前：改名之后这个路径已不存在，留在注册表里只会挡住下一次
         // 同名写入（同一个目标连拷两次的场景）。
         TempFiles.begin(part);
+        boolean keep = false;
         try {
-            writePart(src, part, t, sink);
+            writePart(src, part, t, sink, base);
             if (!part.renameTo(dst)) {
                 // 少数文件系统不支持覆盖式 rename（目标已存在时）
                 if (!dst.delete() || !part.renameTo(dst)) {
@@ -500,29 +689,111 @@ public final class FileTaskEngine {
                     throw new IOException("写入失败: " + dst.getPath());
                 }
             }
+        } catch (Pause p) {
+            // 暂停：半截 .part 是续传起点，既不能删也不能解除登记 ——
+            // 解除之后设置页的遗留清理会把它当垃圾删掉，续传就白记了
+            keep = true;
+            throw p;
         } finally {
-            TempFiles.end(part);
+            if (!keep) TempFiles.end(part);
         }
     }
 
-    /** 把 src 写进 part；取消/失败时清掉半截文件，成功时只 flush，不负责 rename */
-    private static void writePart(File src, File part, FileTask t, Sink sink) throws IOException {
+    /**
+     * v2.15.0（F-19）：判断这个文件能不能从已有 {@code .part} 接着写。
+     *
+     * @return 0 = 从头写（没有可用的半截）；&gt;0 = 已写字节数，从这个偏移续写
+     *
+     * <p>校验四项，任一不过就宁可重来：part 还在、长度正好等于记录的偏移、
+     * 源长度与 mtime 都没变。源在暂停期间被改过时，半截内容与新源对不上，
+     * 续写的产物会是两段不同版本的拼接 —— 这种「看起来成功、内容是坏的」比重拷十分钟糟得多。</p>
+     */
+    private static long resumeBase(FileTask t, File src, File part) {
+        if (t == null || t.resumeSrc == null || !samePath(src, t.resumeSrc)) return 0;
+        long off = t.resumeOffset;
+        File savedPart = t.resumePart;
+        long savedLen = t.resumeSrcLen;
+        long savedMtime = t.resumeSrcMtime;
+        // 用掉即清：一次暂停只对应一个文件，留着会被下一个文件误接
+        t.resumeSrc = null;
+        t.resumePart = null;
+        t.resumeOffset = 0;
+        boolean ok = off > 0
+                && part.isFile()
+                && part.length() == off
+                && (savedPart == null || samePath(savedPart, part))
+                && src.length() == savedLen
+                && src.lastModified() == savedMtime;
+        if (!ok) {
+            // 这段字节不能信：把已计入的进度扣回来，从头写
+            if (t.doneBytes >= off) t.doneBytes -= off;
+            TempFiles.end(part);
+            part.delete();
+            return 0;
+        }
+        return off;
+    }
+
+    /** 续传时跳过源文件的前 n 字节：skip 一次跳不完（或返回 0）时退化成逐字节读 */
+    private static void skipFully(InputStream in, long n) throws IOException {
+        long left = n;
+        while (left > 0) {
+            long s = in.skip(left);
+            if (s > 0) {
+                left -= s;
+                continue;
+            }
+            if (in.read() < 0) throw new IOException("续传起点超出源文件: 还差 " + left + " 字节");
+            left--;
+        }
+    }
+
+    /**
+     * 把 src 写进 part；取消/失败时清掉半截文件，成功时只 flush，不负责 rename。
+     *
+     * <p>v2.15.0（F-19）：{@code base > 0} 表示前面这部分已经在 part 里（上次暂停留下的），
+     * 从源的 base 偏移处接着读、以追加方式写。暂停时只 flush 不删，并把
+     * 「文件 + 已写字节」记进任务，成为下一次的续传起点。</p>
+     */
+    private static void writePart(File src, File part, FileTask t, Sink sink, long base)
+            throws IOException {
         InputStream in = null;
         OutputStream out = null;
+        long written = base;
         try {
             in = new FileInputStream(src);
-            out = new FileOutputStream(part);
+            if (base > 0) {
+                skipFully(in, base);
+                out = new FileOutputStream(part, true);
+            } else {
+                out = new FileOutputStream(part);
+            }
             byte[] buf = new byte[BUF];
             int n;
             while ((n = in.read(buf)) != -1) {
                 if (t != null && t.cancelRequested) throw new Cancel();
+                if (t != null && t.pauseRequested) {
+                    // 128KB 边界的检查点：当前块已落盘，先把这一段的偏移记下来再退出
+                    out.flush();
+                    t.resumeSrc = src;
+                    t.resumePart = part;
+                    t.resumeOffset = written;
+                    t.resumeSrcLen = src.length();
+                    t.resumeSrcMtime = src.lastModified();
+                    throw new Pause();
+                }
                 out.write(buf, 0, n);
+                written += n;
                 if (t != null) {
                     t.doneBytes += n;
                     if (sink != null) sink.onProgress(t);
                 }
             }
             out.flush();
+        } catch (Pause p) {
+            closeQuietly(in);
+            closeQuietly(out);
+            throw p;                                  // 半截文件保留，等「继续」
         } catch (Cancel c) {
             closeQuietly(in);
             closeQuietly(out);
@@ -551,6 +822,9 @@ public final class FileTaskEngine {
         // 量体积也要能取消：几十万文件的大目录量一遍要好几秒，
         // 期间点取消却毫无反应，用户会以为按钮坏了。
         if (t.cancelRequested) throw new Cancel();
+        // 量体积也接受暂停：几十万文件量一遍要好几秒，否则「暂停」在这几秒里像没反应。
+        // 续传时 job.measured 仍是 false，会先清零再量，不会把分母算两遍。
+        if (t.pauseRequested) throw new Pause();
         if (depth > MAX_DEPTH) return;
         // v1.99.2（R-03）：量分母时链接不跟进。
         // 进度是 doneBytes/totalBytes，分母把链接目标的整棵树算进来、分子却只在

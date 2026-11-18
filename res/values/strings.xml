@@ -134,9 +134,14 @@
     <string name="task_center_none_finished">没有已结束的任务</string>
     <string name="task_center_none_active">没有进行中的任务</string>
     <string name="task_center_cancel_all_title">取消全部任务</string>
-    <string name="task_center_cancel_all_msg">将停止所有排队与进行中的任务，已经复制完成的部分会保留。</string>
+    <string name="task_center_cancel_all_msg">将停止所有排队、进行中与已暂停的任务，已经复制完成的部分会保留。</string>
     <string name="task_center_cancel_all_ok">全部取消</string>
     <string name="task_center_continue">继续</string>
+    <!-- v2.15.0（F-19）：任务暂停 / 继续 -->
+    <string name="task_pause">暂停</string>
+    <string name="task_resume">继续</string>
+    <string name="task_bar_paused">已暂停 %1$s · %2$d%%</string>
+    <string name="task_bar_paused_more">已暂停 %1$s · %2$d%% · 另 %3$d 项暂停</string>
     <string name="task_center_empty">暂无任务\n\n复制 / 移动 / 压缩时会在这里显示进度，可随时取消或重试失败的项。</string>
 
     <!-- 带数字的用 plurals：中文只有 other，英文区分 one/other -->

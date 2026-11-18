@@ -64,6 +64,15 @@ public final class TaskUiController {
     /** 已结束任务计数：变化时才刷新窗格，避免每次进度回调都重列目录 */
     private int taskDoneSeen;
 
+    /**
+     * v2.15.0（F-19）：任务条右侧那一个按钮此刻代表什么。
+     *
+     * <p>只有一个按钮位，却有三种含义（取消 / 继续 / 查看）。靠文案反推状态会在改字时漂移，
+     * 所以显式记一个值。</p>
+     */
+    private static final int BAR_VIEW = 0, BAR_CANCEL = 1, BAR_RESUME = 2;
+    private int barMode = BAR_VIEW;
+
     /** 任务条自动收起：全部结束后停留 8 秒，让用户看得见结果 */
     private final Runnable hideTaskBar = new Runnable() {
         public void run() {
@@ -78,7 +87,9 @@ public final class TaskUiController {
             // v1.98.0：有活动任务就进前台服务 —— 用户切到别的应用后进程会被冻结/回收，
             // 大文件复制、压缩会在后台静默失败；前台服务同时给通知栏进度（可取消）。
             // start() 内部有 running 判断，进度回调再频繁也只启动一次。
-            if (FileTaskEngine.get().hasActive()) TaskService.start(host.ctx());
+            // v2.15.0（F-19）：只有还在做功的任务才需要前台服务；任务全暂停时把通知收掉，
+            // 免得「用户明确说先停一停」却还挂着一条常驻通知
+            if (FileTaskEngine.get().hasRunning()) TaskService.start(host.ctx());
             host.ui().post(new Runnable() {
                 public void run() { renderTaskBar(); }
             });
@@ -101,10 +112,16 @@ public final class TaskUiController {
             public void onClick(View v) {
                 // v1.77.1：这里原来先判断 isBusy()，而 isBusy() 在「正在拷贝」时返回 false
                 // （worker 已把任务从 pending 取走），于是点「取消」反而打开了任务面板。
-                // 现在用 hasActive()，并且一点就取消，不再弹二次确认。
-                if (FileTaskEngine.get().hasActive()) {
+                // 现在按 barMode 分派（v2.15.0 起多了「继续」），不再靠 hasActive() 猜。
+                if (barMode == BAR_CANCEL) {
                     FileTaskEngine.get().cancelAll();
                     renderTaskBar();                 // 立刻把「取消中」画出来
+                } else if (barMode == BAR_RESUME) {
+                    for (FileTask t : FileTaskEngine.get().tasks()) {
+                        if (t.resumable()) FileTaskEngine.get().resume(t.id);
+                    }
+                    TaskService.start(host.ctx());
+                    renderTaskBar();
                 } else {
                     host.openPanel();
                 }
@@ -145,12 +162,16 @@ public final class TaskUiController {
     void renderTaskBar() {
         if (taskBar == null) return;
         List<FileTask> list = FileTaskEngine.get().tasks();
-        FileTask running = null, last = null;
+        FileTask running = null, paused = null, last = null;
         int active = 0, done = 0;
         for (FileTask t : list) {
-            if (t.cancelable()) {
+            if (t.pausable()) {
                 active++;
                 if (running == null || t.state == FileTask.RUNNING) running = t;
+            } else if (t.resumable()) {
+                // 暂停的任务也算「未结束」，但它没在读写：任务条只给「继续」
+                active++;
+                if (paused == null) paused = t;
             } else {
                 done++;
                 last = t;
@@ -165,8 +186,22 @@ public final class TaskUiController {
             return;
         }
         taskBar.setVisibility(View.VISIBLE);
-        if (active > 0) {
+        if (active > 0 && running == null) {
+            // 只剩下暂停的任务：进度停在暂停那一刻，按钮变成「继续」
             host.ui().removeCallbacks(hideTaskBar);
+            barMode = BAR_RESUME;
+            int pct = paused.percent();
+            taskProgress.setProgress(pct);
+            int more = active - 1;
+            taskText.setText(more > 0
+                    ? host.ctx().getString(R.string.task_bar_paused_more, paused.title, pct, more)
+                    : host.ctx().getString(R.string.task_bar_paused, paused.title, pct));
+            taskAction.setText(host.ctx().getString(R.string.task_resume));
+            taskAction.setEnabled(true);
+            taskAction.setAlpha(1f);
+        } else if (active > 0) {
+            host.ui().removeCallbacks(hideTaskBar);
+            barMode = BAR_CANCEL;
             int pct = running.percent();
             taskProgress.setProgress(pct);
             if (running.cancelRequested) {
@@ -181,13 +216,22 @@ public final class TaskUiController {
                         .append(" · ").append(pct).append('%');
                 long sp = running.speed(System.currentTimeMillis());
                 if (sp > 0) sb.append(" · ").append(FileOps.formatSize(sp)).append("/s");
-                if (active > 1) sb.append(" · 另 ").append(active - 1).append(" 项排队");
+                // 「另 N 项」里可能既有排队也有已暂停，分开数才不误导
+                int queue = 0, hold = 0;
+                for (FileTask t : list) {
+                    if (t == running) continue;
+                    if (t.pausable()) queue++;
+                    else if (t.resumable()) hold++;
+                }
+                if (queue > 0) sb.append(" · 另 ").append(queue).append(" 项排队");
+                if (hold > 0) sb.append(" · ").append(hold).append(" 项暂停");
                 taskText.setText(sb.toString());
                 taskAction.setText("取消");
                 taskAction.setEnabled(true);
                 taskAction.setAlpha(1f);
             }
         } else {
+            barMode = BAR_VIEW;
             taskProgress.setProgress(100);
             taskText.setText(resultLine(last));
             taskAction.setText("查看");

@@ -81,6 +81,24 @@ final class TaskRows {
         info.setPadding(0, UiDecor.dp(c, 7), UiDecor.dp(c, 6), 0);
         foot.addView(info, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        if (t.pausable()) {
+            // v2.15.0（F-19）：暂停只停读写，不动已拷完的文件；「取消」仍是丢掉整个任务
+            TextView pause = UiDecor.action(c, "⏸", c.getString(R.string.task_pause),
+                    ThemeManager.accent(c));
+            pause.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) { FileTaskEngine.get().pause(t.id); }
+            });
+            foot.addView(pause);
+        } else if (t.resumable()) {
+            TextView go = UiDecor.action(c, "▶", c.getString(R.string.task_resume),
+                    ThemeManager.accent(c));
+            go.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) {
+                    if (FileTaskEngine.get().resume(t.id)) TaskService.start(c);
+                }
+            });
+            foot.addView(go);
+        }
         if (t.cancelable()) {
             TextView cancel = UiDecor.action(c, "✕", "取消", ThemeManager.err(c));
             cancel.setOnClickListener(new View.OnClickListener() {

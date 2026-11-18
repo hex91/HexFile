@@ -22,6 +22,8 @@ public final class FileTask {
     public static final int PARTIAL = 3;
     public static final int FAILED = 4;
     public static final int CANCELLED = 5;
+    /** v2.15.0（F-19）：用户主动暂停，字节级续传点已记在任务里，等「继续」 */
+    public static final int PAUSED = 6;
 
     public final int id;
     public final int kind;
@@ -53,6 +55,36 @@ public final class FileTask {
     public volatile java.io.File dstDir;
 
     public volatile boolean cancelRequested;
+
+    // ---- v2.15.0（F-19）：暂停与字节级续传
+    /**
+     * 暂停请求。工作线程在 128KB 块边界检查它：置位后当前块写完就停，
+     * 而不是像取消那样丢掉半截文件。
+     */
+    public volatile boolean pauseRequested;
+
+    /**
+     * 暂停那一刻正在写的文件与已写入的字节数（续传起点）。
+     *
+     * <p>为什么要记「文件 + 偏移」而不是「任务级已拷多少」：拷贝的粒度是文件，
+     * 一停就只能从这个文件的半截 {@code .part} 接着写；前面的文件已经 rename 成正式
+     * 名字，跳过的依据是 {@link #copied}。</p>
+     */
+    public volatile java.io.File resumeSrc;
+    public volatile java.io.File resumePart;
+    public volatile long resumeOffset;
+    /** 暂停时的源长度与 mtime：续传前比对，任一项变了就不敢接半截 */
+    public volatile long resumeSrcLen;
+    public volatile long resumeSrcMtime;
+
+    /**
+     * 已经拷完的源文件绝对路径（仅任务未结束时非空）。
+     *
+     * <p>续传要跳过这些文件：不记的话「继续」会把已完成的几百个文件重拷一遍，
+     * 进度还会翻倍（doneBytes 重复累加）。只记文件不记目录 —— 目录跳过会把子项一起丢掉。</p>
+     */
+    java.util.Set<String> copied;
+
     /** 最近一次错误（含文件名），失败/部分失败时展示 */
     public volatile String message;
 
@@ -72,8 +104,22 @@ public final class FileTask {
         return state == DONE || state == PARTIAL || state == FAILED || state == CANCELLED;
     }
 
-    public boolean cancelable() {
+    /** 可以把正在跑（或还没开跑）的任务暂停 */
+    public boolean pausable() {
         return state == QUEUED || state == RUNNING;
+    }
+
+    /** 已暂停、等「继续」 */
+    public boolean resumable() {
+        return state == PAUSED;
+    }
+
+    /**
+     * 能不能取消。v2.15.0 起「已暂停」也算：暂停只是不再读写，
+     * 用户随时可能决定不干了，此时不给取消就只能先继续再取消，很别扭。
+     */
+    public boolean cancelable() {
+        return state == QUEUED || state == RUNNING || state == PAUSED;
     }
 
     public boolean isMove() {
@@ -99,6 +145,8 @@ public final class FileTask {
 
     /** 平均速度（字节/秒），未开始或已结束过久返回 0 由调用方决定是否显示 */
     public long speed(long nowMs) {
+        // 暂停期间不该显示「0 B/s 还在跑」，也不该按墙钟继续摊薄：直接给 0，界面不显示速率
+        if (state == PAUSED) return 0;
         if (startedAt <= 0) return 0;
         long end = finishedAt > 0 ? finishedAt : nowMs;
         long ms = Math.max(1, end - startedAt);
@@ -113,6 +161,7 @@ public final class FileTask {
             case PARTIAL: return "部分失败";
             case FAILED: return "失败";
             case CANCELLED: return "已取消";
+            case PAUSED: return "已暂停";
             default: return "";
         }
     }

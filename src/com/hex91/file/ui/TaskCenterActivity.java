@@ -129,8 +129,10 @@ public class TaskCenterActivity extends BaseActivity {
         data.addAll(list);
         adapter.notifyDataSetChanged();
 
+        // v2.15.0（F-19）：「进行中」只数还在读写的；已暂停的任务在行内显示「已暂停」，
+        // 算进「进行中」会让标题与实际动静不符
         int active = 0;
-        for (FileTask t : list) if (t.cancelable()) active++;
+        for (FileTask t : list) if (t.pausable()) active++;
         title.setText(active > 0
                 ? getResources().getQuantityString(R.plurals.task_center_title_active, active, active)
                 : getString(R.string.task_center_title));

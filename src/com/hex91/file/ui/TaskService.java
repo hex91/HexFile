@@ -47,6 +47,8 @@ public class TaskService extends Service {
     private static final String CHANNEL = "hex_task";
     private static final int NOTI_ID = 0x4802;
     static final String ACTION_CANCEL = "com.hex91.file.action.TASK_CANCEL";
+    /** v2.15.0（F-19）：通知栏「暂停」 */
+    static final String ACTION_PAUSE = "com.hex91.file.action.TASK_PAUSE";
     /** 通知栏「取消」要取消哪个任务（R-05） */
     static final String EXTRA_TASK_ID = "task_id";
 
@@ -79,7 +81,9 @@ public class TaskService extends Service {
             try {
                 if (!foreground) return;      // 前台状态没落地（R-04），别再碰通知栏
                 FileTaskEngine e = FileTaskEngine.get();
-                if (!e.hasActive()) {
+                // v2.15.0（F-19）：任务全部暂停也算「没在做功」—— 收掉通知与服务，
+                // 否则用户按了暂停却还挂着一条永远 43% 的常驻通知
+                if (!e.hasRunning()) {
                     finish();
                     return;
                 }
@@ -126,6 +130,17 @@ public class TaskService extends Service {
             FileTaskEngine e = FileTaskEngine.get();
             if (id >= 0) e.cancel(id);
             else e.cancelAll();               // 老版本发来的 PendingIntent（无 extra）保持旧行为
+            ui.post(refresh);
+            return START_NOT_STICKY;
+        }
+        if (intent != null && ACTION_PAUSE.equals(intent.getAction())) {
+            int id = intent.getIntExtra(EXTRA_TASK_ID, -1);
+            FileTaskEngine e = FileTaskEngine.get();
+            if (id >= 0) {
+                e.pause(id);
+            } else {
+                for (FileTask t : e.tasks()) if (t.pausable()) e.pause(t.id);
+            }
             ui.post(refresh);
             return START_NOT_STICKY;
         }
@@ -244,6 +259,16 @@ public class TaskService extends Service {
             b.setProgress(0, 0, true);
         }
 
+        if (run != null) {
+            // 暂停放在取消左边：破坏性操作不该排在最外侧（拇指最容易碰到的位置）
+            Intent pause = new Intent(this, TaskService.class).setAction(ACTION_PAUSE)
+                    .putExtra(EXTRA_TASK_ID, run.id);
+            b.addAction(new Notification.Action.Builder(
+                    android.R.drawable.ic_media_pause, getString(R.string.task_pause),
+                    PendingIntent.getService(this, 4, pause,
+                            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE))
+                    .build());
+        }
         Intent cancel = new Intent(this, TaskService.class).setAction(ACTION_CANCEL);
         if (run != null) cancel.putExtra(EXTRA_TASK_ID, run.id);
         // requestCode 固定 + FLAG_UPDATE_CURRENT：同一个 PendingIntent 的 extra 每次都刷新，
