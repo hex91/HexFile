@@ -826,4 +826,25 @@
     <string name="main_created">已创建：%1$s</string>
     <string name="main_create_fail">创建失败（已存在或无权限）</string>
     <string name="common_create">创建</string>
+
+    <!-- ===== 主界面：多选工具条 / 批量操作（F-14） ===== -->
+    <string name="main_sel_done">完成(%1$d)</string>
+    <string name="main_sel_done_idle">完成(0)</string>
+    <string name="main_sel_copy">复制</string>
+    <string name="main_sel_move">移动</string>
+    <string name="main_sel_rename">重命名</string>
+    <string name="main_sel_img">处理</string>
+    <string name="main_batch_rename_plain_only">请选择普通文件（暂不支持压缩包内条目重命名）</string>
+    <string name="main_nothing_selected">未选中任何项</string>
+    <string name="main_queued_move">已加入移动队列 %1$d 项 →\n%2$s</string>
+    <string name="main_queued_copy">已加入复制队列 %1$d 项 →\n%2$s</string>
+    <string name="main_extract_running">提取中…</string>
+    <string name="main_extract_del_running">提取并删除中…</string>
+    <string name="main_extract_partial_fail">部分失败(%1$d): %2$s</string>
+    <string name="main_extract_done">已提取 %1$d 项</string>
+    <string name="main_extract_del_done">已提取并删除 %1$d 项</string>
+    <string name="main_written_back">已写回原包（首次修改自动备份 _bak.apk）</string>
+    <string name="main_batch_delete">批量删除</string>
+    <string name="main_batch_delete_msg">将 %1$d 项移入回收站（可恢复）？</string>
+    <string name="main_batch_deleted">已移入回收站 %1$d/%2$d 项</string>
 </resources>

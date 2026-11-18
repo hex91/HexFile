@@ -166,7 +166,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="38dp"
-            android:text="全选"
+            android:text="@string/main_select_all"
             android:textSize="11sp"
             android:textColor="?attr/hfText"
             android:padding="0dp"/>
@@ -176,7 +176,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="38dp"
-            android:text="复制"
+            android:text="@string/main_sel_copy"
             android:textSize="11sp"
             android:textColor="?attr/hfText"
             android:padding="0dp"/>
@@ -186,7 +186,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="38dp"
-            android:text="移动"
+            android:text="@string/main_sel_move"
             android:textSize="11sp"
             android:textColor="?attr/hfText"
             android:padding="0dp"/>
@@ -196,7 +196,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="38dp"
-            android:text="删除"
+            android:text="@string/common_delete"
             android:textSize="11sp"
             android:textColor="?attr/hfText"
             android:padding="0dp"/>
@@ -206,7 +206,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="38dp"
-            android:text="重命名"
+            android:text="@string/main_sel_rename"
             android:textSize="11sp"
             android:textColor="?attr/hfText"
             android:padding="0dp"/>
@@ -216,7 +216,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="38dp"
-            android:text="处理"
+            android:text="@string/main_sel_img"
             android:textSize="11sp"
             android:textColor="?attr/hfText"
             android:padding="0dp"/>
@@ -226,7 +226,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="38dp"
-            android:text="完成(0)"
+            android:text="@string/main_sel_done_idle"
             android:textSize="11sp"
             android:textColor="?attr/hfText"
             android:padding="0dp"/>

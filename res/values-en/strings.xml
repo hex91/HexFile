@@ -818,4 +818,25 @@
     <string name="main_created">Created: %1$s</string>
     <string name="main_create_fail">Could not create (already exists or permission denied)</string>
     <string name="common_create">Create</string>
+
+    <!-- ===== Main screen: selection bar / batch operations (F-14) ===== -->
+    <string name="main_sel_done">Done (%1$d)</string>
+    <string name="main_sel_done_idle">Done (0)</string>
+    <string name="main_sel_copy">Copy</string>
+    <string name="main_sel_move">Move</string>
+    <string name="main_sel_rename">Rename</string>
+    <string name="main_sel_img">Process</string>
+    <string name="main_batch_rename_plain_only">Select plain files (renaming archive entries is not supported yet)</string>
+    <string name="main_nothing_selected">Nothing selected</string>
+    <string name="main_queued_move">Queued %1$d item(s) to move →\n%2$s</string>
+    <string name="main_queued_copy">Queued %1$d item(s) to copy →\n%2$s</string>
+    <string name="main_extract_running">Extracting…</string>
+    <string name="main_extract_del_running">Extracting and deleting…</string>
+    <string name="main_extract_partial_fail">Partly failed (%1$d): %2$s</string>
+    <string name="main_extract_done">Extracted %1$d item(s)</string>
+    <string name="main_extract_del_done">Extracted and deleted %1$d item(s)</string>
+    <string name="main_written_back">Written back to the APK (first change backs up as _bak.apk)</string>
+    <string name="main_batch_delete">Batch delete</string>
+    <string name="main_batch_delete_msg">Move %1$d item(s) to Trash (recoverable)?</string>
+    <string name="main_batch_deleted">Moved %1$d/%2$d item(s) to Trash</string>
 </resources>

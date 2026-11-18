@@ -3807,7 +3807,7 @@ public class MainActivity extends BaseActivity {
 
     private void updateSelDone() {
         int n = selPanel == null ? 0 : selPanel.adapter.selectedCount();
-        ((Button) findViewById(R.id.btn_sel_done)).setText("完成(" + n + ")");
+        ((Button) findViewById(R.id.btn_sel_done)).setText(s(R.string.main_sel_done, n));
     }
 
     private void setupSelectionBar() {
@@ -3888,7 +3888,7 @@ public class MainActivity extends BaseActivity {
             else if (it.file != null) paths.add(it.file.getAbsolutePath());
         }
         if (paths.isEmpty()) {
-            toast("请选择普通文件（暂不支持压缩包内条目重命名）");
+            toast(s(R.string.main_batch_rename_plain_only));
             return;
         }
         Intent i = new Intent(this, BatchRenameActivity.class);
@@ -3900,7 +3900,7 @@ public class MainActivity extends BaseActivity {
     private void doBatch(boolean isMove) {
         if (selPanel == null) return;
         List<FileItem> sel = selPanel.adapter.getSelectedItems();
-        if (sel.isEmpty()) { toast("未选中任何项"); return; }
+        if (sel.isEmpty()) { toast(s(R.string.main_nothing_selected)); return; }
         final Pane dst = (selPanel == left ? right : left);
         List<File> realFiles = new ArrayList<File>();
         List<FileItem> archEntries = new ArrayList<FileItem>();
@@ -3921,7 +3921,7 @@ public class MainActivity extends BaseActivity {
                 archiveAdd.addToArchive(realFiles.toArray(new File[0]), dst, null, isMove);
                 return;
             }
-            toast("未选中任何项");
+            toast(s(R.string.main_nothing_selected));
             return;
         }
         // 源窗格是压缩包 → 条目提取到对面目录（移动 = 提取后删除条目）
@@ -3932,15 +3932,15 @@ public class MainActivity extends BaseActivity {
         }
         // v1.77.0：改为提交后台任务——有真实进度、可取消、失败不会连带中断
         FileTaskEngine.get().submit(isMove ? FileTask.MOVE : FileTask.COPY, realFiles, dst.dir);
-        toast((isMove ? "已加入移动队列 " : "已加入复制队列 ") + realFiles.size()
-                + " 项 →\n" + dst.dir.getPath());
+        toast(isMove ? s(R.string.main_queued_move, realFiles.size(), dst.dir.getPath())
+                : s(R.string.main_queued_copy, realFiles.size(), dst.dir.getPath()));
         exitSelection(selPanel);
     }
 
     /** 批量提取压缩包条目到目标窗格目录；alsoDelete=true 时提取后从压缩包删除（仅 ZIP/APK） */
     private void extractEntriesBatch(final Pane p, final List<FileItem> entries,
             final Pane dst, final boolean alsoDelete) {
-        toast(alsoDelete ? "提取并删除中…" : "提取中…");
+        toast(alsoDelete ? s(R.string.main_extract_del_running) : s(R.string.main_extract_running));
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -3967,11 +3967,12 @@ public class MainActivity extends BaseActivity {
                 final String ferr = err;
                 runOnUiThread(new Runnable() {
                     public void run() {
-                        if (ferr != null) toast("部分失败(" + fok + "): " + ferr);
-                        else toast((alsoDelete ? "已提取并删除 " : "已提取 ") + fok + " 项");
+                        if (ferr != null) toast(s(R.string.main_extract_partial_fail, fok, ferr));
+                        else toast(alsoDelete ? s(R.string.main_extract_del_done, fok)
+                                : s(R.string.main_extract_done, fok));
                         if (alsoDelete && ApkEditSession.isApk(p.archiveFile)
                                 && ApkEditSession.hasEdits(p.archiveFile))
-                            toast("已写回原包（首次修改自动备份 _bak.apk）");
+                            toast(s(R.string.main_written_back));
                         showArchiveDir(p);
                         if (dst.archiveFile == null) loadDir(dst, dst.dir);
                     }
@@ -3984,7 +3985,7 @@ public class MainActivity extends BaseActivity {
     private void doBatchDelete() {
         if (selPanel == null) return;
         final List<FileItem> sel = selPanel.adapter.getSelectedItems();
-        if (sel.isEmpty()) { toast("未选中任何项"); return; }
+        if (sel.isEmpty()) { toast(s(R.string.main_nothing_selected)); return; }
         List<FileItem> archEntries = new ArrayList<FileItem>();
         List<File> realFiles = new ArrayList<File>();
         for (FileItem it : sel) {
@@ -3998,18 +3999,18 @@ public class MainActivity extends BaseActivity {
         }
         final Pane p = selPanel;
         new HfDialogBuilder(this)
-                .setTitle("批量删除")
-                .setMessage("将 " + realFiles.size() + " 项移入回收站（可恢复）？")
-                .setPositiveButton("删除", new android.content.DialogInterface.OnClickListener() {
+                .setTitle(s(R.string.main_batch_delete))
+                .setMessage(s(R.string.main_batch_delete_msg, realFiles.size()))
+                .setPositiveButton(s(R.string.common_delete), new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         int ok = 0;
                         for (File f : realFiles) if (Trash.moveToTrash(f) != null) ok++;
-                        toast("已移入回收站 " + ok + "/" + realFiles.size() + " 项");
+                        toast(s(R.string.main_batch_deleted, ok, realFiles.size()));
                         exitSelection(p);
                         refreshAll();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(s(R.string.common_cancel), null)
                 .show();
     }
 
