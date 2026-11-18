@@ -114,17 +114,8 @@ public final class StreamUrl {
         return s.equals("http") || s.equals("https") ? KIND_PROGRESSIVE : KIND_UNKNOWN;
     }
 
-    public static String kindLabel(int kind) {
-        switch (kind) {
-            case KIND_LOCAL: return "本地文件";
-            case KIND_HLS: return "HLS 直播/点播（m3u8）";
-            case KIND_DASH: return "DASH（mpd）";
-            case KIND_RTSP: return "RTSP 摄像头/串流";
-            case KIND_RTMP: return "RTMP 推拉流";
-            case KIND_PROGRESSIVE: return "直连视频/渐进流";
-            default: return "未知";
-        }
-    }
+    // 类型名不在这里：v2.27.0（F-14/11）起 kindLabel() 的职责挪到 ui 层，
+    // 由它按 KIND_* 取字符串资源（同 ScreenPolicy.label 的处理）。
 
     /**
      * 取一个便于显示的标题：末段路径，去掉查询串，URL 解码。

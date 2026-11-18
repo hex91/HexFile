@@ -34,9 +34,9 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：944 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：1041 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
-│                                #   HLS 下载与错误码）
+│                                #   HLS 下载与错误码 / 视频播放页）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
 │   ├── values-sw600dp/          # 平板：pane_divider 从 1dp 装饰线变 6dp 可拖
 │   ├── drawable/                # 矢量图标（ic_folder / ic_file）+ 自适应底板 ic_launcher_background
@@ -1782,6 +1782,59 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.27.0（versionCode 220）—— F-14/11：视频播放页 i18n（最大的一页）
+
+播放页是单个文件里文案最多的页面（104 处 / 90 个不同字面量），
+覆盖工具栏胶囊、画质/倍速/方向/缩放四个对话框、播放信息、错误提示、手势悬浮提示和 ⋮ 菜单。
+**清零**，落成 **97 个 `vp_` 键** + `common_auto`。
+
+### 两个纯逻辑层也交出了文案
+
+`ScreenPolicy.label()/describe()`（core）和 `StreamUrl.kindLabel()`（net）本来直接返回中文：
+
+```java
+public static String label(int mode) {
+    return m == PORTRAIT ? "竖屏" : m == LANDSCAPE ? "横屏" : "自动";
+}
+```
+
+它们只有一个调用方（播放页），却把「中文怎么说」固化进了状态机。
+这一版把方法删掉，ui 层按 `orientShort()` / `orientText()` / `sourceKindText()` 取资源 ——
+状态机只管 `AUTO/PORTRAIT/LANDSCAPE`，文案跟着语言走。
+
+### 顺手清掉一个「用文案当状态」
+
+```java
+private String qualityLabel = "自动";   // 既当显示值，又当「没锁定」的哨兵
+```
+
+改成 `null` = 自动。这次它**还没坏**（只用于显示和跟 `v.label` 比较），
+但同一类写法在 `ArchiveController`（v2.20.0）和 `showApkInfo`（v2.24.0）已经坏过两次，
+能顺手收掉的就不留在仓库里等它坏。
+
+### 格式串的语序交出去
+
+播放信息原来是「标签 + 值」两次 append：
+
+```java
+sb.append("分辨率：").append(v.width + "×" + v.height)   // 中文语序写死在代码里
+```
+
+改成整句一个键（`vp_info_resolution` = `分辨率：%1$s`），译者能调整语序；
+`" · %1$d 声道"` 这种以空格开头的片段仍要**整值加引号**，否则被 aapt 折叠。
+
+### 验证
+
+- `VideoPlayerActivity` 中文字面量 **104 → 0**；`ScreenPolicy` / `StreamUrl` 同批清零
+- 布局 `activity_video_player.xml` 6 处 `android:text` 改 `@string`（剩下的是 ← ⋮ ⏮ ▶ ⏭ 和时间占位符）
+- 单测跟着改口径：`ScreenPolicyTest` 删掉 label/describe 断言（文案不在这一层了），
+  `StreamUrlTest` 的「类型文案」断言换成「m3u8 → KIND_HLS」分类断言
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 **1041 条 100% 一致**（引用 998 键 / 24 文件）/ 动作号 55
+- `QUICK=1` **66/66**
+- APK **13,210,320 B**（+16,384），md5 `ee9e1363…`
 
 ---
 

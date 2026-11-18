@@ -133,8 +133,8 @@ public class VideoPlayerActivity extends BaseActivity {
     private String displayTitle = "";
     /** m3u8 master 解析结果；null = 还没解析或不是 HLS */
     private M3u8Playlist qualities;
-    /** 当前锁定的画质标签，"自动" 表示不锁定 */
-    private String qualityLabel = "自动";
+    /** 当前锁定的画质标签；null = 自动（不锁定）。不再拿 "自动" 这个字符串当哨兵 */
+    private String qualityLabel = null;
     /** 解析画质时用的基准地址（HLS 主列表自身地址） */
     private String qualityBase;
 
@@ -152,7 +152,7 @@ public class VideoPlayerActivity extends BaseActivity {
         readIntent();
         buildQueue();
         if (sources.isEmpty()) {
-            showMessage("没有可播放的内容：既没有文件路径，也没有可用地址");
+            showMessage(s(R.string.vp_nothing_to_play));
             return;
         }
         setupPlayer();
@@ -279,7 +279,7 @@ public class VideoPlayerActivity extends BaseActivity {
         if (u != null) {
             String clean = StreamUrl.normalize(u);
             if (clean == null) {
-                showMessage("不是可播放的地址：\n" + u);
+                showMessage(s(R.string.vp_not_playable_url, u));
                 return;
             }
             sources.add(clean);
@@ -453,7 +453,7 @@ public class VideoPlayerActivity extends BaseActivity {
                 }
                 // 换了片子，画质列表必须重解析（不同片子档位不同）
                 qualities = null;
-                qualityLabel = "自动";
+                qualityLabel = null;
                 // 方向也重新判：横屏剧集切到竖屏短视频时该跟着回竖屏
                 orientationDecided = false;
                 backPortrait = false;
@@ -477,7 +477,7 @@ public class VideoPlayerActivity extends BaseActivity {
         long start = getIntent().getLongExtra(EXTRA_START_MS, 0);
         long resume = start > 0 ? start : savedPosition(sources.get(index));
         if (resume > 0 && !isStream(sources.get(index))) {
-            toast("从上次位置继续：" + fmtTime(resume));
+            toast(s(R.string.vp_resume_toast, fmtTime(resume)));
         }
         player.setMediaItems(items, index, resume > 0 ? resume : 0);
         player.prepare();
@@ -548,11 +548,11 @@ public class VideoPlayerActivity extends BaseActivity {
         }
         int target = player.getCurrentMediaItemIndex() + dir;
         if (target < 0) {
-            toast("已经是第一个");
+            toast(s(R.string.vp_first_item));
             return;
         }
         if (target >= sources.size()) {
-            toast("已经是最后一个");
+            toast(s(R.string.vp_last_item));
             return;
         }
         savePosition();
@@ -577,7 +577,7 @@ public class VideoPlayerActivity extends BaseActivity {
 
     private void updateTimeText() {
         if (durationMs > 0) durView.setText(fmtTime(durationMs));
-        else durView.setText(isLive() ? "直播" : "--:--");
+        else durView.setText(isLive() ? s(R.string.vp_live) : "--:--");
         posView.setText(fmtTime(player == null ? 0 : player.getCurrentPosition()));
         if (durationMs > 0 && seekBar != null) {
             seekBar.setEnabled(true);
@@ -624,18 +624,19 @@ public class VideoPlayerActivity extends BaseActivity {
         int checked = PlaySpeed.indexOf(speed);
         for (int i = 0; i < steps.length; i++) {
             labels[i] = PlaySpeed.label(steps[i])
-                    + (Math.abs(steps[i] - 1f) < 0.001f ? "（原速）" : "")
-                    + (Math.abs(steps[i] - PlaySpeed.BOOST) < 0.001f ? "（上限）" : "");
+                    + (Math.abs(steps[i] - 1f) < 0.001f ? s(R.string.vp_speed_normal_tag) : "")
+                    + (Math.abs(steps[i] - PlaySpeed.BOOST) < 0.001f
+                            ? s(R.string.vp_speed_cap_tag) : "");
         }
         new HfDialogBuilder(this)
-                .setTitle("播放速度（最高 3.0×）")
+                .setTitle(s(R.string.vp_speed_title))
                 .setSingleChoiceItems(labels, checked, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int which) {
                         applySpeed(steps[which]);
                         d.dismiss();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(s(R.string.common_cancel), null)
                 .show();
         showControls();
     }
@@ -735,32 +736,32 @@ public class VideoPlayerActivity extends BaseActivity {
 
     private void updateQualityChip() {
         if (sources.isEmpty() || !isHls(sources.get(index))) {
-            qualityChip.setText("画质 源");
+            qualityChip.setText(s(R.string.vp_quality_chip_src));
         } else if (qualities == null) {
-            qualityChip.setText("画质 …");
+            qualityChip.setText(s(R.string.vp_quality_chip_loading));
         } else if (!qualities.hasChoice()) {
-            qualityChip.setText("画质 源");
+            qualityChip.setText(s(R.string.vp_quality_chip_src));
         } else {
-            qualityChip.setText("画质 " + qualityLabel);
+            qualityChip.setText(s(R.string.vp_quality_chip,
+                    qualityLabel == null ? s(R.string.common_auto) : qualityLabel));
         }
     }
 
     private void showQualityDialog() {
         if (qualities == null || !qualities.hasChoice()) {
             String extra = qualities == null
-                    ? "（不是 m3u8 主列表，或列表读取失败）"
-                    : "（该片源只有一路码率）";
+                    ? s(R.string.vp_quality_no_master)
+                    : s(R.string.vp_quality_single);
             new HfDialogBuilder(this)
-                    .setTitle("画质")
-                    .setMessage("这个片源没有多档画质可选" + extra
-                            + "\n\n播放器按源分辨率原样解码，不做任何压缩或降采样。")
-                    .setPositiveButton("知道了", null)
+                    .setTitle(s(R.string.vp_quality_title))
+                    .setMessage(s(R.string.vp_quality_none_msg, extra))
+                    .setPositiveButton(s(R.string.common_got_it), null)
                     .show();
             return;
         }
         final List<M3u8Playlist.Variant> list = qualities.byQualityDesc();
         String[] labels = new String[list.size() + 1];
-        labels[0] = "自动（按网速自适应）";
+        labels[0] = s(R.string.vp_quality_auto_abr);
         int checked = 0;
         for (int i = 0; i < list.size(); i++) {
             M3u8Playlist.Variant v = list.get(i);
@@ -768,14 +769,14 @@ public class VideoPlayerActivity extends BaseActivity {
             if (v.label.equals(qualityLabel)) checked = i + 1;
         }
         new HfDialogBuilder(this)
-                .setTitle("选择画质（锁定后不再自适应）")
+                .setTitle(s(R.string.vp_quality_pick_title))
                 .setSingleChoiceItems(labels, checked, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int which) {
                         switchQuality(which == 0 ? null : list.get(which - 1));
                         d.dismiss();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(s(R.string.common_cancel), null)
                 .show();
     }
 
@@ -790,18 +791,19 @@ public class VideoPlayerActivity extends BaseActivity {
         boolean play = player.getPlayWhenReady();
         String target = v == null ? qualityBase : v.url;
         if (target == null) {
-            toast("原始地址已失效，请重新打开");
+            toast(s(R.string.vp_quality_base_gone));
             return;
         }
         sources.set(idx, target);
-        qualityLabel = v == null ? "自动" : v.label;
+        qualityLabel = v == null ? null : v.label;
         List<MediaItem> items = new ArrayList<MediaItem>();
         for (String s : sources) items.add(buildItem(s));
         player.setMediaItems(items, idx, pos);
         player.prepare();
         player.setPlayWhenReady(play);
         updateQualityChip();
-        toast(v == null ? "画质：自动" : "已锁定 " + v.label);
+        toast(v == null ? s(R.string.vp_quality_auto_toast)
+                : s(R.string.vp_quality_locked_toast, v.label));
     }
 
     // ============================================================ 缩放 / 循环 / 方向
@@ -813,17 +815,19 @@ public class VideoPlayerActivity extends BaseActivity {
                 ? PlayerPrefs.SCALE_FIT : scaleMode);
         updateScaleChip();
         applyScale();
-        toast("画面：" + scaleText());
+        toast(s(R.string.vp_scale_toast, scaleText()));
     }
 
     private String scaleText() {
-        return scaleMode == PlayerPrefs.SCALE_CROP ? "铺满（等比，裁掉边缘）"
-                : scaleMode == PlayerPrefs.SCALE_STRETCH ? "拉伸（比例会变形）" : "适配（等比、完整可见）";
+        return scaleMode == PlayerPrefs.SCALE_CROP ? s(R.string.vp_scale_crop_long)
+                : scaleMode == PlayerPrefs.SCALE_STRETCH ? s(R.string.vp_scale_stretch_long)
+                : s(R.string.vp_scale_fit_long);
     }
 
     private void updateScaleChip() {
-        scaleChip.setText(scaleMode == PlayerPrefs.SCALE_CROP ? "铺满"
-                : scaleMode == PlayerPrefs.SCALE_STRETCH ? "拉伸·变形" : "适配");
+        scaleChip.setText(scaleMode == PlayerPrefs.SCALE_CROP ? s(R.string.vp_scale_crop)
+                : scaleMode == PlayerPrefs.SCALE_STRETCH ? s(R.string.vp_scale_stretch)
+                : s(R.string.vp_scale_fit));
     }
 
     /**
@@ -942,43 +946,43 @@ public class VideoPlayerActivity extends BaseActivity {
         PlayerPrefs.setOrientation(this, orientMode);
         updateOrientChip();
         applyOrientation();
-        toast("画面方向：" + ScreenPolicy.describe(orientMode));
+        toast(s(R.string.vp_orient_toast, orientText(orientMode)));
     }
 
     /** 三选一对话框：比「连点胶囊三次」直观，尤其是只想锁定一个方向的时候 */
     private void showOrientationDialog() {
         final int[] modes = {ScreenPolicy.AUTO, ScreenPolicy.PORTRAIT, ScreenPolicy.LANDSCAPE};
         String[] labels = {
-                "自动 —— 横视频横屏、竖视频竖屏",
-                "竖屏 —— 锁定，横视频等比缩小（上下留黑）",
-                "横屏 —— 锁定，竖视频等比缩小（左右留黑）"
+                s(R.string.vp_orient_auto_option),
+                s(R.string.vp_orient_portrait_option),
+                s(R.string.vp_orient_landscape_option)
         };
         int checked = 0;
         for (int i = 0; i < modes.length; i++) {
             if (modes[i] == orientMode) checked = i;
         }
         new HfDialogBuilder(this)
-                .setTitle("画面方向")
+                .setTitle(s(R.string.vp_orient_title))
                 .setSingleChoiceItems(labels, checked, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int which) {
                         d.dismiss();
                         applyOrientMode(modes[which]);
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(s(R.string.common_cancel), null)
                 .show();
         showControls();
     }
 
     private void updateOrientChip() {
-        if (orientChip != null) orientChip.setText(ScreenPolicy.label(orientMode));
+        if (orientChip != null) orientChip.setText(orientShort(orientMode));
     }
 
     /** 右下角那颗固定按钮：竖屏是「撑开 + 全屏」，横屏是「竖屏手机 + 竖屏」 */
     private void updateFsChip() {
         if (fsChip == null) return;
         boolean land = isLandscapeNow();
-        fsChip.setText(land ? "竖屏" : "全屏");
+        fsChip.setText(land ? s(R.string.vp_orient_portrait) : s(R.string.vp_fs_fullscreen));
         fsChip.setCompoundDrawablesWithIntrinsicBounds(
                 land ? R.drawable.ic_vp_portrait : R.drawable.ic_vp_expand, 0, 0, 0);
     }
@@ -1016,49 +1020,56 @@ public class VideoPlayerActivity extends BaseActivity {
     }
 
     private void updateLoopChip() {
-        loopChip.setText(repeatMode == Player.REPEAT_MODE_ONE ? "单个"
-                : repeatMode == Player.REPEAT_MODE_ALL ? "列表" : "关");
+        loopChip.setText(repeatMode == Player.REPEAT_MODE_ONE ? s(R.string.vp_loop_one)
+                : repeatMode == Player.REPEAT_MODE_ALL ? s(R.string.vp_loop_all)
+                : s(R.string.vp_loop_off));
     }
 
     // ============================================================ 信息 / 错误
 
     private void showInfo() {
         StringBuilder sb = new StringBuilder();
-        sb.append("标题：").append(displayTitle).append('\n');
-        sb.append("来源：").append(isStream(sources.get(index))
-                ? StreamUrl.kindLabel(StreamUrl.kindOf(sources.get(index))) : "本地文件").append('\n');
+        sb.append(s(R.string.vp_info_title, displayTitle)).append('\n');
+        sb.append(s(R.string.vp_info_source, isStream(sources.get(index))
+                ? sourceKindText(StreamUrl.kindOf(sources.get(index)))
+                : s(R.string.vp_src_local))).append('\n');
         if (player != null) {
             Format v = player.getVideoFormat();
             if (v != null) {
-                sb.append("分辨率：").append(v.width > 0 ? v.width + "×" + v.height : "未知").append('\n');
-                if (v.frameRate > 0) sb.append("帧率：").append(trimNum(v.frameRate)).append(" fps\n");
-                if (v.bitrate > 0) sb.append("视频码率：").append(M3u8Playlist.mbpsText(v.bitrate)).append('\n');
-                if (v.sampleMimeType != null) sb.append("编码：").append(v.sampleMimeType).append('\n');
+                sb.append(s(R.string.vp_info_resolution,
+                        v.width > 0 ? v.width + "×" + v.height : s(R.string.vp_unknown))).append('\n');
+                if (v.frameRate > 0) sb.append(s(R.string.vp_info_fps, trimNum(v.frameRate))).append('\n');
+                if (v.bitrate > 0) {
+                    sb.append(s(R.string.vp_info_bitrate, M3u8Playlist.mbpsText(v.bitrate))).append('\n');
+                }
+                if (v.sampleMimeType != null) {
+                    sb.append(s(R.string.vp_info_codec, v.sampleMimeType)).append('\n');
+                }
                 if (v.codecs != null && !v.codecs.isEmpty()) sb.append("codec：").append(v.codecs).append('\n');
             } else {
-                sb.append("分辨率：尚未解析出视频轨\n");
+                sb.append(s(R.string.vp_info_no_video_track)).append('\n');
             }
             Format a = player.getAudioFormat();
             if (a != null) {
-                sb.append("音频：").append(a.sampleMimeType == null ? "未知" : a.sampleMimeType);
-                if (a.channelCount > 0) sb.append(" · ").append(a.channelCount).append(" 声道");
+                sb.append(s(R.string.vp_info_audio,
+                        a.sampleMimeType == null ? s(R.string.vp_unknown) : a.sampleMimeType));
+                if (a.channelCount > 0) sb.append(s(R.string.vp_info_channels, a.channelCount));
                 if (a.sampleRate > 0) sb.append(" · ").append(a.sampleRate).append(" Hz");
                 sb.append('\n');
             }
-            sb.append("倍速：").append(PlaySpeed.label(speed)).append('\n');
+            sb.append(s(R.string.vp_info_speed, PlaySpeed.label(speed))).append('\n');
             if (videoW > 0 && videoH > 0) {
-                sb.append("画面：").append(videoW).append("×").append(videoH)
-                        .append("（").append(ratioText()).append("）\n");
+                sb.append(s(R.string.vp_info_picture, videoW + "×" + videoH, ratioText())).append('\n');
             }
-            sb.append("显示：").append(scaleText()).append('\n');
-            sb.append("方向：").append(ScreenPolicy.describe(orientMode)).append('\n');
-            sb.append("解码：MediaCodec 硬件解码（失败自动回退软解）\n");
-            sb.append("内核：Media3 ExoPlayer 1.4.1\n");
+            sb.append(s(R.string.vp_info_scale, scaleText())).append('\n');
+            sb.append(s(R.string.vp_info_orientation, orientText(orientMode))).append('\n');
+            sb.append(s(R.string.vp_info_decode)).append('\n');
+            sb.append(s(R.string.vp_info_kernel)).append('\n');
             if (qualities != null && qualities.hasChoice()) {
-                sb.append("画质档位：").append(qualities.variants().size()).append(" 档\n");
+                sb.append(s(R.string.vp_info_quality_count, qualities.variants().size())).append('\n');
             }
         }
-        sb.append("地址：").append(sources.get(index));
+        sb.append(s(R.string.vp_info_address, sources.get(index)));
 
         // 颜色必须跟主题走：v1.95.1 及以前写死 0xFFEEEEEE，浅色主题下弹窗是白底，
         // 这层浅灰字几乎看不见（用户反馈「白色、灰字」）。播放器页面本身永远是黑底，
@@ -1071,53 +1082,52 @@ public class VideoPlayerActivity extends BaseActivity {
         tv.setTextIsSelectable(true);
         tv.setPadding(dp(18), dp(14), dp(18), dp(8));
         new HfDialogBuilder(this)
-                .setTitle("播放信息")
+                .setTitle(s(R.string.vp_info_dialog_title))
                 .setView(tv)
-                .setPositiveButton("关闭", null)
+                .setPositiveButton(s(R.string.common_close), null)
                 .show();
     }
 
     /** 错误码 → 人话。用户看到的不能是 4003 这种编号 */
     private String describeError(PlaybackException e) {
-        String what = e == null ? "未知错误" : (e.getErrorCodeName() + "");
+        String what = e == null ? s(R.string.vp_err_unknown) : (e.getErrorCodeName() + "");
         int code = e == null ? PlaybackException.ERROR_CODE_UNSPECIFIED : e.errorCode;
         String hint;
         switch (code) {
             case PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED:
-                hint = "网络连不上。检查 Wi-Fi/移动数据，或地址是否需要内网访问。";
+                hint = s(R.string.vp_err_network);
                 break;
             case PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT:
-                hint = "连接超时。地址可能已失效，或服务器限速。";
+                hint = s(R.string.vp_err_timeout);
                 break;
             case PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS:
-                hint = "服务器返回错误状态（常见 403/404）：地址过期、需要 Referer/Cookie，或切片已被删除。";
+                hint = s(R.string.vp_err_http);
                 break;
             case PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND:
-                hint = "文件不存在或没有读取权限。";
+                hint = s(R.string.vp_err_not_found);
                 break;
             case PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED:
-                hint = "本机解码器不支持该视频编码（AV1/HEVC 10bit 等较常见）。"
-                        + "可换硬解更强的设备，或先用工具转码为 H.264。";
+                hint = s(R.string.vp_err_codec_unsupported);
                 break;
             case PlaybackException.ERROR_CODE_DECODER_INIT_FAILED:
-                hint = "解码器初始化失败：可能是硬件解码器被占用或驱动异常。";
+                hint = s(R.string.vp_err_decoder_init);
                 break;
             case PlaybackException.ERROR_CODE_DECODING_FAILED:
-                hint = "解码过程出错，片源可能损坏（下载不完整、封装错误）。";
+                hint = s(R.string.vp_err_decode);
                 break;
             case PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED:
             case PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED:
-                hint = "容器/清单解析失败：文件损坏，或 m3u8 内容其实是错误页面。";
+                hint = s(R.string.vp_err_parse);
                 break;
             case PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED:
-                hint = "清单格式不受支持（例如加密 HLS 缺少密钥）。";
+                hint = s(R.string.vp_err_manifest);
                 break;
             default:
-                hint = "播放失败。";
+                hint = s(R.string.vp_err_play);
                 break;
         }
         String extra = e == null || e.getMessage() == null ? "" : "\n\n" + e.getMessage();
-        return hint + "\n\n（" + what + "）" + extra;
+        return s(R.string.vp_err_with_code, hint, what) + extra;
     }
 
     // ============================================================ 手势
@@ -1136,7 +1146,7 @@ public class VideoPlayerActivity extends BaseActivity {
             if (player == null || !player.getPlayWhenReady()) return;
             longBoosted = true;
             player.setPlaybackParameters(new PlaybackParameters(PlaySpeed.BOOST));
-            showHint("⚡ " + PlaySpeed.label(PlaySpeed.BOOST) + " 快进中，松手恢复");
+            showHint(s(R.string.vp_hint_boost, PlaySpeed.label(PlaySpeed.BOOST)));
         }
     };
 
@@ -1175,7 +1185,7 @@ public class VideoPlayerActivity extends BaseActivity {
                 if (!dragging || player == null) return true;
                 if (seekDrag) {
                     if (durationMs <= 0) {
-                        showHint("当前是直播流，无法拖动进度");
+                        showHint(s(R.string.vp_hint_live_no_seek));
                         return true;
                     }
                     // 横向半屏 = 最多 90 秒，全屏 ≈ 3 分钟；短视频按比例自动缩小
@@ -1186,19 +1196,22 @@ public class VideoPlayerActivity extends BaseActivity {
                     if (t < 0) t = 0;
                     if (t > durationMs) t = durationMs;
                     seekTargetPos = t;
-                    showHint((delta >= 0 ? "快进 " : "快退 ") + fmtTime(Math.abs(delta))
-                            + "  →  " + fmtTime(t) + " / " + fmtTime(durationMs));
+                    showHint(delta >= 0
+                            ? s(R.string.vp_hint_forward, fmtTime(Math.abs(delta)),
+                                    fmtTime(t), fmtTime(durationMs))
+                            : s(R.string.vp_hint_back, fmtTime(Math.abs(delta)),
+                                    fmtTime(t), fmtTime(durationMs)));
                 } else {
                     boolean left = downX < gesture.getWidth() / 2f;
                     float ratio = -dy / (gesture.getHeight() * 0.7f);
                     if (left) {
                         setBrightness(startBrightness + ratio);
-                        showHint("亮度 " + Math.round(brightnessNow() * 100) + "%");
+                        showHint(s(R.string.vp_hint_brightness, Math.round(brightnessNow() * 100)));
                     } else {
                         int max = audioMax();
                         int want = startVolume + Math.round(ratio * max);
                         setVolume(want);
-                        showHint("音量 " + Math.round(volumeNow() * 100f / Math.max(1, max)) + "%");
+                        showHint(s(R.string.vp_hint_volume, Math.round(volumeNow() * 100f / Math.max(1, max))));
                     }
                 }
                 return true;
@@ -1310,15 +1323,18 @@ public class VideoPlayerActivity extends BaseActivity {
     private void showMenu() {
         final boolean stream = isStream(sources.get(index));
         List<String> ops = new ArrayList<String>();
-        ops.add("播放速度");
-        if (qualities != null && qualities.hasChoice()) ops.add("画质（" + qualities.variants().size() + " 档）");
-        ops.add("画面缩放：" + (scaleMode == PlayerPrefs.SCALE_CROP ? "铺满"
-                : scaleMode == PlayerPrefs.SCALE_STRETCH ? "拉伸·变形" : "适配"));
-        ops.add("播放信息");
-        ops.add("画面方向：" + ScreenPolicy.label(orientMode));
-        if (stream) ops.add("复制地址");
-        else ops.add("用其他应用打开");
-        ops.add("重新加载");
+        ops.add(s(R.string.vp_menu_speed));
+        if (qualities != null && qualities.hasChoice()) {
+            ops.add(s(R.string.vp_menu_quality, qualities.variants().size()));
+        }
+        ops.add(s(R.string.vp_menu_scale, scaleMode == PlayerPrefs.SCALE_CROP ? s(R.string.vp_scale_crop)
+                : scaleMode == PlayerPrefs.SCALE_STRETCH ? s(R.string.vp_scale_stretch)
+                : s(R.string.vp_scale_fit)));
+        ops.add(s(R.string.vp_menu_info));
+        ops.add(s(R.string.vp_menu_orient, orientShort(orientMode)));
+        if (stream) ops.add(s(R.string.vp_menu_copy_url));
+        else ops.add(s(R.string.vp_menu_open_with));
+        ops.add(s(R.string.vp_menu_reload));
 
         new HfDialogBuilder(this)
                 .setTitle(displayTitle)
@@ -1329,7 +1345,7 @@ public class VideoPlayerActivity extends BaseActivity {
                         handleMenuIndex(which, stream);
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(s(R.string.common_cancel), null)
                 .show();
     }
 
@@ -1359,9 +1375,9 @@ public class VideoPlayerActivity extends BaseActivity {
             android.content.ClipboardManager cm = (android.content.ClipboardManager)
                     getSystemService(CLIPBOARD_SERVICE);
             cm.setPrimaryClip(android.content.ClipData.newPlainText("url", sources.get(index)));
-            toast("地址已复制");
+            toast(s(R.string.vp_url_copied));
         } catch (Throwable t) {
-            toast("复制失败：" + t);
+            toast(s(R.string.vp_copy_failed, String.valueOf(t)));
         }
     }
 
@@ -1391,7 +1407,7 @@ public class VideoPlayerActivity extends BaseActivity {
 
     /** 宽高比文案：能约成 16:9 这种常见写法就用它，约不出来就给 2.35:1 */
     private String ratioText() {
-        if (videoW <= 0 || videoH <= 0) return "未知";
+        if (videoW <= 0 || videoH <= 0) return s(R.string.vp_unknown);
         int g = gcd(videoW, videoH);
         int a = videoW / g, b = videoH / g;
         if (a <= 32 && b <= 32) return a + ":" + b;
@@ -1626,5 +1642,51 @@ public class VideoPlayerActivity extends BaseActivity {
 
     private void toast(String s) {
         android.widget.Toast.makeText(this, s, android.widget.Toast.LENGTH_SHORT).show();
+    }
+
+    // ------------------------------------------------------------ 文案（F-14/11）
+
+    private String s(int id) {
+        return getString(id);
+    }
+
+    private String s(int id, Object... args) {
+        return getString(id, args);
+    }
+
+    /** 方向胶囊上的短文案：自动 / 竖屏 / 横屏 */
+    private String orientShort(int mode) {
+        int m = ScreenPolicy.normalize(mode);
+        if (m == ScreenPolicy.PORTRAIT) return s(R.string.vp_orient_portrait);
+        if (m == ScreenPolicy.LANDSCAPE) return s(R.string.vp_orient_landscape);
+        return s(R.string.common_auto);
+    }
+
+    /** 提示 / 信息里的完整说法（带「锁定」，让人知道这是主动选定的） */
+    private String orientText(int mode) {
+        int m = ScreenPolicy.normalize(mode);
+        if (m == ScreenPolicy.PORTRAIT) return s(R.string.vp_orient_portrait_locked);
+        if (m == ScreenPolicy.LANDSCAPE) return s(R.string.vp_orient_landscape_locked);
+        return s(R.string.vp_orient_auto_ratio);
+    }
+
+    /** 来源类型名（原来在 StreamUrl.kindLabel，现在按资源取） */
+    private String sourceKindText(int kind) {
+        switch (kind) {
+            case StreamUrl.KIND_HLS:
+                return s(R.string.vp_src_hls);
+            case StreamUrl.KIND_DASH:
+                return s(R.string.vp_src_dash);
+            case StreamUrl.KIND_RTSP:
+                return s(R.string.vp_src_rtsp);
+            case StreamUrl.KIND_RTMP:
+                return s(R.string.vp_src_rtmp);
+            case StreamUrl.KIND_PROGRESSIVE:
+                return s(R.string.vp_src_progressive);
+            case StreamUrl.KIND_LOCAL:
+                return s(R.string.vp_src_local);
+            default:
+                return s(R.string.vp_unknown);
+        }
     }
 }

@@ -86,7 +86,9 @@ public class StreamUrlTest {
         eql(StreamUrl.KIND_UNKNOWN, StreamUrl.kindOf("ftp://a/b"), "ftp → 未知");
         eql(StreamUrl.KIND_UNKNOWN, StreamUrl.kindOf(null), "null → 未知");
 
-        eqs("HLS 直播/点播（m3u8）", StreamUrl.kindLabel(StreamUrl.KIND_HLS), "类型文案");
+        // 类型文案已挪到 ui 层（v2.27.0 / F-14/11）：这里只保证分类正确，
+        // 名字由 VideoPlayerActivity.sourceKindText 按 vp_src_* 取。
+        eql(StreamUrl.KIND_HLS, StreamUrl.kindOf("https://a.com/x.m3u8"), "m3u8 → HLS");
 
         // ---------------------------------------------------------- 标题
         eqs("x.m3u8", StreamUrl.fileName("https://a.com/live/x.m3u8?t=1"), "文件名去查询串");

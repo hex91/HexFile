@@ -46,19 +46,8 @@ public final class ScreenPolicy {
         return AUTO;
     }
 
-    /** chip 上的短文案 */
-    public static String label(int mode) {
-        int m = normalize(mode);
-        return m == PORTRAIT ? "竖屏" : m == LANDSCAPE ? "横屏" : "自动";
-    }
-
-    /** 更完整的说明（对话框/提示用） */
-    public static String describe(int mode) {
-        int m = normalize(mode);
-        if (m == PORTRAIT) return "竖屏（锁定）";
-        if (m == LANDSCAPE) return "横屏（锁定）";
-        return "自动（按视频比例）";
-    }
+    // 文案不在这里：v2.27.0（F-14/11）起 label()/describe() 的职责挪到 ui 层，
+    // 否则 core 这层纯逻辑也得知道「中文怎么说」，翻英文只能往这里塞 Context。
 
     /**
      * 是否「横视频」。宽严格大于高才算 —— 1:1 方形视频（抖音同款）

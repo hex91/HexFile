@@ -58,13 +58,9 @@ public class ScreenPolicyTest {
         eqi(ScreenPolicy.AUTO, ScreenPolicy.normalize(99), "脏值 99 先收敛到自动");
         eqi(ScreenPolicy.PORTRAIT, ScreenPolicy.next(99), "脏值步进结果：自动 → 竖屏");
 
-        // ---------------------------------------------------------- 文案
-        eqs("自动", ScreenPolicy.label(ScreenPolicy.AUTO), "自动 label");
-        eqs("竖屏", ScreenPolicy.label(ScreenPolicy.PORTRAIT), "竖屏 label");
-        eqs("横屏", ScreenPolicy.label(ScreenPolicy.LANDSCAPE), "横屏 label");
-        eqs("自动", ScreenPolicy.label(42), "脏值 label 回落自动");
-        eqs("自动（按视频比例）", ScreenPolicy.describe(ScreenPolicy.AUTO), "自动 describe");
-        eqs("横屏（锁定）", ScreenPolicy.describe(ScreenPolicy.LANDSCAPE), "横屏 describe");
+        // 文案已挪到 ui 层（v2.27.0 / F-14/11）：这里只剩状态机，
+        // 「自动 / 竖屏 / 横屏（锁定）」由 VideoPlayerActivity 按资源键取，见 vp_orient_*。
+        eqi(ScreenPolicy.AUTO, ScreenPolicy.normalize(42), "脏值先收敛到自动（文案层按它取键）");
 
         // ---------------------------------------------------------- 是否横视频
         ok(ScreenPolicy.isWide(1920, 1080), "1920×1080 是横视频");

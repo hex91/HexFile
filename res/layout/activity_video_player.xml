@@ -240,31 +240,31 @@
                         android:id="@+id/vp_quality"
                         style="@style/VpChip"
                         android:drawableStart="@drawable/ic_vp_quality"
-                        android:text="画质 源" />
+                        android:text="@string/vp_quality_chip_src" />
 
                     <TextView
                         android:id="@+id/vp_scale"
                         style="@style/VpChip"
                         android:drawableStart="@drawable/ic_vp_scale"
-                        android:text="适配" />
+                        android:text="@string/vp_scale_fit" />
 
                     <TextView
                         android:id="@+id/vp_orient"
                         style="@style/VpChip"
                         android:drawableStart="@drawable/ic_vp_orient"
-                        android:text="自动" />
+                        android:text="@string/common_auto" />
 
                     <TextView
                         android:id="@+id/vp_loop"
                         style="@style/VpChip"
                         android:drawableStart="@drawable/ic_vp_loop"
-                        android:text="关" />
+                        android:text="@string/vp_loop_off" />
 
                     <TextView
                         android:id="@+id/vp_info"
                         style="@style/VpChip"
                         android:drawableStart="@drawable/ic_vp_info"
-                        android:text="信息" />
+                        android:text="@string/vp_chip_info" />
                 </LinearLayout>
             </HorizontalScrollView>
 
@@ -274,7 +274,7 @@
                 android:layout_marginLeft="2dp"
                 android:layout_marginRight="2dp"
                 android:drawableStart="@drawable/ic_vp_expand"
-                android:text="全屏" />
+                android:text="@string/vp_fs_fullscreen" />
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>
