@@ -1,6 +1,8 @@
 package com.hex91.file.net;
 
+import com.hex91.file.R;
 import com.hex91.file.fs.TreeOps;
+import android.content.Context;
 import android.util.Log;
 
 import java.io.File;
@@ -42,6 +44,7 @@ public final class RemoteServer extends NanoHTTPD {
     private final String base;   // "/{key}"：页面内链接统一用绝对路径，避免相对路径解析成 /KEY/KEY/…
     private final File tmpDir;   // 上传临时目录（java.io.tmpdir 在 Android 上不可靠，用应用缓存目录）
     private final Listener listener;
+    private final Context ctx;   // 面向浏览器的页面/响应/日志文案（随 App 当前 locale 取资源）
 
     /** 当前线程正在处理的上传文件原始名（由 {@link UploadTempFileManager} 捕获） */
     private static final ThreadLocal<String> UPLOAD_NAME = new ThreadLocal<>();
@@ -51,8 +54,9 @@ public final class RemoteServer extends NanoHTTPD {
         void onLog(String line);
     }
 
-    public RemoteServer(int port, File root, String key, File tmpDir, Listener listener) {
+    public RemoteServer(Context ctx, int port, File root, String key, File tmpDir, Listener listener) {
         super(port);
+        this.ctx = ctx.getApplicationContext();  // 长生命周期服务不持有 Activity
         this.root = root;
         this.key = key;
         this.base = "/" + key;
@@ -101,7 +105,7 @@ public final class RemoteServer extends NanoHTTPD {
             String uri = session.getUri();
             // 密钥校验：/KEY 或 /KEY/... 之外的路径一律拒绝
             if (!uri.equals(base) && !uri.startsWith(base + "/")) {
-                return plain(Response.Status.FORBIDDEN, "拒绝访问：链接缺少访问密钥");
+                return plain(Response.Status.FORBIDDEN, ctx.getString(R.string.rmt_denied));
             }
             String sub = uri.substring(key.length() + 1); // 去掉 /KEY
             if (sub.startsWith("/")) sub = sub.substring(1);
@@ -126,7 +130,8 @@ public final class RemoteServer extends NanoHTTPD {
             return newFixedLengthResponse(re.getStatus(), "text/plain; charset=utf-8", re.getMessage());
         } catch (Throwable t) {
             Log.e(TAG, "serve", t);
-            return plain(Response.Status.INTERNAL_ERROR, "服务器内部错误: " + t);
+            return plain(Response.Status.INTERNAL_ERROR,
+                    ctx.getString(R.string.rmt_internal_error, String.valueOf(t)));
         }
     }
 
@@ -146,13 +151,13 @@ public final class RemoteServer extends NanoHTTPD {
         String canon = f.getCanonicalPath();
         String rootCanon = root.getCanonicalPath();
         if (!canon.equals(rootCanon) && !canon.startsWith(rootCanon + File.separator)) {
-            throw new ResponseException(Response.Status.FORBIDDEN, "路径越界");
+            throw new ResponseException(Response.Status.FORBIDDEN, ctx.getString(R.string.rmt_path_escape));
         }
         return f;
     }
 
     private Response serveFile(File f, boolean inline) throws IOException {
-        if (f == null || !f.isFile()) return plain(Response.Status.NOT_FOUND, "文件不存在");
+        if (f == null || !f.isFile()) return plain(Response.Status.NOT_FOUND, ctx.getString(R.string.rmt_file_missing));
         String mime = mimeOf(f.getName());
         InputStream in = new FileInputStream(f);
         Response r = newFixedLengthResponse(Response.Status.OK, mime, in, f.length());
@@ -170,11 +175,11 @@ public final class RemoteServer extends NanoHTTPD {
     private Response handleUpload(IHTTPSession session, String path) throws IOException, ResponseException {
         File dir = resolve(path);
         if (dir == null) dir = root;
-        if (!dir.isDirectory()) return plain(Response.Status.BAD_REQUEST, "目标不是目录");
+        if (!dir.isDirectory()) return plain(Response.Status.BAD_REQUEST, ctx.getString(R.string.rmt_not_dir));
         Map<String, String> files = new java.util.HashMap<>();
         session.parseBody(files); // multipart → 临时文件（经 UploadTempFileManager 落在应用缓存目录）
         String tmp = files.get("file");
-        if (tmp == null) return plain(Response.Status.BAD_REQUEST, "未找到上传字段 file");
+        if (tmp == null) return plain(Response.Status.BAD_REQUEST, ctx.getString(R.string.rmt_no_upload_field));
 
         // 原始文件名由 UploadTempFileManager 从 part 头捕获
         String name = UPLOAD_NAME.get();
@@ -184,31 +189,31 @@ public final class RemoteServer extends NanoHTTPD {
 
         File dest = uniqueDest(new File(dir, name));
         copyFile(new File(tmp), dest);
-        log("上传 " + dest.getName() + " (" + sizeText(dest.length()) + ") → " + dir.getPath());
-        return redirect(pageUrl(dir, "已上传 " + escape(name)));
+        log(ctx.getString(R.string.rmt_log_upload, dest.getName(), sizeText(dest.length()), dir.getPath()));
+        return redirect(pageUrl(dir, ctx.getString(R.string.rmt_uploaded, escape(name))));
     }
 
     private Response handleAction(String op, String path, String arg) throws IOException, ResponseException {
         File f = resolve(path);
-        if (f == null) return plain(Response.Status.BAD_REQUEST, "缺少 path");
+        if (f == null) return plain(Response.Status.BAD_REQUEST, ctx.getString(R.string.rmt_no_path));
         String parent = f.getParent();
-        boolean ok = false;
+        boolean ok;
         String msg;
         if ("del".equals(op)) {
             ok = deleteRecursive(f);
-            msg = (ok ? "已删除 " : "删除失败 ") + f.getName();
+            msg = ctx.getString(ok ? R.string.rmt_deleted : R.string.rmt_delete_fail, f.getName());
         } else if ("mkdir".equals(op)) {
-            arg = sanitizeName(arg, "新建目录");
+            arg = sanitizeName(arg, ctx.getString(R.string.rmt_default_dirname));
             File d = uniqueDest(new File(f, arg));
             ok = d.mkdir();
-            msg = (ok ? "已创建目录 " : "创建失败 ") + d.getName();
+            msg = ctx.getString(ok ? R.string.rmt_mkdir_ok : R.string.rmt_mkdir_fail, d.getName());
         } else if ("rename".equals(op)) {
-            arg = sanitizeName(arg, "重命名");
+            arg = sanitizeName(arg, ctx.getString(R.string.rmt_default_rename));
             File to = uniqueDest(new File(parent, arg));
             ok = f.renameTo(to);
-            msg = (ok ? "已重命名为 " : "重命名失败 ") + to.getName();
+            msg = ctx.getString(ok ? R.string.rmt_renamed : R.string.rmt_rename_fail, to.getName());
         } else {
-            return plain(Response.Status.BAD_REQUEST, "未知操作: " + op);
+            return plain(Response.Status.BAD_REQUEST, ctx.getString(R.string.rmt_unknown_op, op));
         }
         log(msg);
         File back = (ok && "mkdir".equals(op)) ? null : new File(parent);
@@ -265,7 +270,8 @@ public final class RemoteServer extends NanoHTTPD {
     // ----------------------------------------------------------------
 
     private Response listPage(File dir, String msg) throws IOException {
-        if (!dir.isDirectory()) return plain(Response.Status.NOT_FOUND, "目录不存在: " + dir);
+        if (!dir.isDirectory()) return plain(Response.Status.NOT_FOUND,
+                ctx.getString(R.string.rmt_dir_missing, dir.getPath()));
         File[] children = dir.listFiles();
         List<File> dirs = new ArrayList<>(), files = new ArrayList<>();
         if (children != null) {
@@ -277,7 +283,7 @@ public final class RemoteServer extends NanoHTTPD {
         StringBuilder sb = new StringBuilder(4096);
         sb.append("<!DOCTYPE html><html><head><meta charset='utf-8'>")
           .append("<meta name='viewport' content='width=device-width,initial-scale=1'>")
-          .append("<title>").append(escape(dir.getName())).append(" - HexFile 远程管理</title><style>")
+          .append("<title>").append(escape(dir.getName())).append(ctx.getString(R.string.rmt_title_suffix)).append("</title><style>")
           .append("body{font-family:-apple-system,sans-serif;margin:0;background:#f5f5f5;color:#222}")
           .append(".bar{background:#2d6cdf;color:#fff;padding:12px 16px;font-size:18px;font-weight:bold}")
           .append(".path{padding:8px 16px;font-size:13px;color:#666;word-break:break-all}")
@@ -293,7 +299,7 @@ public final class RemoteServer extends NanoHTTPD {
           .append("</style></head><body>");
 
         String relPath = relOf(dir);
-        sb.append("<div class='bar'>📂 HexFile 远程管理</div>")
+        sb.append("<div class='bar'>📂 ").append(ctx.getString(R.string.rmt_brand)).append("</div>")
           .append("<div class='path'>").append(escape(relPath)).append("</div>");
         if (msg != null && !msg.isEmpty()) sb.append("<div class='msg'>").append(escape(msg)).append("</div>");
 
@@ -302,21 +308,28 @@ public final class RemoteServer extends NanoHTTPD {
         sb.append("<div class='form'>")
           .append("<form method='post' action='").append(base).append("/upload?path=").append(encDir)
           .append("' enctype='multipart/form-data' style='display:inline-block'>")
-          .append("<input type='file' name='file' required><button type='submit'>上传到此处</button></form>")
-          .append("<button class='btn' onclick='mkdir()'>新建目录</button>")
+          .append("<input type='file' name='file' required><button type='submit'>")
+          .append(ctx.getString(R.string.rmt_upload_here)).append("</button></form>")
+          .append("<button class='btn' onclick='mkdir()'>")
+          .append(ctx.getString(R.string.rmt_new_dir)).append("</button>")
           .append("<script>")
-          .append("function mkdir(){var n=prompt('目录名:');if(n)location.href='").append(base)
+          .append("function mkdir(){var n=prompt('").append(ctx.getString(R.string.rmt_dirname_prompt))
+          .append("');if(n)location.href='").append(base)
           .append("/action?op=mkdir&path=").append(encDir).append("&arg='+encodeURIComponent(n);}")
-          .append("function del(p){if(confirm('确定删除 '+p+' ?'))location.href='").append(base)
+          .append("function del(p){if(confirm('").append(ctx.getString(R.string.rmt_confirm_del_prefix))
+          .append("'+p+'").append(ctx.getString(R.string.rmt_confirm_del_suffix))
+          .append("'))location.href='").append(base)
           .append("/action?op=del&path='+p;}")
-          .append("function ren(p){var n=prompt('新名称:',decodeURIComponent(p.split('/').pop()));")
+          .append("function ren(p){var n=prompt('").append(ctx.getString(R.string.rmt_newname_prompt))
+          .append("',decodeURIComponent(p.split('/').pop()));")
           .append("if(n)location.href='").append(base).append("/action?op=rename&path='+p+'&arg='+encodeURIComponent(n);}")
           .append("</script></div>");
 
         sb.append("<table>");
         if (!dir.equals(root)) {
             sb.append("<tr><td colspan='4'><a href='").append(base).append("/browse?path=")
-              .append(enc(relOf(dir.getParentFile()))).append("'>⬆️ ..（上级目录）</a></td></tr>");
+              .append(enc(relOf(dir.getParentFile()))).append("'>⬆️ ..（")
+              .append(ctx.getString(R.string.rmt_parent_dir)).append("）</a></td></tr>");
         }
         SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm");
         for (File d : dirs) {
@@ -326,10 +339,12 @@ public final class RemoteServer extends NanoHTTPD {
             row(sb, f, "📄", false, fmt, encDir);
         }
         if (dirs.isEmpty() && files.isEmpty()) {
-            sb.append("<tr><td colspan='4' style='color:#999;text-align:center;padding:24px'>空目录</td></tr>");
+            sb.append("<tr><td colspan='4' style='color:#999;text-align:center;padding:24px'>")
+              .append(ctx.getString(R.string.rmt_empty_dir)).append("</td></tr>");
         }
         sb.append("</table>");
-        sb.append("<div style='padding:14px;color:#aaa;font-size:12px;text-align:center'>HexFile 远程管理 · 仅限局域网 · 请勿泄露链接</div>");
+        sb.append("<div style='padding:14px;color:#aaa;font-size:12px;text-align:center'>")
+          .append(ctx.getString(R.string.rmt_footer)).append("</div>");
         sb.append("</body></html>");
         return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", sb.toString());
     }
@@ -341,14 +356,17 @@ public final class RemoteServer extends NanoHTTPD {
         String href = isDir ? (base + "/browse?path=" + enc) : (base + "/raw?path=" + enc);
         sb.append("<tr><td><a href='").append(href).append("'>").append(icon).append(' ')
           .append(escape(f.getName())).append("</a></td>");
-        sb.append("<td class='sz'>").append(isDir ? "目录" : sizeText(f.length())).append("</td>");
+        sb.append("<td class='sz'>").append(isDir ? ctx.getString(R.string.rmt_dir_label) : sizeText(f.length())).append("</td>");
         sb.append("<td class='tm'>").append(fmt.format(new Date(f.lastModified()))).append("</td>");
         sb.append("<td class='ops'>");
         if (!isDir) {
-            sb.append("<a href='").append(base).append("/download?path=").append(enc).append("'>下载</a> ");
+            sb.append("<a href='").append(base).append("/download?path=").append(enc).append("'>")
+              .append(ctx.getString(R.string.rmt_download)).append("</a> ");
         }
-        sb.append("<a href='javascript:void(0)' onclick=\"del('").append(enc).append("')\">删除</a> ")
-          .append("<a href='javascript:void(0)' onclick=\"ren('").append(enc).append("')\">改名</a>");
+        sb.append("<a href='javascript:void(0)' onclick=\"del('").append(enc).append("')\">")
+          .append(ctx.getString(R.string.rmt_delete)).append("</a> ")
+          .append("<a href='javascript:void(0)' onclick=\"ren('").append(enc).append("')\">")
+          .append(ctx.getString(R.string.rmt_rename)).append("</a>");
         sb.append("</td></tr>");
     }
 
@@ -358,7 +376,7 @@ public final class RemoteServer extends NanoHTTPD {
 
     private Response redirect(String url) {
         Response r = newFixedLengthResponse(Response.Status.REDIRECT, "text/html; charset=utf-8",
-                "<html><body><a href='" + url + "'>返回</a></body></html>");
+                "<html><body><a href='" + url + "'>" + ctx.getString(R.string.rmt_back) + "</a></body></html>");
         r.addHeader("Location", url);
         return r;
     }

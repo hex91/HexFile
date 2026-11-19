@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2008 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2055 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,66 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.44.0（versionCode 237）—— F-14/31：远程管理页 i18n（面向浏览器的 HTML 正文）
+
+`RemoteServer` 34 处 + `RemoteActivity` 13 处中文字面量清零（共 **47 → 0**）。这一页与前三页
+性质不同：不是「逻辑层抛异常带中文」，而是一个 **NanoHTTPD 服务直接生成中文 HTML 页面、
+响应正文和访问日志**——中文是面向浏览器的 UI 正文。先做了反模式勘察，确认没有
+「文案当控制流」。
+
+### 1. 勘察结论：无文案当控制流，但有两处要小心
+
+- **HTTP 状态码用枚举**：`Response.Status.FORBIDDEN/NOT_FOUND/...`，中文只是 body 文本，
+  不参与分支；
+- **操作分派用 ASCII**：`if ("del".equals(op)) / mkdir / rename`，`op` 来自 URL 参数，
+  与语言无关；
+- **`&msg=` 回显链**：`handleAction` 生成的提示经 `pageUrl()` → `URLEncoder.encode(UTF-8)`
+  编码进重定向 URL，浏览器再解码显示。本地化后的中文/英文同样走这条链，不受影响；
+- **`sanitizeName(arg, what)` 的 what 是默认文件夹名**（用户没填名字时落盘），也一并本地化。
+
+### 2. 架构：Context 下沉到 net 层，不抽 Report 类
+
+依赖门规定 `net` 不能 import `ui/controller`，但允许 `android.*` 与根包 `R`（精确 import）。
+`RemoteServer` 本身就是这页的「UI 渲染层」（它产出 HTML），所以：
+
+- 构造函数加 `Context` 首参，内部存 `ctx.getApplicationContext()`——长生命周期服务不持有
+  Activity，避免泄漏；
+- 页面正文/响应/日志直接用 `ctx.getString(R.string.rmt_*)` 拼装，无需再经 ui 层 Report 中转；
+- `RemoteActivity` 调用点传 `this`。
+
+一个命名坑：`rs_*` 前缀已被「重装/还原」页占用（`rs_ok_data` 等），故远程管理页用
+`rmt_*`，避免语义混用。
+
+### 3. HTML 骨架与文案分离
+
+原串是 `<button type='submit'>上传到此处</button>` 这种标签+中文焊在一起。改法：
+HTML 标签留在 `StringBuilder.append()`，可见文案逐段 `append(ctx.getString(...))`，
+例如删除确认的 JS 拆成 `rmt_confirm_del_prefix`（"确定删除 "）+ 参数 + `rmt_confirm_del_suffix`
+（" ?"）。`📂`/`⬆️`/`●` 等符号是视觉记号，与 diff 的 `---/+++` 同理，不进资源。
+
+### 4. 一个 aapt2 空格陷阱（与 v2.42 的 `%%` 同类）
+
+`rmt_title_suffix`（前导空格）、`rmt_confirm_del_prefix`（尾随空格）、
+`rmt_confirm_del_suffix`（前导空格）直接写会被 aapt2 **折叠首尾空格**，dump 实测变成
+`"确定删除"`/`"?"`/`"- HexFile 远程管理"`。按既定惯例整值加引号
+（`"确定删除 "`）后 dump 反证空格保留。英文 JS 注入文案（prompt/confirm）刻意不含单引号，
+避免破坏 JS 字符串字面量。
+
+### 验证
+
+- `RemoteServer` **34 → 0**、`RemoteActivity` **13 → 0**，共 **47 → 0**
+- 新增 47 个 `rmt_*` 键；资源总量 **2008 → 2055 条**（引用 2012 键 / 45 文件）
+- 四道门：依赖方向通过（`net` 精确 import 根包 `R` 合法）/ 空 catch **335（= 基线）** /
+  文案 2055 条 100% 一致 / 动作号 55
+- 全量 `run_all.sh` **97 通过 / 0 失败 / 4 跳过**
+- aapt2 dump 反证 `rmt_confirm_del_suffix`=`" ?"`、`rmt_title_suffix`=`" - HexFile 远程管理"`
+  首尾空格未折叠
+- 构建 2 分 17 秒，APK **13,357,776 B**（`33acbf3f…`，与 v2.43 同尺寸因新增键数为资源表内增量），
+  badging 反证 versionCode 237 / 2.44.0；dex 反证 `rmt_confirm_del_prefix`/`rmt_log_upload`/
+  `rmt_status_on` 各 1 处已打进包
 
 ---
 

@@ -99,11 +99,11 @@ public final class RemoteActivity extends BaseActivity {
             // 进程内已有服务（如 Activity 重建后）→ 直接接管，避免重复绑定端口失败
             if (sActive != null) {
                 mServer = sActive;
-                appendLog("已接管运行中的服务");
+                appendLog(getString(R.string.rmt_takeover));
                 return;
             }
             File root = safeRoot();
-            RemoteServer s = new RemoteServer(DEFAULT_PORT, root, mAccessKey,
+            RemoteServer s = new RemoteServer(this, DEFAULT_PORT, root, mAccessKey,
                     new File(getCacheDir(), "remote_upload"), new RemoteServer.Listener() {
                 @Override public void onLog(String line) { appendLog(line); }
             });
@@ -114,12 +114,13 @@ public final class RemoteActivity extends BaseActivity {
                 acquireWifiLock(); // 权限缺失等异常不应拖垮已启动的服务
             } catch (Throwable ignore) {
             }
-            appendLog("服务已启动 :");
-            Toast.makeText(this, "服务已启动", Toast.LENGTH_SHORT).show();
+            appendLog(getString(R.string.rmt_log_started));
+            Toast.makeText(this, R.string.rmt_toast_started, Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             mServer = null;
             sActive = null;
-            Toast.makeText(this, "启动失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, getString(R.string.rmt_start_fail, String.valueOf(e.getMessage())),
+                    Toast.LENGTH_LONG).show();
         }
     }
 
@@ -129,8 +130,8 @@ public final class RemoteActivity extends BaseActivity {
             if (sActive == mServer) sActive = null;
             mServer = null;
             releaseWifiLock();
-            appendLog("服务已停止");
-            Toast.makeText(this, "服务已停止", Toast.LENGTH_SHORT).show();
+            appendLog(getString(R.string.rmt_log_stopped));
+            Toast.makeText(this, R.string.rmt_toast_stopped, Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -171,9 +172,9 @@ public final class RemoteActivity extends BaseActivity {
 
     private void applyUi() {
         boolean running = mServer != null;
-        mStatus.setText(running ? "● 运行中" : "○ 未启动");
+        mStatus.setText(running ? R.string.rmt_status_on : R.string.rmt_status_off);
         mStatus.setTextColor(running ? 0xFF2E9E44 : ThemeManager.textSub(this));
-        mToggle.setText(running ? "停止服务" : "启动服务");
+        mToggle.setText(running ? R.string.rmt_btn_stop : R.string.rmt_btn_start);
         // 运行中用危险色（停止是一项"中断服务"的操作），未启动用主操作色
         UiDecor.barButton((TextView) mToggle, this,
                 running ? UiDecor.KIND_DANGER : UiDecor.KIND_PRIMARY, 13f);
@@ -237,7 +238,7 @@ public final class RemoteActivity extends BaseActivity {
         if (mServer != null) return;
         mAccessKey = genKey();
         mKey.setText(mAccessKey);
-        Toast.makeText(this, "已生成新密钥", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, R.string.rmt_key_generated, Toast.LENGTH_SHORT).show();
     }
 
     private void copyUrl() {
@@ -245,7 +246,7 @@ public final class RemoteActivity extends BaseActivity {
         ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         if (cm != null && !TextUtils.isEmpty(mUrl.getText())) {
             cm.setText(mUrl.getText().toString());
-            Toast.makeText(this, "地址已复制", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.rmt_url_copied, Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -287,7 +288,7 @@ public final class RemoteActivity extends BaseActivity {
         // 状态自同步：无论实例如何重建/切换，UI 始终反映进程内真实服务状态
         if (mServer == null && sActive != null) {
             mServer = sActive;
-            appendLog("已接管运行中的服务");
+            appendLog(getString(R.string.rmt_takeover));
         }
         applyUi();
     }
