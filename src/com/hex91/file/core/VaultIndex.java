@@ -96,7 +96,7 @@ public final class VaultIndex {
     }
 
     public static byte[] unhex(String s) {
-        if (!isId(s)) throw new IllegalArgumentException("id 格式不对");
+        if (!isId(s)) throw new VaultCrypto.Fail(VaultCrypto.Code.ID_FORMAT);
         byte[] out = new byte[16];
         for (int i = 0; i < 16; i++) {
             out[i] = (byte) Integer.parseInt(s.substring(i * 2, i * 2 + 2), 16);
@@ -128,7 +128,7 @@ public final class VaultIndex {
      * 单行坏掉只跳过并计数（那说明只是某条记录坏了）。
      */
     public static Read decode(byte[] raw) {
-        if (raw == null) throw new IllegalArgumentException("索引为空");
+        if (raw == null) throw new VaultCrypto.Fail(VaultCrypto.Code.INDEX_EMPTY);
         String text;
         try {
             text = new String(raw, "UTF-8");
@@ -137,7 +137,7 @@ public final class VaultIndex {
         }
         int nl = text.indexOf('\n');
         String head = nl < 0 ? text : text.substring(0, nl).trim();
-        if (!MAGIC.equals(head)) throw new IllegalArgumentException("索引魔数不符");
+        if (!MAGIC.equals(head)) throw new VaultCrypto.Fail(VaultCrypto.Code.INDEX_MAGIC);
 
         List<Entry> out = new ArrayList<Entry>();
         int bad = 0;

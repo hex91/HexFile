@@ -2,6 +2,10 @@ package com.hex91.file.fs;
 
 import com.hex91.file.core.AtomicReplace;
 import com.hex91.file.core.VaultCrypto;
+import com.hex91.file.core.VaultCrypto.Code;
+import com.hex91.file.core.VaultCrypto.Fail;
+import com.hex91.file.core.VaultCrypto.IoFail;
+import com.hex91.file.core.VaultCrypto.StateFail;
 import com.hex91.file.core.VaultIndex;
 
 import java.io.Closeable;
@@ -73,13 +77,13 @@ public final class VaultStore {
      * 下次进来 {@link #exists} 为假、又不给重复创建（目录已存在）的死循环。</p>
      */
     public static VaultCrypto.Master create(File dir, String password) throws Exception {
-        if (dir == null) throw new IllegalArgumentException("目录为空");
+        if (dir == null) throw new Fail(Code.DIR_NULL);
         if (password == null || password.length() < 6) {
-            throw new IllegalArgumentException("口令至少 6 位");
+            throw new Fail(Code.PASSWORD_SHORT);
         }
-        if (exists(dir)) throw new IllegalStateException("这里已经有隐私空间了");
+        if (exists(dir)) throw new StateFail(Code.ALREADY_EXISTS);
         File b = new File(dir, D_BLOB);
-        if (!b.isDirectory() && !b.mkdirs()) throw new IOException("无法创建目录：" + b);
+        if (!b.isDirectory() && !b.mkdirs()) throw new IoFail(Code.MKDIR_FAIL, b.toString());
 
         VaultCrypto.Header h = VaultCrypto.newHeader(password);
         writeAtomic(new File(dir, F_HDR), h.bytes);
@@ -97,7 +101,7 @@ public final class VaultStore {
     public static void changePassword(File dir, VaultCrypto.Master m, String newPassword)
             throws Exception {
         if (newPassword == null || newPassword.length() < 6) {
-            throw new IllegalArgumentException("口令至少 6 位");
+            throw new Fail(Code.PASSWORD_SHORT);
         }
         writeAtomic(headerFile(dir), VaultCrypto.rewrap(m, newPassword));
     }
@@ -124,7 +128,7 @@ public final class VaultStore {
             closeQuiet(fo);
         }
         AtomicReplace.Result r = AtomicReplace.replaceWith(tmp, target);
-        if (!r.ok) throw new IOException("写入失败：" + AtomicReplace.failMessage(target.getName()));
+        if (!r.ok) throw new IoFail(Code.WRITE_FAIL, AtomicReplace.failMessage(target.getName()));
     }
 
     // ------------------------------------------------------------------ 索引
@@ -189,7 +193,7 @@ public final class VaultStore {
         }
         if (!tmp.renameTo(idx)) {
             tmp.delete();
-            throw new IOException("无法写入索引");
+            throw new IoFail(Code.INDEX_WRITE_FAIL);
         }
     }
 
@@ -207,7 +211,7 @@ public final class VaultStore {
         String id = VaultIndex.newId();
         File blob = blobFile(dir, id);
         File bdir = new File(dir, D_BLOB);
-        if (!bdir.isDirectory() && !bdir.mkdirs()) throw new IOException("无法创建目录：" + bdir);
+        if (!bdir.isDirectory() && !bdir.mkdirs()) throw new IoFail(Code.MKDIR_FAIL, bdir.toString());
 
         boolean ok = false;
         try {
@@ -236,12 +240,12 @@ public final class VaultStore {
         // 重新读一遍索引：列表可能停在几分钟前，名字以索引为准
         Table t = load(dir, m);
         VaultIndex.Entry e = find(t.entries, id);
-        if (e == null) throw new IllegalArgumentException("索引里没有这条记录");
+        if (e == null) throw new Fail(Code.ENTRY_MISSING);
         File blob = blobFile(dir, id);
-        if (!blob.isFile()) throw new IllegalArgumentException("密文不见了：" + e.name);
+        if (!blob.isFile()) throw new Fail(Code.BLOB_MISSING, e.name);
 
         if (!destDir.isDirectory() && !destDir.mkdirs()) {
-            throw new IOException("无法创建目录：" + destDir);
+            throw new IoFail(Code.MKDIR_FAIL, destDir.toString());
         }
         File out = unique(destDir, e.name);
         boolean ok = false;
@@ -267,10 +271,10 @@ public final class VaultStore {
     public static void rename(File dir, VaultCrypto.Master m, String id, String newName)
             throws Exception {
         String n = safeName(newName);
-        if (n.isEmpty()) throw new IllegalArgumentException("名字不能为空");
+        if (n.isEmpty()) throw new Fail(Code.NAME_EMPTY);
         Table t = load(dir, m);
         VaultIndex.Entry e = find(t.entries, id);
-        if (e == null) throw new IllegalArgumentException("索引里没有这条记录");
+        if (e == null) throw new Fail(Code.ENTRY_MISSING);
         e.name = n;
         save(dir, m, t.entries);
     }
@@ -390,9 +394,9 @@ public final class VaultStore {
     }
 
     private static byte[] readAll(File f) throws IOException {
-        if (!f.isFile()) throw new IOException("文件不存在：" + f.getName());
+        if (!f.isFile()) throw new IoFail(Code.FILE_MISSING, f.getName());
         long len = f.length();
-        if (len > 4L * 1024 * 1024) throw new IOException("文件过大：" + f.getName());
+        if (len > 4L * 1024 * 1024) throw new IoFail(Code.FILE_TOO_BIG, f.getName());
         byte[] buf = new byte[(int) len];
         FileInputStream in = new FileInputStream(f);
         try {

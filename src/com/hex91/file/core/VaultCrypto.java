@@ -72,8 +72,107 @@ public final class VaultCrypto {
         private static final long serialVersionUID = 1L;
 
         public Cancelled() {
-            super("已取消");
+            super("cancelled");
         }
+    }
+
+    /**
+     * 错误码：逻辑层只抛码 + ASCII 诊断串，文案统一由 ui/VaultReport 按码翻译。
+     * 码名是稳定契约，改文案不动码。
+     */
+    public enum Code {
+        MASTER_LEN, PASSWORD_EMPTY, SALT_EMPTY, ITER_RANGE,
+        HEADER_LEN, HEADER_MAGIC, HEADER_ITER, HEADER_SALT_LEN, WRONG_PASSWORD, HEADER_BROKEN,
+        ENC_SRC_MISSING, DEC_SRC_MISSING, NO_MASTER, FILE_LEN_BAD, FILE_DAMAGED,
+        FILE_VERIFY_FAIL, BLOB_MAGIC, BLOB_VERSION, FILE_ID_MISMATCH,
+        ID_MISSING, ID_NOT_HEX, ID_LEN_BAD,
+        PLAIN_EMPTY, BOX_LEN_BAD, BOX_MAGIC, BOX_VERSION, BOX_VERIFY_FAIL,
+        ID_FORMAT, INDEX_EMPTY, INDEX_MAGIC,
+        DIR_NULL, PASSWORD_SHORT, ALREADY_EXISTS, MKDIR_FAIL, WRITE_FAIL,
+        INDEX_WRITE_FAIL, ENTRY_MISSING, BLOB_MISSING, NAME_EMPTY,
+        FILE_MISSING, FILE_TOO_BIG, READ_URI_FAIL
+    }
+
+    /** 带码异常的统一契约：ui 层按 code + arg 翻译 */
+    public interface VaultCoded {
+        Code code();
+        String arg();
+    }
+
+    private static String diag(Code code, String arg) {
+        return arg == null ? code.name() : code.name() + ": " + arg;
+    }
+
+    /** 参数/状态类错误（保留 IllegalArgumentException 类型） */
+    public static final class Fail extends IllegalArgumentException implements VaultCoded {
+        private static final long serialVersionUID = 1L;
+        private final Code code;
+        private final String arg;
+
+        public Fail(Code code) { this(code, null); }
+
+        public Fail(Code code, String arg) {
+            super(diag(code, arg));
+            this.code = code;
+            this.arg = arg;
+        }
+
+        public Code code() { return code; }
+        public String arg() { return arg; }
+    }
+
+    /** 口令/校验类错误（保留 SecurityException 类型：UI 与测试按类型分支） */
+    public static final class AuthFail extends SecurityException implements VaultCoded {
+        private static final long serialVersionUID = 1L;
+        private final Code code;
+        private final String arg;
+
+        public AuthFail(Code code) { this(code, null); }
+
+        public AuthFail(Code code, String arg) {
+            super(diag(code, arg));
+            this.code = code;
+            this.arg = arg;
+        }
+
+        public Code code() { return code; }
+        public String arg() { return arg; }
+    }
+
+    /** 状态冲突（保留 IllegalStateException 类型） */
+    public static final class StateFail extends IllegalStateException implements VaultCoded {
+        private static final long serialVersionUID = 1L;
+        private final Code code;
+        private final String arg;
+
+        public StateFail(Code code) { this(code, null); }
+
+        public StateFail(Code code, String arg) {
+            super(diag(code, arg));
+            this.code = code;
+            this.arg = arg;
+        }
+
+        public Code code() { return code; }
+        public String arg() { return arg; }
+    }
+
+    /** IO 类错误（保留 IOException 类型） */
+    public static final class IoFail extends IOException implements VaultCoded {
+        private static final long serialVersionUID = 1L;
+        private final Code code;
+        private final String arg;
+
+        public IoFail(Code code) { this(code, null); }
+
+        public IoFail(Code code, String arg) {
+            super(diag(code, arg));
+            this.code = code;
+            this.arg = arg;
+        }
+
+        public Code code() { return code; }
+        public String arg() { return arg; }
     }
 
     /** 主密钥：enc 用于加密，mac 用于认证。两者永不相同，避免一套密钥两种用途。 */
@@ -83,7 +182,7 @@ public final class VaultCrypto {
 
         public Master(byte[] enc, byte[] mac) {
             if (enc == null || mac == null || enc.length != KEY_LEN || mac.length != KEY_LEN) {
-                throw new IllegalArgumentException("主密钥长度必须是 " + KEY_LEN + " 字节");
+                throw new Fail(Code.MASTER_LEN, String.valueOf(KEY_LEN));
             }
             this.enc = enc;
             this.mac = mac;
@@ -130,10 +229,10 @@ public final class VaultCrypto {
 
     /** PBKDF2-HMAC-SHA256(口令, salt, iter) → 64 字节（前 32 加密，后 32 认证） */
     public static Master derive(String password, byte[] salt, int iterations) throws Exception {
-        if (password == null || password.isEmpty()) throw new IllegalArgumentException("口令为空");
-        if (salt == null || salt.length == 0) throw new IllegalArgumentException("salt 为空");
+        if (password == null || password.isEmpty()) throw new Fail(Code.PASSWORD_EMPTY);
+        if (salt == null || salt.length == 0) throw new Fail(Code.SALT_EMPTY);
         if (iterations < MIN_ITER || iterations > MAX_ITER) {
-            throw new IllegalArgumentException("迭代次数超出合理范围");
+            throw new Fail(Code.ITER_RANGE);
         }
         PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, iterations, 64 * 8);
         SecretKeyFactory skf = SecretKeyFactory.getInstance(KDF);
@@ -220,15 +319,15 @@ public final class VaultCrypto {
      */
     public static Master openHeader(String password, byte[] header) throws Exception {
         if (header == null || header.length != HEADER_LEN) {
-            throw new IllegalArgumentException("头部长度不对（期望 " + HEADER_LEN + " 字节）");
+            throw new Fail(Code.HEADER_LEN, String.valueOf(HEADER_LEN));
         }
-        if (!isHeader(header)) throw new IllegalArgumentException("不是隐私空间的头部");
+        if (!isHeader(header)) throw new Fail(Code.HEADER_MAGIC);
         int iter = readIntBE(header, M_HDR.length + 1);
         if (iter < MIN_ITER || iter > MAX_ITER) {
-            throw new IllegalArgumentException("头部的迭代次数异常（" + iter + "）");
+            throw new Fail(Code.HEADER_ITER, String.valueOf(iter));
         }
         int saltLen = header[M_HDR.length + 5] & 0xFF;
-        if (saltLen < 8 || saltLen > 32) throw new IllegalArgumentException("头部的 salt 长度异常");
+        if (saltLen < 8 || saltLen > 32) throw new Fail(Code.HEADER_SALT_LEN);
         int p = M_HDR.length + 6;
         byte[] salt = Arrays.copyOfRange(header, p, p + saltLen);
         p += saltLen;
@@ -243,13 +342,13 @@ public final class VaultCrypto {
         mac.init(new SecretKeySpec(kek.mac, MAC_ALGO));
         mac.update(header, 0, HEADER_LEN - TAG_LEN);
         if (!MessageDigest.isEqual(mac.doFinal(), tag)) {
-            throw new SecurityException("口令不对");
+            throw new AuthFail(Code.WRONG_PASSWORD);
         }
 
         Cipher c = Cipher.getInstance(TRANSFORM);
         c.init(Cipher.DECRYPT_MODE, new SecretKeySpec(kek.enc, AES), new IvParameterSpec(ivK));
         byte[] vaultKey = c.doFinal(wrapped);
-        if (vaultKey.length != KEY_LEN * 2) throw new IllegalArgumentException("头部内容损坏");
+        if (vaultKey.length != KEY_LEN * 2) throw new Fail(Code.HEADER_BROKEN);
         return new Master(Arrays.copyOfRange(vaultKey, 0, KEY_LEN),
                 Arrays.copyOfRange(vaultKey, KEY_LEN, KEY_LEN * 2));
     }
@@ -263,8 +362,8 @@ public final class VaultCrypto {
     /** 加密一个文件到 dst。id 为 16 字节条目 id（进 MAC，防止密文被改名挪用）。返回明文字节数 */
     public static long encryptFile(File src, File dst, byte[] id, Master m, Progress p)
             throws Exception {
-        if (src == null || !src.isFile()) throw new IllegalArgumentException("源文件不存在");
-        if (m == null) throw new IllegalArgumentException("缺少主密钥");
+        if (src == null || !src.isFile()) throw new Fail(Code.ENC_SRC_MISSING);
+        if (m == null) throw new Fail(Code.NO_MASTER);
         FileInputStream in = new FileInputStream(src);
         try {
             FileOutputStream out = new FileOutputStream(dst);
@@ -331,8 +430,8 @@ public final class VaultCrypto {
      */
     public static void decryptFile(File src, File dst, byte[] expectId, Master m, Progress p)
             throws Exception {
-        if (src == null || !src.isFile()) throw new IllegalArgumentException("加密文件不存在");
-        if (m == null) throw new IllegalArgumentException("缺少主密钥");
+        if (src == null || !src.isFile()) throw new Fail(Code.DEC_SRC_MISSING);
+        if (m == null) throw new Fail(Code.NO_MASTER);
         long total = src.length();
 
         // 第一遍：验签
@@ -345,21 +444,21 @@ public final class VaultCrypto {
             checkBlobHead(head, expectId);
             mac.update(head);
             long left = total - BLOB_HEAD - TAG_LEN;
-            if (left < 0) throw new IllegalArgumentException("文件长度异常");
+            if (left < 0) throw new Fail(Code.FILE_LEN_BAD);
             byte[] buf = new byte[BUF];
             long done = 0;
             while (left > 0) {
                 int n = vf.read(buf, 0, (int) Math.min(buf.length, left));
-                if (n < 0) throw new IllegalArgumentException("文件已损坏");
+                if (n < 0) throw new Fail(Code.FILE_DAMAGED);
                 mac.update(buf, 0, n);
                 left -= n;
                 done += n;
                 if (p != null && !p.on(done / 2, total)) throw new Cancelled();
             }
             byte[] tag = new byte[TAG_LEN];
-            if (readFully(vf, tag) != TAG_LEN) throw new IllegalArgumentException("文件已损坏");
+            if (readFully(vf, tag) != TAG_LEN) throw new Fail(Code.FILE_DAMAGED);
             if (!MessageDigest.isEqual(mac.doFinal(), tag)) {
-                throw new SecurityException("文件校验失败（被改动过，或密钥不对）");
+                throw new AuthFail(Code.FILE_VERIFY_FAIL);
             }
         } finally {
             closeQuiet(vf);
@@ -400,15 +499,15 @@ public final class VaultCrypto {
 
     private static void checkBlobHead(byte[] head, byte[] expectId) {
         for (int i = 0; i < M_BLOB.length; i++) {
-            if (head[i] != M_BLOB[i]) throw new IllegalArgumentException("不是隐私空间的文件块");
+            if (head[i] != M_BLOB[i]) throw new Fail(Code.BLOB_MAGIC);
         }
         if (head[M_BLOB.length] != VERSION) {
-            throw new IllegalArgumentException("不支持的文件块版本: " + head[M_BLOB.length]);
+            throw new Fail(Code.BLOB_VERSION, String.valueOf(head[M_BLOB.length]));
         }
         if (expectId == null) return;
         byte[] want = ids(expectId);
         for (int i = 0; i < 16; i++) {
-            if (head[8 + i] != want[i]) throw new SecurityException("文件与索引不对应");
+            if (head[8 + i] != want[i]) throw new AuthFail(Code.FILE_ID_MISMATCH);
         }
     }
 
@@ -432,19 +531,19 @@ public final class VaultCrypto {
 
     /** id 归一化：允许 16 字节原始值或 32 位十六进制串；其它一律拒绝（防路径穿越） */
     static byte[] ids(byte[] id) {
-        if (id == null) throw new IllegalArgumentException("缺少文件 id");
+        if (id == null) throw new Fail(Code.ID_MISSING);
         if (id.length == 16) return id;
         if (id.length == 32) {
             byte[] out = new byte[16];
             for (int i = 0; i < 16; i++) {
                 int hi = hexVal(id[i * 2]);
                 int lo = hexVal(id[i * 2 + 1]);
-                if (hi < 0 || lo < 0) throw new IllegalArgumentException("id 不是十六进制");
+                if (hi < 0 || lo < 0) throw new Fail(Code.ID_NOT_HEX);
                 out[i] = (byte) ((hi << 4) | lo);
             }
             return out;
         }
-        throw new IllegalArgumentException("id 长度不对");
+        throw new Fail(Code.ID_LEN_BAD);
     }
 
     private static int hexVal(byte b) {
@@ -463,8 +562,8 @@ public final class VaultCrypto {
      * 硬塞 16 个零字节进文件名位置，日后看代码的人会以为那是个真 id。</p>
      */
     public static byte[] seal(byte[] plain, Master m) throws Exception {
-        if (plain == null) throw new IllegalArgumentException("内容为空");
-        if (m == null) throw new IllegalArgumentException("缺少主密钥");
+        if (plain == null) throw new Fail(Code.PLAIN_EMPTY);
+        if (m == null) throw new Fail(Code.NO_MASTER);
         byte[] iv = new byte[IV_LEN];
         new SecureRandom().nextBytes(iv);
 
@@ -493,19 +592,19 @@ public final class VaultCrypto {
     /** 解开 {@link #seal} 的产物 */
     public static byte[] open(byte[] box, Master m) throws Exception {
         if (box == null || box.length < BOX_HEAD + TAG_LEN) {
-            throw new IllegalArgumentException("索引块长度异常");
+            throw new Fail(Code.BOX_LEN_BAD);
         }
-        if (m == null) throw new IllegalArgumentException("缺少主密钥");
+        if (m == null) throw new Fail(Code.NO_MASTER);
         for (int i = 0; i < M_BOX.length; i++) {
-            if (box[i] != M_BOX[i]) throw new IllegalArgumentException("不是隐私空间的索引块");
+            if (box[i] != M_BOX[i]) throw new Fail(Code.BOX_MAGIC);
         }
-        if (box[M_BOX.length] != VERSION) throw new IllegalArgumentException("不支持的索引块版本");
+        if (box[M_BOX.length] != VERSION) throw new Fail(Code.BOX_VERSION);
         Mac mac = Mac.getInstance(MAC_ALGO);
         mac.init(new SecretKeySpec(m.mac, MAC_ALGO));
         mac.update(box, 0, box.length - TAG_LEN);
         byte[] tag = Arrays.copyOfRange(box, box.length - TAG_LEN, box.length);
         if (!MessageDigest.isEqual(mac.doFinal(), tag)) {
-            throw new SecurityException("索引校验失败（被改动过，或密钥不对）");
+            throw new AuthFail(Code.BOX_VERIFY_FAIL);
         }
         byte[] iv = Arrays.copyOfRange(box, M_BOX.length + 1, BOX_HEAD);
         Cipher c = Cipher.getInstance(TRANSFORM);

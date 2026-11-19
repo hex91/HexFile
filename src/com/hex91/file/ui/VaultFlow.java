@@ -104,7 +104,7 @@ public final class VaultFlow {
                 } catch (SecurityException e) {
                     fatal = a.getString(R.string.vault_wrong_pw);
                 } catch (Exception e) {
-                    fatal = msg(e);
+                    fatal = msg(a, e);
                 }
                 if (m == null) {
                     final String f = fatal;
@@ -147,13 +147,13 @@ public final class VaultFlow {
                     } catch (VaultCrypto.Cancelled c) {
                         if (entry != null) {
                             try { VaultStore.remove(dir, m, entry.id); } catch (Exception ignored) {
-                                firstErr = firstErr == null ? msg(ignored) : firstErr;
+                                firstErr = firstErr == null ? msg(a, ignored) : firstErr;
                             }
                         }
                         break;
                     } catch (Exception e) {
                         failed++;
-                        if (firstErr == null) firstErr = msg(e);
+                        if (firstErr == null) firstErr = msg(a, e);
                     } finally {
                         VaultStore.closeQuiet(in);
                     }
@@ -190,9 +190,7 @@ public final class VaultFlow {
         Toast.makeText(a, s, Toast.LENGTH_LONG).show();
     }
 
-    private static String msg(Throwable t) {
-        if (t == null) return "";
-        String s = t.getMessage();
-        return s == null || s.isEmpty() ? t.getClass().getSimpleName() : s;
+    private static String msg(Activity a, Throwable t) {
+        return VaultReport.msg(a, t);
     }
 }

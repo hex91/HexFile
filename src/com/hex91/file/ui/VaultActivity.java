@@ -355,7 +355,7 @@ public class VaultActivity extends BaseActivity {
                         long size = sizeOf(u);
                         String name = displayName(u);
                         in = getContentResolver().openInputStream(u);
-                        if (in == null) throw new java.io.IOException("无法读取所选文件");
+                        if (in == null) throw new VaultCrypto.IoFail(VaultCrypto.Code.READ_URI_FAIL);
                         VaultStore.add(dir, m, in, size, name, System.currentTimeMillis(),
                                 new VaultCrypto.Progress() {
                                     public boolean on(long d, long t) { return !cancel.get(); }
@@ -752,10 +752,8 @@ public class VaultActivity extends BaseActivity {
         }
     }
 
-    private static String msg(Throwable t) {
-        if (t == null) return "";
-        String s = t.getMessage();
-        return s == null || s.isEmpty() ? t.getClass().getSimpleName() : s;
+    private String msg(Throwable t) {
+        return VaultReport.msg(this, t);
     }
 
     // ---------------------------------------------------------------- 列表

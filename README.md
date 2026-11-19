@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：1965 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2008 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,78 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.43.0（versionCode 236）—— F-14/30：隐私空间 i18n（VaultCrypto 逻辑层一并码化）
+
+`VaultCrypto` 34 处 + `VaultStore` 17 处 + `VaultIndex` 3 处 + `VaultActivity` 1 处中文字面量
+清零（共 **55 → 2**，保留的 2 处是写入索引的数据默认值，见第 4 节）。这是「逻辑类 +
+调用链」迁移的第四页，与签名流程、对比工具、编码转换同构，但多了两处新情况：
+**四种异常类型都是控制流**，以及**异常 message 经 `msg()` 统一回显**。
+
+### 1. 异常码化，但保留原异常类型（关键约束）
+
+隐私空间的异常类型是外部控制流，不能合并成单一 `Fail`：
+
+- `VaultFlow` 第 104 行 `catch (SecurityException)` → 口令错，弹「口令不对」；
+- 第 147 行 `catch (VaultCrypto.Cancelled)` → 用户中止，不算失败；
+- `VaultStore.load()` 第 153 行 `catch (SecurityException)` 重抛 → 密钥错不能用备份掩盖；
+- 单测 `VaultTest` 用 `throwsIt(SecurityException.class / IllegalArgumentException.class /
+  Cancelled.class)` 断言类型。
+
+所以码化时保留继承关系，只把 message 换成 ASCII 诊断串：
+
+| 带码异常 | 继承 | 用途 |
+| --- | --- | --- |
+| `VaultCrypto.Fail` | `IllegalArgumentException` | 参数/状态类错误 |
+| `VaultCrypto.AuthFail` | `SecurityException` | 口令/验签失败 |
+| `VaultCrypto.StateFail` | `IllegalStateException` | 空间已存在 |
+| `VaultCrypto.IoFail` | `IOException` | 目录/读写/文件缺失 |
+
+四者都实现 `VaultCrypto.VaultCoded`（`code()` + `arg()`），共用一个 `Code` 枚举（42 值）。
+`VaultIndex`/`VaultStore` 与 `VaultCrypto` 同属 core/fs 层，直接引用带码异常，测试一行不改。
+
+### 2. 统一回显点 msg() → VaultReport
+
+`VaultActivity` 与 `VaultFlow` 各有一个 `msg(Throwable)`（原逻辑：取 getMessage，空则回落类名），
+异常 message 最终都流到 toast/状态栏。改法：
+
+- 两处 `msg()` 改调 `VaultReport.msg(Context, Throwable)`；
+- 带 `VaultCoded` 的按 `Code` 逐条翻成 `vc_*`；`Cancelled` 回落「已取消」；
+- **非本模块异常保留原 message**——`VaultFlow` 第 144 行用
+  `new IOException(a.getString(R.string.vault_move_keep_fail))` 把已翻译的资源串塞进异常，
+  若统一套「失败：」前缀会把完整提示割裂，故只读透传。
+
+42 个 `Code` 与 42 个翻译分支脚本核对无遗漏无多余。
+
+### 3. 参数化文案
+
+`MASTER_LEN`/`HEADER_LEN`/`HEADER_ITER`/`BLOB_VERSION`/`MKDIR_FAIL`/`WRITE_FAIL`/
+`BLOB_MISSING`/`FILE_MISSING`/`FILE_TOO_BIG` 带参，原异常用 `"无法创建目录：" + b` 拼接，
+现改为 `arg()` 单槽 + `getString(R.string.vc_err_*, arg)`，参数统一 `%1$s`
+（文件名/路径含有 `%` 也无妨——`getString` 只格式化模板里的占位符，不二次解析参数）。
+
+### 4. 例外：`safeName()` 的「未命名」
+
+`VaultStore.safeName()` 两处 `"未命名"` 保留：它是**数据默认值**——空名字/纯空白被写成
+索引记录名、并作为导出文件名落盘（单测第 374/375 行断言此值）。本地化它会导致
+① 已有索引数据语义变化；② 重命名编辑框 `et.setText(e.name)` 把显示值写回时的兼容问题。
+与 `MainActivity` 入口页文案同属「刻意保留」清单。
+
+### 验证
+
+- `VaultCrypto` **34 → 0**、`VaultStore` **17 → 2**、`VaultIndex` **3 → 0**、
+  `VaultActivity` **1 → 0**，共 **55 → 2**（保留 2 处数据默认值）
+- 新增 43 个 `vc_*` 键（42 错误码 + 1 通用兜底）；资源总量 **1965 → 2008 条**
+  （引用 1965 键 / 43 文件）
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 2008 条 100% 一致 / 动作号 55
+- 全量 `run_all.sh` **97 通过 / 0 失败 / 4 跳过**——`VaultTest` 的类型断言全绿，
+  证明四种异常继承关系未被破坏
+- 42 个 `Code` 与 42 个翻译分支一一对应，无遗漏无多余
+- 构建 2 分 33 秒，APK **13,357,776 B**（`d5bc4234…`），`aapt2 dump badging`
+  反证 versionCode 236 / 2.43.0；dex 中反证 `VaultReport`（3 处）、
+  `VaultCrypto$Fail`（1 处）、`vc_err_wrong_password`/`vc_err_read_uri`（各 1 处）已打进包
 
 ---
 
