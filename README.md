@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：1912 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：1965 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,73 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.42.0（versionCode 235）—— F-14/29：编码转换页 i18n（CodecCore 逻辑层一并码化）
+
+`CodecCore` 50 处 + `CodecActivity` 16 处中文字面量清零。这是继签名流程（v2.37.0）、
+对比工具（v2.38.0）之后第三页「纯逻辑类 + Activity」同构迁移：`CodecCore` 是纯 Java、
+可桌面单测的编码引擎，不能塞 `Context`，所以沿用 `HexCore.Fail` 的语言：码化异常、
+新建 UI 文本层。
+
+### 1. 静态中文数组 NAMES → F_COUNT + UI 侧数组
+
+`CodecCore.NAMES` 是 15 个中文格式名，`name(int)` 是它的取数器。静态 `String[]` 在类加载时
+就把语言定死了（先例见 `PropsController`），而 `CodecActivity` 直接把它喂给 Spinner。
+改法：
+
+- 逻辑层删掉 `NAMES` / `name()`，只留 `F_COUNT = 15`（边界判断和「支持 N 种格式」用）；
+- UI 侧 `CodecReport.formatNames(Context)` 按 `cd_fmt_*` 逐条取，顺序与 `F_*` 常量一一对应；
+- `CodecCore.convert()` 的 `UNSUPPORTED_FORMAT` 异常只带格式号（数字），不再是拼好的中文串。
+
+### 2. 26 个异常文案 → Code 枚举 + ASCII 诊断串
+
+原来 30 来处 `throw new IllegalArgumentException("HEX 位数是奇数（" + n + " 位）…")`
+把文案和参数都焊死在 core 层。改成 `CodecCore.Fail extends IllegalArgumentException`
+（`Code` 枚举 26 个值 + `num()/ch()/arg()` 三个参数槽），`getMessage()` 只留 ASCII 串
+供日志/单测。26 个码在 `CodecReport.error()` 里一一对译为 `cd_err_*`：
+
+| 类别 | 码（节选） | 参数 |
+| --- | --- | --- |
+| 格式/字符 | `UNSUPPORTED_FORMAT` / `BAD_HEX_CHAR` / `BAD_BIN_CHAR` / `BAD_DEC_CHAR` | `num()` / `ch()` |
+| 数值/范围 | `HEX_ODD` / `DEC_TOO_BIG` / `DEC_RANGE` / `BYTE_RANGE` | `num()` / `arg()` |
+| 转义序列 | `ESC_U_HEX` / `ESC_X_SHORT` / `PERCENT_SHORT` | `arg()` |
+| 编解码 | `BAD_B64_CHAR` / `BAD_B32_CHAR` / `B64_BAD_LEN` | `ch()` |
+| Punycode | `PUNY_TRUNCATED` / `PUNY_OVERFLOW` / `PUNY_CP_RANGE` | `arg()` |
+
+单测 `ToolboxCoreTest` 只 `catch (IllegalArgumentException)` 并打印 message、不断言文案，
+所以 `Fail` 继承原异常类型后测试一行不改。26 个码与 26 个翻译分支已核对无遗漏。
+
+### 3. 可空后缀 status：整句 + 可空子键
+
+状态栏原是 `"输入 " + n + " 字符" + (bytes>=0 ? " / "+bytes+" 字节" : "") + " → 输出 " + k + " 字符"`。
+英文的 `bytes` 片段位置与中文不同，拆成两个键：`cd_status`（`%1$d`/`%2$d`/`%3$s`）
++ `cd_status_bytes`（`" / %1$d 字节"`），无字节时 `CodecReport.status()` 传空串给 `%3$s`。
+
+### 4. 两个 aapt2 陷阱（`\` 与 `%`）
+
+- `\\u` / `\\x` 字面量在资源里写 `"\\u 后面不是 4 位十六进制：%1$s"`（反斜杠要转义），
+  `aapt2 dump` 反证解析为单 `\u`；
+- `PERCENT_SHORT` 最早写成 `"%% 后面缺少 2 位十六进制"`，但该键走**无参** `getString()`、
+  不经 `String.format`，`%%` 会原样显示成两个百分号。改为不含 `%` 的整句
+  「百分号后缺少 2 位十六进制」，一劳永逸避开转义。
+
+### 验证
+
+- `CodecCore` **50 → 0**、`CodecActivity` **16 → 0**，共 **66 → 0**
+- 新增 53 个 `cd_*` 键（16 格式名 + 5 UI + 1 副标题 + 3 状态/截断 + 2 兜底 + 26 错误码）；
+  资源总量 **1912 → 1965 条**（引用 1922 键 / 42 文件）
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 1965 条 100% 一致 / 动作号 55
+- `QUICK=1` **97 通过 / 0 失败 / 4 跳过**（全量 `run_all.sh` 同口径）
+- 26 个 `Code` 与 26 个翻译分支一一对应，无遗漏无多余
+- `aapt2 dump resources` 抽查 `cd_err_esc_u_hex`（`\\u` 解析为单 `\u`）、
+  `cd_err_percent_short`（已无 `%%`）、`cd_truncated`（前导 `\n` 未折叠）：中英双变体齐全
+- 构建 3 分 30 秒，APK **13,341,392 B**（`64969eb7…`），`aapt2 dump badging`
+  反证 versionCode 235 / 2.42.0；dex 中反证 `CodecReport`（3 处）、
+  `cd_err_puny_cp_range`（1 处）已打进包
+- 字节数与 v2.41.0 相同，以 md5 + badging + dex grep 三重反证新版本（沿用 v2.37.0 做法）
+- 资源措辞修正复建时用 `VERSION_GUARD=warn`（同版本内改字、不改版本语义）
 
 ---
 

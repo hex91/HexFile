@@ -42,17 +42,17 @@ public class CodecActivity extends BaseActivity {
         out = (TextView) findViewById(R.id.cd_out);
         status = (TextView) findViewById(R.id.cd_status);
 
-        fromSp.setAdapter(ToolUi.adapter(this, CodecCore.NAMES));
-        toSp.setAdapter(ToolUi.adapter(this, CodecCore.NAMES));
+        String[] names = CodecReport.formatNames(this);
+        fromSp.setAdapter(ToolUi.adapter(this, names));
+        toSp.setAdapter(ToolUi.adapter(this, names));
 
         int from = getIntent().getIntExtra(ToolboxActivity.EXTRA_FROM, CodecCore.F_TEXT);
         int to = getIntent().getIntExtra(ToolboxActivity.EXTRA_TO, CodecCore.F_HEX);
-        if (from < 0 || from >= CodecCore.NAMES.length) from = CodecCore.F_TEXT;
-        if (to < 0 || to >= CodecCore.NAMES.length) to = CodecCore.F_HEX;
+        if (from < 0 || from >= CodecCore.F_COUNT) from = CodecCore.F_TEXT;
+        if (to < 0 || to >= CodecCore.F_COUNT) to = CodecCore.F_HEX;
         fromSp.setSelection(from);
         toSp.setSelection(to);
-        ((TextView) findViewById(R.id.cd_sub)).setText(
-                CodecCore.name(from) + "  →  " + CodecCore.name(to) + "（输入即转换）");
+        ((TextView) findViewById(R.id.cd_sub)).setText(CodecReport.subtitle(this, from, to));
 
         AdapterView.OnItemSelectedListener l = new AdapterView.OnItemSelectedListener() {
             public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
@@ -103,7 +103,7 @@ public class CodecActivity extends BaseActivity {
             public void onClick(View v) {
                 String r = out.getText().toString();
                 if (r.length() == 0) {
-                    ToolUi.toast(CodecActivity.this, "还没有结果");
+                    ToolUi.toast(CodecActivity.this, s(R.string.cd_no_result));
                     return;
                 }
                 // 结果回填输入，并交换格式，方便「编码 → 再解码验证」
@@ -114,7 +114,7 @@ public class CodecActivity extends BaseActivity {
         });
         findViewById(R.id.cd_copy).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                ToolUi.copy(CodecActivity.this, out.getText(), "结果");
+                ToolUi.copy(CodecActivity.this, out.getText(), s(R.string.cd_copy_label));
             }
         });
 
@@ -130,8 +130,7 @@ public class CodecActivity extends BaseActivity {
     }
 
     private void syncSub() {
-        ((TextView) findViewById(R.id.cd_sub)).setText(
-                CodecCore.name(fromFmt()) + "  →  " + CodecCore.name(toFmt()) + "（输入即转换）");
+        ((TextView) findViewById(R.id.cd_sub)).setText(CodecReport.subtitle(this, fromFmt(), toFmt()));
     }
 
     private void swapFormats() {
@@ -158,7 +157,7 @@ public class CodecActivity extends BaseActivity {
     private void paste() {
         ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         if (cm == null || cm.getPrimaryClip() == null || cm.getPrimaryClip().getItemCount() == 0) {
-            ToolUi.toast(this, "剪贴板是空的");
+            ToolUi.toast(this, s(R.string.cd_clip_empty));
             return;
         }
         CharSequence t = cm.getPrimaryClip().getItemAt(0).coerceToText(this);
@@ -172,7 +171,7 @@ public class CodecActivity extends BaseActivity {
         if (s.length() == 0) {
             out.setText("");
             status.setTextColor(ThemeManager.textSub(this));
-            status.setText("支持 " + CodecCore.NAMES.length + " 种格式任意互转；粘进来就出结果");
+            status.setText(CodecReport.emptyStatus(this));
             return;
         }
         try {
@@ -180,7 +179,7 @@ public class CodecActivity extends BaseActivity {
             // 超大结果不整段塞进 TextView（几十万字符会让测量/绘制明显卡顿），截断显示
             final int LIMIT = 200000;
             if (r.length() > LIMIT) {
-                out.setText(r.substring(0, LIMIT) + "\n…（共 " + r.length() + " 字符，已截断显示前 " + LIMIT + " 字符）");
+                out.setText(r.substring(0, LIMIT) + CodecReport.truncated(this, r.length(), LIMIT));
             } else {
                 out.setText(r);
             }
@@ -191,15 +190,17 @@ public class CodecActivity extends BaseActivity {
                 bytes = -1;
             }
             status.setTextColor(ThemeManager.textSub(this));
-            status.setText("输入 " + s.length() + " 字符"
-                    + (bytes >= 0 ? " / " + bytes + " 字节" : "")
-                    + " → 输出 " + r.length() + " 字符");
+            status.setText(CodecReport.status(this, s.length(), bytes, r.length()));
         } catch (IllegalArgumentException e) {
             status.setTextColor(ThemeManager.err(this));
-            status.setText("✗ " + e.getMessage());
+            status.setText("✗ " + CodecReport.error(this, e));
         } catch (Throwable e) {
             status.setTextColor(ThemeManager.err(this));
-            status.setText("✗ 转换失败：" + e);
+            status.setText("✗ " + CodecReport.fatal(this, e));
         }
+    }
+
+    private String s(int id) {
+        return getString(id);
     }
 }

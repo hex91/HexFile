@@ -32,20 +32,108 @@ public final class CodecCore {
     public static final int F_PUNYCODE  = 13;  // xn--fiq228c
     public static final int F_BASE32    = 14;  // 4PAY
 
-    public static final String[] NAMES = {
-            "文本 UTF-8", "HEX", "HEX 0x", "二进制", "十进制", "字节数组",
-            "Unicode", "转义字符", "URL 编码", "Base64", "Base64URL",
-            "HTML 实体", "JSON 字符串", "中文域名", "Base32"
-    };
+    /** 格式数量（原 NAMES 数组长度；名称文案由 UI 层 CodecReport 按资源提供） */
+    public static final int F_COUNT = 15;
 
-    public static String name(int f) {
-        return (f >= 0 && f < NAMES.length) ? NAMES[f] : "未知";
+    /**
+     * 转换/解析失败的原因码 —— v2.42.0（F-14/29）。
+     *
+     * <p>原来直接抛带中文文案的 IllegalArgumentException，
+     * UI 把 {@code e.getMessage()} 原样贴到状态栏。文案要出英文时，core 层不该知道语言，
+     * 所以改成码；{@link #getMessage()} 只留 ASCII 诊断串（日志/单测）。</p>
+     *
+     * <p>仍 {@code extends IllegalArgumentException}：调用方原有的 catch 一行不改。</p>
+     */
+    public enum Code {
+        UNSUPPORTED_FORMAT,   // 参数：格式号，num()
+        BAD_HEX_CHAR,         // 参数：非法字符，ch()
+        HEX_ODD,              // 参数：位数，num()
+        BAD_BIN_CHAR,         // 参数：非法字符，ch()
+        DEC_TOO_BIG,          // 参数：数值串，arg()
+        DEC_RANGE,            // 参数：数值，num()
+        BAD_DEC_CHAR,         // 参数：非法字符，ch()
+        BAD_HEX_TOKEN,        // 参数：token，arg()
+        BAD_NUMBER,           // 参数：token，arg()
+        BYTE_RANGE,           // 参数：token，arg()
+        ESC_U_HEX,            // \\u 后不是 4 位十六进制；参数：串，arg()
+        ESC_BIG_U_HEX,        // \\U 后不是 8 位十六进制；参数：串，arg()
+        ESC_X_SHORT,          // \\x 后缺少 2 位
+        ESC_X_HEX,            // \\x 后不是 2 位
+        ESC_U_SHORT,          // \\u 后缺少 4 位
+        PERCENT_SHORT,        // % 后缺少 2 位
+        BAD_PERCENT,          // 参数：片段，arg()
+        B64_BAD_LEN,
+        BAD_B64_CHAR,         // 参数：非法字符，ch()
+        BAD_B32_CHAR,         // 参数：非法字符，ch()
+        DOMAIN_TOO_LONG,
+        PUNY_BASE_NON_ASCII,  // 参数：label，arg()
+        PUNY_TRUNCATED,       // 参数：label，arg()
+        PUNY_BAD_CHAR,        // 参数：label，arg()
+        PUNY_OVERFLOW,        // 参数：label，arg()
+        PUNY_CP_RANGE         // 参数：label，arg()
+    }
+
+    /** 带原因码的失败（仍是 {@link IllegalArgumentException}，既有 catch 不受影响） */
+    public static class Fail extends IllegalArgumentException {
+        public final Code code;
+        private final long num;
+        private final char ch;
+        private final String arg;
+
+        Fail(Code code) { this(code, 0, (char) 0, null); }
+        Fail(Code code, long num) { this(code, num, (char) 0, null); }
+        Fail(Code code, char ch) { this(code, 0, ch, null); }
+        Fail(Code code, String arg) { this(code, 0, (char) 0, arg); }
+
+        Fail(Code code, long num, char ch, String arg) {
+            super(diagnose(code, num, ch, arg));
+            this.code = code;
+            this.num = num;
+            this.ch = ch;
+            this.arg = arg;
+        }
+
+        public long num() { return num; }
+        public char ch() { return ch; }
+        public String arg() { return arg; }
+
+        private static String diagnose(Code c, long num, char ch, String arg) {
+            switch (c) {
+                case UNSUPPORTED_FORMAT: return "codec: unsupported format " + num;
+                case BAD_HEX_CHAR: return "codec: bad hex char '" + ch + "'";
+                case HEX_ODD: return "codec: odd hex length " + num;
+                case BAD_BIN_CHAR: return "codec: bad binary char '" + ch + "'";
+                case DEC_TOO_BIG: return "codec: decimal overflow " + arg;
+                case DEC_RANGE: return "codec: decimal byte out of range " + num;
+                case BAD_DEC_CHAR: return "codec: bad decimal char '" + ch + "'";
+                case BAD_HEX_TOKEN: return "codec: bad hex token " + arg;
+                case BAD_NUMBER: return "codec: bad number " + arg;
+                case BYTE_RANGE: return "codec: byte out of range " + arg;
+                case ESC_U_HEX: return "codec: bad \\u hex " + arg;
+                case ESC_BIG_U_HEX: return "codec: bad \\U hex " + arg;
+                case ESC_X_SHORT: return "codec: \\x needs 2 hex digits";
+                case ESC_X_HEX: return "codec: bad \\x hex";
+                case ESC_U_SHORT: return "codec: \\u needs 4 hex digits";
+                case PERCENT_SHORT: return "codec: % needs 2 hex digits";
+                case BAD_PERCENT: return "codec: bad percent " + arg;
+                case B64_BAD_LEN: return "codec: bad base64 length";
+                case BAD_B64_CHAR: return "codec: bad base64 char '" + ch + "'";
+                case BAD_B32_CHAR: return "codec: bad base32 char '" + ch + "'";
+                case DOMAIN_TOO_LONG: return "codec: domain too long";
+                case PUNY_BASE_NON_ASCII: return "codec: punycode base non-ascii " + arg;
+                case PUNY_TRUNCATED: return "codec: punycode truncated " + arg;
+                case PUNY_BAD_CHAR: return "codec: punycode bad char " + arg;
+                case PUNY_OVERFLOW: return "codec: punycode overflow " + arg;
+                case PUNY_CP_RANGE: return "codec: punycode codepoint out of range " + arg;
+                default: return "codec: error";
+            }
+        }
     }
 
     private CodecCore() {
     }
 
-    /** 任意两种格式互转；失败抛 {@link IllegalArgumentException}（message 为中文可读原因）。 */
+    /** 任意两种格式互转；失败抛 {@link Fail}（原因码在 {@link Fail#code}）。 */
     public static String convert(String in, int from, int to) {
         if (in == null) in = "";
         if (from == to) return in;
@@ -72,7 +160,7 @@ public final class CodecCore {
             case F_BASE64:
             case F_BASE64URL: return base64Decode(s);
             case F_BASE32:  return base32Decode(s);
-            default: throw new IllegalArgumentException("不支持的格式：" + name(fmt));
+            default: throw new Fail(Code.UNSUPPORTED_FORMAT, fmt);
         }
     }
 
@@ -96,7 +184,7 @@ public final class CodecCore {
             case F_BASE64:  return base64Encode(d, false, true);
             case F_BASE64URL:return base64Encode(d, true, false);
             case F_BASE32:  return base32Encode(d);
-            default: throw new IllegalArgumentException("不支持的格式：" + name(fmt));
+            default: throw new Fail(Code.UNSUPPORTED_FORMAT, fmt);
         }
     }
 
@@ -118,10 +206,10 @@ public final class CodecCore {
             if (hexVal(c) >= 0) sb.append(c);
             else if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ',' || c == ';'
                     || c == ':' || c == '-' || c == '_' || c == '|') continue;
-            else throw new IllegalArgumentException("HEX 里有非法字符：" + c);
+            else throw new Fail(Code.BAD_HEX_CHAR, c);
         }
         if (sb.length() % 2 == 1) {
-            throw new IllegalArgumentException("HEX 位数是奇数（" + sb.length() + " 位），无法按字节切分");
+            throw new Fail(Code.HEX_ODD, sb.length());
         }
         byte[] out = new byte[sb.length() / 2];
         for (int i = 0; i < out.length; i++) {
@@ -136,7 +224,7 @@ public final class CodecCore {
         if (t.isEmpty()) return new byte[0];
         for (int i = 0; i < t.length(); i++) {
             char c = t.charAt(i);
-            if (c != '0' && c != '1') throw new IllegalArgumentException("二进制里有非法字符：" + c);
+            if (c != '0' && c != '1') throw new Fail(Code.BAD_BIN_CHAR, c);
         }
         int n = (t.length() + 7) / 8;
         byte[] out = new byte[n];
@@ -163,13 +251,13 @@ public final class CodecCore {
                 try {
                     v = Integer.parseInt(cur.toString());
                 } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("十进制数值过大：" + cur);
+                    throw new Fail(Code.DEC_TOO_BIG, cur.toString());
                 }
-                if (v < 0 || v > 255) throw new IllegalArgumentException("十进制字节必须在 0~255：" + v);
+                if (v < 0 || v > 255) throw new Fail(Code.DEC_RANGE, v);
                 bo.write(v);
                 cur.setLength(0);
             } else if (!(c == ' ' || c == ',' || c == ';' || c == '\n' || c == '\r' || c == '\t')) {
-                throw new IllegalArgumentException("十进制里有非法字符：" + c);
+                throw new Fail(Code.BAD_DEC_CHAR, c);
             }
         }
         return bo.toByteArray();
@@ -202,17 +290,17 @@ public final class CodecCore {
             int v;
             if (hex) {
                 for (int i = 0; i < t.length(); i++) {
-                    if (hexVal(t.charAt(i)) < 0) throw new IllegalArgumentException("非法十六进制：" + p);
+                    if (hexVal(t.charAt(i)) < 0) throw new Fail(Code.BAD_HEX_TOKEN, p);
                 }
                 v = t.isEmpty() ? 0 : Integer.parseInt(t, 16);
             } else {
                 try {
                     v = Integer.parseInt(t);
                 } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("非法数值：" + p);
+                    throw new Fail(Code.BAD_NUMBER, p);
                 }
             }
-            if (v < 0 || v > 255) throw new IllegalArgumentException("字节越界（0~255）：" + p);
+            if (v < 0 || v > 255) throw new Fail(Code.BYTE_RANGE, p);
             bo.write(v);
         }
         return bo.toByteArray();
@@ -260,7 +348,7 @@ public final class CodecCore {
                 if (n == 'u' && i + 6 <= s.length()) {
                     String h = s.substring(i + 2, i + 6);
                     int v = hex4(h);
-                    if (v < 0) throw new IllegalArgumentException("\\u 后面不是 4 位十六进制：" + h);
+                    if (v < 0) throw new Fail(Code.ESC_U_HEX, h);
                     sb.append((char) v);
                     i += 5;
                     continue;
@@ -273,7 +361,7 @@ public final class CodecCore {
                         i += 9;
                         continue;
                     } catch (Exception ignore) {
-                        throw new IllegalArgumentException("\\U 后面不是 8 位十六进制：" + h);
+                        throw new Fail(Code.ESC_BIG_U_HEX, h);
                     }
                 }
                 if ("nrtbf0\\\"'/" .indexOf(n) >= 0 || n == 'n') {
@@ -348,15 +436,15 @@ public final class CodecCore {
             if (i + 1 >= s.length()) { bo.write('\\'); break; }
             char n = s.charAt(++i);
             if (n == 'x' || n == 'X') {
-                if (i + 2 >= s.length()) throw new IllegalArgumentException("\\x 后面缺少 2 位十六进制");
+                if (i + 2 >= s.length()) throw new Fail(Code.ESC_X_SHORT);
                 int v = hex2(s.substring(i + 1, i + 3));
-                if (v < 0) throw new IllegalArgumentException("\\x 后面不是 2 位十六进制");
+                if (v < 0) throw new Fail(Code.ESC_X_HEX);
                 bo.write(v);
                 i += 2;
             } else if (n == 'u') {
-                if (i + 4 >= s.length()) throw new IllegalArgumentException("\\u 后面缺少 4 位十六进制");
+                if (i + 4 >= s.length()) throw new Fail(Code.ESC_U_SHORT);
                 int v = hex4(s.substring(i + 1, i + 5));
-                if (v < 0) throw new IllegalArgumentException("\\u 后面不是 4 位十六进制");
+                if (v < 0) throw new Fail(Code.ESC_U_HEX, s.substring(i + 1, i + 5));
                 byte[] u = String.valueOf((char) v).getBytes(utf8());
                 bo.write(u, 0, u.length);
                 i += 4;
@@ -391,9 +479,9 @@ public final class CodecCore {
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
             if (c == '%') {
-                if (i + 2 >= s.length()) throw new IllegalArgumentException("% 后面缺少 2 位十六进制");
+                if (i + 2 >= s.length()) throw new Fail(Code.PERCENT_SHORT);
                 int v = hex2(s.substring(i + 1, i + 3));
-                if (v < 0) throw new IllegalArgumentException("非法百分号编码：" + s.substring(i, Math.min(i + 3, s.length())));
+                if (v < 0) throw new Fail(Code.BAD_PERCENT, s.substring(i, Math.min(i + 3, s.length())));
                 bo.write(v);
                 i += 2;
             } else if (c == '+') {
@@ -445,12 +533,12 @@ public final class CodecCore {
             if (c == '=') continue;
             sb.append(c == '-' ? '+' : (c == '_' ? '/' : c));
         }
-        if (sb.length() % 4 == 1) throw new IllegalArgumentException("Base64 长度非法（余 1 位）");
+        if (sb.length() % 4 == 1) throw new Fail(Code.B64_BAD_LEN);
         ByteArrayOutputStream bo = new ByteArrayOutputStream(sb.length() * 3 / 4 + 3);
         int buf = 0, bits = 0;
         for (int i = 0; i < sb.length(); i++) {
             int v = b64Val(sb.charAt(i));
-            if (v < 0) throw new IllegalArgumentException("Base64 里有非法字符：" + sb.charAt(i));
+            if (v < 0) throw new Fail(Code.BAD_B64_CHAR, sb.charAt(i));
             buf = (buf << 6) | v;
             bits += 6;
             if (bits >= 8) {
@@ -495,7 +583,7 @@ public final class CodecCore {
             char c = Character.toUpperCase(s.charAt(i));
             if (c == '=' || c == ' ' || c == '\n' || c == '\r' || c == '\t') continue;
             int v = B32_INDEX(c);
-            if (v < 0) throw new IllegalArgumentException("Base32 里有非法字符：" + s.charAt(i));
+            if (v < 0) throw new Fail(Code.BAD_B32_CHAR, s.charAt(i));
             buf = (buf << 5) | v;
             bits += 5;
             if (bits >= 8) {
@@ -678,7 +766,7 @@ public final class CodecCore {
             }
             if (m == Integer.MAX_VALUE) break;
             if ((long) (m - n) * (h + 1) > Integer.MAX_VALUE - delta) {
-                throw new IllegalArgumentException("域名过长，无法编码");
+                throw new Fail(Code.DOMAIN_TOO_LONG);
             }
             delta += (m - n) * (h + 1);
             n = m;
@@ -686,7 +774,7 @@ public final class CodecCore {
                 int cp = label.codePointAt(i);
                 i += Character.charCount(cp);
                 if (cp < n) {
-                    if (++delta == 0) throw new IllegalArgumentException("域名过长，无法编码");
+                    if (++delta == 0) throw new Fail(Code.DOMAIN_TOO_LONG);
                 }
                 if (cp == n) {
                     int q = delta;
@@ -717,7 +805,7 @@ public final class CodecCore {
         if (dash > 0) {
             for (int i = 0; i < dash; i++) {
                 char c = in.charAt(i);
-                if (c >= 0x80) throw new IllegalArgumentException("Punycode 基础段含非 ASCII：" + label);
+                if (c >= 0x80) throw new Fail(Code.PUNY_BASE_NON_ASCII, label);
                 out.append(c);
             }
             pos = dash + 1;
@@ -728,14 +816,14 @@ public final class CodecCore {
         while (pos < in.length()) {
             int oldi = i, w = 1;
             for (int k = PUNY_BASE; ; k += PUNY_BASE) {
-                if (pos >= in.length()) throw new IllegalArgumentException("Punycode 截断：" + label);
+                if (pos >= in.length()) throw new Fail(Code.PUNY_TRUNCATED, label);
                 int digit = punyDigitVal(in.charAt(pos++));
-                if (digit < 0) throw new IllegalArgumentException("Punycode 非法字符：" + label);
-                if (digit > (Integer.MAX_VALUE - i) / w) throw new IllegalArgumentException("Punycode 溢出：" + label);
+                if (digit < 0) throw new Fail(Code.PUNY_BAD_CHAR, label);
+                if (digit > (Integer.MAX_VALUE - i) / w) throw new Fail(Code.PUNY_OVERFLOW, label);
                 i += digit * w;
                 int t = k <= bias ? PUNY_TMIN : (k >= bias + PUNY_TMAX ? PUNY_TMAX : k - bias);
                 if (digit < t) break;
-                if (w > Integer.MAX_VALUE / (PUNY_BASE - t)) throw new IllegalArgumentException("Punycode 溢出：" + label);
+                if (w > Integer.MAX_VALUE / (PUNY_BASE - t)) throw new Fail(Code.PUNY_OVERFLOW, label);
                 w *= (PUNY_BASE - t);
             }
             // RFC 3492 里的 out.length() 是「码点数」，不是 Java String 的 UTF-16 长度。
@@ -743,10 +831,10 @@ public final class CodecCore {
             // len 偏大 → i % len 与插入位置全错，解出来的域名是乱的。
             int len = out.codePointCount(0, out.length()) + 1;
             bias = punyAdapt(i - oldi, len, oldi == 0);
-            if (i / len > Integer.MAX_VALUE - n) throw new IllegalArgumentException("Punycode 溢出：" + label);
+            if (i / len > Integer.MAX_VALUE - n) throw new Fail(Code.PUNY_OVERFLOW, label);
             n += i / len;
             i %= len;
-            if (n > 0x10FFFF) throw new IllegalArgumentException("Punycode 码点越界：" + label);
+            if (n > 0x10FFFF) throw new Fail(Code.PUNY_CP_RANGE, label);
             out.insert(out.offsetByCodePoints(0, i), new String(Character.toChars(n)));
             i++;
         }
