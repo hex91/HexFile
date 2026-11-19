@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：1352 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：1428 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,57 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.31.0（versionCode 224）—— F-14/18：HEX 查看器 i18n + `HexCore` 输入校验码化
+
+`HexViewerActivity` 90 处中文字面量清到 0。这页的文案密度不高，但有两处不是「换个键就完事」：
+
+### 1. 类型下拉不是静态数组了
+
+```java
+// 以前：静态 final 数组里塞中文，类加载就定了语言
+private static final String[] TYPE_LABELS = {"十六进制 HEX", "文本 TEXT", "Int8", ...};
+```
+
+改成 `typeLabels()` 方法，前两项按资源取、其余是类型名本身（`Int8` / `UInt8` … 本来就不该翻）。
+静态数组在 Activity 里既拿不到 `Context` 也无法随语言切换重建。
+
+### 2. `HexCore.patternFor` 的 8 处中文异常
+
+搜索框会把 `e.getMessage()` 直接贴到状态栏：
+
+```java
+try { pat = HexCore.patternFor(type, input, be); }
+catch (IllegalArgumentException e) { status.setText(e.getMessage()); }
+```
+
+`core` 层不该知道语言，照 `FileCrypt` 的办法加 `HexCore.Fail extends IllegalArgumentException`
++ `Code` 11 个码（`EMPTY` / `NOT_INT` / `RANGE`(带下上界) / `RANGE_U64` / `NEG_INT` /
+`ODD_HEX` / `BAD_HEX`(带那个字符) / `NULL_DATA` / `PATCH_RANGE` / `INSERT_RANGE` /
+`DELETE_RANGE` / `UNKNOWN_TYPE`），文案在 ui 侧 `hexError()` 里按码取。
+
+`RANGE` 的两个边界和 `BAD_HEX` 的那个字符都作为**数据参数**带出来（`min()` / `max()` / `ch()`），
+不是拼进诊断串再让 ui 去切 —— 否则又回到「从文案里抠数据」。
+
+### 3. 状态栏三段后缀
+
+`" · 偏移 0x"` / `" · 仅前 4MB"` / `" · ✎ 未保存"` 各自成键（含前导空格，整值加了引号
+防止 aapt 折叠），`sb.append(s(R.string.hx_status_offset, hex))` 拼装。空格与 `·` 分隔符
+跟语言走，英文用 `· offset 0x…`。
+
+### 验证
+
+- `HexViewerActivity` 中文字面量 **90 → 0**（只剩注释）
+- `HexCore` 中文字面量 **0**（`grep -P '"[^"]*[\x{4e00}-\x{9fa5}]'` 只剩注释）
+- 新增 96 个 `hx_*` 键；资源总量 **1352 → 1428 条**
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 1428 条 100% 一致
+  （引用 1385 键 / 28 文件）/ 动作号 55
+- `QUICK=1` **97 通过 / 0 失败 / 4 跳过**
+- `aapt2 dump resources` 抽查 `hx_block_info` / `hx_err_range`（两个 `%d`）/ `hx_sig_hint`
+  （首尾换行）：中英双变体齐全
+- 构建 2 分 14 秒，APK **13,275,856 B**
 
 ---
 

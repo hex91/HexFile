@@ -21,6 +21,101 @@ public final class HexCore {
         FLOAT32, FLOAT64
     }
 
+    /**
+     * 搜索输入不合法时的原因码 —— v2.31.0（F-14/18）。
+     *
+     * <p>原来直接 {@code throw new IllegalArgumentException("超出范围 0~4294967295")}，
+     * 搜索框把 {@code e.getMessage()} 原样贴到状态栏。文案要出英文时，core 层不该知道语言，
+     * 所以改成码；{@link #getMessage()} 只留 ASCII 诊断串（日志/单测）。</p>
+     *
+     * <p>仍 {@code extends IllegalArgumentException}：调用方原有的 catch 一行不改。</p>
+     */
+    public enum Code {
+        /** 输入为空 */
+        EMPTY,
+        /** 不是整数 */
+        NOT_INT,
+        /** 数值超出该类型的取值范围（参数：下界、上界，用 {@link Fail#min()} / {@link Fail#max()} 取） */
+        RANGE,
+        /** 无符号 64 位超出范围 */
+        RANGE_U64,
+        /** 无符号类型收到了负数 */
+        NEG_INT,
+        /** 十六进制串长度为奇数 */
+        ODD_HEX,
+        /** 十六进制串里有非 0-9A-F 字符（参数：该字符，用 {@link Fail#ch()} 取） */
+        BAD_HEX,
+        /** 传入的数组为空 */
+        NULL_DATA,
+        /** 写入越界 */
+        PATCH_RANGE,
+        /** 插入越界 */
+        INSERT_RANGE,
+        /** 删除越界 */
+        DELETE_RANGE,
+        /** 未知类型 */
+        UNKNOWN_TYPE
+    }
+
+    /** 带原因码的失败（仍是 {@link IllegalArgumentException}，既有 catch 不受影响） */
+    public static class Fail extends IllegalArgumentException {
+        public final Code code;
+        private final long lo, hi;
+        private final char ch;
+
+        Fail(Code code) {
+            this(code, 0, 0, (char) 0);
+        }
+
+        Fail(Code code, long lo, long hi) {
+            this(code, lo, hi, (char) 0);
+        }
+
+        Fail(Code code, char ch) {
+            this(code, 0, 0, ch);
+        }
+
+        Fail(Code code, long lo, long hi, char ch) {
+            super(diagnose(code, lo, hi, ch));
+            this.code = code;
+            this.lo = lo;
+            this.hi = hi;
+            this.ch = ch;
+        }
+
+        /** BAD_HEX 里那个非法字符（其它码为 0） */
+        public char ch() {
+            return ch;
+        }
+
+        /** RANGE 的下界（其它码为 0） */
+        public long min() {
+            return lo;
+        }
+
+        /** RANGE 的上界（其它码为 0） */
+        public long max() {
+            return hi;
+        }
+
+        private static String diagnose(Code code, long lo, long hi, char ch) {
+            switch (code) {
+                case EMPTY: return "hex: empty input";
+                case NOT_INT: return "hex: not an integer";
+                case RANGE: return "hex: out of range " + lo + "~" + hi;
+                case RANGE_U64: return "hex: out of unsigned 64-bit range";
+                case NEG_INT: return "hex: negative for unsigned";
+                case ODD_HEX: return "hex: hex length must be even";
+                case BAD_HEX: return "hex: bad hex char '" + ch + "'";
+                case NULL_DATA: return "hex: null data";
+                case PATCH_RANGE: return "hex: patch out of range";
+                case INSERT_RANGE: return "hex: insert out of range";
+                case DELETE_RANGE: return "hex: delete out of range";
+                default: return "hex: unknown type";
+            }
+        }
+    }
+
     private HexCore() {}
 
     public static boolean isNumeric(Type t) {
@@ -36,9 +131,9 @@ public final class HexCore {
 
     /** 把输入按类型与大小端编码为目标字节序列。失败时抛 IllegalArgumentException。 */
     public static byte[] patternFor(Type t, String input, boolean bigEndian) {
-        if (input == null) throw new IllegalArgumentException("输入为空");
+        if (input == null) throw new Fail(Code.EMPTY);
         input = input.trim();
-        if (input.isEmpty()) throw new IllegalArgumentException("输入为空");
+        if (input.isEmpty()) throw new Fail(Code.EMPTY);
         switch (t) {
             case HEX:
                 return hexToBytes(input);
@@ -56,7 +151,7 @@ public final class HexCore {
                 return pack(parseLong(input, -2147483648L, 2147483647L), 4, bigEndian);
             case UINT32: {
                 long v = Long.parseLong(input);
-                if (v < 0 || v > 0xFFFFFFFFL) throw new IllegalArgumentException("超出范围 0~4294967295");
+                if (v < 0 || v > 0xFFFFFFFFL) throw new Fail(Code.RANGE, 0, 0xFFFFFFFFL);
                 return pack(v, 4, bigEndian);
             }
             case INT64:
@@ -66,10 +161,10 @@ public final class HexCore {
                 try {
                     bi = new BigInteger(input);
                 } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("请输入非负整数");
+                    throw new Fail(Code.NEG_INT);
                 }
                 if (bi.signum() < 0 || bi.bitLength() > 64)
-                    throw new IllegalArgumentException("超出 unsigned 64-bit 范围");
+                    throw new Fail(Code.RANGE_U64);
                 return packUnsigned64(bi, bigEndian);
             }
             case FLOAT32: {
@@ -81,7 +176,7 @@ public final class HexCore {
                 return pack(bits, 8, bigEndian);
             }
         }
-        throw new IllegalArgumentException("未知类型");
+        throw new Fail(Code.UNKNOWN_TYPE);
     }
 
     /** 大小端打包（value 的低 n 字节）。 */
@@ -116,20 +211,20 @@ public final class HexCore {
         try {
             v = Long.parseLong(s);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("请输入整数");
+            throw new Fail(Code.NOT_INT);
         }
-        if (v < min || v > max) throw new IllegalArgumentException("超出范围 " + min + "~" + max);
+        if (v < min || v > max) throw new Fail(Code.RANGE, min, max);
         return v;
     }
 
     public static byte[] hexToBytes(String s) {
         s = s.replaceAll("\\s+", "").toUpperCase(Locale.US);
-        if ((s.length() & 1) != 0) throw new IllegalArgumentException("十六进制长度必须为偶数");
+        if ((s.length() & 1) != 0) throw new Fail(Code.ODD_HEX);
         byte[] b = new byte[s.length() / 2];
         for (int i = 0; i < b.length; i++) {
             int hi = hexVal(s.charAt(2 * i));
             int lo = hexVal(s.charAt(2 * i + 1));
-            if (hi < 0 || lo < 0) throw new IllegalArgumentException("非法十六进制字符: " + s.charAt(2 * i + (lo < 0 ? 1 : 0)));
+            if (hi < 0 || lo < 0) throw new Fail(Code.BAD_HEX, s.charAt(2 * i + (lo < 0 ? 1 : 0)));
             b[i] = (byte) ((hi << 4) | lo);
         }
         return b;
@@ -187,9 +282,9 @@ public final class HexCore {
 
     /** 在内存字节数组中按偏移写入（边界保护）。 */
     public static void patch(byte[] data, int off, byte[] bytes) {
-        if (data == null || bytes == null) throw new IllegalArgumentException("数据为空");
+        if (data == null || bytes == null) throw new Fail(Code.NULL_DATA);
         if (off < 0 || off + bytes.length > data.length)
-            throw new IllegalArgumentException("写入越界（仅支持前 4MB 已加载区域）");
+            throw new Fail(Code.PATCH_RANGE);
         System.arraycopy(bytes, 0, data, off, bytes.length);
     }
 
@@ -336,8 +431,8 @@ public final class HexCore {
 
     /** 在 off 处插入 ins（后续字节后移），返回新数组。 */
     public static byte[] spliceInsert(byte[] data, int off, byte[] ins) {
-        if (data == null || ins == null) throw new IllegalArgumentException("数据为空");
-        if (off < 0 || off > data.length) throw new IllegalArgumentException("插入偏移越界");
+        if (data == null || ins == null) throw new Fail(Code.NULL_DATA);
+        if (off < 0 || off > data.length) throw new Fail(Code.INSERT_RANGE);
         byte[] r = new byte[data.length + ins.length];
         System.arraycopy(data, 0, r, 0, off);
         System.arraycopy(ins, 0, r, off, ins.length);
@@ -347,8 +442,8 @@ public final class HexCore {
 
     /** 删除 [off, off+len) 区间，返回新数组。 */
     public static byte[] removeRange(byte[] data, int off, int len) {
-        if (data == null) throw new IllegalArgumentException("数据为空");
-        if (off < 0 || len < 0 || off + len > data.length) throw new IllegalArgumentException("删除越界");
+        if (data == null) throw new Fail(Code.NULL_DATA);
+        if (off < 0 || len < 0 || off + len > data.length) throw new Fail(Code.DELETE_RANGE);
         byte[] r = new byte[data.length - len];
         System.arraycopy(data, 0, r, 0, off);
         System.arraycopy(data, off + len, r, off, data.length - off - len);

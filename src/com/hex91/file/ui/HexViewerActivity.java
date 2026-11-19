@@ -75,11 +75,14 @@ public class HexViewerActivity extends BaseActivity {
 
     private static final char[] HEXC = "0123456789ABCDEF".toCharArray();
 
-    private static final String[] TYPE_LABELS = {
-            "十六进制 HEX", "文本 TEXT",
-            "Int8", "UInt8", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64",
-            "Float32", "Float64"
-    };
+    /** 类型下拉的显示名：前两项要翻译，其余是类型名本身 */
+    private String[] typeLabels() {
+        return new String[]{
+                s(R.string.hx_type_hex), s(R.string.hx_type_text),
+                "Int8", "UInt8", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64",
+                "Float32", "Float64"
+        };
+    }
     private static final Type[] TYPE_VALS = {
             Type.HEX, Type.TEXT,
             Type.INT8, Type.UINT8, Type.INT16, Type.UINT16, Type.INT32, Type.UINT32,
@@ -275,15 +278,15 @@ public class HexViewerActivity extends BaseActivity {
     public void onBackPressed() {
         if (!dirty) { super.onBackPressed(); return; }
         new HfDialogBuilder(this)
-                .setTitle("有未保存的修改")
-                .setMessage("内存里有改动尚未写回文件。\n\n" + file.getName())
-                .setPositiveButton("保存", new DialogInterface.OnClickListener() {
+                .setTitle(R.string.hx_unsaved_title)
+                .setMessage(getString(R.string.hx_unsaved_msg, file.getName()))
+                .setPositiveButton(R.string.common_save, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) { saveThenFinish(); }
                 })
-                .setNeutralButton("放弃修改", new DialogInterface.OnClickListener() {
+                .setNeutralButton(R.string.hx_discard, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) { finish(); }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -297,7 +300,7 @@ public class HexViewerActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         if (fd == null) {
-                            toast("无法读取文件");
+                            toast(R.string.hx_read_fail);
                             finish();
                             return;
                         }
@@ -439,10 +442,11 @@ public class HexViewerActivity extends BaseActivity {
         if (data == null) return;
         StringBuilder sb = new StringBuilder();
         sb.append(FileOps.formatSize(fileSize));
-        sb.append(" · 偏移 0x").append(String.format(Locale.US, "%08X", selectedRow * ROW + cursorCol));
+        sb.append(s(R.string.hx_status_offset,
+                String.format(Locale.US, "%08X", selectedRow * ROW + cursorCol)));
         sb.append(" · ").append(BASE_NAME[idxOfBase(codeBase)]);
-        if (truncated) sb.append(" · 仅前 4MB");
-        if (dirty) sb.append(" · ✎ 未保存");
+        if (truncated) sb.append(s(R.string.hx_status_trunc));
+        if (dirty) sb.append(s(R.string.hx_status_dirty));
         sub.setText(sb.toString());
     }
 
@@ -594,7 +598,7 @@ public class HexViewerActivity extends BaseActivity {
     }
 
     private void openPanelAt(int off) {
-        if (data == null) { toast("尚未加载完成"); return; }
+        if (data == null) { toast(R.string.hx_not_loaded); return; }
         panelOpen = true;
         editOff = Math.max(0, Math.min(off, Math.max(0, data.length - 1)));
         nibble = "";
@@ -726,9 +730,10 @@ public class HexViewerActivity extends BaseActivity {
         StringBuilder sb = new StringBuilder(24);
         sb.append(String.format(Locale.US, "%02X", v));
         if (orig != null && off < orig.length && (orig[off] & 0xFF) != v) {
-            sb.append(String.format(Locale.US, " (原 %02X)", orig[off] & 0xFF));
+            sb.append(s(R.string.hx_orig_value, String.format(Locale.US, "%02X", orig[off] & 0xFF)));
         }
-        sb.append(nibble.isEmpty() ? "  → 按 2 位十六进制" : "  → " + nibble + "_");
+        sb.append(nibble.isEmpty() ? s(R.string.hx_hint_two_digits)
+                : s(R.string.hx_hint_nibble, nibble));
         panelCurTv.setText(sb.toString());
     }
 
@@ -751,7 +756,7 @@ public class HexViewerActivity extends BaseActivity {
 
     private boolean applyBytes(int off, byte[] bytes, boolean quiet) {
         if (data == null || off < 0 || off + bytes.length > data.length) {
-            if (!quiet) toast("超出已加载范围");
+            if (!quiet) toast(R.string.hx_out_of_loaded);
             return false;
         }
         byte[] old = new byte[bytes.length];
@@ -771,7 +776,7 @@ public class HexViewerActivity extends BaseActivity {
 
     private void performUndo() {
         HexEdit e = undoStack.pollLast();
-        if (e == null) { toast("无可撤销"); return; }
+        if (e == null) { toast(R.string.hx_no_undo); return; }
         System.arraycopy(e.oldB, 0, data, e.off, e.oldB.length);
         redoStack.push(e);
         editOff = e.off;
@@ -780,12 +785,12 @@ public class HexViewerActivity extends BaseActivity {
         if (panelOpen) refreshPanel();
         adapter.notifyDataSetChanged();
         updateStatus();
-        toast("已撤销");
+        toast(R.string.hx_undone);
     }
 
     private void performRedo() {
         HexEdit e = redoStack.pollLast();
-        if (e == null) { toast("无可重做"); return; }
+        if (e == null) { toast(R.string.hx_no_redo); return; }
         System.arraycopy(e.newB, 0, data, e.off, e.newB.length);
         undoStack.push(e);
         editOff = e.off;
@@ -794,13 +799,14 @@ public class HexViewerActivity extends BaseActivity {
         if (panelOpen) refreshPanel();
         adapter.notifyDataSetChanged();
         updateStatus();
-        toast("已重做");
+        toast(R.string.hx_redone);
     }
 
     private void save() {
         if (data == null || !dirty) return;
         final android.app.ProgressDialog pd =
-                android.app.ProgressDialog.show(this, "保存", "写入文件…", true, false);
+                android.app.ProgressDialog.show(this, s(R.string.common_save),
+                        s(R.string.hx_save_writing), true, false);
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -816,14 +822,14 @@ public class HexViewerActivity extends BaseActivity {
                     public void run() {
                         pd.dismiss();
                         if (fe != null) {
-                            toast("保存失败: " + fe);
+                            toast(s(R.string.hx_save_fail, fe));
                             return;
                         }
                         orig = data.clone();
                         setDirty(false);
                         resetSearch();
                         adapter.notifyDataSetChanged();
-                        toast("已保存 " + fp + " 段改动");
+                        toast(s(R.string.hx_saved_patches, fp));
                     }
                 });
             }
@@ -832,7 +838,8 @@ public class HexViewerActivity extends BaseActivity {
 
     private void saveThenFinish() {
         final android.app.ProgressDialog pd =
-                android.app.ProgressDialog.show(this, "保存", "写入文件…", true, false);
+                android.app.ProgressDialog.show(this, s(R.string.common_save),
+                        s(R.string.hx_save_writing), true, false);
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -841,7 +848,7 @@ public class HexViewerActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         pd.dismiss();
-                        if (fe != null) toast("保存失败: " + fe);
+                        if (fe != null) toast(s(R.string.hx_save_fail, fe));
                         else finish();
                     }
                 });
@@ -873,22 +880,22 @@ public class HexViewerActivity extends BaseActivity {
     private void askJump() {
         if (data == null) return;
         final EditText et = new EditText(this);
-        et.setHint("偏移：1024 或 0x400");
+        et.setHint(R.string.hx_jump_offset_hint);
         et.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
         new HfDialogBuilder(this)
-                .setTitle("跳转到偏移")
+                .setTitle(R.string.hx_jump_offset_title)
                 .setView(et)
-                .setPositiveButton("跳转", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.hx_jump, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         long off = parseOffset(et.getText().toString().trim(), data.length);
                         if (off < 0) {
-                            toast("偏移无效（0 ~ " + (data.length - 1) + "）");
+                            toast(s(R.string.hx_offset_invalid, data.length - 1));
                             return;
                         }
                         gotoOffset((int) off);
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -946,7 +953,7 @@ public class HexViewerActivity extends BaseActivity {
         box.addView(sp);
 
         final EditText numEt = new EditText(this);
-        numEt.setHint("块号（从 0 开始）");
+        numEt.setHint(R.string.hx_block_hint);
         numEt.setText(String.valueOf(Math.max(0, block[0])));
         numEt.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
         box.addView(numEt);
@@ -956,9 +963,8 @@ public class HexViewerActivity extends BaseActivity {
                 int sz = size[0];
                 int total = Math.max(1, (data.length + sz - 1) / sz);
                 int cur = Math.max(0, Math.min(selectedRow * ROW / sz, total - 1));
-                info.setText("文件 " + FileOps.formatSize(data.length)
-                        + " · 当前第 " + cur + " 块 / 共 " + total + " 块");
-                sizeTv.setText("块大小: " + sz + " 字节");
+                info.setText(s(R.string.hx_block_info, FileOps.formatSize(data.length), cur, total));
+                sizeTv.setText(s(R.string.hx_block_size, sz));
             }
         };
         refreshInfo.run();
@@ -975,7 +981,7 @@ public class HexViewerActivity extends BaseActivity {
         LinearLayout btns = new LinearLayout(this);
         btns.setOrientation(LinearLayout.HORIZONTAL);
         TextView prev = new TextView(this);
-        prev.setText("◀ 上一块");
+        prev.setText(R.string.hx_block_prev);
         prev.setTextSize(14);
         prev.setTextColor(ThemeManager.accent(this));
         prev.setPadding(0, (int) (14 * den), 0, (int) (6 * den));
@@ -986,7 +992,7 @@ public class HexViewerActivity extends BaseActivity {
             }
         });
         TextView next = new TextView(this);
-        next.setText("下一块 ▶");
+        next.setText(R.string.hx_block_next);
         next.setTextSize(14);
         next.setTextColor(ThemeManager.accent(this));
         next.setPadding((int) (24 * den), (int) (14 * den), 0, (int) (6 * den));
@@ -1001,37 +1007,38 @@ public class HexViewerActivity extends BaseActivity {
         box.addView(btns);
 
         new HfDialogBuilder(this)
-                .setTitle("跳转到块")
+                .setTitle(R.string.hx_block_title)
                 .setView(box)
-                .setPositiveButton("跳转", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.hx_jump, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         int sz = size[0];
                         int n;
                         try {
                             n = Integer.parseInt(numEt.getText().toString().trim());
                         } catch (Exception e) {
-                            toast("块号无效");
+                            toast(R.string.hx_block_invalid);
                             return;
                         }
                         long off = (long) n * sz;
                         if (off < 0 || off >= data.length) {
-                            toast("块号超出范围（共 " + ((data.length + sz - 1) / sz) + " 块）");
+                            toast(s(R.string.hx_block_out_of_range, (data.length + sz - 1) / sz));
                             return;
                         }
                         gotoOffset((int) off);
-                        toast("第 " + n + " 块 @ 0x" + Long.toHexString(off).toUpperCase(Locale.US));
+                        toast(s(R.string.hx_block_at, n,
+                                Long.toHexString(off).toUpperCase(Locale.US)));
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     // ============================================================ 文件解析
 
     private void showFileInfo() {
-        if (data == null) { toast("尚未加载完成"); return; }
-        final android.app.ProgressDialog pd =
-                android.app.ProgressDialog.show(this, "文件解析", "读取文件头…", true, false);
+        if (data == null) { toast(R.string.hx_not_loaded); return; }
+        final android.app.ProgressDialog pd = android.app.ProgressDialog.show(this,
+                s(R.string.hx_parse_title), s(R.string.hx_parse_reading), true, false);
         new Thread(new Runnable() {
             public void run() {
                 String text;
@@ -1041,7 +1048,7 @@ public class HexViewerActivity extends BaseActivity {
                 if ("ZIP".equals(magic)) {
                     sb.append('\n').append(FileInspect.signatureInfo(file));
                 } else if ("JKS".equals(magic) || "BKS".equals(magic) || "DER".equals(magic)) {
-                    sb.append("\n提示：签名文件可用「长按 → 签名信息」输入密码后解析别名与证书。\n");
+                    sb.append(s(R.string.hx_sig_hint));
                 }
                 text = sb.toString();
                 final String ft = text;
@@ -1060,14 +1067,15 @@ public class HexViewerActivity extends BaseActivity {
                         sv.addView(tv);
                         FileInspect.Elf elf = FileInspect.parseElf(data);
                         AlertDialog.Builder b = new HfDialogBuilder(HexViewerActivity.this)
-                                .setTitle("文件解析")
+                                .setTitle(R.string.hx_parse_title)
                                 .setView(sv)
-                                .setPositiveButton("复制", new DialogInterface.OnClickListener() {
+                                .setPositiveButton(R.string.copy_text, new DialogInterface.OnClickListener() {
                                     public void onClick(DialogInterface d, int w) { copy(ft); }
                                 })
-                                .setNegativeButton("关闭", null);
+                                .setNegativeButton(R.string.common_close, null);
                         if (elf != null && !elf.sections.isEmpty()) {
-                            b.setNeutralButton("跳到节…", new DialogInterface.OnClickListener() {
+                            b.setNeutralButton(R.string.hx_jump_section,
+                                    new DialogInterface.OnClickListener() {
                                 public void onClick(DialogInterface d, int w) { askSection(elf); }
                             });
                         }
@@ -1086,24 +1094,24 @@ public class HexViewerActivity extends BaseActivity {
             if (s.type == 0 && (s.name == null || s.name.length() == 0)) continue;
             if (s.size <= 0) continue;
             secs.add(s);
-            labels.add((s.name == null || s.name.length() == 0 ? "(匿名节)" : s.name)
+            labels.add((s.name == null || s.name.length() == 0 ? s(R.string.hx_section_anon) : s.name)
                     + "   " + s.typeName() + "   off=0x" + Long.toHexString(s.offset)
                     + "   " + FileOps.formatSize(s.size));
         }
-        if (labels.isEmpty()) { toast("没有可跳转的节"); return; }
+        if (labels.isEmpty()) { toast(R.string.hx_no_sections); return; }
         new HfDialogBuilder(this)
-                .setTitle("跳到节")
+                .setTitle(R.string.hx_jump_section_title)
                 .setItems(labels.toArray(new String[0]), new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int which) {
                         FileInspect.Section s = secs.get(which);
                         if (s.offset >= data.length) {
-                            toast("该节偏移超出已加载范围");
+                            toast(R.string.hx_section_out);
                             return;
                         }
                         gotoOffset((int) s.offset);
                     }
                 })
-                .setNegativeButton("关闭", null)
+                .setNegativeButton(R.string.common_close, null)
                 .show();
     }
 
@@ -1118,7 +1126,7 @@ public class HexViewerActivity extends BaseActivity {
         final TextView status = (TextView) v.findViewById(R.id.dlg_status);
 
         sp.setAdapter(new ArrayAdapter<String>(this,
-                android.R.layout.simple_spinner_dropdown_item, TYPE_LABELS));
+                android.R.layout.simple_spinner_dropdown_item, typeLabels()));
         sp.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             public void onItemSelected(AdapterView<?> a, View view, int pos, long id) {
                 rg.setVisibility(HexCore.isNumeric(TYPE_VALS[pos]) ? View.VISIBLE : View.GONE);
@@ -1129,11 +1137,11 @@ public class HexViewerActivity extends BaseActivity {
         });
 
         final AlertDialog dlg = new HfDialogBuilder(this)
-                .setTitle("类型搜索")
+                .setTitle(R.string.hx_search_title)
                 .setView(v)
-                .setPositiveButton("搜索", null)
-                .setNeutralButton("下一项", null)
-                .setNegativeButton("上一项", null)
+                .setPositiveButton(R.string.main_search, null)
+                .setNeutralButton(R.string.hx_next_match, null)
+                .setNegativeButton(R.string.hx_prev_match, null)
                 .show();
 
         dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
@@ -1144,14 +1152,14 @@ public class HexViewerActivity extends BaseActivity {
                 try {
                     pat = HexCore.patternFor(TYPE_VALS[pos], input.getText().toString(), be);
                 } catch (IllegalArgumentException e) {
-                    status.setText(e.getMessage());
+                    status.setText(hexError(e));
                     return;
                 }
                 matches = HexCore.findAll(data, pat);
                 patLen = pat.length;
                 curMatch = 0;
                 if (matches.length == 0) {
-                    status.setText("未找到匹配");
+                    status.setText(R.string.hx_no_match);
                     adapter.notifyDataSetChanged();
                     return;
                 }
@@ -1181,11 +1189,11 @@ public class HexViewerActivity extends BaseActivity {
 
     private String hintFor(Type t) {
         switch (t) {
-            case HEX: return "十六进制，如 DE AD BE EF";
-            case TEXT: return "文本（UTF-8），如 hello";
+            case HEX: return s(R.string.hx_hint_hex);
+            case TEXT: return s(R.string.hx_hint_text);
             case FLOAT32:
-            case FLOAT64: return "浮点数，如 3.14";
-            default: return "整数，如 12345";
+            case FLOAT64: return s(R.string.hx_hint_float);
+            default: return s(R.string.hx_hint_int);
         }
     }
 
@@ -1196,7 +1204,7 @@ public class HexViewerActivity extends BaseActivity {
                 break;
             }
         }
-        baseBtn.setText("进制 " + BASE_NAME[idxOfBase(codeBase)]);
+        baseBtn.setText(s(R.string.hx_base, BASE_NAME[idxOfBase(codeBase)]));
         measureTextSize();
         header.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, headPx);
         header.setText(headerLine());
@@ -1217,7 +1225,7 @@ public class HexViewerActivity extends BaseActivity {
         box.setPadding(dp(22), dp(14), dp(22), dp(2));
 
         TextView label = new TextView(this);
-        label.setText("字号");
+        label.setText(R.string.hx_font_label);
         label.setTextSize(15);
         label.setTextColor(ThemeManager.text(this));
         box.addView(label);
@@ -1265,16 +1273,16 @@ public class HexViewerActivity extends BaseActivity {
         TextView tip = new TextView(this);
         tip.setTextSize(11);
         tip.setTextColor(ThemeManager.textSub(this));
-        tip.setText("100% = 按屏宽自适应铺满一行；放大后左右滑动查看整行，列头会跟着对齐。");
+        tip.setText(R.string.hx_font_tip);
         box.addView(tip);
 
         box.addView(preview);
 
         new HfDialogBuilder(this)
-                .setTitle("显示设置")
+                .setTitle(R.string.hx_font_title)
                 .setView(box)
-                .setPositiveButton("完成", null)
-                .setNeutralButton("恢复默认", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.hx_done, null)
+                .setNeutralButton(R.string.hx_font_reset, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) { applyFontScale(1f); }
                 })
                 .show();
@@ -1309,17 +1317,17 @@ public class HexViewerActivity extends BaseActivity {
 
     private void askCharset() {
         new HfDialogBuilder(this)
-                .setTitle("文本预览字符集")
+                .setTitle(R.string.hx_charset_title)
                 .setSingleChoiceItems(CHARSETS, indexOfCharset(), new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         charsetName = CHARSETS[w];
                         charsetBtn.setText(charsetName);
                         d.dismiss();
                         adapter.notifyDataSetChanged();
-                        toast("字符集：" + charsetName);
+                        toast(s(R.string.hx_charset_toast, charsetName));
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -1331,8 +1339,9 @@ public class HexViewerActivity extends BaseActivity {
     private void askCopy() {
         if (data == null) return;
         new HfDialogBuilder(this)
-                .setTitle("复制")
-                .setItems(new String[]{"当前行 HEX", "当前行文本", "选中字节（光标处 1 字节）"},
+                .setTitle(R.string.hx_copy_title)
+                .setItems(new String[]{s(R.string.hx_copy_row_hex),
+                                s(R.string.hx_copy_row_text), s(R.string.hx_copy_byte)},
                         new DialogInterface.OnClickListener() {
                             public void onClick(DialogInterface d, int w) {
                                 int base = selectedRow * ROW;
@@ -1340,28 +1349,28 @@ public class HexViewerActivity extends BaseActivity {
                                     int idx = base + cursorCol;
                                     if (idx < data.length) {
                                         copy(String.format(Locale.US, "%02X", data[idx] & 0xFF));
-                                        toast("已复制 " + (data[idx] & 0xFF));
+                                        toast(s(R.string.hx_copied_byte, data[idx] & 0xFF));
                                     }
                                     return;
                                 }
                                 int end = Math.min(base + ROW, data.length);
-                                if (end <= base) { toast("此行没有数据"); return; }
+                                if (end <= base) { toast(R.string.hx_row_empty); return; }
                                 if (w == 0) {
                                     copy(HexCore.bytesToHex(data, base, end - base));
-                                    toast("已复制 HEX");
+                                    toast(R.string.hx_copied_hex);
                                 } else {
                                     copy(decodeRow(base, end - base));
-                                    toast("已复制文本");
+                                    toast(R.string.hx_copied_text);
                                 }
                             }
                         })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     private void copy(String text) {
         ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        if (cm == null) { toast("剪贴板不可用"); return; }
+        if (cm == null) { toast(R.string.hx_clip_unavailable); return; }
         cm.setPrimaryClip(ClipData.newPlainText("hex", text));
     }
 
@@ -1371,5 +1380,44 @@ public class HexViewerActivity extends BaseActivity {
 
     private void toast(String s) {
         Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
+    }
+
+    private void toast(int resId) {
+        toast(getString(resId));
+    }
+
+    private String s(int resId) {
+        return getString(resId);
+    }
+
+    private String s(int resId, Object... args) {
+        return getString(resId, args);
+    }
+
+    /** 搜索输入不合法 → 文案（F-14/18：HexCore 只给 {@link HexCore.Code}） */
+    private String hexError(IllegalArgumentException e) {
+        if (!(e instanceof HexCore.Fail)) {
+            String m = e.getMessage();
+            return m == null || m.isEmpty() ? s(R.string.hx_err_generic) : m;
+        }
+        HexCore.Fail f = (HexCore.Fail) e;
+        switch (f.code) {
+            case EMPTY:
+                return s(R.string.hx_err_empty);
+            case NOT_INT:
+                return s(R.string.hx_err_not_int);
+            case RANGE:
+                return s(R.string.hx_err_range, f.min(), f.max());
+            case RANGE_U64:
+                return s(R.string.hx_err_range_u64);
+            case NEG_INT:
+                return s(R.string.hx_err_neg);
+            case ODD_HEX:
+                return s(R.string.hx_err_odd_hex);
+            case BAD_HEX:
+                return s(R.string.hx_err_bad_hex, f.ch());
+            default:
+                return s(R.string.hx_err_unknown_type);
+        }
     }
 }
