@@ -317,8 +317,8 @@ public final class SignFlowController {
                     byte[] bytes = FileOps.readAllBytes(f);
                     sb.append("文件: ").append(f.getName()).append("（")
                             .append(FileOps.formatSize(f.length())).append("）\n");
-                    sb.append("格式: ").append(FileInspect.typeLabel(
-                            FileInspect.readHead(f, 16), f.getName())).append('\n');
+                    sb.append("格式: ").append(com.hex91.file.ui.FileReport.typeText(
+                            host.ctx(), FileInspect.readHead(f, 16), f.getName())).append('\n');
                     sb.append("文件头: ").append(FileInspect.hexHead(
                             FileInspect.readHead(f, 16), 8)).append("\n\n");
                     List<KeyStoreUtil.AliasInfo> list =

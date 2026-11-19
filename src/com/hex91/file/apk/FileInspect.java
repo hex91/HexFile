@@ -1,17 +1,10 @@
 package com.hex91.file.apk;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.List;
 import java.util.Locale;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
 
 /**
  * 文件结构解析（v1.68.0，纯 Java，可桌面单测）：
@@ -28,38 +21,44 @@ public final class FileInspect {
 
     // ============================================================ 魔数
 
-    /** 常见格式：魔数 + 类型说明 */
+    /**
+     * 常见格式：魔数 + 类型名 + 说明码。
+     *
+     * <p>v2.32.0（F-14/19）：第三列原来是中文说明句，直接拼进「文件解析」报告。
+     * apk 层不该知道语言，所以改存**说明码**（同 {@link #magicName} 的 ASCII 记号，
+     * 只是把 ZIP 的三个变体分开），文案由 ui 层 {@code FileReport} 按码取资源。</p>
+     */
     private static final Object[][] MAGICS = {
-            // {bytes, 需要的前缀长度, 名称, 说明}
-            {new int[]{0x7F, 'E', 'L', 'F'}, "ELF", "可执行文件 / 动态库 / 内核镜像"},
-            {new int[]{'P', 'K', 0x03, 0x04}, "ZIP", "ZIP 压缩包（APK/JAR/AAB 同族）"},
-            {new int[]{'P', 'K', 0x05, 0x06}, "ZIP", "空 ZIP / 已归档"},
-            {new int[]{'P', 'K', 0x07, 0x08}, "ZIP", "分卷 ZIP"},
-            {new int[]{'d', 'e', 'x', '\n', '0'}, "DEX", "Dalvik 字节码"},
-            {new int[]{0xFE, 0xED, 0xFE, 0xED}, "JKS", "Java KeyStore（JDK keytool 默认）"},
-            {new int[]{0xBC, 0xCF, 0x25, 0x20}, "BKS", "BouncyCastle KeyStore（Android 常用）"},
-            {new int[]{0xCE, 0xCE, 0xCE, 0xCE}, "BKS", "BouncyCastle KeyStore（旧版）"},
-            {new int[]{0x30, 0x82}, "DER", "ASN.1 DER（PKCS12 / X.509 证书 / 私钥）"},
-            {new int[]{0x30, 0x81}, "DER", "ASN.1 DER（PKCS12 / X.509 证书 / 私钥）"},
-            {new int[]{0x02, 0x00, 0x0C, 0x00}, "ARSC", "Android resources.arsc 资源表"},
-            {new int[]{0x03, 0x00, 0x08, 0x00}, "AXML", "Android 二进制 XML（AndroidManifest 等）"},
-            {new int[]{0x89, 'P', 'N', 'G'}, "PNG", "PNG 图片"},
-            {new int[]{0xFF, 0xD8, 0xFF}, "JPEG", "JPEG 图片"},
-            {new int[]{'G', 'I', 'F', '8'}, "GIF", "GIF 图片"},
-            {new int[]{'R', 'I', 'F', 'F'}, "RIFF", "RIFF 容器（WAV/AVI/WEBP）"},
-            {new int[]{0x1F, 0x8B}, "GZIP", "gzip 压缩"},
-            {new int[]{0xFD, '7', 'z', 'X', 'Z', 0x00}, "XZ", "xz 压缩"},
-            {new int[]{0x28, 0xB5, 0x2F, 0xFD}, "ZSTD", "zstd 压缩"},
-            {new int[]{'7', 'z', 0xBC, 0xAF, 0x27, 0x1C}, "7Z", "7-Zip 压缩"},
-            {new int[]{'R', 'a', 'r', '!'}, "RAR", "RAR 压缩"},
-            {new int[]{'%', 'P', 'D', 'F'}, "PDF", "PDF 文档"},
-            {new int[]{0xCA, 0xFE, 0xBA, 0xBE}, "CLASS", "Java class 字节码"},
-            {new int[]{'M', 'Z'}, "PE", "Windows PE（exe/dll）"},
-            {new int[]{0x00, 'a', 's', 'm'}, "WASM", "WebAssembly 模块"},
-            {new int[]{0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00}, "TTF", "TrueType 字体"},
-            {new int[]{'O', 'T', 'T', 'O'}, "OTF", "OpenType 字体"},
-            {new int[]{'u', 's', 't', 'a', 'r'}, "TAR", "tar 归档"},
-            {new int[]{0x53, 0x51, 0x4C, 0x69, 0x74, 0x65}, "SQLITE", "SQLite 数据库"},
+            // {bytes, 名称, 说明码}
+            {new int[]{0x7F, 'E', 'L', 'F'}, "ELF", "ELF"},
+            {new int[]{'P', 'K', 0x03, 0x04}, "ZIP", "ZIP"},
+            {new int[]{'P', 'K', 0x05, 0x06}, "ZIP", "ZIP_EMPTY"},
+            {new int[]{'P', 'K', 0x07, 0x08}, "ZIP", "ZIP_SPLIT"},
+            {new int[]{'d', 'e', 'x', '\n', '0'}, "DEX", "DEX"},
+            {new int[]{0xFE, 0xED, 0xFE, 0xED}, "JKS", "JKS"},
+            {new int[]{0xBC, 0xCF, 0x25, 0x20}, "BKS", "BKS"},
+            {new int[]{0xCE, 0xCE, 0xCE, 0xCE}, "BKS", "BKS_OLD"},
+            {new int[]{0x30, 0x82}, "DER", "DER"},
+            {new int[]{0x30, 0x81}, "DER", "DER"},
+            {new int[]{0x02, 0x00, 0x0C, 0x00}, "ARSC", "ARSC"},
+            {new int[]{0x03, 0x00, 0x08, 0x00}, "AXML", "AXML"},
+            {new int[]{0x89, 'P', 'N', 'G'}, "PNG", "PNG"},
+            {new int[]{0xFF, 0xD8, 0xFF}, "JPEG", "JPEG"},
+            {new int[]{'G', 'I', 'F', '8'}, "GIF", "GIF"},
+            {new int[]{'R', 'I', 'F', 'F'}, "RIFF", "RIFF"},
+            {new int[]{0x1F, 0x8B}, "GZIP", "GZIP"},
+            {new int[]{0xFD, '7', 'z', 'X', 'Z', 0x00}, "XZ", "XZ"},
+            {new int[]{0x28, 0xB5, 0x2F, 0xFD}, "ZSTD", "ZSTD"},
+            {new int[]{'7', 'z', 0xBC, 0xAF, 0x27, 0x1C}, "7Z", "7Z"},
+            {new int[]{'R', 'a', 'r', '!'}, "RAR", "RAR"},
+            {new int[]{'%', 'P', 'D', 'F'}, "PDF", "PDF"},
+            {new int[]{0xCA, 0xFE, 0xBA, 0xBE}, "CLASS", "CLASS"},
+            {new int[]{'M', 'Z'}, "PE", "PE"},
+            {new int[]{0x00, 'a', 's', 'm'}, "WASM", "WASM"},
+            {new int[]{0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00}, "TTF", "TTF"},
+            {new int[]{'O', 'T', 'T', 'O'}, "OTF", "OTF"},
+            {new int[]{'u', 's', 't', 'a', 'r'}, "TAR", "TAR"},
+            {new int[]{0x53, 0x51, 0x4C, 0x69, 0x74, 0x65}, "SQLITE", "SQLITE"},
     };
 
     /** 前 16 字节的十六进制（空格分隔），用于「文件头」展示 */
@@ -89,8 +88,9 @@ public final class FileInspect {
         return null;
     }
 
-    private static String magicDesc(byte[] d) {
-        if (d == null) return "";
+    /** 魔数对应的说明码（无法识别返回 null），文案在 ui 层按码取 */
+    public static String magicDescTag(byte[] d) {
+        if (d == null) return null;
         for (Object[] m : MAGICS) {
             int[] sig = (int[]) m[0];
             if (d.length < sig.length) continue;
@@ -100,30 +100,37 @@ public final class FileInspect {
             }
             if (hit) return (String) m[2];
         }
-        return "未知格式";
+        return null;
     }
 
-    /** 结合扩展名细化类型（APK / JAR / PKCS12 vs 证书 / BKS…） */
-    public static String typeLabel(byte[] d, String fileName) {
+    /**
+     * 结合扩展名细化类型 —— 只回**类型码**（v2.32.0，F-14/19）。
+     *
+     * <p>取值：{@code APK} / {@code JAR} / {@code AAB} / {@code PKCS12} / {@code X509} /
+     * {@code DER} / {@code JKS_MISMATCH} / {@code BKS_MISMATCH} / {@code UNKNOWN}，
+     * 其余直接回魔数名（{@code ELF} / {@code ZIP} / {@code PNG} …）。
+     * 文案由 ui 层 {@code FileReport.typeText} 拼，apk 层不再产出中文。</p>
+     */
+    public static String typeCode(byte[] d, String fileName) {
         String magic = magicName(d);
         String lower = fileName == null ? "" : fileName.toLowerCase(Locale.US);
         if ("ZIP".equals(magic)) {
-            if (lower.endsWith(".apk")) return "APK（ZIP 容器）";
-            if (lower.endsWith(".jar")) return "JAR（ZIP 容器）";
-            if (lower.endsWith(".aab")) return "AAB（ZIP 容器）";
+            if (lower.endsWith(".apk")) return "APK";
+            if (lower.endsWith(".jar")) return "JAR";
+            if (lower.endsWith(".aab")) return "AAB";
         }
         if ("DER".equals(magic)) {
-            if (lower.endsWith(".p12") || lower.endsWith(".pfx")) return "PKCS#12 keystore";
+            if (lower.endsWith(".p12") || lower.endsWith(".pfx")) return "PKCS12";
             if (lower.endsWith(".cer") || lower.endsWith(".crt") || lower.endsWith(".pem"))
-                return "X.509 证书";
-            return "ASN.1 DER（可能是 PKCS12/证书）";
+                return "X509";
+            return "DER";
         }
         if (magic == null) {
-            if (lower.endsWith(".jks")) return "JKS（魔数不符）";
-            if (lower.endsWith(".bks")) return "BKS（魔数不符）";
-            return "未知/纯文本";
+            if (lower.endsWith(".jks")) return "JKS_MISMATCH";
+            if (lower.endsWith(".bks")) return "BKS_MISMATCH";
+            return "UNKNOWN";
         }
-        return magic + " · " + magicDesc(d);
+        return magic;
     }
 
     /** DEX 版本号（如 035），非 DEX 返回 null */
@@ -194,13 +201,14 @@ public final class FileInspect {
         public final List<Section> sections = new ArrayList<Section>();
         public String comment;         // .comment（编译器/构建信息）
 
-        public String typeName() {
+        /** ELF 类型码（NONE/REL/EXEC/DYN/CORE 或 0x…），注解文案在 ui 层 */
+        public String typeCode() {
             switch (type) {
                 case 0: return "NONE";
-                case 1: return "REL（可重定位目标）";
-                case 2: return "EXEC（可执行）";
-                case 3: return "DYN（共享库 / PIE）";
-                case 4: return "CORE（核心转储）";
+                case 1: return "REL";
+                case 2: return "EXEC";
+                case 3: return "DYN";
+                case 4: return "CORE";
                 default: return "0x" + Integer.toHexString(type);
             }
         }
@@ -211,7 +219,7 @@ public final class FileInspect {
                 case 8: return "MIPS";
                 case 20: return "PowerPC";
                 case 21: return "PowerPC64";
-                case 40: return "ARM (32 位)";
+                case 40: return "ARM";
                 case 62: return "x86-64";
                 case 183: return "AArch64 (ARM64)";
                 case 243: return "RISC-V";
@@ -328,125 +336,6 @@ public final class FileInspect {
             else sb.append('.');
         }
         return sb.toString().replaceAll("\\s+", " ").trim();
-    }
-
-    // ============================================================ 汇总文本
-
-    /** 完整的「文件解析」文本（Hex 编辑器信息面板用） */
-    public static String describe(byte[] data, String fileName, long realSize) {
-        StringBuilder sb = new StringBuilder(1024);
-        sb.append("文件名: ").append(fileName).append('\n');
-        sb.append("文件大小: ").append(realSize).append(" 字节")
-                .append(data != null && realSize > data.length
-                        ? "（已读取前 " + data.length + " 字节）" : "").append('\n');
-        if (data == null || data.length == 0) {
-            sb.append("\n（空文件）");
-            return sb.toString();
-        }
-        sb.append("文件头: ").append(hexHead(data, 16)).append('\n');
-        sb.append("魔数/类型: ").append(typeLabel(data, fileName)).append('\n');
-        String dex = dexVersion(data);
-        if (dex != null) sb.append("dex 版本: ").append(dex).append('\n');
-        int jks = jksVersion(data);
-        if (jks > 0) sb.append("JKS 版本: ").append(jks / 100).append('.').append(jks % 100).append('\n');
-
-        Elf elf = parseElf(data);
-        if (elf != null) {
-            sb.append('\n').append("== ELF 头 ==\n");
-            sb.append("位宽: ").append(elf.bits).append(" 位 · 字节序: ")
-                    .append(elf.little ? "小端 (LE)" : "大端 (BE)").append('\n');
-            sb.append("类型: ").append(elf.typeName()).append('\n');
-            sb.append("机器: ").append(elf.machineName()).append('\n');
-            sb.append("入口地址: 0x").append(Long.toHexString(elf.entry)).append('\n');
-            sb.append("程序头: ").append(elf.phnum).append(" 个 @ 0x")
-                    .append(Long.toHexString(elf.phoff)).append('\n');
-            sb.append("节头: ").append(elf.shnum).append(" 个 @ 0x")
-                    .append(Long.toHexString(elf.shoff)).append("（条目 ").append(elf.shentsize)
-                    .append(" 字节）\n");
-            sb.append("标志: 0x").append(Integer.toHexString(elf.flags)).append('\n');
-            if (elf.comment != null && elf.comment.length() > 0)
-                sb.append(".comment: ").append(elf.comment).append('\n');
-            sb.append('\n').append("== 节表 ==\n");
-            int shown = 0;
-            for (Section s : elf.sections) {
-                if (s.name == null || s.name.length() == 0) {
-                    if (s.type == 0) continue;          // 跳过 NULL 节
-                }
-                if (shown >= 40) { sb.append("…（共 ").append(elf.sections.size()).append(" 个节）\n"); break; }
-                sb.append(String.format(Locale.US, "%-18s %-10s %-3s 0x%08x  %8d  %s",
-                        s.name.length() == 0 ? "(匿名)" : s.name, s.typeName(), s.flagsText(),
-                        s.addr, s.size, s.outside ? "（超出已读范围）" : ""));
-                sb.append('\n');
-                shown++;
-            }
-            if (elf.truncated) sb.append("（节表超出已读取范围，仅解析到可读部分）\n");
-        } else if ("ARSC".equals(magicName(data))) {
-            sb.append("\n资源表（resources.arsc）：可用长按菜单「ARSC 编辑」查看条目。\n");
-        } else if ("AXML".equals(magicName(data))) {
-            sb.append("\n二进制 XML：可用「Manifest 编辑器++」或反编译查看。\n");
-        }
-        return sb.toString();
-    }
-
-    /**
-     * ZIP/APK 的签名信息：META-INF 下的签名块 + 证书主题/有效期。
-     * 需要真实文件（内存切片读不到中央目录）。
-     */
-    public static String signatureInfo(File f) {
-        StringBuilder sb = new StringBuilder();
-        ZipFile zf = null;
-        try {
-            zf = new ZipFile(f);
-            List<String> blocks = new ArrayList<String>();
-            List<String> certs = new ArrayList<String>();
-            Enumeration<? extends ZipEntry> en = zf.entries();
-            while (en.hasMoreElements()) {
-                ZipEntry ze = en.nextElement();
-                String n = ze.getName().toUpperCase(Locale.US);
-                if (!n.startsWith("META-INF/")) continue;
-                if (n.endsWith(".RSA") || n.endsWith(".DSA") || n.endsWith(".EC") || n.endsWith(".SF")) {
-                    blocks.add(ze.getName() + "  (" + ze.getSize() + " 字节)");
-                    if (!n.endsWith(".SF")) {
-                        InputStream in = zf.getInputStream(ze);
-                        try {
-                            ByteArrayOutputStream bo = new ByteArrayOutputStream();
-                            byte[] buf = new byte[8192];
-                            int r;
-                            while ((r = in.read(buf)) > 0) bo.write(buf, 0, r);
-                            // 注意：APK v1 的 .RSA/.DSA/.EC 是 PKCS#7 SignedData（不是裸证书），
-                            // 必须用 generateCertificates 解析，generateCertificate 会报 "Too short"
-                            CertificateFactory cf = CertificateFactory.getInstance("X.509");
-                            java.util.Collection<? extends java.security.cert.Certificate> chain =
-                                    cf.generateCertificates(
-                                            new java.io.ByteArrayInputStream(bo.toByteArray()));
-                            for (java.security.cert.Certificate c : chain) {
-                                if (!(c instanceof X509Certificate)) continue;
-                                X509Certificate x = (X509Certificate) c;
-                                certs.add("主题: " + x.getSubjectDN().getName()
-                                        + "\n签发者: " + x.getIssuerDN().getName()
-                                        + "\n有效期: " + x.getNotBefore() + " ~ " + x.getNotAfter()
-                                        + "\n算法: " + x.getSigAlgName()
-                                        + "\nSHA-256: " + KeyStoreUtil.fingerprint(x, "SHA-256"));
-                            }
-                        } finally {
-                            in.close();
-                        }
-                    }
-                }
-            }
-            if (blocks.isEmpty()) {
-                sb.append("META-INF 下没有签名块（未签名或 v2/v3 仅用 APK Signing Block）。\n");
-            } else {
-                sb.append("== 签名块 ==\n");
-                for (String s : blocks) sb.append(s).append('\n');
-            }
-            for (String c : certs) sb.append('\n').append("== 证书 ==\n").append(c).append('\n');
-        } catch (Throwable t) {
-            sb.append("签名信息解析失败: ").append(t.getMessage()).append('\n');
-        } finally {
-            if (zf != null) try { zf.close(); } catch (Exception ignored) {}
-        }
-        return sb.toString();
     }
 
     /** 读文件前 n 字节（读取失败返回 null） */

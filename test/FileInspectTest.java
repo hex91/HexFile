@@ -38,8 +38,8 @@ public class FileInspectTest {
                 check(hasText, "含 .text 节");
                 check(hasDynstr, "含 .dynstr 节");
                 check(named, "节名已从 shstrtab 解析");
-                String desc = FileInspect.describe(d, so64.getName(), so64.length());
-                check(desc.contains("AArch64") && desc.contains("节表"), "描述含机器与节表");
+                // v2.32.0：报告文本移到 ui 层（FileReport），这里只校验解析结果
+                check(e.machineName().contains("AArch64"), "机器名 AArch64");
                 check(!e.sections.isEmpty() && e.sections.get(0).type == 0, "首节为 NULL 节");
             }
         } else {
@@ -61,12 +61,12 @@ public class FileInspectTest {
         // ---- 3. 非 ELF 魔数 ----
         byte[] apk = FileInspect.readHead(new File("test/huangguo.apk"), 4096);
         check("ZIP".equals(FileInspect.magicName(apk)), "APK 魔数为 ZIP");
-        check(FileInspect.typeLabel(apk, "a.apk").startsWith("APK"), "扩展名细化 APK");
+        check("APK".equals(FileInspect.typeCode(apk, "a.apk")), "扩展名细化 APK");
 
         File p12 = new File("assets/hexfile.p12");
         byte[] kb = FileInspect.readHead(p12, (int) p12.length());
         check("DER".equals(FileInspect.magicName(kb)), "PKCS12 魔数为 DER");
-        check(FileInspect.typeLabel(kb, "hexfile.p12").contains("PKCS#12"), "扩展名细化 PKCS12");
+        check("PKCS12".equals(FileInspect.typeCode(kb, "hexfile.p12")), "扩展名细化 PKCS12");
 
         File jks = new File("test/custom_test.jks");
         if (jks.isFile()) {
@@ -80,14 +80,21 @@ public class FileInspectTest {
         // ---- 4. 空/超短数据不崩 ----
         check(FileInspect.magicName(new byte[0]) == null, "空数据返回 null 魔数");
         check(FileInspect.parseElf(new byte[]{0x7F, 'E'}) == null, "短数据 parseElf 返回 null");
-        check(FileInspect.describe(new byte[0], "e", 0).contains("空文件"), "空文件描述");
+        check(FileInspect.magicDescTag(new byte[0]) == null, "空数据无说明码");
 
-        // ---- 5. ZIP 签名信息 ----
-        String sig = FileInspect.signatureInfo(new File("test/huangguo.apk"));
-        check(sig != null && sig.length() > 0, "签名信息非空");
-        check(sig.contains("META-INF") || sig.contains("签名"), "签名信息含 META-INF/说明");
-        System.out.println("---- 签名信息片段 ----");
-        System.out.println(sig.length() > 600 ? sig.substring(0, 600) : sig);
+        // ---- 5. ZIP 签名块存在（文本层已移到 ui，这里只校验结构） ----
+        java.util.zip.ZipFile zf = new java.util.zip.ZipFile(new File("test/huangguo.apk"));
+        boolean hasSig = false;
+        try {
+            java.util.Enumeration<? extends java.util.zip.ZipEntry> en = zf.entries();
+            while (en.hasMoreElements()) {
+                String n = en.nextElement().getName().toUpperCase(java.util.Locale.US);
+                if (n.startsWith("META-INF/") && (n.endsWith(".RSA") || n.endsWith(".SF"))) hasSig = true;
+            }
+        } finally {
+            zf.close();
+        }
+        check(hasSig, "APK 含 META-INF 签名块");
 
         System.out.println();
         System.out.println("RESULT  pass=" + pass + " fail=" + fail);

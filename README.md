@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：1428 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：1508 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,56 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.32.0（versionCode 225）—— F-14/19：文件解析报告拆到 ui 层
+
+`FileInspect` 77 处中文字面量，全都是「文件解析」那份多行报告里的标签与说明句。这页不像
+别的页面那样换几个键就完事 —— 报告是**在 apk 层拼成整段文本**再交给 HEX 编辑器显示的，
+换键就得先让 apk 层能拿到语言，而这一层连 `Context` 都没有。
+
+### 拆法：解析留在 apk，文案搬到 ui
+
+| 保留在 `apk/FileInspect`（纯 Java + 可桌面单测） | 搬到新类 `ui/FileReport`（拿 `Context`） |
+| --- | --- |
+| `magicName` / `parseElf` / `readHead` / `jksVersion` / `dexVersion` / `hexHead` | `describe()` 报告正文 |
+| `typeCode()`（APK / JAR / PKCS12 / X509 / JKS_MISMATCH …） | `typeText()` 类型行 |
+| `magicDescTag()`（ELF / ZIP_EMPTY / BKS_OLD … 29 个说明码） | 说明码 → 说明句 |
+| `Elf.typeCode()`（NONE/REL/EXEC/DYN/CORE）、`machineName()`（AArch64…） | `elfTypeText()` / `machineText()` 补注解 |
+
+魔数表第三列原来是中文说明句，现在改存**说明码**；`ZIP` 的三个变体（普通 / 空 / 分卷）
+原来共用一句「ZIP 压缩包」，拆码后各有一句 —— 顺带把「空 ZIP 被说成普通 ZIP」这个
+小错也修了。
+
+`Elf.typeName()` 改名 `typeCode()`：原来它返回 `"REL（可重定位目标）"`，现在只回 `REL`，
+注解在 ui 侧。`machineName()` 里唯一的中文 `"ARM (32 位)"` 同理，代码里回 `ARM`，
+ui 按码补「32 位」。
+
+### 表格对齐不受译文影响
+
+节表是等宽字体下的定宽表格（`%-18s %-10s %-3s 0x%08x  %8d  %s`），标签只有「匿名」和
+「超出已读范围」两处走资源，其余是节名/类型码/十六进制数字 —— 英文再长也不会串列。
+类型码（`PROGBITS` / `SYMTAB` …）本来就是 ASCII，不翻。
+
+### 连带改动
+
+- `SignFlowController.parseKeystore` 的「格式: 」一行改用 `FileReport.typeText`（该页
+  自身其余文案留给它自己的版本）。
+- `FileInspectTest` 里 4 处「断言报告文本含某中文词」的用例改为断言**解析结果**
+  （`typeCode` / `machineName` / `magicDescTag`）+ 用 `ZipFile` 直接校验 META-INF 签名块，
+  不再依赖文案 —— 这类断言以前改一个字就红。
+
+### 验证
+
+- `FileInspect` 中文字面量 **77 → 0**；新类 `FileReport` 0 处中文字面量
+- 新增 80 个 `fi_*` 键；资源总量 **1428 → 1508 条**
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 1508 条 100% 一致
+  （引用 1465 键 / 29 文件）/ 动作号 55
+- `QUICK=1` **97 通过 / 0 失败 / 4 跳过**
+- `aapt2 dump resources` 抽查 `fi_shdr`（3 个参数）/ `fi_sec_more`（前导 `…`）/
+  `fi_type_join`：中英双变体齐全
+- APK **13,275,856 B**，md5 `74d9ced3…`
 
 ---
 

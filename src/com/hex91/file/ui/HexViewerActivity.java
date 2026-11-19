@@ -1043,10 +1043,10 @@ public class HexViewerActivity extends BaseActivity {
             public void run() {
                 String text;
                 String magic = FileInspect.magicName(data);
-                StringBuilder sb = new StringBuilder(FileInspect.describe(
-                        data, file.getName(), fileSize));
+                StringBuilder sb = new StringBuilder(FileReport.describe(
+                        HexViewerActivity.this, data, file.getName(), fileSize));
                 if ("ZIP".equals(magic)) {
-                    sb.append('\n').append(FileInspect.signatureInfo(file));
+                    sb.append('\n').append(FileReport.signatureInfo(HexViewerActivity.this, file));
                 } else if ("JKS".equals(magic) || "BKS".equals(magic) || "DER".equals(magic)) {
                     sb.append(s(R.string.hx_sig_hint));
                 }
