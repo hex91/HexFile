@@ -1981,4 +1981,39 @@
     <string name="ca_err_timeout">网络超时：请检查网络或代理</string>
     <string name="ca_err_dns">域名解析失败：请检查网络/DNS</string>
     <string name="ca_err_tls">TLS 失败：系统时间不准或网络被劫持</string>
+
+    <!-- v2.41.0 Activity 记录（ActivityLogActivity） -->
+    <string name="al_need_acc_title">需要无障碍权限</string>
+    <string name="al_need_acc_msg">"Android 不允许普通应用直接读取别的应用当前页面，只能通过无障碍服务拿到「哪个应用打开了哪个 Activity」。\n\n请到「设置 → 无障碍 → HexFile 的 Activity 记录」打开开关，返回后会自动开始记录。\n\n若开关是灰的或提示「受限制的设置」，先到「应用信息 → 右上角 ⋮ → 允许受限制的设置」放开限制。\n\n本功能只读取包名与类名，不读取屏幕内容、不联网、不上传。"</string>
+    <string name="al_go_enable">去开启</string>
+    <string name="al_later">稍后</string>
+    <string name="al_need_overlay">还需要「显示在其他应用上层」权限才能显示浮窗</string>
+    <string name="al_stopped">已停止记录</string>
+    <string name="al_acc_title">无障碍权限</string>
+    <string name="al_acc_msg">"请在「设置 → 无障碍 → 已下载的服务 / HexFile」中开启 Activity 记录。\n\n若开关是灰的或提示「受限制的设置」，先到「应用信息 → 右上角 ⋮ → 允许受限制的设置」放开限制。\n\n只读取包名与 Activity 类名，不读取屏幕内容。"</string>
+    <string name="al_go_settings">去设置</string>
+    <string name="al_ready">权限已就绪</string>
+    <string name="al_overlay_page_fail">无法打开悬浮窗权限页，请到系统设置手动授权</string>
+    <string name="al_float_fail">浮窗启动失败：%1$s</string>
+    <string name="al_perm_acc_on">无障碍服务：已开启</string>
+    <string name="al_perm_acc_off">无障碍服务：未开启（点此去开启）</string>
+    <string name="al_perm_ov_on">"\n悬浮窗权限：已授权"</string>
+    <string name="al_perm_ov_off">"\n悬浮窗权限：未授权（点此去授权）"</string>
+    <string name="al_perm_running">"\n状态：记录中，浮窗显示中"</string>
+    <string name="al_perm_ready">"\n状态：已就绪"</string>
+    <string name="al_sub_recording">记录中 · %1$d 条</string>
+    <string name="al_sub_stopped">已停止</string>
+    <string name="al_no_entries">还没有记录</string>
+    <string name="al_clear_title">清空记录</string>
+    <string name="al_clear_msg">将删除当前 %1$d 条页面切换记录（不影响浮窗开关）。</string>
+    <string name="al_clear">清空</string>
+    <string name="al_detail">"应用：%1$s\n包名：%2$s\nActivity：%3$s\n最近：%4$s"</string>
+    <string name="al_detail_count">"应用：%1$s\n包名：%2$s\nActivity：%3$s\n最近：%4$s（连续 %5$d 次）"</string>
+    <string name="al_copy">复制</string>
+    <string name="al_launch">启动</string>
+    <string name="al_app_info">应用信息</string>
+    <string name="al_copied">已复制：%1$s</string>
+    <string name="al_copy_fail">复制失败</string>
+    <string name="al_launch_fail">无法启动：%1$s（该页面可能未导出或已删除）</string>
+    <string name="al_app_info_fail">无法打开应用信息</string>
 </resources>

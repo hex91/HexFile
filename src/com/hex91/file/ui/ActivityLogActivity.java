@@ -164,25 +164,19 @@ public class ActivityLogActivity extends BaseActivity {
         refreshStatus();
         if (!ActivityTraceService.isEnabled(this)) {
             new HfDialogBuilder(this)
-                    .setTitle("需要无障碍权限")
-                    .setMessage("Android 不允许普通应用直接读取别的应用当前页面，"
-                            + "只能通过无障碍服务拿到「哪个应用打开了哪个 Activity」。\n\n"
-                            + "请到「设置 → 无障碍 → HexFile 的 Activity 记录」打开开关，"
-                            + "返回后会自动开始记录。\n\n"
-                            + "若开关是灰的或提示「受限制的设置」，先到「应用信息 → 右上角 ⋮ → "
-                            + "允许受限制的设置」放开限制。\n\n"
-                            + "本功能只读取包名与类名，不读取屏幕内容、不联网、不上传。")
-                    .setPositiveButton("去开启", new DialogInterface.OnClickListener() {
+                    .setTitle(R.string.al_need_acc_title)
+                    .setMessage(R.string.al_need_acc_msg)
+                    .setPositiveButton(R.string.al_go_enable, new DialogInterface.OnClickListener() {
                         public void onClick(DialogInterface d, int w) {
                             ActivityTraceService.openSettings(ActivityLogActivity.this);
                         }
                     })
-                    .setNegativeButton("稍后", null)
+                    .setNegativeButton(R.string.al_later, null)
                     .show();
             return;
         }
         if (!canOverlay(this)) {
-            toast("还需要「显示在其他应用上层」权限才能显示浮窗");
+            toast(getString(R.string.al_need_overlay));
             requestOverlay();
             return;
         }
@@ -197,23 +191,20 @@ public class ActivityLogActivity extends BaseActivity {
         ActivityLog.setRecording(false);
         stopService(new Intent(this, ActivityFloatService.class));
         refreshStatus();
-        toast("已停止记录");
+        toast(getString(R.string.al_stopped));
     }
 
     private void fixPermission() {
         if (!ActivityTraceService.isEnabled(this)) {
             new HfDialogBuilder(this)
-                    .setTitle("无障碍权限")
-                    .setMessage("请在「设置 → 无障碍 → 已下载的服务 / HexFile」中开启 Activity 记录。\n\n"
-                            + "若开关是灰的或提示「受限制的设置」，先到「应用信息 → 右上角 ⋮ → "
-                            + "允许受限制的设置」放开限制。\n\n"
-                            + "只读取包名与 Activity 类名，不读取屏幕内容。")
-                    .setPositiveButton("去设置", new DialogInterface.OnClickListener() {
+                    .setTitle(R.string.al_acc_title)
+                    .setMessage(R.string.al_acc_msg)
+                    .setPositiveButton(R.string.al_go_settings, new DialogInterface.OnClickListener() {
                         public void onClick(DialogInterface d, int w) {
                             ActivityTraceService.openSettings(ActivityLogActivity.this);
                         }
                     })
-                    .setNegativeButton("取消", null)
+                    .setNegativeButton(R.string.common_cancel, null)
                     .show();
             return;
         }
@@ -222,7 +213,7 @@ public class ActivityLogActivity extends BaseActivity {
             return;
         }
         if (!ActivityFloatService.running) startFloat();
-        toast("权限已就绪");
+        toast(getString(R.string.al_ready));
     }
 
     private void requestOverlay() {
@@ -231,7 +222,7 @@ public class ActivityLogActivity extends BaseActivity {
             startActivityForResult(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:" + getPackageName())), REQ_OVERLAY);
         } catch (Throwable t) {
-            toast("无法打开悬浮窗权限页，请到系统设置手动授权");
+            toast(getString(R.string.al_overlay_page_fail));
         }
     }
 
@@ -255,7 +246,7 @@ public class ActivityLogActivity extends BaseActivity {
             else startService(it);
             prefs().edit().putBoolean(ActivityTraceService.KEY_FLOAT, true).apply();
         } catch (Throwable t) {
-            toast("浮窗启动失败：" + t.getClass().getSimpleName());
+            toast(getString(R.string.al_float_fail, t.getClass().getSimpleName()));
         }
     }
 
@@ -263,17 +254,18 @@ public class ActivityLogActivity extends BaseActivity {
         boolean acc = ActivityTraceService.isEnabled(this);
         boolean ov = canOverlay(this);
         StringBuilder sb = new StringBuilder();
-        sb.append("无障碍服务：").append(acc ? "已开启" : "未开启（点此去开启）");
-        sb.append("\n悬浮窗权限：").append(ov ? "已授权" : "未授权（点此去授权）");
+        sb.append(getString(acc ? R.string.al_perm_acc_on : R.string.al_perm_acc_off));
+        sb.append(getString(ov ? R.string.al_perm_ov_on : R.string.al_perm_ov_off));
         if (acc && ov) {
-            sb.append("\n状态：").append(ActivityFloatService.running ? "记录中，浮窗显示中" : "已就绪");
+            sb.append(getString(ActivityFloatService.running
+                    ? R.string.al_perm_running : R.string.al_perm_ready));
         }
         permTv.setText(sb.toString());
         permTv.setTextColor(!acc || !ov ? 0xFFFF9800 : ThemeManager.textSub(this));
 
         sub.setText(ActivityLog.isRecording()
-                ? "记录中 · " + ActivityLog.size() + " 条"
-                : "已停止");
+                ? getString(R.string.al_sub_recording, ActivityLog.size())
+                : getString(R.string.al_sub_stopped));
     }
 
     // ============================================================ 浮窗条数
@@ -320,42 +312,42 @@ public class ActivityLogActivity extends BaseActivity {
 
     private void askClear() {
         if (data.isEmpty()) {
-            toast("还没有记录");
+            toast(getString(R.string.al_no_entries));
             return;
         }
         new HfDialogBuilder(this)
-                .setTitle("清空记录")
-                .setMessage("将删除当前 " + data.size() + " 条页面切换记录（不影响浮窗开关）。")
-                .setPositiveButton("清空", new DialogInterface.OnClickListener() {
+                .setTitle(R.string.al_clear_title)
+                .setMessage(getString(R.string.al_clear_msg, data.size()))
+                .setPositiveButton(R.string.al_clear, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         ActivityLog.clear();
                         reload();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     private void showEntry(final ActivityLog.Entry e) {
-        String msg = "应用：" + e.label + "\n"
-                + "包名：" + e.pkg + "\n"
-                + "Activity：" + e.cls + "\n"
-                + "最近：" + timeText(e.time)
-                + (e.count > 1 ? "（连续 " + e.count + " 次）" : "");
+        String msg = e.count > 1
+                ? getString(R.string.al_detail_count,
+                        e.label, e.pkg, e.cls, timeText(e.time), e.count)
+                : getString(R.string.al_detail,
+                        e.label, e.pkg, e.cls, timeText(e.time));
         new HfDialogBuilder(this)
                 .setTitle(e.shortName())
                 .setMessage(msg)
-                .setPositiveButton("复制", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.al_copy, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         copy(e.pkg + ":" + e.cls);
                     }
                 })
-                .setNeutralButton("启动", new DialogInterface.OnClickListener() {
+                .setNeutralButton(R.string.al_launch, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         launch(e);
                     }
                 })
-                .setNegativeButton("应用信息", new DialogInterface.OnClickListener() {
+                .setNegativeButton(R.string.al_app_info, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         openAppInfo(e.pkg);
                     }
@@ -367,9 +359,9 @@ public class ActivityLogActivity extends BaseActivity {
         try {
             ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             cm.setPrimaryClip(ClipData.newPlainText("activity", s));
-            toast("已复制：" + s);
+            toast(getString(R.string.al_copied, s));
         } catch (Throwable t) {
-            toast("复制失败");
+            toast(getString(R.string.al_copy_fail));
         }
     }
 
@@ -380,7 +372,7 @@ public class ActivityLogActivity extends BaseActivity {
             it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(it);
         } catch (Throwable t) {
-            toast("无法启动：" + t.getClass().getSimpleName() + "（该页面可能未导出或已删除）");
+            toast(getString(R.string.al_launch_fail, t.getClass().getSimpleName()));
         }
     }
 
@@ -389,7 +381,7 @@ public class ActivityLogActivity extends BaseActivity {
             startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                     Uri.parse("package:" + pkg)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         } catch (Throwable t) {
-            toast("无法打开应用信息");
+            toast(getString(R.string.al_app_info_fail));
         }
     }
 

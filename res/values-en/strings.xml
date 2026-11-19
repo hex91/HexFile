@@ -1973,4 +1973,39 @@
     <string name="ca_err_timeout">Network timeout: check your network or proxy</string>
     <string name="ca_err_dns">DNS lookup failed: check your network / DNS</string>
     <string name="ca_err_tls">TLS failure: the system clock may be off or the network is being intercepted</string>
+
+    <!-- v2.41.0 Activity log (ActivityLogActivity) -->
+    <string name="al_need_acc_title">Accessibility permission required</string>
+    <string name="al_need_acc_msg">"Android does not let an ordinary app read another app\'s current screen; only an accessibility service can learn which app opened which Activity.\n\nOpen Settings \u2192 Accessibility \u2192 HexFile Activity log and turn the switch on; recording starts automatically when you come back.\n\nIf the switch is greyed out or the system says Restricted settings, first allow it under App info \u2192 \u22ee (top right) \u2192 Allow restricted settings.\n\nThis feature only reads the package name and the class name. It does not read screen content, does not use the network and does not upload anything."</string>
+    <string name="al_go_enable">Turn it on</string>
+    <string name="al_later">Later</string>
+    <string name="al_need_overlay">The Display over other apps permission is also required to show the floating window</string>
+    <string name="al_stopped">Recording stopped</string>
+    <string name="al_acc_title">Accessibility permission</string>
+    <string name="al_acc_msg">"Open Settings \u2192 Accessibility \u2192 Downloaded services / HexFile and turn on Activity log.\n\nIf the switch is greyed out or the system says Restricted settings, first allow it under App info \u2192 \u22ee (top right) \u2192 Allow restricted settings.\n\nOnly the package name and the Activity class name are read, never screen content."</string>
+    <string name="al_go_settings">Open settings</string>
+    <string name="al_ready">Permissions ready</string>
+    <string name="al_overlay_page_fail">Cannot open the overlay permission page; grant it manually in the system settings</string>
+    <string name="al_float_fail">Failed to start the floating window: %1$s</string>
+    <string name="al_perm_acc_on">Accessibility service: on</string>
+    <string name="al_perm_acc_off">Accessibility service: off (tap to enable)</string>
+    <string name="al_perm_ov_on">"\nOverlay permission: granted"</string>
+    <string name="al_perm_ov_off">"\nOverlay permission: not granted (tap to grant)"</string>
+    <string name="al_perm_running">"\nStatus: recording, floating window shown"</string>
+    <string name="al_perm_ready">"\nStatus: ready"</string>
+    <string name="al_sub_recording">Recording \u00b7 %1$d entries</string>
+    <string name="al_sub_stopped">Stopped</string>
+    <string name="al_no_entries">No entries yet</string>
+    <string name="al_clear_title">Clear the log</string>
+    <string name="al_clear_msg">%1$d page-switch entries will be deleted (the floating window switch is not affected).</string>
+    <string name="al_clear">Clear</string>
+    <string name="al_detail">"App: %1$s\nPackage: %2$s\nActivity: %3$s\nLast seen: %4$s"</string>
+    <string name="al_detail_count">"App: %1$s\nPackage: %2$s\nActivity: %3$s\nLast seen: %4$s (%5$d times in a row)"</string>
+    <string name="al_copy">Copy</string>
+    <string name="al_launch">Launch</string>
+    <string name="al_app_info">App info</string>
+    <string name="al_copied">Copied: %1$s</string>
+    <string name="al_copy_fail">Copy failed</string>
+    <string name="al_launch_fail">Cannot launch: %1$s (the screen may not be exported or has been removed)</string>
+    <string name="al_app_info_fail">Cannot open app info</string>
 </resources>

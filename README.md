@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：1879 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：1912 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,71 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.41.0（versionCode 234）—— F-14/28：Activity 记录页 i18n
+
+`ActivityLogActivity` 53 处中文字面量清零。这一页有三处「看着能拼、其实不能拼」的地方。
+
+### 1. 状态三行：标签 + 值 → 六个整句
+
+权限状态面板原来是「标签 + 条件值」拼接：
+
+```java
+sb.append("无障碍服务：").append(acc ? "已开启" : "未开启（点此去开启）");
+sb.append("\n悬浮窗权限：").append(ov ? "已授权" : "未授权（点此去授权）");
+sb.append("\n状态：").append(running ? "记录中，浮窗显示中" : "已就绪");
+```
+
+拆成「标签键 + 值键」最省事，但英文里 `tap to enable` 要跟在括号里、冒号后要空格、
+`on / off` 与「已开启 / 未开启」的否定形式不对称——拼起来必然有一边别扭。
+所以每行整句一个键，2 + 2 + 2 = 6 个：
+
+| 键 | 中文 | 英文 |
+| --- | --- | --- |
+| `al_perm_acc_on` / `al_perm_acc_off` | `无障碍服务：已开启` / `…未开启（点此去开启）` | `Accessibility service: on` / `…: off (tap to enable)` |
+| `al_perm_ov_on` / `al_perm_ov_off` | `\n悬浮窗权限：已授权` / `…未授权（点此去授权）` | `\nOverlay permission: granted` / `…not granted (tap to grant)` |
+| `al_perm_running` / `al_perm_ready` | `\n状态：记录中，浮窗显示中` / `\n状态：已就绪` | `\nStatus: recording, floating window shown` / `\nStatus: ready` |
+
+第二、三行的前导 `\n`（承接上一行）写在资源里并整值加引号，行与行之间不再有 Java 侧的拼接。
+
+### 2. 详情弹窗：四行 + 可选尾注 → 两个整句
+
+原来是「四个 `标签：值` + 可选 `（连续 N 次）`」：
+
+```java
+"应用：" + e.label + "\n" + "包名：" + e.pkg + "\n" + "Activity：" + e.cls + "\n"
+        + "最近：" + timeText(e.time) + (e.count > 1 ? "（连续 " + e.count + " 次）" : "")
+```
+
+尾注紧贴时间值、没有分隔符，所以不能做成独立句。改成两个整句键
+（`al_detail` 4 参数 / `al_detail_count` 5 参数），由调用方按 `count` 二选一。
+
+### 3. 两段无障碍说明整段进资源
+
+`al_need_acc_msg`（4 段，含权限路径与「受限制的设置」的绕法）、`al_acc_msg`（3 段）
+各自是一个键。这两段是**让用户照着点**的操作路径，段落顺序本身就是信息，
+行级拆分只会让译者把「先去应用信息放开限制」挪到「打开服务开关」之后。
+
+### 4. 英文裸单引号（第二次踩）
+
+`al_need_acc_msg` 里的 `another app's current screen` 必须写 `app\'s`，否则
+aapt2 直接 `unescaped apostrophe` 编译失败。v2.40.0 已在 `CloudAuthDialog` 踩过一次，
+这次写的时候就带上了；仍记在 README 里，因为后续英文长句还会遇到 `don't` / `user's`。
+
+### 验证
+
+- `ActivityLogActivity` 中文字面量 **53 → 0**
+- 新增 33 个 `al_*` 键；资源总量 **1879 → 1912 条**（引用 1869 键 / 40 文件）
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 1912 条 100% 一致 /
+  动作号 55
+- `QUICK=1` **97 通过 / 0 失败 / 4 跳过**
+- `aapt2 dump resources` 抽查 `al_perm_ov_on`（前导 `\n` 未折叠）、`al_perm_acc_off`、
+  `al_detail_count`（5 个参数）、`al_need_acc_msg`（4 段中英段落数一致）、
+  `al_need_overlay`：中英双变体齐全
+- 构建 3 分 26 秒，APK **13,341,392 B**（`db7688b5…`），`aapt2 dump badging`
+  反证 versionCode 234 / 2.41.0
 
 ---
 
