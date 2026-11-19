@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：1566 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：1606 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,48 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.34.0（versionCode 227）—— F-14/21：ARSC 编辑器 i18n
+
+`ArscEditorActivity` 58 处中文字面量清到 0。这页是资源表的编辑界面，文案集中在
+「行渲染」（三级树：类型 → 资源名 → 各配置值）和四个对话框（编辑资源 / 编辑 bag /
+保存 / 退出拦截）。
+
+### 行渲染里的「状态标记」拆成整句
+
+```java
+// 以前：值 + 空格 + 标记，标记还是拼上去的
+val.setText("[" + r.config + "] " + v + (changed ? "   ✎ 已修改" : ""));
+```
+
+现在两整句（`ax_value_row` / `ax_value_row_changed`），按状态选一句 —— 英文的标记
+位置与空格数跟中文不一样，拼接必错位。类型行/资源名行的 `✎` 只是符号，不进资源。
+
+### `typeHint` 从 static 变实例方法
+
+`typeHint(int)` 原来返回「十进制整数 / 0x 十六进制 / 浮点数」，是 `static`；
+要取资源就得有 `Context`，改成实例方法（唯一调用点在 `applyEdit` 里）。
+
+### 顺带
+
+- 「保存后自动签名（长按设置密钥 / 签名方案）」这段勾选框文案在 ARSC / Manifest 两个
+  编辑器里各写一份，提成 `apk_autosign_hint` 共享（Manifest 页下一版吃过来）。
+- `IllegalStateException("提取失败: " + entryName)` 改成 ASCII 诊断串 —— 它经
+  「加载失败」对话框直接展示给用户，但那是**异常信息**，不属于正常文案；解析失败本身
+  已经有标题与结构说明，具体原因保留原文更有助于定位。
+
+### 验证
+
+- `ArscEditorActivity` 中文字面量 **58 → 0**（只剩注释）
+- 新增 40 个 `ax_*` + 1 个共享 `apk_autosign_hint`；资源总量 **1566 → 1606 条**
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 1606 条 100% 一致
+  （引用 1563 键 / 31 文件）/ 动作号 55
+- `QUICK=1` **97 通过 / 0 失败 / 4 跳过**
+- `aapt2 dump resources` 抽查 `ax_value_row_changed` / `ax_cfg_bag` / `ax_save_msg`
+  （两处 `\n\n`）：中英双变体齐全
+- APK **13,292,240 B**，md5 `7d28ab53…`
 
 ---
 

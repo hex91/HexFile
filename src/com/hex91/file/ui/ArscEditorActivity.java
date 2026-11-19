@@ -134,7 +134,7 @@ public class ArscEditorActivity extends BaseActivity {
 
         titleSub = (TextView) findViewById(R.id.arscpp_sub);
         // v1.67.4：顶栏标题不再沿用旧名「ARSC++」，与实际入口一致
-        ((TextView) findViewById(R.id.arscpp_title)).setText("ARSC 编辑器");
+        ((TextView) findViewById(R.id.arscpp_title)).setText(R.string.ax_title);
         searchBox = (EditText) findViewById(R.id.arscpp_search);
         listView = (ListView) findViewById(R.id.arscpp_list);
 
@@ -166,7 +166,7 @@ public class ArscEditorActivity extends BaseActivity {
 
     private void loadArsc() {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("解析 " + entryName + " …");
+        pd.setMessage(getString(R.string.ax_parsing, entryName));
         pd.setCancelable(false);
         pd.show();
         new Thread() { public void run() {
@@ -176,7 +176,7 @@ public class ArscEditorActivity extends BaseActivity {
                 workDir.mkdirs();
                 File arscFile = new File(workDir, "resources.arsc");
                 if (!extractZipEntry(apk, entryName, arscFile))
-                    throw new IllegalStateException("提取失败: " + entryName);
+                    throw new IllegalStateException("extract failed: " + entryName);
                 ApkEditSession.overlayPending(apk, entryName, arscFile); // 会话修改优先
                 arsc = ArscFile.parse(arscFile);
                 buildRows();
@@ -188,8 +188,9 @@ public class ArscEditorActivity extends BaseActivity {
                 pd.dismiss();
                 if (e != null) {
                     new HfDialogBuilder(ArscEditorActivity.this)
-                            .setTitle("加载失败").setMessage(e)
-                            .setPositiveButton("关闭", new DialogInterface.OnClickListener() {
+                            .setTitle(R.string.ax_load_fail).setMessage(e)
+                            .setPositiveButton(R.string.common_close,
+                                    new DialogInterface.OnClickListener() {
                                 public void onClick(DialogInterface d, int w) { finish(); }
                             }).show();
                 } else {
@@ -410,8 +411,8 @@ public class ArscEditorActivity extends BaseActivity {
         }
         int total = 0;
         for (Row r : allRows) if (!r.isHeader && !r.isName) total++;
-        titleSub.setText(pkgLine() + " · " + total + " 个值"
-                + (dirty ? " · ✎未保存" : ""));
+        titleSub.setText(getString(R.string.ax_value_count, pkgLine(), total)
+                + (dirty ? getString(R.string.ax_dirty) : ""));
         if (adapter == null) {
             adapter = new RowAdapter();
             listView.setAdapter(adapter);
@@ -477,7 +478,7 @@ public class ArscEditorActivity extends BaseActivity {
                 box.addView(tv);
                 if (renamed) {
                     TextView old = new TextView(ctx);      // 重命名后保留原名，便于核对
-                    old.setText("原资源名: " + r.name);
+                    old.setText(getString(R.string.ax_orig_name, r.name));
                     old.setTextSize(11);
                     old.setTextColor(ThemeManager.textSub(ArscEditorActivity.this));
                     box.addView(old);
@@ -486,7 +487,9 @@ public class ArscEditorActivity extends BaseActivity {
                 boolean changed = isChanged(r.entry);
                 TextView val = new TextView(ctx);
                 String v = shorten(displayValue(r), 150);
-                val.setText("[" + r.config + "] " + v + (changed ? "   ✎ 已修改" : ""));
+                val.setText(changed
+                        ? getString(R.string.ax_value_row_changed, r.config, v)
+                        : getString(R.string.ax_value_row, r.config, v));
                 val.setTextSize(13);
                 val.setTextColor(changed
                         ? ThemeManager.accent(ArscEditorActivity.this)
@@ -495,7 +498,8 @@ public class ArscEditorActivity extends BaseActivity {
                 box.addView(val);
                 if (changed) {
                     TextView old = new TextView(ctx);
-                    old.setText("原值: " + shorten(r.value == null ? "" : r.value, 150));
+                    old.setText(getString(R.string.ax_orig_value,
+                            shorten(r.value == null ? "" : r.value, 150)));
                     old.setTextSize(11);
                     old.setTextColor(ThemeManager.textSub(ArscEditorActivity.this));
                     old.setMaxLines(3);
@@ -534,12 +538,12 @@ public class ArscEditorActivity extends BaseActivity {
         final EditText nameEt = new EditText(this);
         nameEt.setText(currentName(r));   // 已改过则显示待保存的新名
         nameEt.setTextSize(14);
-        box.addView(label("资源名（同资源各配置一起改名）"));
+        box.addView(label(getString(R.string.ax_label_name)));
         box.addView(nameEt);
 
         TextView cfgTv = new TextView(this);
-        cfgTv.setText("配置: " + r.config + "    ID: " + r.resId
-                + (r.entry.getNamedValues() != null ? "    (bag/复杂条目)" : ""));
+        cfgTv.setText(getString(r.entry.getNamedValues() != null
+                ? R.string.ax_cfg_bag : R.string.ax_cfg, r.config, r.resId));
         cfgTv.setTextSize(12);
         cfgTv.setTextColor(ThemeManager.textSub(this));
         box.addView(cfgTv);
@@ -556,28 +560,28 @@ public class ArscEditorActivity extends BaseActivity {
             valEt.setInputType(InputType.TYPE_CLASS_TEXT);
         }
         valEt.setEnabled(editable);
-        box.addView(label("值"));
+        box.addView(label(getString(R.string.ax_label_value)));
         box.addView(valEt);
 
         if (isChanged(r.entry)) {
             TextView old = new TextView(this);
-            old.setText("原值: " + shorten(r.value == null ? "" : r.value, 200)
-                    + "\n（确定后标记为已修改，保存才写盘）");
+            old.setText(getString(R.string.ax_orig_value_note,
+                    shorten(r.value == null ? "" : r.value, 200)));
             old.setTextSize(11);
             old.setTextColor(ThemeManager.textSub(this));
             box.addView(old);
         }
 
         new HfDialogBuilder(this)
-                .setTitle("编辑资源")
+                .setTitle(R.string.ax_edit_title)
                 .setView(box)
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.common_confirm, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         applyEdit(r, nameEt.getText().toString(), valEt.getText().toString());
                     }
                 })
-                .setNegativeButton("取消", null)
-                .setNeutralButton("还原", new DialogInterface.OnClickListener() {
+                .setNegativeButton(R.string.common_cancel, null)
+                .setNeutralButton(R.string.ax_revert, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         // 撤销该资源的所有待保存修改（重命名 + 值）
                         removeRenameGroup(r);
@@ -601,19 +605,19 @@ public class ArscEditorActivity extends BaseActivity {
                     + (cur != null ? "   ✎" : "");
         }
         new HfDialogBuilder(this)
-                .setTitle(currentName(r) + "  (bag " + nvs.size() + " 项)")
+                .setTitle(getString(R.string.ax_bag_title, currentName(r), nvs.size()))
                 .setItems(labels, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int which) {
                         RawNamedValue nv = nvs.get(which);
                         if (ArscValues.isStringValue(nv.getRawValue())) {
                             showNamedValueDialog(r, which);
                         } else {
-                            toast("该项类型暂不支持编辑: 0x"
-                                    + Integer.toHexString(nv.getRawValue().getDataType()));
+                            toast(getString(R.string.ax_bag_unsupported,
+                                    Integer.toHexString(nv.getRawValue().getDataType())));
                         }
                     }
                 })
-                .setNegativeButton("关闭", null)
+                .setNegativeButton(R.string.common_close, null)
                 .show();
     }
 
@@ -639,9 +643,9 @@ public class ArscEditorActivity extends BaseActivity {
         et.setMinLines(2);
         box.addView(et);
         new HfDialogBuilder(this)
-                .setTitle("编辑 bag 值")
+                .setTitle(R.string.ax_bag_edit_title)
                 .setView(box)
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.common_confirm, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         String s = et.getText().toString();
                         if (s.equals(orig)) {
@@ -654,8 +658,8 @@ public class ArscEditorActivity extends BaseActivity {
                         rebuildAndReveal(r.entry);
                     }
                 })
-                .setNegativeButton("取消", null)
-                .setNeutralButton("还原", new DialogInterface.OnClickListener() {
+                .setNegativeButton(R.string.common_cancel, null)
+                .setNeutralButton(R.string.ax_revert, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         removeEdit(r.entry, ArscWriter.Edit.MAP_STRING, mapIndex);
                         rebuildAndReveal(r.entry);
@@ -682,7 +686,7 @@ public class ArscEditorActivity extends BaseActivity {
         ResourceEntry e = r.entry;
         String name = newName.trim();
         if (name.length() == 0) {
-            toast("资源名不能为空");
+            toast(R.string.ax_name_empty);
             return;
         }
 
@@ -695,7 +699,7 @@ public class ArscEditorActivity extends BaseActivity {
             if (!ArscValues.isStringValue(v)) {
                 raw = ArscValues.parseInput(v.getDataType(), newValue, arsc);
                 if (raw == null) {
-                    toast("值格式不符合类型（" + typeHint(v.getDataType()) + "）");
+                    toast(getString(R.string.ax_value_bad, typeHint(v.getDataType())));
                     return;
                 }
             }
@@ -727,7 +731,7 @@ public class ArscEditorActivity extends BaseActivity {
 
         // ---- 4. 重绘 + 定位 ----
         rebuildAndReveal(e);
-        toast(isChanged(e) ? "已标记修改，记得保存" : "已恢复为原值");
+        toast(isChanged(e) ? R.string.ax_marked : R.string.ax_restored);
     }
 
     /** 同一个资源（类型 + 原资源名）的所有配置条目一起改名 */
@@ -795,17 +799,17 @@ public class ArscEditorActivity extends BaseActivity {
         });
     }
 
-    private static String typeHint(int dataType) {
+    private String typeHint(int dataType) {
         switch (dataType) {
             case ArscDefs.TYPE_REFERENCE:
             case ArscDefs.TYPE_ATTRIBUTE:
             case ArscDefs.TYPE_DYNAMIC_REFERENCE:
             case ArscDefs.TYPE_DYNAMIC_ATTRIBUTE:
-                return "@0x 资源id 或 @type/name";
+                return getString(R.string.ax_hint_ref);
             case ArscDefs.TYPE_INT_DEC:
-                return "十进制整数";
+                return getString(R.string.ax_hint_dec);
             case ArscDefs.TYPE_INT_HEX:
-                return "0x 十六进制";
+                return getString(R.string.ax_hint_hex);
             case ArscDefs.TYPE_INT_BOOLEAN:
                 return "true / false";
             case ArscDefs.TYPE_INT_COLOR_ARGB8:
@@ -817,9 +821,9 @@ public class ArscEditorActivity extends BaseActivity {
             case ArscDefs.TYPE_INT_COLOR_RGB4:
                 return "#rgb";
             case ArscDefs.TYPE_FLOAT:
-                return "浮点数";
+                return getString(R.string.ax_hint_float);
             default:
-                return "该类型暂不支持编辑";
+                return getString(R.string.ax_hint_unsupported);
         }
     }
 
@@ -829,9 +833,9 @@ public class ArscEditorActivity extends BaseActivity {
 
     /** v1.67.4：保存（含可选自动签名）；exitWhenDone 用于退出拦截 */
     private void askSave(final boolean exitWhenDone) {
-        if (arsc == null) { toast("尚未加载完成"); return; }
+        if (arsc == null) { toast(R.string.ax_not_loaded); return; }
         if (!dirty) {
-            if (exitWhenDone) finish(); else toast("没有修改");
+            if (exitWhenDone) finish(); else toast(R.string.ax_no_changes);
             return;
         }
         float den = getResources().getDisplayMetrics().density;
@@ -840,29 +844,27 @@ public class ArscEditorActivity extends BaseActivity {
         int pad = (int) (20 * den);
         box.setPadding(pad, pad / 2, pad, 0);
         TextView tv = new TextView(this);
-        tv.setText("将 " + edits.size() + " 处修改写入 " + entryName
-                + " 并直接保存到该 APK：\n\n" + apk.getName()
-                + "\n\n（首次修改时自动备份为 同名_bak.apk）");
+        tv.setText(getString(R.string.ax_save_msg, edits.size(), entryName, apk.getName()));
         tv.setTextSize(15);
         tv.setTextColor(ThemeManager.text(this));
         box.addView(tv);
         final CheckBox autoSign = ApkSignHelper.addAutoSignCheckBox(this, box,
-                "保存后自动签名（长按设置密钥 / 签名方案）", true);
+                getString(R.string.apk_autosign_hint), true);
         new HfDialogBuilder(this)
-                .setTitle("保存修改")
+                .setTitle(R.string.ax_save_title)
                 .setView(box)
-                .setPositiveButton("保存", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.common_save, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         doSave(autoSign.isChecked(), exitWhenDone);
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     private void doSave(final boolean autoSign, final boolean exitWhenDone) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("写入 arsc …");
+        pd.setMessage(getString(R.string.ax_writing));
         pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
         pd.setMax(100);
         pd.setCancelable(false);
@@ -897,14 +899,14 @@ public class ArscEditorActivity extends BaseActivity {
                 pd.dismiss();
                 if (e != null) {
                     new HfDialogBuilder(ArscEditorActivity.this)
-                            .setTitle("保存失败").setMessage(e)
-                            .setPositiveButton("知道了", null).show();
+                            .setTitle(R.string.ax_save_fail_title).setMessage(e)
+                            .setPositiveButton(R.string.common_got_it, null).show();
                 } else {
                     edits.clear();          // 已写盘，待写队列清空（基线已换成新文件）
                     refreshChangedSet();
                     refresh();
-                    toast(autoSign ? "已保存并签名 → " + apk.getName()
-                                   : "已保存 → " + apk.getName() + "（未签名，可能无法安装）");
+                    toast(autoSign ? getString(R.string.ax_saved_signed, apk.getName())
+                                   : getString(R.string.ax_saved, apk.getName()));
                     if (exitWhenDone) finish();
                 }
             }});
@@ -921,28 +923,28 @@ public class ArscEditorActivity extends BaseActivity {
         int pad = (int) (20 * den);
         box.setPadding(pad, pad / 2, pad, 0);
         TextView tv = new TextView(this);
-        tv.setText(entryName + " 有 " + edits.size() + " 处修改尚未保存。\n\n" + apk.getName());
+        tv.setText(getString(R.string.ax_unsaved_msg, entryName, edits.size(), apk.getName()));
         tv.setTextSize(15);
         tv.setTextColor(ThemeManager.text(this));
         box.addView(tv);
         final CheckBox autoSign = ApkSignHelper.addAutoSignCheckBox(this, box,
-                "保存后自动签名（长按设置密钥 / 签名方案）", true);
+                getString(R.string.apk_autosign_hint), true);
         new HfDialogBuilder(this)
-                .setTitle("数据已修改")
+                .setTitle(R.string.ax_modified_title)
                 .setView(box)
-                .setPositiveButton("保存", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.common_save, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         doSave(autoSign.isChecked(), true);
                     }
                 })
-                .setNeutralButton("放弃修改", new DialogInterface.OnClickListener() {
+                .setNeutralButton(R.string.ax_discard, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         edits.clear();
                         refreshChangedSet();
                         finish();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -981,5 +983,9 @@ public class ArscEditorActivity extends BaseActivity {
 
     private void toast(String s) {
         Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
+    }
+
+    private void toast(int resId) {
+        toast(getString(resId));
     }
 }
