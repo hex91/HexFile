@@ -123,12 +123,12 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
         hint.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 node.probeNow();
-                hint.setText("正在重新搜索…");
+                hint.setText(R.string.lan_searching);
             }
         });
 
         TextView pick = (TextView) findViewById(R.id.lan_pick);
-        pick.setText("📄  选择文件");
+        pick.setText(R.string.lan_pick_file);
         pick.setPadding(dp(12), dp(9), dp(12), dp(9));
         UiDecor.paintPill(pick, this, true);
         pick.setOnClickListener(new View.OnClickListener() {
@@ -149,7 +149,7 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
         });
 
         TextView openDir = (TextView) findViewById(R.id.lan_recv_open);
-        openDir.setText("📂 打开目录");
+        openDir.setText(R.string.lan_open_dir);
         openDir.setPadding(UiDecor.dp(this, 10), UiDecor.dp(this, 6),
                 UiDecor.dp(this, 10), UiDecor.dp(this, 6));
         UiDecor.paintPill(openDir, this, false);
@@ -158,7 +158,7 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
         });
 
         TextView refresh = (TextView) findViewById(R.id.lan_recv_refresh);
-        refresh.setText("⟳ 刷新");
+        refresh.setText(R.string.lan_refresh);
         refresh.setPadding(UiDecor.dp(this, 10), UiDecor.dp(this, 6),
                 UiDecor.dp(this, 10), UiDecor.dp(this, 6));
         UiDecor.paintPill(refresh, this, false);
@@ -166,8 +166,9 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
             public void onClick(View v) { refreshReceived(); }
         });
 
-        sub.setText("本机 " + node.selfName() + (LanNet.localIp().length() > 0
-                ? " · " + LanNet.localIp() : ""));
+        String ip = LanNet.localIp();
+        sub.setText(getString(R.string.lan_self, node.selfName(),
+                ip.length() > 0 ? getString(R.string.lan_self_ip, ip) : ""));
 
         String path = getIntent() == null ? null : getIntent().getStringExtra(EXTRA_PATH);
         if (path != null) {
@@ -177,7 +178,8 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
                 sendName = f.getName();
                 sendSize = f.length();
             } else {
-                Toast.makeText(this, "文件不可读：" + path, Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, getString(R.string.lan_unreadable, path),
+                        Toast.LENGTH_SHORT).show();
             }
         }
         updateFileCard();
@@ -190,11 +192,11 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
         super.onResume();
         node.addListener(this);
         if (!node.start()) {
-            state.setText("○  未就绪");
+            state.setText(R.string.lan_state_idle);
             state.setTextColor(0xFF9E9E9E);
-            hint.setText("接收服务未能启动，请检查是否有其他应用占用了发现端口");
+            hint.setText(R.string.lan_start_fail);
         } else {
-            state.setText("●  接收中");
+            state.setText(R.string.lan_state_recv);
             state.setTextColor(0xFF5CFFC8);
         }
         radar.start();
@@ -245,14 +247,15 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
     @Override
     public void onReceiveProgress(String name, long got, long total) {
         int pct = total > 0 ? (int) (got * 100 / total) : 0;
-        hint.setText("正在接收 " + name + " · " + pct + "%");
+        hint.setText(getString(R.string.lan_receiving, name, pct));
     }
 
     @Override
     public void onReceived(String name, long size, File saved) {
-        hint.setText("已接收 " + name + " · " + FileOps.formatSize(size) + " → "
-                + (saved == null ? node.saveDir().getAbsolutePath() : saved.getParent()));
-        Toast.makeText(this, "收到文件：" + name, Toast.LENGTH_LONG).show();
+        hint.setText(getString(R.string.lan_received, name, FileOps.formatSize(size),
+                saved == null ? node.saveDir().getAbsolutePath() : saved.getParent()));
+        Toast.makeText(this, getString(R.string.lan_received_toast, name),
+                Toast.LENGTH_LONG).show();
         // 正在看接收列表时立刻出现，否则只更新标签上的计数
         refreshReceived();
     }
@@ -268,7 +271,7 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
         deviceBox.removeAllViews();
         if (list == null || list.isEmpty()) {
             TextView empty = new TextView(this);
-            empty.setText("未发现设备\n确认两台手机连同一个 Wi-Fi、都安装了本应用并停在这一页");
+            empty.setText(R.string.lan_no_device);
             empty.setTextSize(12);
             empty.setGravity(Gravity.CENTER);
             empty.setPadding(0, dp(18), 0, dp(18));
@@ -276,15 +279,15 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
             empty.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) {
                     node.probeNow();
-                    hint.setText("正在重新搜索…");
+                    hint.setText(R.string.lan_searching);
                 }
             });
             deviceBox.addView(empty, new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-            hint.setText("未发现设备 · 点此重新搜索");
+            hint.setText(R.string.lan_no_device_hint);
             return;
         }
-        hint.setText("发现 " + list.size() + " 台设备 · 点击雷达光点或下方设备发送");
+        hint.setText(getString(R.string.lan_found, list.size()));
         for (int i = 0; i < list.size(); i++) {
             deviceBox.addView(deviceRow(list.get(i)));
         }
@@ -323,14 +326,15 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
         name.setEllipsize(android.text.TextUtils.TruncateAt.END);
         texts.addView(name);
         TextView addr = new TextView(this);
-        addr.setText(d.host + ":" + d.port + " · 同一网络");
+        addr.setText(getString(R.string.lan_addr, d.host, d.port));
         addr.setTextSize(10.5f);
         addr.setTextColor(ThemeManager.textSub(this));
         texts.addView(addr);
         card.addView(texts, new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        TextView send = UiDecor.action(this, "📤", "发送", ThemeManager.accent(this));
+        TextView send = UiDecor.action(this, "📤", getString(R.string.lan_send),
+                ThemeManager.accent(this));
         card.addView(send);
         return card;
     }
@@ -343,8 +347,9 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
         recvPath.setText(dir.getAbsolutePath());
         recvBox.removeAllViews();
         List<File> files = LanProtocol.receivedFiles(dir);
-        recvCount.setText("接收列表 · " + files.size() + " 个文件");
-        tabRecv.setText(files.isEmpty() ? "📥  接收列表" : "📥  接收列表 · " + files.size());
+        recvCount.setText(getString(R.string.lan_recv_count, files.size()));
+        tabRecv.setText(files.isEmpty() ? getString(R.string.lan_tab_recv)
+                : getString(R.string.lan_tab_recv_n, files.size()));
 
         if (files.isEmpty()) {
             recvBox.addView(emptyReceived(dir));
@@ -362,14 +367,14 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
         box.setPadding(dp(16), dp(28), dp(16), dp(16));
 
         TextView tip = new TextView(this);
-        tip.setText("还没有收到文件");
+        tip.setText(R.string.lan_recv_empty);
         tip.setTextSize(14);
         tip.setTextColor(ThemeManager.textSub(this));
         tip.setGravity(Gravity.CENTER);
         box.addView(tip);
 
         TextView path = new TextView(this);
-        path.setText("保存位置：" + dir.getAbsolutePath());
+        path.setText(getString(R.string.lan_save_to, dir.getAbsolutePath()));
         path.setTextSize(11);
         path.setTextColor(ThemeManager.textSub(this));
         path.setGravity(Gravity.CENTER);
@@ -377,7 +382,7 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
         box.addView(path);
 
         TextView how = new TextView(this);
-        how.setText("对方在快传页选中你之后，文件会直接出现在这里");
+        how.setText(R.string.lan_recv_how);
         how.setTextSize(11);
         how.setTextColor(ThemeManager.textSub(this));
         how.setGravity(Gravity.CENTER);
@@ -406,12 +411,12 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
         card.setLayoutParams(lp);
 
         TextView t = new TextView(this);
-        t.setText("旧目录还有 " + count + " 个文件\n" + from.getAbsolutePath());
+        t.setText(getString(R.string.lan_legacy, count, from.getAbsolutePath()));
         t.setTextSize(11);
         t.setTextColor(ThemeManager.textSub(this));
         card.addView(t);
 
-        TextView go = UiDecor.pill(this, "📦", "搬到新目录", false);
+        TextView go = UiDecor.pill(this, "📦", getString(R.string.lan_migrate), false);
         LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         glp.topMargin = dp(8);
@@ -473,13 +478,15 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
         alp.topMargin = dp(8);
         acts.setLayoutParams(alp);
 
-        TextView open = UiDecor.action(this, "📂", "打开", ThemeManager.accent(this));
+        TextView open = UiDecor.action(this, "📂", getString(R.string.lan_open),
+                ThemeManager.accent(this));
         open.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { openFile(f); }
         });
         acts.addView(open);
 
-        TextView locate = UiDecor.action(this, "📍", "定位", ThemeManager.ok(this));
+        TextView locate = UiDecor.action(this, "📍", getString(R.string.lan_locate),
+                ThemeManager.ok(this));
         LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         llp.leftMargin = dp(6);
@@ -489,7 +496,8 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
         });
         acts.addView(locate);
 
-        TextView del = UiDecor.action(this, "🗑", "删除", ThemeManager.err(this));
+        TextView del = UiDecor.action(this, "🗑", getString(R.string.common_delete),
+                ThemeManager.err(this));
         LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         dlp.leftMargin = dp(6);
@@ -505,26 +513,30 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
 
     private void confirmDelete(final File f) {
         new HfDialogBuilder(this)
-                .setTitle("删除文件")
-                .setMessage("从接收目录删除「" + f.getName() + "」？\n（只删本地这一份，不影响发送方）")
-                .setPositiveButton("删除", new DialogInterface.OnClickListener() {
+                .setTitle(R.string.lan_del_title)
+                .setMessage(getString(R.string.lan_del_msg, f.getName()))
+                .setPositiveButton(R.string.common_delete,
+                        new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         if (f.delete()) {
-                            Toast.makeText(LanShareActivity.this, "已删除", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(LanShareActivity.this, R.string.lan_deleted,
+                                    Toast.LENGTH_SHORT).show();
                         } else {
-                            Toast.makeText(LanShareActivity.this,
-                                    "删除失败（存储只读或权限不足）", Toast.LENGTH_LONG).show();
+                            Toast.makeText(LanShareActivity.this, R.string.lan_del_fail,
+                                    Toast.LENGTH_LONG).show();
                         }
                         refreshReceived();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     /** 把旧目录的文件搬进新目录（同卷 rename 很快，跨卷退化成流拷贝） */
     private void migrate(final File from, final File to) {
-        final ProgressDialog pd = ProgressDialog.show(this, "搬迁文件", "正在移动…", true, false);
+        final ProgressDialog pd = ProgressDialog.show(this,
+                getString(R.string.lan_migrate_title), getString(R.string.lan_migrating),
+                true, false);
         new Thread(new Runnable() {
             public void run() {
                 List<File> files = LanProtocol.receivedFiles(from);
@@ -538,7 +550,8 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
                     public void run() {
                         try { pd.dismiss(); } catch (Throwable ignored) { }
                         Toast.makeText(LanShareActivity.this,
-                                "已搬移 " + fok + " 个文件" + (ffail > 0 ? "，失败 " + ffail : ""),
+                                ffail > 0 ? getString(R.string.lan_migrated_part, fok, ffail)
+                                        : getString(R.string.lan_migrated, fok),
                                 Toast.LENGTH_LONG).show();
                         refreshReceived();
                     }
@@ -612,29 +625,29 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
 
     private void askSend(final LanProtocol.Device d) {
         if (sending) {
-            Toast.makeText(this, "正在发送，请等当前传输结束", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.lan_sending_busy, Toast.LENGTH_SHORT).show();
             return;
         }
         if (sendFile == null && sendUri == null) {
             pendingTarget = d;
-            Toast.makeText(this, "先选择要发送的文件", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.lan_pick_first, Toast.LENGTH_SHORT).show();
             pickFile();
             return;
         }
         new HfDialogBuilder(this)
-                .setTitle("发送到 " + d.name)
+                .setTitle(getString(R.string.lan_send_to, d.name))
                 .setMessage(sendName + "\n" + FileOps.formatSize(sendSize))
-                .setPositiveButton("发送", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.lan_send, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface di, int w) { startSend(d); }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     private void startSend(final LanProtocol.Device d) {
         sending = true;
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setTitle("正在发送");
+        pd.setTitle(getString(R.string.lan_sending_title));
         pd.setMessage(sendName);
         pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
         pd.setMax(100);
@@ -652,16 +665,16 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
                 sending = false;
                 try { pd.dismiss(); } catch (Throwable ignored) { }
                 Toast.makeText(LanShareActivity.this,
-                        "发送完成：" + sendName, Toast.LENGTH_LONG).show();
-                hint.setText("已发送 " + sendName + " 到 " + d.name);
+                        getString(R.string.lan_send_done, sendName), Toast.LENGTH_LONG).show();
+                hint.setText(getString(R.string.lan_sent_to, sendName, d.name));
             }
 
             public void onError(String msg) {
                 sending = false;
                 try { pd.dismiss(); } catch (Throwable ignored) { }
                 Toast.makeText(LanShareActivity.this,
-                        "发送失败：" + msg, Toast.LENGTH_LONG).show();
-                hint.setText("发送失败 · " + msg);
+                        getString(R.string.lan_send_fail, msg), Toast.LENGTH_LONG).show();
+                hint.setText(getString(R.string.lan_send_fail_hint, msg));
             }
         };
 
@@ -681,7 +694,8 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
             i.setType("*/*");
             startActivityForResult(i, REQ_PICK);
         } catch (Throwable t) {
-            Toast.makeText(this, "无法打开文件选择器：" + t.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, getString(R.string.lan_pick_fail, t.getMessage()),
+                    Toast.LENGTH_LONG).show();
         }
     }
 
@@ -724,7 +738,7 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
     /** 少数 provider 不给 SIZE，先落到缓存目录，才能给出准确 Content-Length */
     private void copyToCache(final Uri uri, final String name) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("准备文件…");
+        pd.setMessage(getString(R.string.lan_preparing));
         pd.setCancelable(false);
         pd.show();
         new Thread(new Runnable() {
@@ -736,7 +750,7 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
                     dir.mkdirs();
                     out = new File(dir, name);
                     in = getContentResolver().openInputStream(uri);
-                    if (in == null) throw new java.io.IOException("无法读取文件");
+                    if (in == null) throw new java.io.IOException("cannot read the picked file");
                     FileOutputStream os = new FileOutputStream(out);
                     byte[] buf = new byte[64 * 1024];
                     int n;
@@ -759,7 +773,8 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
                         public void run() {
                             try { pd.dismiss(); } catch (Throwable ignored) { }
                             Toast.makeText(LanShareActivity.this,
-                                    "准备文件失败：" + t.getMessage(), Toast.LENGTH_LONG).show();
+                                    getString(R.string.lan_prepare_fail, t.getMessage()),
+                                    Toast.LENGTH_LONG).show();
                         }
                     });
                 } finally {
@@ -782,9 +797,9 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
         boolean has = sendFile != null || sendUri != null;
         fileCard.setVisibility(has ? View.VISIBLE : View.GONE);
         if (!has) return;
-        fileName.setText("待发送：" + sendName);
-        fileTip.setText(FileOps.formatSize(sendSize > 0 ? sendSize : 0)
-                + " · 点击下方设备或雷达光点发送");
+        fileName.setText(getString(R.string.lan_pending, sendName));
+        fileTip.setText(getString(R.string.lan_pending_tip,
+                FileOps.formatSize(sendSize > 0 ? sendSize : 0)));
     }
 
     // ---------------------------------------------------------------- 打开 / 后台
@@ -798,7 +813,8 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
             i.putExtra("dir", dir.getAbsolutePath());
             startActivity(i);
         } catch (Throwable t) {
-            Toast.makeText(this, "打开目录失败：" + t.getMessage(), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.lan_open_dir_fail, t.getMessage()),
+                    Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -810,8 +826,7 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
             i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(i);
         } catch (Throwable t) {
-            Toast.makeText(this, "没有能打开该文件的应用（可点「定位」到目录查看）",
-                    Toast.LENGTH_LONG).show();
+            Toast.makeText(this, R.string.lan_no_app, Toast.LENGTH_LONG).show();
         }
     }
 
@@ -822,7 +837,8 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
             try {
                 startService(new Intent(this, LanShareService.class));
             } catch (Throwable t) {
-                Toast.makeText(this, "开启失败：" + t.getMessage(), Toast.LENGTH_LONG).show();
+                Toast.makeText(this, getString(R.string.lan_keep_fail, t.getMessage()),
+                        Toast.LENGTH_LONG).show();
             }
         } else {
             stopService(new Intent(this, LanShareService.class));
@@ -832,7 +848,7 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
 
     private void updateKeepBtn() {
         boolean on = node.keepReceiving();
-        keepBtn.setText(on ? "●  后台接收：开" : "○  后台接收");
+        keepBtn.setText(on ? R.string.lan_keep_on : R.string.lan_keep_off);
         keepBtn.setPadding(dp(12), dp(9), dp(12), dp(9));
         UiDecor.paintPill(keepBtn, this, on);
     }

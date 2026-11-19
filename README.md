@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：1606 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：1660 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,50 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.35.0（versionCode 228）—— F-14/22：局域网快传页 i18n
+
+`LanShareActivity` 56 处中文字面量清到 0。这页全是 `Toast.makeText` 与 `setText` 的
+短句，但有三类需要单独处理：
+
+### 1. 「本机 名字 · IP」的后缀
+
+```java
+sub.setText("本机 " + node.selfName() + (LanNet.localIp().length() > 0
+        ? " · " + LanNet.localIp() : ""));
+```
+
+后半段可能为空，直接当参数传会把 `本机 名字` 和 `本机 名字 · ip` 两种情况混在一个模板里。
+改成 `lan_self`（`本机 %1$s%2$s`）+ `lan_self_ip`（` · %1$s`），空串走 `""`，
+两种语言都能自然拼。
+
+### 2. 搬迁结果的两条完整句
+
+```java
+"已搬移 " + fok + " 个文件" + (ffail > 0 ? "，失败 " + ffail : "")
+```
+
+拆成 `lan_migrated` / `lan_migrated_part` 两句 —— 英文里「失败 N 个」要前置成
+`Moved 3 files, 1 failed`，拼接顺序不同。
+
+### 3. 前导/连续空格必须整值加引号
+
+`"📄  选择文件"`、`"○  未就绪"`、`"●  后台接收：开"` 这些靠两个空格对齐的标签，
+值整体加双引号才能保住空格（aapt2 会折叠未加引号值里的连续空白）。`aapt2 dump`
+已验证输出仍是两个空格。
+
+### 验证
+
+- `LanShareActivity` 中文字面量 **56 → 0**
+- 新增 54 个 `lan_*` 键；资源总量 **1606 → 1660 条**
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 1660 条 100% 一致
+  （引用 1617 键 / 32 文件）/ 动作号 55
+- `QUICK=1` **97 通过 / 0 失败 / 4 跳过**
+- `aapt2 dump resources` 抽查 `lan_state_idle` / `lan_pending_tip` / `lan_tab_recv_n`：
+  中英双变体齐全，双空格未被折叠
+- APK **13,292,240 B**
 
 ---
 
