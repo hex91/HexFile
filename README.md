@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2055 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2099 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,64 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.45.0（versionCode 238）—— F-14/32：Dex/smali 工具 i18n（返回码行 + UI 翻译）
+
+`SmaliTool` 41 处中文字面量清零（**41 → 0**）。这一页是四页里性质最特殊的：它是纯 apk
+层工具类，**返回的是「错误字符串」和「多行报告文本」**，不像前几页那样抛异常，也不像
+RemoteServer 那样直接渲染 HTML。中文沿 `String` 返回值流到 7 个调用方的 toast/对话框。
+
+### 1. 勘察：文案当控制流只在测试里，生产代码只判 null
+
+- 生产代码（MainActivity / ArchiveController / SignFlowController / 4 个 UI）对返回值
+  一律只做 `err == null` 判断，不解析文本——所以码化不改变控制流；
+- 但 `DexPropsTest` 有 10+ 处 `contains("校验和: 正常")` / `contains("无需修复")` 这类
+  **测试断言依赖中文**，必须同步改成码断言。
+
+### 2. 最小侵入的码化：签名不动，只换字符串内容
+
+若把 `String` 返回类型改成结构化对象，要动 9 个调用方 + 全部测试，风险集中。改用
+**与 `FileInspect.typeCode()` 相同的招式**：保持 `String` 签名，内容是稳定 ASCII 码——
+
+| 类别 | 码 | 说明 |
+| --- | --- | --- |
+| 错误 | `E_DECOMPILE_FAIL` / `E_TOO_SMALL` / `E_NOT_DEX` … | `SmaliTool.E_*` 常量 |
+| 属性报告 | `V=037`、`S=123`、`CK=OK`、`SG=BAD` … | 每行 `KEY=VALUE`，数值保留 |
+| 修复明细 | `FIX_FILE_SIZE=from:to`、`FIX_SHA1`、`NO_FIX` … | 带参数码行 |
+| 校验结果 | `DEXLIB_OK` / `STRUCT_OK` / `OOB:string_ids` … | 校验类型码 |
+
+`null=成功` 语义不变，所以所有 `err == null` 判断一行不改。
+
+### 3. ui/SmaliReport 翻译层
+
+三个入口：`err(Context, String)`（E_* → 资源，非本模块异常原文透传）、
+`props(Context, String)`（解析 KEY=VALUE → `Dex 版本: 037（Android 7.0+）` 多行）、
+`repairReport(Context, String)`（码行 → `file_size: 1 → 2` 修复明细）。
+标签走 44 个 `sm_*` 资源，格式对齐与数值计算留在代码——译文再长不破坏列宽。
+在 7 个调用方的**显示点**插入翻译（`SmaliReport.err(host.ctx(), ferr)` 等），
+`SignFlowController` 只把错误拼进日志异常、不面向用户，故不动。
+
+### 4. 两个坑
+
+- **匿名类里的 `this`**：`MainActivity`/`DexEditorActivity` 的显示点都在
+  `new Thread(new Runnable)` / `ui.post(new Runnable)` 内，`this` 指向 Runnable 而非
+  Activity，传 `SmaliReport.err(this, …)` 编译报 `incompatible types`；改 `MainActivity.this` /
+  `DexEditorActivity.this`（javac 首轮即捕获，3 处）。
+- **`%` 占位符索引一致性**：文件大小 `%.1f MB (%2$,d 字节)` 混用了无索引与有索引占位符，
+  Android `String.format` 会抛「bad format string」；统一成 `%1$.1f` / `%2$,d`。
+  `SM_FIX_MS` 的字面 `<` 写 `&lt;`（aapt2 要求）。
+
+### 验证
+
+- `SmaliTool` **41 → 0**；新增 44 个 `sm_*` 键；资源总量 **2055 → 2099 条**
+  （引用 2056 键 / 46 文件）
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 2099 条 100% 一致 / 动作号 55
+- 全量 `run_all.sh` **97 通过 / 0 失败 / 4 跳过**——`DexPropsTest` 的码断言全绿，
+  证明码行格式正确、修复逻辑未破坏
+- 构建 2 分 9 秒，APK **13,374,160 B**（`6604d488…`），badging 反证 versionCode 238 / 2.45.0；
+  dex 反证 `SmaliReport`/`sm_prop_version`/`E_DECOMPILE_FAIL` 各已打进包
 
 ---
 

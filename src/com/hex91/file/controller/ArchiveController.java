@@ -15,6 +15,7 @@ import com.hex91.file.ui.HfDialogBuilder;
 import com.hex91.file.ui.ImageViewerActivity;
 import com.hex91.file.ui.ManifestEditorActivity;
 import com.hex91.file.ui.SignPromptActivity;
+import com.hex91.file.ui.SmaliReport;
 import com.hex91.file.ui.TextEditorActivity;
 import com.hex91.file.apk.ApkEditSession;
 import com.hex91.file.apk.ArchivePasswords;
@@ -683,7 +684,7 @@ public final class ArchiveController {
                 final String ferr = err;
                 host.ui(new Runnable() {
                     public void run() {
-                        if (ferr != null) { host.toast(s(R.string.arch_decompile_fail, ferr)); return; }
+                        if (ferr != null) { host.toast(s(R.string.arch_decompile_fail, SmaliReport.err(host.ctx(), ferr))); return; }
                         host.toast(s(R.string.arch_decompiled, outRoot.getPath()));
                         Intent i = new Intent(host.ctx(), MainActivity.class);
                         i.putExtra("dir", outRoot.getAbsolutePath());
@@ -715,9 +716,10 @@ public final class ArchiveController {
                 final String fInfo = info, fErr = err;
                 host.ui(new Runnable() {
                     public void run() {
-                        if (fErr != null) { host.toast(fErr); return; }
+                        if (fErr != null) { host.toast(SmaliReport.err(host.ctx(), fErr)); return; }
                         if (fInfo == null) { host.toast(s(R.string.arch_not_dex)); return; }
-                        host.showTextDialog(new File(it.archPath()).getName(), fInfo);
+                        host.showTextDialog(new File(it.archPath()).getName(),
+                                SmaliReport.props(host.ctx(), fInfo));
                     }
                 });
             }
@@ -756,8 +758,10 @@ public final class ArchiveController {
                                     err = t.getClass().getSimpleName() + ": " + t.getMessage();
                                 }
                                 FileOps.deleteRecursive(tmpDir);
-                                final String msg = err != null ? s(R.string.arch_dexfix_fail, err)
-                                        : s(R.string.arch_dexfix_done, rep);
+                                final String msg = err != null
+                                        ? s(R.string.arch_dexfix_fail, SmaliReport.err(host.ctx(), err))
+                                        : s(R.string.arch_dexfix_done,
+                                                SmaliReport.repairReport(host.ctx(), rep.toString()));
                                 host.ui(new Runnable() {
                                     public void run() {
                                         host.toast(msg);

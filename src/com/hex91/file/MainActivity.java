@@ -51,6 +51,7 @@ import com.hex91.file.ui.StringsViewerActivity;
 import com.hex91.file.ui.SyncActivity;
 import com.hex91.file.ui.TaskCenterActivity;
 import com.hex91.file.ui.TextEditorActivity;
+import com.hex91.file.ui.SmaliReport;
 import com.hex91.file.ui.ThemeManager;
 import com.hex91.file.ui.TrashActivity;
 import com.hex91.file.ui.UiDecor;
@@ -1756,7 +1757,8 @@ public class MainActivity extends BaseActivity {
                             i.putExtra("dir", outDir.getAbsolutePath());
                             startActivity(i);   // singleTop：onNewIntent 跳转目录
                         } else {
-                            toast(s(R.string.main_decompile_fail, err));
+                            toast(s(R.string.main_decompile_fail,
+                                    SmaliReport.err(MainActivity.this, err)));
                         }
                     }
                 });
@@ -1876,7 +1878,7 @@ public class MainActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         if (info == null) { toast(s(R.string.main_dex_invalid)); return; }
-                        showTextDialog(dex.getName(), info);
+                        showTextDialog(dex.getName(), SmaliReport.props(MainActivity.this, info));
                     }
                 });
             }
@@ -1919,8 +1921,11 @@ public class MainActivity extends BaseActivity {
                                     err = t.getClass().getSimpleName() + ": " + t.getMessage();
                                 }
                                 final String msg = err != null
-                                        ? s(R.string.main_dexfix_fail, err)
-                                        : s(R.string.main_dexfix_done, rep);
+                                        ? s(R.string.main_dexfix_fail,
+                                                SmaliReport.err(MainActivity.this, err))
+                                        : s(R.string.main_dexfix_done,
+                                                SmaliReport.repairReport(MainActivity.this,
+                                                        rep.toString()));
                                 runOnUiThread(new Runnable() {
                                     public void run() {
                                         toast(msg);
@@ -3512,7 +3517,8 @@ public class MainActivity extends BaseActivity {
                         } else {
                             new HfDialogBuilder(MainActivity.this)
                                     .setTitle(R.string.main_asm_fail_title)
-                                    .setMessage(s(R.string.main_asm_fail_msg, err))
+                                    .setMessage(s(R.string.main_asm_fail_msg,
+                                            SmaliReport.err(MainActivity.this, err)))
                                     .setPositiveButton(R.string.common_close, null)
                                     .show();
                         }
@@ -3588,7 +3594,8 @@ public class MainActivity extends BaseActivity {
                                 startActivity(i);   // singleTop：onNewIntent 跳转
                             }
                         } else {
-                            toast(s(R.string.main_fail, ferr));
+                            toast(s(R.string.main_fail,
+                                    SmaliReport.err(MainActivity.this, ferr)));
                         }
                     }
                 });

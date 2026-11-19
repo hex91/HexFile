@@ -428,7 +428,7 @@ public class Java2SmaliActivity extends BaseActivity {
 
             // 5) baksmali：dex → smali
             String err = SmaliTool.decompile(dex, smaliDir, 4);
-            if (err != null) return "baksmali 反汇编失败：" + err;
+            if (err != null) return "baksmali 反汇编失败：" + SmaliReport.err(this, err);
 
             // 6) 收集全部类（主类排最前）
             mClasses.clear();

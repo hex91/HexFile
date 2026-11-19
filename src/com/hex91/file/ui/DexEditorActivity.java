@@ -298,7 +298,7 @@ public class DexEditorActivity extends BaseActivity {
                 pd.dismiss();
                 if (e != null) {
                     new HfDialogBuilder(DexEditorActivity.this)
-                            .setTitle(R.string.dx_load_fail).setMessage(e)
+                            .setTitle(R.string.dx_load_fail).setMessage(SmaliReport.err(DexEditorActivity.this, e))
                             .setPositiveButton(R.string.common_close,
                                     new DialogInterface.OnClickListener() {
                                 public void onClick(DialogInterface d, int w) { finish(); }
@@ -725,7 +725,7 @@ public class DexEditorActivity extends BaseActivity {
                 } else {
                     new HfDialogBuilder(DexEditorActivity.this)
                             .setTitle(R.string.dx_compile_fail)
-                            .setMessage(getString(R.string.dx_compile_fail_msg, e))
+                            .setMessage(getString(R.string.dx_compile_fail_msg, SmaliReport.err(DexEditorActivity.this, e)))
                             .setPositiveButton(R.string.common_got_it, null)
                             .show();
                 }
@@ -837,7 +837,7 @@ public class DexEditorActivity extends BaseActivity {
                     if (exitWhenDone) finish();
                 } else {
                     new HfDialogBuilder(DexEditorActivity.this)
-                            .setTitle(R.string.dx_done_title).setMessage(e)
+                            .setTitle(R.string.dx_done_title).setMessage(SmaliReport.err(DexEditorActivity.this, e))
                             .setPositiveButton(R.string.common_got_it,
                                     new DialogInterface.OnClickListener() {
                                 public void onClick(DialogInterface d, int w) {

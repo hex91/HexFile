@@ -13,10 +13,25 @@ import java.io.File;
 /**
  * smali 编译/反编译工具（v1.7）—— org.smali:baksmali/smali:2.5.2 编程 API 封装。
  * 与 MT Manager 同源的 dexlib2 引擎，纯 Java 零 native 依赖。
+ *
+ * <p>v2.45.0（F-14/32）：本类是纯 apk 层、无 {@code Context}，不再产出中文文案。
+ * 所有错误返回稳定 ASCII 码（{@code E_*}），多行报告用 {@code KEY=VALUE} 码行，
+ * 由 {@code ui/SmaliReport} 按资源翻译成人类文本。调用方只判返回值是否为 null，
+ * 与码的内容无关，故契约不变。</p>
  */
 public final class SmaliTool {
 
     private SmaliTool() {}
+
+    /** 稳定错误码（返回给调用方显示前经 ui/SmaliReport 翻译） */
+    public static final String
+            E_DECOMPILE_FAIL = "E_DECOMPILE_FAIL",
+            E_COMPILE_NO_OUTPUT = "E_COMPILE_NO_OUTPUT",
+            E_COMPILE_FAIL = "E_COMPILE_FAIL",
+            E_TOO_SMALL = "E_TOO_SMALL",
+            E_TOO_BIG = "E_TOO_BIG",
+            E_READ_INCOMPLETE = "E_READ_INCOMPLETE",
+            E_NOT_DEX = "E_NOT_DEX";
 
     /**
      * 反编译 .dex 文件到输出目录（目录结构按类名组织，*.smali）
@@ -28,7 +43,7 @@ public final class SmaliTool {
             BaksmaliOptions opt = new BaksmaliOptions();
             opt.apiLevel = 34;
             boolean ok = Baksmali.disassembleDexFile(dex, outDir, jobs, opt);
-            return ok ? null : "反编译失败（未知原因）";
+            return ok ? null : E_DECOMPILE_FAIL;
         } catch (Throwable t) {
             return t.getClass().getSimpleName() + ": " + t.getMessage();
         }
@@ -81,7 +96,7 @@ public final class SmaliTool {
             for (int i = 0; i < smaliDirs.length; i++) paths[i] = smaliDirs[i].getAbsolutePath();
             boolean ok = Smali.assemble(opt, paths);
             if (ok && outDex.exists() && outDex.length() > 0) return null;
-            return ok ? "编译未产生输出" : "编译失败（语法或结构错误，检查最近改过的 smali）";
+            return ok ? E_COMPILE_NO_OUTPUT : E_COMPILE_FAIL;
         } catch (Throwable t) {
             return t.getClass().getSimpleName() + ": " + t.getMessage();
         }
@@ -138,16 +153,13 @@ public final class SmaliTool {
         return String.format("%,d", n);
     }
 
-    private static String fmtSize(long n) {
-        if (n >= 1 << 20) return String.format("%.1f MB (%s 字节)", n / 1048576.0, fmtN(n));
-        if (n >= 1024) return String.format("%.1f KB (%s 字节)", n / 1024.0, fmtN(n));
-        return n + " 字节";
-    }
+    // dexProps 码行：V=版本 API=版本码 SZ=字节 S/T/P/F/M/C=各计数 CK/SG=OK|BAD
+    // 数值用 fmtN 便于人类读报告原文；UI 侧 SmaliReport 按 KEY 解析后套资源模板。
 
     /**
-     * Dex 属性（v1.66.5）：版本 / String·Type·Proto·Field·Method·Class 数量 / 校验状态。
+     * Dex 属性（v1.66.5；v2.45.0 码行化）：版本 / 各索引区数量 / 校验状态。
      * 数量直接读 dex 头部索引区大小字段（与加载器语义一致）。
-     * @return 多行展示文本；魔数不合法或文件过小返回 null
+     * @return KEY=VALUE 码行文本（由 ui/SmaliReport 翻译）；魔数不合法或文件过小返回 null
      */
     public static String dexProps(File dexFile) {
         java.io.FileInputStream fi = null;
@@ -158,9 +170,8 @@ public final class SmaliTool {
             if (h[0] != 'd' || h[1] != 'e' || h[2] != 'x' || h[3] != '\n') return null;
 
             String ver = new String(h, 4, 3, "UTF-8");
-            String api = ver.equals("037") ? "（Android 7.0+）"
-                    : ver.equals("038") ? "（Android 8.0+）"
-                    : ver.equals("039") ? "（Android 10+）" : "";
+            String api = ver.equals("037") ? "37" : ver.equals("038") ? "38"
+                    : ver.equals("039") ? "39" : "0";
             Object[] ck = computeChecksums(dexFile);
             int ckCalc = (Integer) ck[0];
             byte[] sigCalc = (byte[]) ck[1];
@@ -169,16 +180,17 @@ public final class SmaliTool {
             for (int i = 0; i < 20; i++) if (h[12 + i] != sigCalc[i]) { sigOk = false; break; }
 
             StringBuilder sb = new StringBuilder();
-            sb.append("Dex 版本: ").append(ver).append(api).append('\n');
-            sb.append("文件大小: ").append(fmtSize(dexFile.length())).append('\n');
-            sb.append("String Count: ").append(fmtN(u32(h, 56))).append('\n');
-            sb.append("Type Count: ").append(fmtN(u32(h, 64))).append('\n');
-            sb.append("Proto Count: ").append(fmtN(u32(h, 72))).append('\n');
-            sb.append("Field Count: ").append(fmtN(u32(h, 80))).append('\n');
-            sb.append("Method Count: ").append(fmtN(u32(h, 88))).append('\n');
-            sb.append("Class Count: ").append(fmtN(u32(h, 96))).append('\n');
-            sb.append("校验和: ").append(ckOk ? "正常" : "不一致（可用 Dex 修复）").append('\n');
-            sb.append("SHA-1 签名: ").append(sigOk ? "正常" : "不一致（可用 Dex 修复）");
+            sb.append("V=").append(ver).append('\n');
+            sb.append("API=").append(api).append('\n');
+            sb.append("SZ=").append(dexFile.length()).append('\n');
+            sb.append("S=").append(fmtN(u32(h, 56))).append('\n');
+            sb.append("T=").append(fmtN(u32(h, 64))).append('\n');
+            sb.append("P=").append(fmtN(u32(h, 72))).append('\n');
+            sb.append("F=").append(fmtN(u32(h, 80))).append('\n');
+            sb.append("M=").append(fmtN(u32(h, 88))).append('\n');
+            sb.append("C=").append(fmtN(u32(h, 96))).append('\n');
+            sb.append("CK=").append(ckOk ? "OK" : "BAD").append('\n');
+            sb.append("SG=").append(sigOk ? "OK" : "BAD");
             return sb.toString();
         } catch (Throwable t) {
             return null;
@@ -214,8 +226,8 @@ public final class SmaliTool {
         long t0 = System.currentTimeMillis();
         try {
             long len = dexFile.length();
-            if (len < 112) return "文件过小，不是有效的 DEX";
-            if (len > Integer.MAX_VALUE - 1024L) return "文件大小异常（超过 2GB）";
+            if (len < 112) return E_TOO_SMALL;
+            if (len > Integer.MAX_VALUE - 1024L) return E_TOO_BIG;
 
             // 只读 112 字节头部
             byte[] h = new byte[112];
@@ -226,9 +238,9 @@ public final class SmaliTool {
             } finally {
                 hi.close();
             }
-            if (!full) return "文件读取不完整";
+            if (!full) return E_READ_INCOMPLETE;
             if (h[0] != 'd' || h[1] != 'e' || h[2] != 'x' || h[3] != '\n')
-                return "魔数不是 DEX（无法按 DEX 修复）";
+                return E_NOT_DEX;
 
             byte[] origH = h.clone();   // 原始头（含旧签名/校验和），写入失败时回滚用
 
@@ -237,19 +249,19 @@ public final class SmaliTool {
             int fs = u32(h, 32);
             if (fs != (int) len) {
                 putU32(h, 32, (int) len);
-                fixes.add("file_size: " + fmtN(fs) + " → " + fmtN(len));
+                fixes.add("FIX_FILE_SIZE=" + fs + ":" + len);
             }
             // 2) header_size（offset 36）标准恒为 0x70
             int hs = u32(h, 36);
             if (hs != 0x70) {
                 putU32(h, 36, 0x70);
-                fixes.add("header_size: 0x" + Integer.toHexString(hs) + " → 0x70");
+                fixes.add("FIX_HEADER_SIZE=" + Integer.toHexString(hs));
             }
             // 3) endian_tag（offset 40）标准恒为 0x12345678（小端）
             int et = u32(h, 40);
             if (et != 0x12345678) {
                 putU32(h, 40, 0x12345678);
-                fixes.add("endian_tag: 0x" + Integer.toHexString(et) + " → 0x12345678");
+                fixes.add("FIX_ENDIAN=" + Integer.toHexString(et));
             }
 
             // 先流式单遍算出当前文件的校验值：决定要不要写盘
@@ -262,10 +274,9 @@ public final class SmaliTool {
 
             if (fixes.isEmpty() && sigOk && ckOk) {
                 // 快路径：零写盘，只做可加载性校验
-                report.append("头部校验均正常，无需修复\n");
+                report.append("NO_FIX\n");
                 report.append(verifyAfter(dexFile, len));
-                report.append("\n耗时 ").append(System.currentTimeMillis() - t0)
-                      .append(" ms（未写盘）");
+                report.append("\nMS_NOWRITE:").append(System.currentTimeMillis() - t0);
                 return null;
             }
 
@@ -287,7 +298,7 @@ public final class SmaliTool {
                 boolean sigDiffers = false;
                 for (int i = 0; i < 20; i++)
                     if (origH[12 + i] != dig[i]) { sigDiffers = true; break; }
-                if (sigDiffers) fixes.add("SHA-1 签名已重算");
+                if (sigDiffers) fixes.add("FIX_SHA1");
                 raf.seek(12);
                 raf.write(dig, 0, 20);
 
@@ -296,7 +307,7 @@ public final class SmaliTool {
                 java.util.zip.Adler32 adler = new java.util.zip.Adler32();
                 while ((n = raf.read(buf)) > 0) adler.update(buf, 0, n);
                 int newCk = (int) adler.getValue();
-                if (u32(origH, 8) != newCk) fixes.add("Adler-32 校验和已重算");
+                if (u32(origH, 8) != newCk) fixes.add("FIX_ADLER");
                 putU32(h, 8, newCk);
                 raf.seek(8);
                 raf.write(h, 8, 4);
@@ -321,8 +332,7 @@ public final class SmaliTool {
                 report.append(fixes.get(i));
             }
             report.append('\n').append(verify);
-            report.append("\n流式原地修复（峰值内存 < 300KB），耗时 ")
-                  .append(System.currentTimeMillis() - t0).append(" ms");
+            report.append("\nSTREAM_FIX_MS:").append(System.currentTimeMillis() - t0);
             return null;
         } catch (Throwable t) {
             return t.getClass().getSimpleName() + ": " + t.getMessage();
@@ -344,20 +354,17 @@ public final class SmaliTool {
                 } finally {
                     fi.close();
                 }
-                if (!full) return "dexlib2 解析校验: 读取不完整";
+                if (!full) return "DEXLIB_READ_INCOMPLETE";
                 new DexBackedDexFile(Opcodes.forApi(34), all);
-                return "dexlib2 解析校验: 通过";
+                return "DEXLIB_OK";
             } catch (OutOfMemoryError oom) {
-                return "dexlib2 解析校验: 跳过（内存不足，结构校验见下）";
+                return "DEXLIB_OOM_SKIP";
             } catch (Throwable t) {
-                return "dexlib2 解析校验: 仍失败（" + t.getClass().getSimpleName() + ": "
-                        + t.getMessage() + "）——存在头部校验之外的结构级损坏";
+                return "DEXLIB_FAIL:" + t.getClass().getSimpleName() + ":" + t.getMessage();
             }
         }
         String e = structuralCheck(dexFile, len);
-        return e == null
-                ? "结构校验（流式）: 通过（超过 32MB，未做 dexlib2 深度解析）"
-                : "结构校验（流式）: 仍失败（" + e + "）——存在结构级损坏";
+        return e == null ? "STRUCT_OK" : "STRUCT_FAIL:" + e;
     }
 
     /**
@@ -370,9 +377,9 @@ public final class SmaliTool {
         java.io.FileInputStream fi = null;
         try {
             fi = new java.io.FileInputStream(dexFile);
-            if (!readFull(fi, h)) return "头部读取不完整";
+            if (!readFull(fi, h)) return "HEAD_READ_INCOMPLETE";
         } catch (java.io.IOException e) {
-            return "读取头部失败: " + e.getMessage();
+            return "HEAD_READ_FAIL:" + e.getMessage();
         } finally {
             if (fi != null) try { fi.close(); } catch (java.io.IOException ignored) {}
         }
@@ -384,15 +391,15 @@ public final class SmaliTool {
         for (int i = 0; i < names.length; i++) {
             int cnt = u32(h, cntOff[i]);
             int off = u32(h, cntOff[i] + 4);
-            if (cnt < 0 || off < 0) return names[i] + " 越界";
+            if (cnt < 0 || off < 0) return "OOB:" + names[i];
             if (cnt == 0) continue;
             if (off < 112 || (long) off + (long) cnt * itemSize[i] > len)
-                return names[i] + " 越界";
+                return "OOB:" + names[i];
         }
 
         int mapOff = u32(h, 52);
         if (mapOff == 0) return null;              // 无 map_list（不常见但可接受）
-        if (mapOff < 112 || (long) mapOff + 4 > len) return "map_list 越界";
+        if (mapOff < 112 || (long) mapOff + 4 > len) return "OOB:map_list";
         java.io.RandomAccessFile raf = null;
         try {
             raf = new java.io.RandomAccessFile(dexFile, "r");
@@ -400,16 +407,16 @@ public final class SmaliTool {
             byte[] b4 = new byte[4];
             raf.readFully(b4);
             int n = u32(b4, 0);
-            if (n <= 0 || n > 4096) return "map_list 条目数异常: " + n;
-            if ((long) mapOff + 4 + (long) n * 12 > len) return "map_list 越界";
+            if (n <= 0 || n > 4096) return "MAP_COUNT:" + n;
+            if ((long) mapOff + 4 + (long) n * 12 > len) return "OOB:map_list";
             byte[] it = new byte[12];
             for (int i = 0; i < n; i++) {
                 raf.readFully(it);
                 int moff = u32(it, 8);
-                if (moff < 0 || moff > len) return "map 条目 offset 越界";
+                if (moff < 0 || moff > len) return "OOB:map_entry";
             }
         } catch (java.io.IOException e) {
-            return "读取 map_list 失败: " + e.getMessage();
+            return "MAP_READ_FAIL:" + e.getMessage();
         } finally {
             if (raf != null) try { raf.close(); } catch (java.io.IOException ignored) {}
         }

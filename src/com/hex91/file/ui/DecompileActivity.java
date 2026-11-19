@@ -405,7 +405,7 @@ public class DecompileActivity extends BaseActivity {
         copyFile(new File(smaliPath), dst);
         File dex = new File(tmp, "cls.dex");
         e = SmaliTool.assemble(asmDir, dex, 1);
-        if (e != null) throw new Exception("smali 汇编失败（smali 语法可能有误）：\n" + e);
+        if (e != null) throw new Exception("smali 汇编失败（smali 语法可能有误）：\n" + SmaliReport.err(this, e));
 
         // 2) dex → jar
         p.onProgress("dex2jar 转换…");

@@ -475,7 +475,7 @@ public class ZipBrowserActivity extends BaseActivity {
                             i.putExtra("dir", outDir.getAbsolutePath());
                             startActivity(i);   // MainActivity singleTop：onNewIntent 跳转目录
                         } else {
-                            toast("反编译失败: " + err);
+                            toast("反编译失败: " + SmaliReport.err(ZipBrowserActivity.this, err));
                         }
                     }
                 });
