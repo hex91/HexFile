@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：1508 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：1566 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,52 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.33.0（versionCode 226）—— F-14/20：文件属性弹窗 i18n + 一处文案哨兵
+
+`PropsController` 67 处中文字面量清到 0。这一页是由 MainActivity 整段搬出来的 controller，
+拿文案的方式是 `host.ctx().getString(...)`，加了两个 `s(int)` / `s(int, Object...)` 就够。
+
+### 抓到一处「文案当哨兵」
+
+校验弹窗的复制按钮原来这样判断「算完了没有」：
+
+```java
+String s = values[idx].getText().toString();
+if (!s.isEmpty() && !"计算中…".equals(s)) host.copyToClipboard(algs[idx], s);
+```
+
+「计算中…」是界面文案，出英文后这个 `equals` 恒为 false —— 点复制永远没反应（静默）。
+改成看哈希缓存里有没有值：
+
+```java
+String h = hashCache.get(hashKeys[idx]);
+if (h != null && !h.isEmpty()) host.copyToClipboard(algs[idx], values[idx].getText().toString());
+```
+
+顺带把 `hashCache` 的声明提前到列表构建之前（原来在下面，够不到）。
+
+### 复用与拆键
+
+- **复用**：`重命名` / `删除` 用 `mops_rename` / `common_delete`，`关闭` / `取消` / `确定` 用
+  `common_*`，`复制` 用 `copy_text`（该页 5 处）。
+- **拆开**：「更改权限 — 名字」「修改时间 — 名字」「更改所有者 — 名字」三个标题各一键
+  （`%1$s`），不拼 `"更改权限 — " + name`：英文语序是 `Change permissions — name`，
+  em dash 两侧的空格也是语言习惯。
+- **合并**：`权限已更改为 %1$s` 与 `…（含子项）` 拆成两句完整句，递归时选后者。
+
+### 验证
+
+- `PropsController` 中文字面量 **67 → 0**（只剩注释）
+- 新增 58 个 `pr_*` 键；资源总量 **1508 → 1566 条**
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 1566 条 100% 一致
+  （引用 1523 键 / 30 文件）/ 动作号 55
+- `QUICK=1` **97 通过 / 0 失败 / 4 跳过**
+- `aapt2 dump resources` 抽查 `pr_perm_done_deep` / `pr_hash_match` / `pr_octal`：
+  中英双变体齐全
+- APK **13,292,240 B**，md5 `779b7af4…`
 
 ---
 

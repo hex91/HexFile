@@ -1,5 +1,6 @@
 package com.hex91.file.controller;
 
+import com.hex91.file.R;
 import com.hex91.file.utils.HashUtil;
 import com.hex91.file.ui.HfDialogBuilder;
 import com.hex91.file.ui.ThemeManager;
@@ -57,6 +58,14 @@ public final class PropsController {
         this.host = host;
     }
 
+    private String s(int resId) {
+        return host.ctx().getString(resId);
+    }
+
+    private String s(int resId, Object... args) {
+        return host.ctx().getString(resId, args);
+    }
+
     /** v1.43.0：MT 式属性弹窗——名称/目录/类型/大小/修改时间 + 权限·所有者·用户组（可更改）+ 更多/校验/关闭 */
     AlertDialog mPropsDialog;   // v1.43.1：当前属性弹窗引用（重开前先关旧的，避免叠两层）
 
@@ -68,50 +77,54 @@ public final class PropsController {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding((int) (22 * d), (int) (10 * d), (int) (22 * d), 0);
 
-        propRow(root, "名称", f.getName() + (isDir ? "/" : ""));
-        propRow(root, "目录", f.getParent() == null ? "/" : f.getParent());
-        propRow(root, "类型", isDir ? "文件夹" : "文件");
-        propRow(root, "大小", isDir ? "—"
+        propRow(root, s(R.string.pr_name), f.getName() + (isDir ? "/" : ""));
+        propRow(root, s(R.string.pr_dir), f.getParent() == null ? "/" : f.getParent());
+        propRow(root, s(R.string.pr_type),
+                s(isDir ? R.string.pr_folder : R.string.pr_file));
+        propRow(root, s(R.string.pr_size), isDir ? "—"
                 : FileOps.formatSize(f.length()) + " (" + f.length() + ")");
 
         final FileAttrs.Attr cached = FileAttrs.get(f);
         // v1.80.0：修改时间可编辑（root 区 File API 拿不到时用 stat 回读的 mtime）
         final long shownMtime = cached != null && cached.mtime > 0 ? cached.mtime : f.lastModified();
-        propRowBtn(root, "修改时间", FileOps.formatTime(shownMtime), "更改",
+        propRowBtn(root, s(R.string.pr_mtime), FileOps.formatTime(shownMtime),
+                s(R.string.pr_change),
                 new View.OnClickListener() {
                     public void onClick(View v) { showTimeEditor(f, shownMtime); }
                 });
 
-        final TextView tvPerm = propRowBtn(root, "权限",
+        final TextView tvPerm = propRowBtn(root, s(R.string.pr_perm),
                 cached != null ? permText(cached) : "…",
-                "更改", new View.OnClickListener() {
+                s(R.string.pr_change), new View.OnClickListener() {
                     public void onClick(View v) { showPermEditor(f); }
                 });
-        final TextView tvOwner = propRowBtn(root, "所有者",
+        final TextView tvOwner = propRowBtn(root, s(R.string.pr_owner),
                 cached != null ? (cached.owner == null ? "—" : cached.owner) : "…",
-                "更改", new View.OnClickListener() {
+                s(R.string.pr_change), new View.OnClickListener() {
                     public void onClick(View v) { showOwnerEditor(f); }
                 });
-        final TextView tvGroup = propRowBtn(root, "用户组",
+        final TextView tvGroup = propRowBtn(root, s(R.string.pr_group),
                 cached != null ? (cached.group == null ? "—" : cached.group) : "…",
-                "更改", new View.OnClickListener() {
+                s(R.string.pr_change), new View.OnClickListener() {
                     public void onClick(View v) { showOwnerEditor(f); }
                 });
 
         final AlertDialog dlg = new HfDialogBuilder(host.ctx())
-                .setTitle("属性")
+                .setTitle(R.string.pr_title)
                 .setView(root)
-                .setNeutralButton("更多", new android.content.DialogInterface.OnClickListener() {
+                .setNeutralButton(R.string.pr_more,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface di, int w) {
                         showPropsMore(f);
                     }
                 })
-                .setNegativeButton("校验", new android.content.DialogInterface.OnClickListener() {
+                .setNegativeButton(R.string.pr_verify,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface di, int w) {
                         showHashDialog(f);
                     }
                 })
-                .setPositiveButton("关闭", null)
+                .setPositiveButton(R.string.common_close, null)
                 .show();
         mPropsDialog = dlg;   // v1.43.1：记录引用，供更改成功后先关旧弹窗再重开
 
@@ -135,14 +148,15 @@ public final class PropsController {
 
     /** 属性「更多」：常用操作入口 */
     void showPropsMore(final File f) {
-        String[] ops = {"重命名", "删除", "复制路径"};
+        String[] ops = {s(R.string.mops_rename), s(R.string.common_delete),
+                s(R.string.pr_copy_path)};
         new HfDialogBuilder(host.ctx())
                 .setTitle(f.getName())
                 .setItems(ops, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface di, int w) {
                         if (w == 0) host.askRename(f);
                         else if (w == 1) host.confirmDelete(f);
-                        else host.copyToClipboard("路径", f.getPath());
+                        else host.copyToClipboard(s(R.string.pr_clip_path), f.getPath());
                     }
                 }).show();
     }
@@ -175,7 +189,8 @@ public final class PropsController {
         vv.setTextIsSelectable(true);
         vv.setOnLongClickListener(new View.OnLongClickListener() {
             public boolean onLongClick(View v) {
-                host.copyToClipboard("值", ((TextView) v).getText().toString());
+                host.copyToClipboard(s(R.string.pr_clip_value),
+                        ((TextView) v).getText().toString());
                 return true;
             }
         });
@@ -229,7 +244,7 @@ public final class PropsController {
         TextView corner = new TextView(host.ctx());
         corner.setWidth((int) (60 * d));
         head.addView(corner);
-        String[] permNames = {"读", "写", "执行"};
+        String[] permNames = {s(R.string.pr_read), s(R.string.pr_write), s(R.string.pr_exec)};
         for (int p = 0; p < 3; p++) {
             TextView t = new TextView(host.ctx());
             t.setText(permNames[p]);
@@ -241,7 +256,8 @@ public final class PropsController {
         root.addView(head);
 
         final CheckBox[][] cbs = new CheckBox[3][3];
-        String[] whoNames = {"拥有者", "用户组", "其他"};
+        String[] whoNames = {s(R.string.pr_who_owner), s(R.string.pr_who_group),
+                s(R.string.pr_who_other)};
         CompoundButton.OnCheckedChangeListener listen = new CompoundButton.OnCheckedChangeListener() {
             public void onCheckedChanged(CompoundButton b, boolean s) { recalc(); }
             void recalc() {
@@ -249,7 +265,7 @@ public final class PropsController {
                 for (int w = 0; w < 3; w++)
                     for (int p = 0; p < 3; p++)
                         if (cbs[w][p].isChecked()) v |= 1 << (8 - w * 3 - p);
-                oct.setText("八进制: " + Integer.toOctalString(v));   // v1.43.0 修复：按八进制显示
+                oct.setText(s(R.string.pr_octal, Integer.toOctalString(v)));   // v1.43.0 修复：按八进制显示
             }
         };
         for (int w = 0; w < 3; w++) {
@@ -272,11 +288,11 @@ public final class PropsController {
             }
             root.addView(row);
         }
-        oct.setText("八进制: " + Integer.toOctalString(o));   // 初值（v1.43.0 八进制修复）
+        oct.setText(s(R.string.pr_octal, Integer.toOctalString(o)));   // 初值（v1.43.0 八进制修复）
 
         if (!hasRoot) {
             TextView tip = new TextView(host.ctx());
-            tip.setText("未 Root：只能改本应用拥有的文件；/sdcard 这类 FUSE 挂载通常改不动。");
+            tip.setText(R.string.pr_no_root_tip);
             tip.setTextSize(11.5f);
             tip.setTextColor(ThemeManager.textSub(host.ctx()));
             tip.setPadding(0, (int) (8 * d), 0, 0);
@@ -288,7 +304,7 @@ public final class PropsController {
         presets.setOrientation(LinearLayout.HORIZONTAL);
         presets.setPadding(0, (int) (12 * d), 0, 0);
         TextView pLabel = new TextView(host.ctx());
-        pLabel.setText("常用");
+        pLabel.setText(R.string.pr_common);
         pLabel.setTextSize(12);
         pLabel.setTextColor(ThemeManager.textSub(host.ctx()));
         pLabel.setWidth((int) (60 * d));
@@ -311,7 +327,7 @@ public final class PropsController {
 
         // 目录才有「递归」的意义
         final CheckBox rec = new CheckBox(host.ctx());
-        rec.setText("同时应用到子项（递归）");
+        rec.setText(R.string.pr_recursive);
         rec.setTextSize(12);
         if (f.isDirectory()) {
             rec.setPadding(0, (int) (4 * d), 0, 0);
@@ -319,9 +335,10 @@ public final class PropsController {
         }
 
         new HfDialogBuilder(host.ctx())
-                .setTitle("更改权限 — " + f.getName())
+                .setTitle(s(R.string.pr_perm_title, f.getName()))
                 .setView(root)
-                .setPositiveButton("确定", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.common_confirm,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface di, int w) {
                         int v = 0;
                         for (int w2 = 0; w2 < 3; w2++)
@@ -336,22 +353,23 @@ public final class PropsController {
                                 host.ui(new Runnable() {
                                     public void run() {
                                         if (rc == 0) {
-                                            host.toast("权限已更改为 " + Integer.toOctalString(fv)
-                                                    + (deep ? "（含子项）" : ""));
+                                            host.toast(s(deep ? R.string.pr_perm_done_deep
+                                                    : R.string.pr_perm_done,
+                                                    Integer.toOctalString(fv)));
                                             reopenProps(f);   // v1.43.1：关旧开新，不再叠层
                                         } else if (rc == 1) {
-                                            host.toast("该存储区不支持 chmod（FUSE 挂载），权限未实际变更");
+                                            host.toast(s(R.string.pr_perm_fuse));
                                             reopenProps(f);
-                                        } else host.toast(hasRoot
-                                                ? "chmod 失败，请检查路径是否可写"
-                                                : "chmod 失败：没有 Root，只能改本应用拥有的文件");
+                                        } else host.toast(s(hasRoot
+                                                ? R.string.pr_perm_fail_writable
+                                                : R.string.pr_perm_fail_noroot));
                                     }
                                 });
                             }
                         }, "chmod").start();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -387,7 +405,7 @@ public final class PropsController {
         root.setPadding((int) (22 * d), (int) (12 * d), (int) (22 * d), 0);
 
         TextView hint = new TextView(host.ctx());
-        hint.setText("格式：yyyy-MM-dd HH:mm:ss（本机时区）");
+        hint.setText(R.string.pr_time_hint);
         hint.setTextSize(11.5f);
         hint.setTextColor(ThemeManager.textSub(host.ctx()));
         root.addView(hint);
@@ -399,24 +417,26 @@ public final class PropsController {
         root.addView(et);
 
         new HfDialogBuilder(host.ctx())
-                .setTitle("修改时间 — " + f.getName())
+                .setTitle(s(R.string.pr_time_title, f.getName()))
                 .setView(root)
-                .setNeutralButton("设为现在", new android.content.DialogInterface.OnClickListener() {
+                .setNeutralButton(R.string.pr_time_now,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface di, int w) {
                         applyMtime(f, System.currentTimeMillis());
                     }
                 })
-                .setPositiveButton("确定", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.common_confirm,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface di, int w) {
                         try {
                             long ms = fmt.parse(et.getText().toString().trim()).getTime();
                             applyMtime(f, ms);
                         } catch (Exception e) {
-                            host.toast("时间格式不正确，应为 2026-11-09 16:30:00");
+                            host.toast(s(R.string.pr_time_bad));
                         }
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -426,7 +446,7 @@ public final class PropsController {
                 final boolean ok = FileAttrs.setMtime(f, ms);
                 host.ui(new Runnable() {
                     public void run() {
-                        host.toast(ok ? "修改时间已更新" : "修改失败：无权限（root 区需要 Root）");
+                        host.toast(s(ok ? R.string.pr_time_ok : R.string.pr_time_fail));
                         reopenProps(f);
                         if (ok) host.refreshAll();
                     }
@@ -437,21 +457,21 @@ public final class PropsController {
 
     /** v1.43.0：更改所有者/用户组——su chown */
     void showOwnerEditor(final File f) {
-        if (!RootUtil.isRootAvailable()) { host.toast("更改所有者需要 Root"); return; }
+        if (!RootUtil.isRootAvailable()) { host.toast(s(R.string.pr_owner_need_root)); return; }
         FileAttrs.Attr a = FileAttrs.stat(f);
-        if (a == null || a.owner == null) { host.toast("无法获取当前所有者（需要 Root）"); return; }
+        if (a == null || a.owner == null) { host.toast(s(R.string.pr_owner_unknown)); return; }
         final float d = host.ctx().getResources().getDisplayMetrics().density;
         LinearLayout root = new LinearLayout(host.ctx());
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding((int) (22 * d), (int) (12 * d), (int) (22 * d), 0);
 
         final EditText etOwner = new EditText(host.ctx());
-        etOwner.setHint("所有者 (如 root)");
+        etOwner.setHint(R.string.pr_owner_hint);
         etOwner.setText(a.owner);
         etOwner.setInputType(InputType.TYPE_CLASS_TEXT);
         root.addView(etOwner);
         final EditText etGroup = new EditText(host.ctx());
-        etGroup.setHint("用户组 (如 root)");
+        etGroup.setHint(R.string.pr_group_hint);
         etGroup.setText(a.group == null ? "" : a.group);
         etGroup.setInputType(InputType.TYPE_CLASS_TEXT);
         LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(
@@ -460,13 +480,14 @@ public final class PropsController {
         root.addView(etGroup, glp);
 
         new HfDialogBuilder(host.ctx())
-                .setTitle("更改所有者 — " + f.getName())
+                .setTitle(s(R.string.pr_owner_title, f.getName()))
                 .setView(root)
-                .setPositiveButton("确定", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.common_confirm,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface di, int w) {
                         final String ow = etOwner.getText().toString().trim();
                         final String gp = etGroup.getText().toString().trim();
-                        if (ow.isEmpty()) { host.toast("所有者不能为空"); return; }
+                        if (ow.isEmpty()) { host.toast(s(R.string.pr_owner_empty)); return; }
                         new Thread(new Runnable() {
                             public void run() {
                                 final int rc = FileAttrs.chown(f, ow,
@@ -474,19 +495,19 @@ public final class PropsController {
                                 host.ui(new Runnable() {
                                     public void run() {
                                         if (rc == 0) {
-                                            host.toast("所有者已更改");
+                                            host.toast(s(R.string.pr_owner_ok));
                                             reopenProps(f);   // v1.43.1：关旧开新
                                         } else if (rc == 1) {
-                                            host.toast("该存储区不支持 chown，所有者未实际变更");
+                                            host.toast(s(R.string.pr_owner_fuse));
                                             reopenProps(f);
-                                        } else host.toast("chown 失败（需要 Root 授权）");
+                                        } else host.toast(s(R.string.pr_owner_fail));
                                     }
                                 });
                             }
                         }, "chown").start();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -498,28 +519,35 @@ public final class PropsController {
         root.setPadding((int) (22 * d), (int) (10 * d), (int) (22 * d), 0);
 
         // 文件名（点击复制）
-        propRowBtn(root, "文件名", f.getName(), "复制", new View.OnClickListener() {
-            public void onClick(View v) { host.copyToClipboard("文件名", f.getName()); }
+        propRowBtn(root, s(R.string.pr_label_filename), f.getName(), s(R.string.copy_text),
+                new View.OnClickListener() {
+            public void onClick(View v) {
+                host.copyToClipboard(s(R.string.pr_label_filename), f.getName());
+            }
         });
 
         final String[] algs = {"MD5", "SHA1", "SHA256", "CRC32"};
         final String[] hashKeys = {"MD5", "SHA-1", "SHA-256", "CRC32"};
+        final java.util.Map<String, String> hashCache =
+                new java.util.HashMap<String, String>();
         final TextView[] values = new TextView[4];
         for (int i = 0; i < 4; i++) {
             final int idx = i;
-            values[i] = propRowBtn(root, algs[i], "计算中…", "复制",
-                    new View.OnClickListener() {
+            values[i] = propRowBtn(root, algs[i], s(R.string.pr_calculating),
+                    s(R.string.copy_text), new View.OnClickListener() {
                         public void onClick(View v) {
-                            String s = values[idx].getText().toString();
-                            if (!s.isEmpty() && !"计算中…".equals(s))
-                                host.copyToClipboard(algs[idx], s);
+                            // v2.33.0：原来拿「计算中…」这个文案当哨兵（翻译后就失效），
+                            // 改为看缓存里有没有算出来的值
+                            String h = hashCache.get(hashKeys[idx]);
+                            if (h != null && !h.isEmpty())
+                                host.copyToClipboard(algs[idx], values[idx].getText().toString());
                         }
                     });
         }
 
         // 粘贴并校验
         TextView pasteLabel = new TextView(host.ctx());
-        pasteLabel.setText("粘贴并校验");
+        pasteLabel.setText(R.string.pr_paste_verify);
         pasteLabel.setTextColor(ThemeManager.textSub(host.ctx()));
         pasteLabel.setTextSize(14);
         LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(
@@ -531,11 +559,11 @@ public final class PropsController {
         pasteRow.setOrientation(LinearLayout.HORIZONTAL);
         pasteRow.setGravity(Gravity.CENTER_VERTICAL);
         final EditText etPaste = new EditText(host.ctx());
-        etPaste.setHint("粘贴校验值…");
+        etPaste.setHint(R.string.pr_paste_hint);
         pasteRow.addView(etPaste, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         Button pasteBtn = new Button(host.ctx());
-        pasteBtn.setText("粘贴");
+        pasteBtn.setText(R.string.pr_paste);
         UiDecor.barButton(pasteBtn, host.ctx(), UiDecor.KIND_SOFT, 12f);
         pasteRow.addView(pasteBtn, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -554,12 +582,12 @@ public final class PropsController {
         bottom.setGravity(Gravity.CENTER_VERTICAL);
         final boolean[] upper = {false};
         CheckBox upperCk = new CheckBox(host.ctx());
-        upperCk.setText("大写字母");
+        upperCk.setText(R.string.pr_upper);
         upperCk.setTextSize(14);
         bottom.addView(upperCk, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         Button closeBtn = new Button(host.ctx());
-        closeBtn.setText("关闭");
+        closeBtn.setText(R.string.common_close);
         UiDecor.barButton(closeBtn, host.ctx(), UiDecor.KIND_SOFT, 12.5f);
         bottom.addView(closeBtn, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -569,10 +597,8 @@ public final class PropsController {
         blp.topMargin = (int) (8 * d);
         root.addView(bottom, blp);
 
-        final java.util.Map<String, String> hashCache =
-                new java.util.HashMap<String, String>();
         final AlertDialog dlg = new HfDialogBuilder(host.ctx())
-                .setTitle("校验")
+                .setTitle(R.string.pr_verify)
                 .setView(root)
                 .show();
 
@@ -580,7 +606,7 @@ public final class PropsController {
             public void run() {
                 for (int i = 0; i < 4; i++) {
                     String h = hashCache.get(hashKeys[i]);
-                    if (h == null) values[i].setText("计算中…");
+                    if (h == null) values[i].setText(R.string.pr_calculating);
                     else if (h.isEmpty()) values[i].setText("—");
                     else values[i].setText(upper[0]
                             ? h.toUpperCase(java.util.Locale.CHINA)
@@ -613,7 +639,7 @@ public final class PropsController {
                 etPaste.setText(text);
                 if (text.isEmpty()) {
                     resultV.setTextColor(ThemeManager.textSub(host.ctx()));
-                    resultV.setText("剪贴板为空");
+                    resultV.setText(R.string.pr_clip_empty);
                     return;
                 }
                 boolean matched = false;
@@ -622,14 +648,14 @@ public final class PropsController {
                     if (h == null || h.isEmpty()) continue;
                     if (h.equalsIgnoreCase(text)) {
                         resultV.setTextColor(ThemeManager.ok(host.ctx()));
-                        resultV.setText("✓ 与 " + algs[i] + " 校验值一致");
+                        resultV.setText(s(R.string.pr_hash_match, algs[i]));
                         matched = true;
                         break;
                     }
                 }
                 if (!matched) {
                     resultV.setTextColor(ThemeManager.err(host.ctx()));
-                    resultV.setText("✗ 与任何校验值都不匹配");
+                    resultV.setText(R.string.pr_hash_nomatch);
                 }
             }
         });
@@ -638,7 +664,7 @@ public final class PropsController {
         if (!f.isFile()) {
             for (int i = 0; i < 4; i++) hashCache.put(hashKeys[i], "");
             resultV.setTextColor(ThemeManager.textSub(host.ctx()));
-            resultV.setText("文件夹无校验值");
+            resultV.setText(R.string.pr_hash_folder);
             render.run();
             return;
         }
