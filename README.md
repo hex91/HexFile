@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：1848 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：1879 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,81 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.40.0（versionCode 233）—— F-14/27：云盘授权对话框 i18n
+
+`CloudAuthDialog` 46 处中文字面量清零。这一页没有逻辑层文案，但有两段「长说明」
+和一处「异常 → 原因」映射，处理方式和前几页不同。
+
+### 1. 长说明整段进资源，不做行级拆分
+
+OneDrive 那段是 5 步注册指引（含 4 个 `→` 和 3 处书名号），阿里云盘那段是 4 步
+F12 取 token 指引。这些不是「句子 + 变量」，而是**整段说明书**：拆成行键会让译者
+失去上下文，也让「第 3 步说的事情在第 4 步被推翻」这类修订四处漏改。所以各一个键：
+
+```xml
+<string name="ca_od_tip">"需要一个免费的 Azure 应用（只注册一次）：\n1. …\n5. …"</string>
+<string name="ca_al_tip">"手动粘贴方式（一般用不到）：…\n\nrefresh_token 每用一次就会换新的…"</string>
+```
+
+中英行数必须一致（5 行 / 4 段 + 尾注），`aapt2 dump` 逐行对照可验。整值加引号，
+避免行首的 `1. ` / `2. ` 被当成空白折叠。
+
+### 2. `friendly(Throwable)` → `friendly(Activity, Throwable)`
+
+原来是「异常 → 中文」的四分支映射，最后一支 `return m` 直接把异常自带 message
+当文案返回：
+
+```java
+if (e == null) return "未知错误";
+if (e instanceof SocketTimeoutException) return "网络超时：请检查网络或代理";
+if (e instanceof UnknownHostException) return "域名解析失败：请检查网络/DNS";
+if (e instanceof SSLException)          return "TLS 失败：系统时间不准或网络被劫持";
+return m;   // 服务端/库给的原始 message
+```
+
+这个映射本身没错（它在 ui 层），但**兜底那支的 message 不该翻译**：那是 OAuth 端点
+返回的错误描述（`invalid_grant` / `AADSTS70000…`），翻译了反而和微软文档对不上。
+所以只把前三支换成 `ca_err_timeout` / `ca_err_dns` / `ca_err_tls`，兜底原样返回。
+方法要取资源，签名加上 `Activity`，4 个调用点同步改。
+
+### 3. 含引号的 hint 要转义，但不要加外层引号
+
+阿里云盘的输入框提示是 `粘贴 refresh_token，或整段 {"refresh_token":...}`。
+资源里 `"` 写成 `\"`：
+
+```xml
+<string name="ca_al_hint">粘贴 refresh_token，或整段 {\"refresh_token\":...}</string>
+```
+
+这里**不加**外层包裹引号：值首尾无空白，加了反而要处理「引号里再套引号」的歧义。
+`dump` 反证得到的是 `{"refresh_token":...}`，双引号在位。
+
+### 4. 英文裸单引号必须转义
+
+`fill in your Azure app's client ID` 里那个 `'`，aapt2 报
+`unescaped apostrophe in string` 并直接编译失败。写成 `app\'s` 才过。这个坑在
+英文文案里出现频率很高（`app's` / `user's` / `don't`），值得记一笔。
+
+### 5. 一处 `setText` 走 resId 重载
+
+`Toast.makeText(act, "OneDrive 已授权", …)` 与 `"阿里云盘已授权"` 只做提示、不拼参数，
+直接传 `R.string.ca_od_ok` / `R.string.ca_al_ok`，省掉一次 `getString`。
+
+### 验证
+
+- `CloudAuthDialog` 中文字面量 **46 → 0**
+- 新增 31 个 `ca_*` 键；资源总量 **1848 → 1879 条**（引用 1836 键 / 39 文件）
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 1879 条 100% 一致 /
+  动作号 55
+- `QUICK=1` **97 通过 / 0 失败 / 4 跳过**
+- `aapt2 dump resources` 抽查 `ca_od_tip`（5 行中英逐行对齐）、`ca_al_hint`
+  （`{"refresh_token":...}` 的引号未被吞）、`ca_od_cid_empty`（`app's` 转义后正确）、
+  `ca_od_waiting`（`%1$d` 占比）、`ca_open_fail`：中英双变体齐全
+- 构建 2 分 36 秒，APK **13,325,008 B**（`4c3e6080…`；与 v2.38/2.39 同字节数、
+  md5 各异），`aapt2 dump badging` 反证 versionCode 233 / 2.40.0
 
 ---
 

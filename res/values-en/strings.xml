@@ -1940,4 +1940,37 @@
     <string name="mf_save_fail_msg">Write-back failed://n%1$s</string>
     <string name="mf_saved_signed">Saved and signed \u2192 %1$s</string>
     <string name="mf_saved">Saved \u2192 %1$s (not signed; it may fail to install)</string>
+
+    <!-- v2.40.0 cloud auth dialog (CloudAuthDialog) -->
+    <string name="ca_od_tip">"You need a free Azure app (register once):\n1. Open portal.azure.com in a browser \u2192 Microsoft Entra ID \u2192 App registrations \u2192 New registration\n2. Account type: Personal Microsoft accounts; the name can be anything\n3. After registering, copy Application (client) ID into the Client ID field in the form\n4. Open that app \u2192 Authentication \u2192 turn on Allow public client flows \u2192 Save\n5. API permissions \u2192 Microsoft Graph \u2192 Delegated permissions \u2192 Files.ReadWrite.All"</string>
+    <string name="ca_od_need_cid">Fill in the Client ID in the form above, then tap the button below</string>
+    <string name="ca_od_ready">Tap Get a code and a browser will open so you can sign in</string>
+    <string name="ca_od_start">Get a code</string>
+    <string name="ca_od_reopen">Reopen the browser</string>
+    <string name="ca_od_title">Sign in to OneDrive</string>
+    <string name="ca_od_cid_empty">Client ID is empty: fill in your Azure app\'s client ID in the form first</string>
+    <string name="ca_od_requesting">Requesting a code from Microsoft\u2026</string>
+    <string name="ca_od_opened">The browser is open: enter the code above and approve the request\u2026</string>
+    <string name="ca_od_reget">Get a new code</string>
+    <string name="ca_od_req_fail">Request failed: %1$s</string>
+    <string name="ca_od_no_refresh">Microsoft did not return a refresh_token: make sure the app\'s permissions include offline_access</string>
+    <string name="ca_od_ok">OneDrive authorized</string>
+    <string name="ca_od_waiting">Waiting for you to finish signing in in the browser\u2026 (%1$d s left)</string>
+    <string name="ca_od_declined">You cancelled the authorization</string>
+    <string name="ca_od_expired">The code has expired; tap Get a new code</string>
+    <string name="ca_od_timeout">Authorization timed out; get a new code</string>
+    <string name="ca_al_tip">"Manual paste (rarely needed): the Sign in / Authorize button in the form opens the Aliyun Drive login page directly and fetches the credentials automatically, so the steps below are not needed.\nOnly use this when that page cannot sign in (for example the site changed or a corporate network blocks it):\n1. Open alipan.com in a desktop browser and sign in\n2. F12 \u2192 Application \u2192 Local Storage \u2192 https://www.alipan.com\n3. Find the token key and copy its value (a whole JSON blob is fine too)\n4. Paste it below and tap Verify and save\n\nThe refresh_token is replaced on every use, and the app saves the latest value automatically."</string>
+    <string name="ca_al_hint">Paste a refresh_token, or the whole {\"refresh_token\":...}</string>
+    <string name="ca_al_title">Sign in to Aliyun Drive</string>
+    <string name="ca_al_verify">Verify and save</string>
+    <string name="ca_al_no_rt">No refresh_token found: paste the complete token value</string>
+    <string name="ca_al_verifying">Verifying\u2026</string>
+    <string name="ca_al_no_new">Verified, but no new token was returned; try again</string>
+    <string name="ca_al_ok">Aliyun Drive authorized</string>
+    <string name="ca_al_fail">Verification failed: %1$s</string>
+    <string name="ca_open_fail">Cannot open a browser; please visit %1$s manually</string>
+    <string name="ca_err_unknown">Unknown error</string>
+    <string name="ca_err_timeout">Network timeout: check your network or proxy</string>
+    <string name="ca_err_dns">DNS lookup failed: check your network / DNS</string>
+    <string name="ca_err_tls">TLS failure: the system clock may be off or the network is being intercepted</string>
 </resources>

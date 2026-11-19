@@ -1948,4 +1948,37 @@
     <string name="mf_save_fail_msg">写回失败：\n%1$s</string>
     <string name="mf_saved_signed">已保存并签名 → %1$s</string>
     <string name="mf_saved">已保存 → %1$s（未签名，可能无法安装）</string>
+
+    <!-- v2.40.0 云盘授权对话框（CloudAuthDialog） -->
+    <string name="ca_od_tip">"需要一个免费的 Azure 应用（只注册一次）：\n1. 浏览器打开 portal.azure.com → Microsoft Entra ID → 应用注册 → 新注册\n2. 账户类型选「个人 Microsoft 账户」，名称随意\n3. 注册后复制「应用程序(客户端) ID」，填到表单的 Client ID\n4. 该应用 → 身份验证 → 打开「允许公共客户端流」→ 保存\n5. API 权限 → Microsoft Graph → 委托的权限 → Files.ReadWrite.All"</string>
+    <string name="ca_od_need_cid">先在上面的表单填好 Client ID，再点下面的按钮</string>
+    <string name="ca_od_ready">点「获取授权码」后，会打开浏览器让你登录</string>
+    <string name="ca_od_start">获取授权码</string>
+    <string name="ca_od_reopen">重新打开浏览器</string>
+    <string name="ca_od_title">登录 OneDrive</string>
+    <string name="ca_od_cid_empty">Client ID 为空：请先在表单里填入 Azure 应用的客户端 ID</string>
+    <string name="ca_od_requesting">正在向微软申请授权码…</string>
+    <string name="ca_od_opened">已打开浏览器，输入上面的代码并同意授权…</string>
+    <string name="ca_od_reget">重新获取</string>
+    <string name="ca_od_req_fail">申请失败：%1$s</string>
+    <string name="ca_od_no_refresh">微软没有返回 refresh_token：请确认应用的权限里包含 offline_access</string>
+    <string name="ca_od_ok">OneDrive 已授权</string>
+    <string name="ca_od_waiting">等待你在浏览器里完成登录…（剩余 %1$d 秒）</string>
+    <string name="ca_od_declined">你取消了授权</string>
+    <string name="ca_od_expired">授权码已过期，请点「重新获取」</string>
+    <string name="ca_od_timeout">授权超时，请重新获取授权码</string>
+    <string name="ca_al_tip">"手动粘贴方式（一般用不到）：表单里的「登录 / 授权」会直接打开阿里云盘登录页，登录完自动取回凭证，不需要下面这些步骤。\n只有在那个页面登录不了（例如站点改版、企业网络拦截）时才用这里：\n1. 电脑浏览器打开 alipan.com 并登录\n2. F12 → Application（应用）→ Local Storage → https://www.alipan.com\n3. 找到键 token，复制它的值（一整段 JSON 也行）\n4. 粘贴到下面，点「验证并保存」\n\nrefresh_token 每用一次就会换新的，App 会自动保存最新值。"</string>
+    <string name="ca_al_hint">粘贴 refresh_token，或整段 {\"refresh_token\":...}</string>
+    <string name="ca_al_title">登录阿里云盘</string>
+    <string name="ca_al_verify">验证并保存</string>
+    <string name="ca_al_no_rt">没找到 refresh_token：请复制完整的 token 值</string>
+    <string name="ca_al_verifying">正在验证…</string>
+    <string name="ca_al_no_new">验证成功但没返回新 token，请重试</string>
+    <string name="ca_al_ok">阿里云盘已授权</string>
+    <string name="ca_al_fail">验证失败：%1$s</string>
+    <string name="ca_open_fail">打不开浏览器，请手动访问 %1$s</string>
+    <string name="ca_err_unknown">未知错误</string>
+    <string name="ca_err_timeout">网络超时：请检查网络或代理</string>
+    <string name="ca_err_dns">域名解析失败：请检查网络/DNS</string>
+    <string name="ca_err_tls">TLS 失败：系统时间不准或网络被劫持</string>
 </resources>

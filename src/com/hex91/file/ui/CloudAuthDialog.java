@@ -1,5 +1,6 @@
 package com.hex91.file.ui;
 
+import com.hex91.file.R;
 import com.hex91.file.net.OAuthClient;
 import com.hex91.file.net.OAuthToken;
 import android.app.Activity;
@@ -53,12 +54,7 @@ final class CloudAuthDialog {
     private static void showOneDrive(final Activity act, final String clientId, final Callback cb) {
         final LinearLayout box = column(act);
 
-        box.addView(tip(act, "需要一个免费的 Azure 应用（只注册一次）：\n"
-                + "1. 浏览器打开 portal.azure.com → Microsoft Entra ID → 应用注册 → 新注册\n"
-                + "2. 账户类型选「个人 Microsoft 账户」，名称随意\n"
-                + "3. 注册后复制「应用程序(客户端) ID」，填到表单的 Client ID\n"
-                + "4. 该应用 → 身份验证 → 打开「允许公共客户端流」→ 保存\n"
-                + "5. API 权限 → Microsoft Graph → 委托的权限 → Files.ReadWrite.All"));
+        box.addView(tip(act, act.getString(R.string.ca_od_tip)));
 
         final TextView code = new TextView(act);
         code.setTextSize(30);
@@ -68,17 +64,16 @@ final class CloudAuthDialog {
         code.setVisibility(View.GONE);
         box.addView(code);
 
-        final TextView status = tip(act, clientId == null || clientId.trim().isEmpty()
-                ? "先在上面的表单填好 Client ID，再点下面的按钮"
-                : "点「获取授权码」后，会打开浏览器让你登录");
+        final TextView status = tip(act, act.getString(clientId == null || clientId.trim().isEmpty()
+                ? R.string.ca_od_need_cid : R.string.ca_od_ready));
         box.addView(status);
 
         final Button start = new Button(act);
-        start.setText("获取授权码");
+        start.setText(R.string.ca_od_start);
         box.addView(start);
 
         final Button open = new Button(act);
-        open.setText("重新打开浏览器");
+        open.setText(R.string.ca_od_reopen);
         open.setVisibility(View.GONE);
         box.addView(open);
 
@@ -87,9 +82,9 @@ final class CloudAuthDialog {
         final String[] verifyUri = {""};
 
         AlertDialog d = new HfDialogBuilder(act)
-                .setTitle("登录 OneDrive")
+                .setTitle(R.string.ca_od_title)
                 .setView(scroll(act, box))
-                .setNegativeButton("关闭", null)
+                .setNegativeButton(R.string.common_close, null)
                 .create();
         holder[0] = d;
         d.setOnDismissListener(new DialogInterface.OnDismissListener() {
@@ -100,11 +95,11 @@ final class CloudAuthDialog {
             public void onClick(View v) {
                 final String cid = clientId == null ? "" : clientId.trim();
                 if (cid.isEmpty()) {
-                    status.setText("Client ID 为空：请先在表单里填入 Azure 应用的客户端 ID");
+                    status.setText(R.string.ca_od_cid_empty);
                     return;
                 }
                 start.setEnabled(false);
-                status.setText("正在向微软申请授权码…");
+                status.setText(R.string.ca_od_requesting);
                 new Thread(new Runnable() {
                     public void run() {
                         try {
@@ -115,8 +110,8 @@ final class CloudAuthDialog {
                                     code.setVisibility(View.VISIBLE);
                                     code.setText(dc.userCode);
                                     open.setVisibility(View.VISIBLE);
-                                    status.setText("已打开浏览器，输入上面的代码并同意授权…");
-                                    start.setText("重新获取");
+                                    status.setText(R.string.ca_od_opened);
+                                    start.setText(R.string.ca_od_reget);
                                     start.setEnabled(true);
                                     openBrowser(act, dc.verificationUri);
                                 }
@@ -126,7 +121,8 @@ final class CloudAuthDialog {
                             ui(act, new Runnable() {
                                 public void run() {
                                     start.setEnabled(true);
-                                    status.setText("申请失败：" + friendly(e));
+                                    status.setText(act.getString(R.string.ca_od_req_fail,
+                                            friendly(act, e)));
                                 }
                             });
                         }
@@ -156,7 +152,7 @@ final class CloudAuthDialog {
             try {
                 final OAuthToken t = OAuthClient.pollDeviceCode(clientId, dc.deviceCode);
                 if (!t.hasRefresh()) {
-                    fail(act, status, "微软没有返回 refresh_token：请确认应用的权限里包含 offline_access");
+                    fail(act, status, act.getString(R.string.ca_od_no_refresh));
                     return;
                 }
                 ui(act, new Runnable() {
@@ -165,7 +161,7 @@ final class CloudAuthDialog {
                             holder[0].setOnDismissListener(null);   // 已成功，不当作取消
                             holder[0].dismiss();
                         }
-                        Toast.makeText(act, "OneDrive 已授权", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(act, R.string.ca_od_ok, Toast.LENGTH_SHORT).show();
                     }
                 });
                 cb.onAuthorized(t.refresh);
@@ -179,27 +175,27 @@ final class CloudAuthDialog {
                     final long left = Math.max(0, (deadline - System.currentTimeMillis()) / 1000);
                     ui(act, new Runnable() {
                         public void run() {
-                            status.setText("等待你在浏览器里完成登录…（剩余 " + left + " 秒）");
+                            status.setText(act.getString(R.string.ca_od_waiting, left));
                         }
                     });
                     continue;
                 }
                 if (e.declined()) {
-                    fail(act, status, "你取消了授权");
+                    fail(act, status, act.getString(R.string.ca_od_declined));
                     return;
                 }
                 if (e.expired()) {
-                    fail(act, status, "授权码已过期，请点「重新获取」");
+                    fail(act, status, act.getString(R.string.ca_od_expired));
                     return;
                 }
-                fail(act, status, friendly(e));
+                fail(act, status, friendly(act, e));
                 return;
             } catch (IOException e) {
-                fail(act, status, friendly(e));
+                fail(act, status, friendly(act, e));
                 return;
             }
         }
-        if (!cancelled[0]) fail(act, status, "授权超时，请重新获取授权码");
+        if (!cancelled[0]) fail(act, status, act.getString(R.string.ca_od_timeout));
     }
 
     // ================================================================ 阿里云盘
@@ -207,17 +203,10 @@ final class CloudAuthDialog {
     private static void showAliyun(final Activity act, final String currentRefresh, final Callback cb) {
         final LinearLayout box = column(act);
 
-        box.addView(tip(act, "手动粘贴方式（一般用不到）：表单里的「登录 / 授权」会直接打开"
-                + "阿里云盘登录页，登录完自动取回凭证，不需要下面这些步骤。\n"
-                + "只有在那个页面登录不了（例如站点改版、企业网络拦截）时才用这里：\n"
-                + "1. 电脑浏览器打开 alipan.com 并登录\n"
-                + "2. F12 → Application（应用）→ Local Storage → https://www.alipan.com\n"
-                + "3. 找到键 token，复制它的值（一整段 JSON 也行）\n"
-                + "4. 粘贴到下面，点「验证并保存」\n\n"
-                + "refresh_token 每用一次就会换新的，App 会自动保存最新值。"));
+        box.addView(tip(act, act.getString(R.string.ca_al_tip)));
 
         final EditText input = new EditText(act);
-        input.setHint("粘贴 refresh_token，或整段 {\"refresh_token\":...}");
+        input.setHint(R.string.ca_al_hint);
         input.setTextSize(13);
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         input.setMinLines(3);
@@ -229,10 +218,10 @@ final class CloudAuthDialog {
         box.addView(status);
 
         AlertDialog d = new HfDialogBuilder(act)
-                .setTitle("登录阿里云盘")
+                .setTitle(R.string.ca_al_title)
                 .setView(scroll(act, box))
-                .setPositiveButton("验证并保存", null)
-                .setNegativeButton("取消", null)
+                .setPositiveButton(R.string.ca_al_verify, null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .create();
 
         d.setOnShowListener(new DialogInterface.OnShowListener() {
@@ -242,10 +231,10 @@ final class CloudAuthDialog {
                     public void onClick(View v) {
                         final String rt = OAuthToken.extractRefresh(input.getText().toString());
                         if (rt.isEmpty()) {
-                            status.setText("没找到 refresh_token：请复制完整的 token 值");
+                            status.setText(R.string.ca_al_no_rt);
                             return;
                         }
-                        status.setText("正在验证…");
+                        status.setText(R.string.ca_al_verifying);
                         ad.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
                         new Thread(new Runnable() {
                             public void run() {
@@ -254,7 +243,7 @@ final class CloudAuthDialog {
                                     if (!t.hasRefresh()) {
                                         ui(act, new Runnable() {
                                             public void run() {
-                                                status.setText("验证成功但没返回新 token，请重试");
+                                                status.setText(R.string.ca_al_no_new);
                                                 ad.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
                                             }
                                         });
@@ -263,14 +252,15 @@ final class CloudAuthDialog {
                                     ui(act, new Runnable() {
                                         public void run() {
                                             ad.dismiss();
-                                            Toast.makeText(act, "阿里云盘已授权", Toast.LENGTH_SHORT).show();
+                                            Toast.makeText(act, R.string.ca_al_ok, Toast.LENGTH_SHORT).show();
                                         }
                                     });
                                     cb.onAuthorized(t.refresh);
                                 } catch (final Exception e) {
                                     ui(act, new Runnable() {
                                         public void run() {
-                                            status.setText("验证失败：" + friendly(e));
+                                            status.setText(act.getString(R.string.ca_al_fail,
+                                                    friendly(act, e)));
                                             ad.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
                                         }
                                     });
@@ -313,7 +303,7 @@ final class CloudAuthDialog {
         try {
             act.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(uri)));
         } catch (Exception e) {
-            Toast.makeText(act, "打不开浏览器，请手动访问 " + uri, Toast.LENGTH_LONG).show();
+            Toast.makeText(act, act.getString(R.string.ca_open_fail, uri), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -346,13 +336,17 @@ final class CloudAuthDialog {
         return Math.round(v * act.getResources().getDisplayMetrics().density);
     }
 
-    private static String friendly(Throwable e) {
-        if (e == null) return "未知错误";
+    /**
+     * 异常 → 可读原因。前三类是用户能自己排查的，走资源；
+     * 其余保留异常自带 message（多为服务端返回的字段，翻译反而对不上）。
+     */
+    private static String friendly(Activity act, Throwable e) {
+        if (e == null) return act.getString(R.string.ca_err_unknown);
+        if (e instanceof java.net.SocketTimeoutException) return act.getString(R.string.ca_err_timeout);
+        if (e instanceof java.net.UnknownHostException) return act.getString(R.string.ca_err_dns);
+        if (e instanceof javax.net.ssl.SSLException) return act.getString(R.string.ca_err_tls);
         String m = e.getMessage();
-        if (m == null || m.isEmpty()) m = e.getClass().getSimpleName();
-        if (e instanceof java.net.SocketTimeoutException) return "网络超时：请检查网络或代理";
-        if (e instanceof java.net.UnknownHostException) return "域名解析失败：请检查网络/DNS";
-        if (e instanceof javax.net.ssl.SSLException) return "TLS 失败：系统时间不准或网络被劫持";
+        if (m == null || m.isEmpty()) return e.getClass().getSimpleName();
         return m;
     }
 
