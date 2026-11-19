@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：1660 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：1690 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,46 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.36.0（versionCode 229）—— F-14/23：Dex 编辑器 i18n
+
+`DexEditorActivity` 53 处中文字面量清到 0。这页的文案长在「多 dex 选择 → 反编译进度 →
+编译 → 写回压缩包 → 自动签名」这条链上，两个地方值得记：
+
+### 1. 写回说明是三个片段拼的
+
+```java
+msg.append(dexes.get(0)).append(" 已被修改");
+if (dexes.size() > 1) msg.append("\n\n多个 dex 已合并为一个：…");
+msg.append("\n\n是否更新到压缩包 ").append(apk.getName()).append(" ？")…
+```
+
+拆成 `dx_changed` / `dx_merged` / `dx_ask_update` 三条完整句，片段带自己的前导
+`\n\n`（英文的段落间隔与中文一致，保留在句子里比在代码里补换行更稳）。
+
+### 2. 进度条上的「大 dex 需 10-60 秒」
+
+`"反编译 " + dexName + "\n（大 dex 需 10-60 秒）"` 带换行与括号补充，整体成
+`dx_decompile`（`%1$s`），中英各自决定换行位置。
+
+### 3. 异常串改 ASCII
+
+两处 `err = "提取失败: " + dexName` / `"已写回，但签名失败: " + msg` 是**诊断信息**
+（进「加载失败 / 完成（有提示）」对话框的技术细节区），改成 `extract failed:` /
+`written back, but signing failed:`。其余用户可见的提示全部走资源。
+
+### 验证
+
+- `DexEditorActivity` 中文字面量 **53 → 0**（只剩注释）
+- 新增 30 个 `dx_*` 键；资源总量 **1660 → 1690 条**
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 1690 条 100% 一致
+  （引用 1647 键 / 33 文件）/ 动作号 55
+- `QUICK=1` **97 通过 / 0 失败 / 4 跳过**
+- `aapt2 dump resources` 抽查 `dx_ask_update` / `dx_merged`（前导 `\n\n`）/
+  `dx_summary`：中英双变体齐全
+- 构建 1 分 22 秒，APK **13,308,624 B**
 
 ---
 

@@ -172,7 +172,7 @@ public class DexEditorActivity extends BaseActivity {
     private void showMultiDexDialog(final String[] prechecked) {
         final List<String> all = listZipDexes();
         if (all.isEmpty()) {
-            Toast.makeText(this, "APK 内未找到 dex", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.dx_no_dex, Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
@@ -187,16 +187,17 @@ public class DexEditorActivity extends BaseActivity {
                         chk[which] = isChecked;
                     }
                 })
-                .setNegativeButton("取消", new DialogInterface.OnClickListener() {
+                .setNegativeButton(R.string.common_cancel, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) { finish(); }
                 })
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.common_confirm, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         dexes.clear();
                         boolean any = false;
                         for (int i = 0; i < all.size(); i++) if (chk[i]) { dexes.add(all.get(i)); any = true; }
                         if (!any) {
-                            Toast.makeText(DexEditorActivity.this, "请至少选择一个 dex", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(DexEditorActivity.this, R.string.dx_pick_at_least,
+                                    Toast.LENGTH_SHORT).show();
                             showMultiDexDialog(prechecked);
                             return;
                         }
@@ -248,7 +249,7 @@ public class DexEditorActivity extends BaseActivity {
     private void loadProject() {
         final List<String> sel = new ArrayList<String>(dexes);
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("准备工程…");
+        pd.setMessage(getString(R.string.dx_prepare));
         pd.setCancelable(false);
         pd.show();
         new Thread() { public void run() {
@@ -265,7 +266,7 @@ public class DexEditorActivity extends BaseActivity {
                     writeText(ini, want.toString());
                     for (int i = 0; i < sel.size(); i++) {
                         final String dexName = sel.get(i);
-                        final String msg1 = "提取 " + dexName + " …";
+                        final String msg1 = getString(R.string.dx_extract, dexName);
                         ui.post(new Runnable() { public void run() { pd.setMessage(msg1); } });
                         File src;
                         if (singleDex != null) {
@@ -273,7 +274,7 @@ public class DexEditorActivity extends BaseActivity {
                         } else {
                             src = new File(workDir, "src_" + i + ".dex");
                             if (!extractZipEntry(apk, dexName, src)) {
-                                err = "提取失败: " + dexName;
+                                err = "extract failed: " + dexName;
                                 break;
                             }
                             // v1.66.0：会话中该 dex 有未落地修改则优先
@@ -282,7 +283,7 @@ public class DexEditorActivity extends BaseActivity {
                         String base = stripExt(new File(dexName).getName());
                         File outDir = new File(workDir, "smali_" + base);
                         smaliDirDex.put(outDir.getName(), src);
-                        final String msg2 = "反编译 " + dexName + "\n（大 dex 需 10-60 秒）";
+                        final String msg2 = getString(R.string.dx_decompile, dexName);
                         ui.post(new Runnable() { public void run() { pd.setMessage(msg2); } });
                         err = SmaliTool.decompile(src, outDir, 4);
                         if (err != null) break;
@@ -297,13 +298,14 @@ public class DexEditorActivity extends BaseActivity {
                 pd.dismiss();
                 if (e != null) {
                     new HfDialogBuilder(DexEditorActivity.this)
-                            .setTitle("加载失败").setMessage(e)
-                            .setPositiveButton("关闭", new DialogInterface.OnClickListener() {
+                            .setTitle(R.string.dx_load_fail).setMessage(e)
+                            .setPositiveButton(R.string.common_close,
+                                    new DialogInterface.OnClickListener() {
                                 public void onClick(DialogInterface d, int w) { finish(); }
                             }).show();
                 } else {
                     initEditBase();
-                    titleSub.setText(dexes.size() + " 个 dex · " + classCount + " 个类 · 临时工程");
+                    titleSub.setText(getString(R.string.dx_summary, dexes.size(), classCount));
                     refresh();
                 }
             }});
@@ -357,17 +359,17 @@ public class DexEditorActivity extends BaseActivity {
         // 确定后走 编译（进度条）→ 更新压缩包（含自动签名复选框）→ 完成退出
         if (apk != null && hasUnwrittenSmali()) {
             new HfDialogBuilder(this)
-                    .setTitle("smali 修改尚未写回")
-                    .setMessage("是否编译并保存文件？\n\n"
-                            + "工程里的 smali 改动还没有写回 " + apk.getName()
-                            + "，不编译保存的话这些修改不会生效。")
-                    .setPositiveButton("编译并保存", new DialogInterface.OnClickListener() {
+                    .setTitle(R.string.dx_unwritten_title)
+                    .setMessage(getString(R.string.dx_unwritten_msg, apk.getName()))
+                    .setPositiveButton(R.string.dx_compile_save,
+                            new DialogInterface.OnClickListener() {
                         public void onClick(DialogInterface d, int w) { compileAndOfferUpdate(true); }
                     })
-                    .setNegativeButton("不保存退出", new DialogInterface.OnClickListener() {
+                    .setNegativeButton(R.string.dx_exit_unsaved,
+                            new DialogInterface.OnClickListener() {
                         public void onClick(DialogInterface d, int w) { finish(); }
                     })
-                    .setNeutralButton("取消", null)
+                    .setNeutralButton(R.string.common_cancel, null)
                     .show();
             return;
         }
@@ -463,10 +465,10 @@ public class DexEditorActivity extends BaseActivity {
             Collections.sort(hits, CI);
             for (String cls : hits)
                 if (cls.toLowerCase().contains(lq)) rows.add(cls);
-            titleSub.setText(rows.size() + " 个匹配类");
+            titleSub.setText(getString(R.string.dx_match, rows.size()));
         } else {
             flatten(root, 0);
-            titleSub.setText(dexes.size() + " 个 dex · " + classCount + " 个类 · 临时工程");
+            titleSub.setText(getString(R.string.dx_summary, dexes.size(), classCount));
         }
         // v1.66.9：复用单一 adapter + notifyDataSetChanged——
         // ListView 原地刷新，展开/收起时点击项位置不变（子项插在其后），不再跳回顶部
@@ -646,7 +648,7 @@ public class DexEditorActivity extends BaseActivity {
 
     private void askCompile() {
         if (root == null) {
-            Toast.makeText(this, "工程尚未加载完成", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.dx_not_loaded, Toast.LENGTH_SHORT).show();
             return;
         }
         compileAndOfferUpdate(false);
@@ -659,7 +661,7 @@ public class DexEditorActivity extends BaseActivity {
      */
     private void compileAndOfferUpdate(final boolean exitWhenDone) {
         if (root == null) {
-            Toast.makeText(this, "工程尚未加载完成", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.dx_not_loaded, Toast.LENGTH_SHORT).show();
             return;
         }
         // v1.66.10：编译输出放应用内部缓存工程目录（不再在 APK/Dex 旁生成 <名>_dexpp 目录）
@@ -667,8 +669,8 @@ public class DexEditorActivity extends BaseActivity {
 
         // 进度条（v1.67.0：横向真实走动——smali 编译拿不到阶段回调，用渐近曲线平滑推进，完成打满）
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setTitle("正在编译");
-        pd.setMessage("把全部 smali 编译为 dex…（几千个类需 10-60 秒）");
+        pd.setTitle(getString(R.string.dx_compiling));
+        pd.setMessage(getString(R.string.dx_compiling_msg));
         pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
         pd.setMax(100);
         pd.setCancelable(false);
@@ -716,16 +718,15 @@ public class DexEditorActivity extends BaseActivity {
                     if (apk != null) askUpdateArchive(outDex, exitWhenDone);
                     else {
                         Toast.makeText(DexEditorActivity.this,
-                                "已写回 → " + singleDex.getName()
-                                        + "（原文件已备份到工程缓存）",
+                                getString(R.string.dx_written_back, singleDex.getName()),
                                 Toast.LENGTH_LONG).show();
                         if (exitWhenDone) finish();
                     }
                 } else {
                     new HfDialogBuilder(DexEditorActivity.this)
-                            .setTitle("编译失败")
-                            .setMessage(e + "\n\n通常是某个 smali 语法有误——检查最近改过的类。")
-                            .setPositiveButton("知道了", null)
+                            .setTitle(R.string.dx_compile_fail)
+                            .setMessage(getString(R.string.dx_compile_fail_msg, e))
+                            .setPositiveButton(R.string.common_got_it, null)
                             .show();
                 }
             }});
@@ -738,20 +739,17 @@ public class DexEditorActivity extends BaseActivity {
         int mcnt = SmaliTool.dexMethodCount(outDex);
         if (mcnt > 65535) {
             new HfDialogBuilder(this)
-                    .setTitle("无法写回")
-                    .setMessage("合并后的 dex 含 " + mcnt + " 个方法引用，超过单 dex 65535 的上限。\n\n"
-                            + "解决办法：回到 MultiDex 对话框只勾选需要修改的 dex，改完单独写回。")
-                    .setPositiveButton("知道了", null).show();
+                    .setTitle(R.string.dx_cannot_write)
+                    .setMessage(getString(R.string.dx_method_limit, mcnt))
+                    .setPositiveButton(R.string.common_got_it, null).show();
             return;
         }
 
         StringBuilder msg = new StringBuilder();
-        msg.append(dexes.get(0)).append(" 已被修改");
+        msg.append(getString(R.string.dx_changed, dexes.get(0)));
         if (dexes.size() > 1)
-            msg.append("\n\n多个 dex 已合并为一个：写回时将替换 ").append(dexes.get(0))
-               .append(" 并移除其余 ").append(dexes.size() - 1).append(" 个 dex");
-        msg.append("\n\n是否更新到压缩包 ").append(apk.getName()).append(" ？")
-           .append("\n（首次修改自动备份 同名_bak.apk）");
+            msg.append(getString(R.string.dx_merged, dexes.get(0), dexes.size() - 1));
+        msg.append(getString(R.string.dx_ask_update, apk.getName()));
 
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
@@ -763,7 +761,7 @@ public class DexEditorActivity extends BaseActivity {
         tv.setTextColor(ThemeManager.text(this));
         box.addView(tv);
         final CheckBox autoSign = new CheckBox(this);
-        autoSign.setText("自动签名（长按可设置密钥与签名方案）");
+        autoSign.setText(R.string.dx_autosign);
         autoSign.setTextSize(14);
         autoSign.setChecked(true);
         autoSign.setOnLongClickListener(new View.OnLongClickListener() {
@@ -775,20 +773,20 @@ public class DexEditorActivity extends BaseActivity {
         box.addView(autoSign);
 
         new HfDialogBuilder(this)
-                .setTitle("编译成功")
+                .setTitle(R.string.dx_compile_ok)
                 .setView(box)
-                .setPositiveButton("更新", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.dx_update, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         doUpdateArchive(outDex, autoSign.isChecked(), exitWhenDone);
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     private void doUpdateArchive(final File outDex, final boolean autoSign, final boolean exitWhenDone) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("写回 " + apk.getName() + " …");
+        pd.setMessage(getString(R.string.dx_writing, apk.getName()));
         pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
         pd.setMax(100);
         pd.setCancelable(false);
@@ -823,7 +821,7 @@ public class DexEditorActivity extends BaseActivity {
                     ApkSignHelper.signInPlace(DexEditorActivity.this, apk);
                 } catch (Throwable t) {
                     // 签名失败不算写回失败——包已更新，仅提示
-                    err = "已写回，但签名失败: " + t.getMessage();
+                    err = "written back, but signing failed: " + t.getMessage();
                 }
             }
             final String e = err;
@@ -833,15 +831,15 @@ public class DexEditorActivity extends BaseActivity {
                 pd.dismiss();
                 if (e == null) {
                     Toast.makeText(DexEditorActivity.this,
-                            autoSign ? "已写回并签名 → " + apk.getName()
-                                     : "已写回 → " + apk.getName()
-                                       + "（未签名，可能无法安装）",
+                            autoSign ? getString(R.string.dx_signed, apk.getName())
+                                     : getString(R.string.dx_unsigned, apk.getName()),
                             Toast.LENGTH_LONG).show();
                     if (exitWhenDone) finish();
                 } else {
                     new HfDialogBuilder(DexEditorActivity.this)
-                            .setTitle("完成（有提示）").setMessage(e)
-                            .setPositiveButton("知道了", new DialogInterface.OnClickListener() {
+                            .setTitle(R.string.dx_done_title).setMessage(e)
+                            .setPositiveButton(R.string.common_got_it,
+                                    new DialogInterface.OnClickListener() {
                                 public void onClick(DialogInterface d, int w) {
                                     if (exitWhenDone) finish();
                                 }

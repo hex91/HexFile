@@ -1753,4 +1753,35 @@
     <string name="lan_keep_fail">开启失败：%1$s</string>
     <string name="lan_keep_on">"●  后台接收：开"</string>
     <string name="lan_keep_off">"○  后台接收"</string>
+    <!-- ===== Dex 编辑器（F-14/23） ===== -->
+    <string name="dx_no_dex">APK 内未找到 dex</string>
+    <string name="dx_pick_at_least">请至少选择一个 dex</string>
+    <string name="dx_prepare">准备工程…</string>
+    <string name="dx_extract">提取 %1$s …</string>
+    <string name="dx_decompile">"反编译 %1$s\n（大 dex 需 10-60 秒）"</string>
+    <string name="dx_load_fail">加载失败</string>
+    <string name="dx_summary">%1$d 个 dex · %2$d 个类 · 临时工程</string>
+    <string name="dx_unwritten_title">smali 修改尚未写回</string>
+    <string name="dx_unwritten_msg">"是否编译并保存文件？\n\n工程里的 smali 改动还没有写回 %1$s，不编译保存的话这些修改不会生效。"</string>
+    <string name="dx_compile_save">编译并保存</string>
+    <string name="dx_exit_unsaved">不保存退出</string>
+    <string name="dx_match">%1$d 个匹配类</string>
+    <string name="dx_not_loaded">工程尚未加载完成</string>
+    <string name="dx_compiling">正在编译</string>
+    <string name="dx_compiling_msg">把全部 smali 编译为 dex…（几千个类需 10-60 秒）</string>
+    <string name="dx_written_back">已写回 → %1$s（原文件已备份到工程缓存）</string>
+    <string name="dx_compile_fail">编译失败</string>
+    <string name="dx_compile_fail_msg">"%1$s\n\n通常是某个 smali 语法有误——检查最近改过的类。"</string>
+    <string name="dx_cannot_write">无法写回</string>
+    <string name="dx_method_limit">"合并后的 dex 含 %1$d 个方法引用，超过单 dex 65535 的上限。\n\n解决办法：回到 MultiDex 对话框只勾选需要修改的 dex，改完单独写回。"</string>
+    <string name="dx_changed">%1$s 已被修改</string>
+    <string name="dx_merged">"\n\n多个 dex 已合并为一个：写回时将替换 %1$s 并移除其余 %2$d 个 dex"</string>
+    <string name="dx_ask_update">"\n\n是否更新到压缩包 %1$s ？\n（首次修改自动备份 同名_bak.apk）"</string>
+    <string name="dx_autosign">自动签名（长按可设置密钥与签名方案）</string>
+    <string name="dx_compile_ok">编译成功</string>
+    <string name="dx_update">更新</string>
+    <string name="dx_writing">写回 %1$s …</string>
+    <string name="dx_signed">已写回并签名 → %1$s</string>
+    <string name="dx_unsigned">已写回 → %1$s（未签名，可能无法安装）</string>
+    <string name="dx_done_title">完成（有提示）</string>
 </resources>

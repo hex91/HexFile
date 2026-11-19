@@ -1745,4 +1745,35 @@
     <string name="lan_keep_fail">Cannot enable it: %1$s</string>
     <string name="lan_keep_on">"●  Receiving in background: on"</string>
     <string name="lan_keep_off">"○  Receive in background"</string>
+    <!-- ===== dex editor ===== -->
+    <string name="dx_no_dex">No dex found inside the APK</string>
+    <string name="dx_pick_at_least">Select at least one dex</string>
+    <string name="dx_prepare">Preparing the project…</string>
+    <string name="dx_extract">Extracting %1$s …</string>
+    <string name="dx_decompile">"Decompiling %1$s\n(large dex files take 10-60 s)"</string>
+    <string name="dx_load_fail">Load failed</string>
+    <string name="dx_summary">%1$d dex · %2$d classes · temporary project</string>
+    <string name="dx_unwritten_title">smali changes not written back</string>
+    <string name="dx_unwritten_msg">"Compile and save now?\n\nThe smali edits have not been written back to %1$s; without compiling and saving they will not take effect."</string>
+    <string name="dx_compile_save">Compile and save</string>
+    <string name="dx_exit_unsaved">Exit without saving</string>
+    <string name="dx_match">%1$d matching classes</string>
+    <string name="dx_not_loaded">The project is not loaded yet</string>
+    <string name="dx_compiling">Compiling</string>
+    <string name="dx_compiling_msg">Compiling every smali into dex… (thousands of classes take 10-60 s)</string>
+    <string name="dx_written_back">Written back → %1$s (the original was backed up in the project cache)</string>
+    <string name="dx_compile_fail">Compile failed</string>
+    <string name="dx_compile_fail_msg">"%1$s\n\nUsually one of the smali files has a syntax error — check the classes you changed most recently."</string>
+    <string name="dx_cannot_write">Cannot write back</string>
+    <string name="dx_method_limit">"The merged dex has %1$d method references, above the 65535 limit of a single dex.\n\nWorkaround: go back to the MultiDex dialog, select only the dex you need to change, and write that one back."</string>
+    <string name="dx_changed">%1$s has been modified</string>
+    <string name="dx_merged">"\n\nSeveral dex files were merged into one: writing back replaces %1$s and removes the other %2$d"</string>
+    <string name="dx_ask_update">"\n\nUpdate the archive %1$s?\n(The first change backs it up as name_bak.apk.)"</string>
+    <string name="dx_autosign">Sign automatically (long-press to set the key and scheme)</string>
+    <string name="dx_compile_ok">Compiled</string>
+    <string name="dx_update">Update</string>
+    <string name="dx_writing">Writing back to %1$s …</string>
+    <string name="dx_signed">Written back and signed → %1$s</string>
+    <string name="dx_unsigned">Written back → %1$s (unsigned, may fail to install)</string>
+    <string name="dx_done_title">Finished (with a message)</string>
 </resources>
