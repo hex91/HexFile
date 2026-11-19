@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：1737 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：1816 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,91 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.38.0（versionCode 231）—— F-14/25：对比工具 i18n（三个工具类一并码化）
+
+对比功能是「一个 Activity + 三个结果生产器」：`CompareActivity` 66 处、`CompareUtil` 11 处、
+`TextDiffUtil` 8 处、`ApkCompareUtil` 9 处，合计 **94 处清零**。三个工具类都在直接拼
+面向用户的中文，所以又是先改结构。
+
+### 1. `Item.note`（现拼字符串）→ `noteKind` 类型码
+
+差异行的说明原本是四类现拼文案：
+
+| 场景 | 旧写法 | 新码 |
+| --- | --- | --- |
+| 大小不同 | `fmtSize(A) + " → " + fmtSize(B)` | `NOTE_SIZE` |
+| 同大小但内容不同 | `"内容不同(" + brief(ha) + " ≠ " + brief(hb) + ")"` | `NOTE_HASH` |
+| 同大小同内容但时间不同 | `size → size + "（时间不同）"` | `NOTE_TIME` |
+| 归档条目同长度不同 CRC32 | `"CRC32 " + %08X(A) + " → " + %08X(B)` | `NOTE_CRC` |
+
+`Item.note` 删除，换成 `noteKind` + `noteA/noteB` 两个数据槽（只有 `NOTE_HASH` 用，
+存两侧 brief 哈希）。渲染、`%08X` 格式化、`→` 两侧的空格全交给
+`CompareReport.note()`，逻辑层不再关心「说明长什么样」。
+
+`ArchCompareTest` 里 `ch.note.indexOf("CRC32") >= 0` 同步改成
+`ch.noteKind == CompareUtil.NOTE_CRC` —— 断言从「文案里有没有 CRC32 四个字母」
+回到「这条差异的判定理由是 CRC 不同」。
+
+### 2. 三个「产文案」的方法搬到 `ui/CompareReport`
+
+`CompareUtil.summary()` / `TextDiffUtil.report()` / `ApkCompareUtil.report()` 都在逻辑层，
+都带条件分支和格式串。新增 `ui/CompareReport`（15 个静态方法）承接全部输出：
+
+```java
+modeTitle / title                    // 模式标题 + 「模式
+A: x  ↔  B: y」
+folderSummary / note / folderReport  // 目录对比
+textSummary / textError / textReport // 文本对比
+hashReportHead / hashLine            // 哈希对比
+apkSummary / apkManifestHead / apkEntriesHead / apkReport  // APK 对比
+```
+
+报告里的 `---` / `+++` / `@@`（unified diff 惯例）、`A:` / `B:` / `SHA-256:`
+（字段名）、`+` / `-` / `~`（差异标记）**不进资源**：这些是格式记号，统一 diff 工具
+和脚本按它们解析，翻译了就废了。进资源的只有真正的句子，比如
+`cmp_diff_stat` = `@@ 共 12 行 → 15 行，新增 3，删除 0 @@`。
+
+### 3. `Result.error` 里的中文 → `errCode`
+
+`TextDiffUtil` 的两条「超限拒绝」原本写成 `r.error = "文件超过 4MB，不做逐行对比"`，
+ui 直接把它当提示显示。改成 `errCode`（`ERR_TOO_BIG_BYTES` / `ERR_TOO_MANY_LINES`）
++ `errArg`（上限 MB / 上限行数），`error` 只留非预期异常的技术细节（`SimpleName: msg`，
+ASCII）。`tooBig` 保留，Activity 的 `r.tooBig || r.error != null` 判断一行没动。
+
+### 4. 顺手清掉一个死分支
+
+`doFolder()` 里两支完全一样：
+
+```java
+if (r.error != null) summaryView.setText(CompareUtil.summary(r));
+else                 summaryView.setText(CompareUtil.summary(r));
+```
+
+遍历警告本来就拼在 summary 末尾，这支判断是历史残留，合并成一句。
+
+### 5. 一处判空补上
+
+`doApk()` 原来直接 `r.entries.nAdded`（`compare()` 必然赋值，所以一直没炸）。既然是重写，
+`apkSummary()` 与列表渲染都对 `entries == null` 做了兜底，行为不变但不再留潜在 NPE 路径。
+
+### 验证
+
+- 四个文件中文字面量 **94 → 0**（`CompareActivity` 66 / `CompareUtil` 11 /
+  `TextDiffUtil` 8 / `ApkCompareUtil` 9）
+- 新增 79 个 `cmp_*` 键（模式标题 6 / 汇总 8 / 差异说明 5 / 文本 6 / 哈希 9 /
+  APK 19 / 菜单 11 / 提示与删除 15）；资源总量 **1737 → 1816 条**
+- 新增 `ui/CompareReport`；`ArchCompareTest` 的说明断言改为类型码
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 1816 条 100% 一致
+  （引用 1773 键 / 37 文件）/ 动作号 55
+- `QUICK=1` **97 通过 / 0 失败 / 4 跳过**
+- `aapt2 dump resources` 抽查 `cmp_title`（`  ↔  ` 双空格未折叠）/ `cmp_hash_row_same`
+  （`  ✓ 一致`）/ `cmp_note_hash` / `cmp_apk_r_ab` / `cmp_del_msg`（三行）/
+  `cmp_sum_trunc`（前导 `\n`）：中英双变体齐全
+- 构建 2 分 36 秒，APK **13,325,008 B**（`62ee1b4d…`），badging 反证
+  versionCode 231 / 2.38.0
 
 ---
 

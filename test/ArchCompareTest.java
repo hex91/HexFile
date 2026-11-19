@@ -47,8 +47,9 @@ public class ArchCompareTest {
         CompareUtil.Item ch = item(r, "change.txt");
         ok(ch != null && ch.status == CompareUtil.MODIFIED,
                 "change.txt 同长度不同内容 → MODIFIED（旧实现会判 SAME）");
-        ok(ch != null && ch.note.indexOf("CRC32") >= 0,
-                "change.txt 的说明里带 CRC32 → " + (ch == null ? "null" : ch.note));
+        // v2.38.0：说明文案移到 ui.CompareReport，逻辑层只留类型码
+        ok(ch != null && ch.noteKind == CompareUtil.NOTE_CRC,
+                "change.txt 的说明类型是 NOTE_CRC → " + (ch == null ? "null" : ch.noteKind));
         ok(ch != null && ch.sizeA == ch.sizeB,
                 "change.txt 两侧 size 相同（证明判据不是 size）");
 

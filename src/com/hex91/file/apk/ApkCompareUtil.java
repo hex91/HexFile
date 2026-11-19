@@ -81,36 +81,4 @@ public final class ApkCompareUtil {
         }
         return m;
     }
-
-    /** 可复制的文本报告 */
-    public static String report(Result r, String nameA, String nameB) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("APK 对比报告\n");
-        sb.append("A: ").append(nameA).append(" (").append(CompareUtil.fmtSize(r.sizeA)).append(")\n");
-        sb.append("B: ").append(nameB).append(" (").append(CompareUtil.fmtSize(r.sizeB)).append(")\n");
-        sb.append("SHA-256: ").append(r.shaA == null ? "?" : r.shaA).append('\n');
-        sb.append("SHA-256: ").append(r.shaB == null ? "?" : r.shaB).append('\n');
-        sb.append("\n[清单差异] (").append(r.nRowDiff).append(" 项不同)\n");
-        for (RowDiff rd : r.rows) {
-            if (rd.same) continue;
-            sb.append("· ").append(rd.label).append('\n');
-            sb.append("   A: ").append(rd.valA == null ? "(无)" : rd.valA).append('\n');
-            sb.append("   B: ").append(rd.valB == null ? "(无)" : rd.valB).append('\n');
-        }
-        CompareUtil.Result e = r.entries;
-        if (e != null) {
-            sb.append("\n[条目差异] 新增 ").append(e.nAdded)
-              .append(" · 修改 ").append(e.nModified)
-              .append(" · 删除 ").append(e.nDeleted)
-              .append(" · 相同 ").append(e.nSame).append('\n');
-            for (CompareUtil.Item it : e.items) {
-                String tag = it.status == CompareUtil.ADDED ? "+ "
-                        : it.status == CompareUtil.DELETED ? "- " : "~ ";
-                sb.append(tag).append(it.relPath);
-                if (it.note != null && !it.note.isEmpty()) sb.append("  (").append(it.note).append(")");
-                sb.append('\n');
-            }
-        }
-        return sb.toString();
-    }
 }

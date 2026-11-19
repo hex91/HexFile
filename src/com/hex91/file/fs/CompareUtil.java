@@ -27,6 +27,20 @@ public final class CompareUtil {
 
     public static final int MAX_ITEMS = 20000;
 
+    /**
+     * 差异说明的类型码。{@link Item} 只给码和必要数据，面向用户的说明由 ui.CompareReport 生成
+     * （逻辑层不产文案）。
+     */
+    public static final int NOTE_NONE = 0;
+    /** 大小不同：sizeA → sizeB */
+    public static final int NOTE_SIZE = 1;
+    /** 大小相同但内容不同：noteA/noteB 为两侧 brief 哈希 */
+    public static final int NOTE_HASH = 2;
+    /** 大小相同、内容未校验但修改时间不同 */
+    public static final int NOTE_TIME = 3;
+    /** 归档条目同长度但 CRC32 不同 */
+    public static final int NOTE_CRC = 4;
+
     /** 一条对比结果 */
     public static class Item {
         public String relPath;          // 相对路径（/ 分隔）
@@ -36,7 +50,10 @@ public final class CompareUtil {
         public long crcA = -1, crcB = -1;
         public long timeA, timeB;
         public int status;
-        public String note = "";        // 附加说明（哈希校验结果等）
+        /** 差异说明类型（NOTE_*）；具体文案由 ui.CompareReport.note() 生成 */
+        public int noteKind = NOTE_NONE;
+        /** NOTE_HASH 用：两侧 brief 哈希（可能为 null = 该侧读取失败） */
+        public String noteA, noteB;
 
         public Item(String relPath, boolean dir) {
             this.relPath = relPath;
@@ -72,7 +89,7 @@ public final class CompareUtil {
         File[] kids = dir.listFiles(new FileFilter() {
             public boolean accept(File f) { return true; }
         });
-        if (kids == null) throw new IOException("无法读取: " + dir.getAbsolutePath());
+        if (kids == null) throw new IOException("cannot read: " + dir.getAbsolutePath());
         for (File k : kids) {
             if (out.size() >= MAX_ITEMS) return;
             String rel = prefix.isEmpty() ? k.getName() : prefix + "/" + k.getName();
@@ -125,7 +142,7 @@ public final class CompareUtil {
             else if (it.sizeA != it.sizeB) {
                 // 大小不同必为修改（哈希模式下也先看大小，省一次全量哈希）
                 it.status = MODIFIED;
-                it.note = fmtSize(it.sizeA) + " → " + fmtSize(it.sizeB);
+                it.noteKind = NOTE_SIZE;
                 r.nModified++;
             } else if (verifyHash) {
                 // 大小相同：以内容为准（SHA-256），mtime 差异不误判
@@ -134,13 +151,14 @@ public final class CompareUtil {
                 if (ha != null && ha.equals(hb)) { it.status = SAME; r.nSame++; }
                 else {
                     it.status = MODIFIED;
-                    it.note = "内容不同(" + HashUtil.brief(ha) + " ≠ " + HashUtil.brief(hb) + ")";
+                    it.noteKind = NOTE_HASH;
+                    it.noteA = HashUtil.brief(ha);
+                    it.noteB = HashUtil.brief(hb);
                     r.nModified++;
                 }
             } else if (it.timeA != it.timeB) {
                 it.status = MODIFIED;
-                it.note = fmtSize(it.sizeA) + " → " + fmtSize(it.sizeB)
-                        + "（时间不同）";
+                it.noteKind = NOTE_TIME;
                 r.nModified++;
             } else { it.status = SAME; r.nSame++; }
             if (it.status != SAME) r.items.add(it);
@@ -218,13 +236,12 @@ public final class CompareUtil {
             else if (it.dir) { it.status = SAME; r.nSame++; }
             else if (it.sizeA != it.sizeB) {
                 it.status = MODIFIED;
-                it.note = fmtSize(it.sizeA) + " → " + fmtSize(it.sizeB);
+                it.noteKind = NOTE_SIZE;
                 r.nModified++;
             } else if (it.crcA >= 0 && it.crcB >= 0 && it.crcA != it.crcB) {
                 // 同长度、不同内容：只比 size 看不见的那一类（F-12）
                 it.status = MODIFIED;
-                it.note = "CRC32 " + String.format(java.util.Locale.US, "%08X", it.crcA)
-                        + " → " + String.format(java.util.Locale.US, "%08X", it.crcB);
+                it.noteKind = NOTE_CRC;
                 r.nModified++;
             } else { it.status = SAME; r.nSame++; }
             if (it.status != SAME) r.items.add(it);
@@ -262,18 +279,5 @@ public final class CompareUtil {
         if (len < 1048576) return String.format(java.util.Locale.US, "%.1f KB", len / 1024.0);
         if (len < 1073741824) return String.format(java.util.Locale.US, "%.1f MB", len / 1048576.0);
         return String.format(java.util.Locale.US, "%.2f GB", len / 1073741824.0);
-    }
-
-    /** 汇总一句话（文件夹对比报告头/剪贴板用） */
-    public static String summary(Result r) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("A: ").append(r.rootA).append('\n');
-        sb.append("B: ").append(r.rootB).append('\n');
-        sb.append("新增 ").append(r.nAdded).append(" · 修改 ").append(r.nModified)
-          .append(" · 删除 ").append(r.nDeleted).append(" · 相同 ").append(r.nSame);
-        if (r.hashVerified) sb.append("（含哈希校验）");
-        if (r.truncated) sb.append("\n（条目超 ").append(MAX_ITEMS).append(" 已截断）");
-        if (r.error != null) sb.append("\n遍历警告: ").append(r.error);
-        return sb.toString();
     }
 }

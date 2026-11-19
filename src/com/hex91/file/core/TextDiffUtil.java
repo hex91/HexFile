@@ -18,6 +18,13 @@ public final class TextDiffUtil {
 
     public static final int EQ = 0, DEL = 1, ADD = 2;
 
+    /** 拒绝比对的原因码（文案由 ui.CompareReport 按资源生成） */
+    public static final int ERR_NONE = 0;
+    /** 单侧超字节上限：errArg = 上限 MB */
+    public static final int ERR_TOO_BIG_BYTES = 1;
+    /** 单侧超行数上限：errArg = 上限行数 */
+    public static final int ERR_TOO_MANY_LINES = 2;
+
     public static final int MAX_LINES = 20000;
     public static final long MAX_BYTES = 4L * 1024 * 1024;
 
@@ -38,6 +45,11 @@ public final class TextDiffUtil {
         public int totalA, totalB;
         public boolean tooBig = false;     // 超限未比对
         public String encoding = "UTF-8";
+        /** 拒绝比对的原因码（ERR_*）；未超限时为 ERR_NONE */
+        public int errCode = ERR_NONE;
+        /** 原因码的数值参数（上限 MB / 上限行数） */
+        public long errArg;
+        /** 非预期异常的技术细节（ASCII，用户可见文案另由 errCode 决定） */
         public String error = null;
     }
 
@@ -86,7 +98,8 @@ public final class TextDiffUtil {
         Result r = new Result();
         if (a.length() > MAX_BYTES || b.length() > MAX_BYTES) {
             r.tooBig = true;
-            r.error = "文件超过 " + (MAX_BYTES / 1048576) + "MB，不做逐行对比";
+            r.errCode = ERR_TOO_BIG_BYTES;
+            r.errArg = MAX_BYTES / 1048576;
             return r;
         }
         try {
@@ -98,7 +111,8 @@ public final class TextDiffUtil {
             r.encoding = encA.equals(encB) ? encA : encA + "/" + encB;
             if (la.size() > MAX_LINES || lb.size() > MAX_LINES) {
                 r.tooBig = true;
-                r.error = "行数超过 " + MAX_LINES + "，不做逐行对比";
+                r.errCode = ERR_TOO_MANY_LINES;
+                r.errArg = MAX_LINES;
                 return r;
             }
             r.totalA = la.size();
@@ -181,27 +195,5 @@ public final class TextDiffUtil {
             r.lines.add(new Line(ADD, b.get(j), 0, offA + j + 1));
             r.nAdd++; j++;
         }
-    }
-
-    /** 生成可复制/分享的文本报告（unified 风格） */
-    public static String report(Result r, String nameA, String nameB) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("--- ").append(nameA).append('\n');
-        sb.append("+++ ").append(nameB).append('\n');
-        if (r.tooBig || r.error != null) {
-            sb.append("!! ").append(r.error).append('\n');
-            return sb.toString();
-        }
-        sb.append("@@ 共 ").append(r.totalA).append(" 行 → ").append(r.totalB)
-          .append(" 行，新增 ").append(r.nAdd).append("，删除 ").append(r.nDel)
-          .append(" @@\n");
-        for (Line l : r.lines) {
-            if (l.type == EQ) continue;
-            sb.append(l.type == ADD ? "+ " : "- ");
-            if (l.type == ADD) sb.append(l.bNo).append('\t');
-            else sb.append(l.aNo).append('\t');
-            sb.append(l.text).append('\n');
-        }
-        return sb.toString();
     }
 }

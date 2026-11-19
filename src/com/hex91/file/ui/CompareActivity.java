@@ -87,8 +87,8 @@ public class CompareActivity extends BaseActivity {
         adapter = new RowAdapter();
         listView.setAdapter(adapter);
 
-        titleView.setText(modeTitle() + "\nA: " + fa.getName() + "  ↔  B: " + fb.getName());
-        summaryView.setText("正在对比…");
+        titleView.setText(CompareReport.title(this, mode, fa.getName(), fb.getName()));
+        summaryView.setText(R.string.cmp_comparing);
 
         ((Button) findViewById(R.id.compare_close)).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { finish(); }
@@ -115,14 +115,6 @@ public class CompareActivity extends BaseActivity {
         runCompare();
     }
 
-    private String modeTitle() {
-        if (MODE_FOLDER.equals(mode)) return "目录对比";
-        if (MODE_TEXT.equals(mode)) return "文本对比";
-        if (MODE_HASH.equals(mode)) return "哈希对比";
-        if (MODE_APK.equals(mode)) return "APK 对比";
-        return "对比";
-    }
-
     // ============================================================ 后台执行
 
     private void runCompare() {
@@ -143,12 +135,11 @@ public class CompareActivity extends BaseActivity {
                 done = true;
                 rows.clear();
                 rows.addAll(r.items);
-                if (r.error != null) summaryView.setText(CompareUtil.summary(r));
-                else summaryView.setText(CompareUtil.summary(r));
+                String sum = CompareReport.folderSummary(CompareActivity.this, r);
+                summaryView.setText(r.items.isEmpty()
+                        ? sum + "\n" + getString(R.string.cmp_none) : sum);
                 adapter.notifyDataSetChanged();
-                report = folderReport(r);
-                if (r.items.isEmpty())
-                    summaryView.setText(CompareUtil.summary(r) + "\n（无差异）");
+                report = CompareReport.folderReport(CompareActivity.this, r);
             }
         });
     }
@@ -159,15 +150,16 @@ public class CompareActivity extends BaseActivity {
             public void run() {
                 done = true;
                 if (r.tooBig || r.error != null) {
-                    summaryView.setText("无法对比：" + (r.error == null ? "未知原因" : r.error));
+                    summaryView.setText(getString(R.string.cmp_text_fail,
+                            CompareReport.textError(CompareActivity.this, r)));
                     return;
                 }
                 rows.clear();
                 rows.addAll(r.lines);
-                summaryView.setText("A " + r.totalA + " 行 (" + r.encoding + ") → B " + r.totalB
-                        + " 行 · 新增 " + r.nAdd + " · 删除 " + r.nDel);
+                summaryView.setText(CompareReport.textSummary(CompareActivity.this, r));
                 adapter.notifyDataSetChanged();
-                report = TextDiffUtil.report(r, fa.getName(), fb.getName());
+                report = CompareReport.textReport(CompareActivity.this, r,
+                        fa.getName(), fb.getName());
             }
         });
     }
@@ -179,9 +171,9 @@ public class CompareActivity extends BaseActivity {
             public void run() {
                 done = true;
                 rows.clear();
-                StringBuilder sb = new StringBuilder();
-                sb.append("哈希对比\nA: ").append(fa.getAbsolutePath()).append('\n');
-                sb.append("B: ").append(fb.getAbsolutePath()).append('\n');
+                StringBuilder sb = new StringBuilder(CompareReport.hashReportHead(
+                        CompareActivity.this, fa.getAbsolutePath(), fb.getAbsolutePath()));
+                sb.append('\n');
                 boolean allSame = true;
                 for (String alg : HashUtil.ALGS) {
                     HashRow hr = new HashRow();
@@ -191,11 +183,11 @@ public class CompareActivity extends BaseActivity {
                     hr.same = hr.ha != null && hr.ha.equals(hr.hb);
                     if (!hr.same) allSame = false;
                     rows.add(hr);
-                    sb.append(alg).append(": ").append(hr.ha == null ? "?" : hr.ha).append('\n');
-                    sb.append(alg).append(": ").append(hr.hb == null ? "?" : hr.hb).append('\n');
+                    sb.append(CompareReport.hashLine(CompareActivity.this, alg, hr.ha)).append('\n');
+                    sb.append(CompareReport.hashLine(CompareActivity.this, alg, hr.hb)).append('\n');
                 }
-                summaryView.setText(allSame ? "全部算法一致 ✓ 两文件内容相同"
-                        : "存在不一致的算法 ✗ 两文件内容不同");
+                summaryView.setText(allSame ? getString(R.string.cmp_hash_all_same)
+                        : getString(R.string.cmp_hash_any_diff));
                 adapter.notifyDataSetChanged();
                 report = sb.toString();
             }
@@ -208,20 +200,20 @@ public class CompareActivity extends BaseActivity {
             public void run() {
                 done = true;
                 rows.clear();
-                rows.add("── 清单信息（" + r.nRowDiff + " 项不同）──");
+                rows.add(CompareReport.apkManifestHead(CompareActivity.this, r.nRowDiff));
                 for (ApkCompareUtil.RowDiff rd : r.rows) {
                     if (!rd.same) rows.add(rd);
                 }
-                if (r.nRowDiff == 0) rows.add("（清单信息一致）");
-                rows.add("── 条目差异（新增 " + r.entries.nAdded + " · 修改 "
-                        + r.entries.nModified + " · 删除 " + r.entries.nDeleted + "）──");
-                rows.addAll(r.entries.items);
-                summaryView.setText("A " + CompareUtil.fmtSize(r.sizeA) + " ↔ B "
-                        + CompareUtil.fmtSize(r.sizeB)
-                        + (r.shaA != null && r.shaA.equals(r.shaB) ? " · SHA-256 一致" : "")
-                        + (r.entries.items.isEmpty() && r.nRowDiff == 0 ? "\n（完全一致）" : ""));
+                if (r.nRowDiff == 0) rows.add(getString(R.string.cmp_apk_manifest_same));
+                if (r.entries != null) {
+                    rows.add(CompareReport.apkEntriesHead(CompareActivity.this,
+                            r.entries.nAdded, r.entries.nModified, r.entries.nDeleted));
+                    rows.addAll(r.entries.items);
+                }
+                summaryView.setText(CompareReport.apkSummary(CompareActivity.this, r));
                 adapter.notifyDataSetChanged();
-                report = ApkCompareUtil.report(r, fa.getName(), fb.getName());
+                report = CompareReport.apkReport(CompareActivity.this, r,
+                        fa.getName(), fb.getName());
             }
         });
     }
@@ -236,23 +228,23 @@ public class CompareActivity extends BaseActivity {
         final List<String> ops = new ArrayList<String>();
         final List<Integer> acts = new ArrayList<Integer>();
         if (it.status == CompareUtil.MODIFIED && !it.dir) {
-            ops.add("文本对比");             acts.add(OP_TEXT);
-            ops.add("哈希对比");             acts.add(OP_HASH);
-            ops.add("打开 A 侧");            acts.add(OP_OPEN_A);
-            ops.add("打开 B 侧");            acts.add(OP_OPEN_B);
-            ops.add("复制 A→B（覆盖）");     acts.add(OP_COPY_AB);
-            ops.add("复制 B→A（覆盖）");     acts.add(OP_COPY_BA);
+            ops.add(getString(R.string.cmp_op_text));     acts.add(OP_TEXT);
+            ops.add(getString(R.string.cmp_op_hash));     acts.add(OP_HASH);
+            ops.add(getString(R.string.cmp_op_open_a));   acts.add(OP_OPEN_A);
+            ops.add(getString(R.string.cmp_op_open_b));   acts.add(OP_OPEN_B);
+            ops.add(getString(R.string.cmp_op_cp_ab_ow)); acts.add(OP_COPY_AB);
+            ops.add(getString(R.string.cmp_op_cp_ba_ow)); acts.add(OP_COPY_BA);
         } else if (it.status == CompareUtil.MODIFIED) {
-            ops.add("复制 A→B");             acts.add(OP_COPY_AB);
-            ops.add("复制 B→A");             acts.add(OP_COPY_BA);
+            ops.add(getString(R.string.cmp_op_cp_ab));    acts.add(OP_COPY_AB);
+            ops.add(getString(R.string.cmp_op_cp_ba));    acts.add(OP_COPY_BA);
         } else if (it.status == CompareUtil.DELETED) {   // 仅 A 有
-            ops.add("打开");                 acts.add(OP_OPEN_A);
-            ops.add("复制 A→B");             acts.add(OP_COPY_AB);
-            ops.add("删除 A 侧");            acts.add(OP_DEL_A);
+            ops.add(getString(R.string.cmp_op_open));     acts.add(OP_OPEN_A);
+            ops.add(getString(R.string.cmp_op_cp_ab));    acts.add(OP_COPY_AB);
+            ops.add(getString(R.string.cmp_op_del_a));    acts.add(OP_DEL_A);
         } else if (it.status == CompareUtil.ADDED) {     // 仅 B 有
-            ops.add("打开");                 acts.add(OP_OPEN_B);
-            ops.add("复制 B→A");             acts.add(OP_COPY_BA);
-            ops.add("删除 B 侧");            acts.add(OP_DEL_B);
+            ops.add(getString(R.string.cmp_op_open));     acts.add(OP_OPEN_B);
+            ops.add(getString(R.string.cmp_op_cp_ba));    acts.add(OP_COPY_BA);
+            ops.add(getString(R.string.cmp_op_del_b));    acts.add(OP_DEL_B);
         } else {
             return;
         }
@@ -282,7 +274,7 @@ public class CompareActivity extends BaseActivity {
                                 }
                             }
                         })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -290,7 +282,7 @@ public class CompareActivity extends BaseActivity {
     private void subCompare(String subMode, CompareUtil.Item it) {
         File a = new File(fa, it.relPath);
         File b = new File(fb, it.relPath);
-        if (!a.isFile() || !b.isFile()) { toast("文件不存在，无法对比"); return; }
+        if (!a.isFile() || !b.isFile()) { toast(getString(R.string.cmp_err_no_both)); return; }
         startActivity(new Intent(this, CompareActivity.class)
                 .putExtra(EXTRA_MODE, subMode)
                 .putExtra(EXTRA_PATH_A, a.getAbsolutePath())
@@ -299,7 +291,7 @@ public class CompareActivity extends BaseActivity {
 
     /** 打开单个文件：图片 → 查看器，文本类 → 编辑器，其余提示 */
     private void openOne(File f) {
-        if (f == null || !f.exists()) { toast("文件不存在"); return; }
+        if (f == null || !f.exists()) { toast(getString(R.string.cmp_err_no_file)); return; }
         String low = f.getName().toLowerCase();
         if (FileKind.isImageExt(low)) {
             startActivity(new Intent(this, ImageViewerActivity.class)
@@ -308,7 +300,7 @@ public class CompareActivity extends BaseActivity {
             startActivity(new Intent(this, TextEditorActivity.class)
                     .putExtra(TextEditorActivity.EXTRA_FILE, f.getAbsolutePath()));
         } else {
-            toast("该类型请回到文件管理器中打开");
+            toast(getString(R.string.cmp_err_open_other));
         }
     }
 
@@ -316,17 +308,17 @@ public class CompareActivity extends BaseActivity {
     private void syncCopy(final CompareUtil.Item it, final boolean aToB) {
         final File src = new File(aToB ? fa : fb, it.relPath);
         final File dst = new File(aToB ? fb : fa, it.relPath);
-        if (!src.exists()) { toast("源不存在"); return; }
+        if (!src.exists()) { toast(getString(R.string.cmp_err_no_src)); return; }
         final ProgressDialog pd = ProgressDialog.show(this, null,
-                "复制中…", true, false);
+                getString(R.string.cmp_copying), true, false);
         new Thread(new Runnable() {
             public void run() {
                 final boolean ok = FileOps.copyOverwrite(src, dst);
                 runOnUiThread(new Runnable() {
                     public void run() {
                         try { pd.dismiss(); } catch (Exception ignored) {}
-                        toast(ok ? (aToB ? "已复制 A→B" : "已复制 B→A")
-                                : "复制失败（权限或空间不足？）");
+                        toast(ok ? getString(aToB ? R.string.cmp_copied_ab : R.string.cmp_copied_ba)
+                                : getString(R.string.cmp_copy_fail));
                         if (ok) refresh();
                     }
                 });
@@ -337,11 +329,11 @@ public class CompareActivity extends BaseActivity {
     /** 删除一侧条目（二次确认），完成后刷新对比 */
     private void confirmDelete(final CompareUtil.Item it, final boolean sideA) {
         new HfDialogBuilder(this)
-                .setTitle("确认删除")
-                .setMessage("将从 " + (sideA ? "A 侧" : "B 侧") + " 删除：\n"
-                        + it.relPath + (it.dir ? "/" : "")
-                        + "\n\n此操作不可撤销！")
-                .setPositiveButton("删除", new android.content.DialogInterface.OnClickListener() {
+                .setTitle(R.string.cmp_del_title)
+                .setMessage(getString(R.string.cmp_del_msg,
+                        getString(sideA ? R.string.cmp_side_a : R.string.cmp_side_b),
+                        it.relPath + (it.dir ? "/" : "")))
+                .setPositiveButton(R.string.cmp_del, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         final File f = new File(sideA ? fa : fb, it.relPath);
                         new Thread(new Runnable() {
@@ -349,7 +341,8 @@ public class CompareActivity extends BaseActivity {
                                 final boolean ok = FileOps.deleteRecursive(f);
                                 runOnUiThread(new Runnable() {
                                     public void run() {
-                                        toast(ok ? "已删除" : "删除失败");
+                                        toast(ok ? getString(R.string.cmp_deleted)
+                                                : getString(R.string.cmp_del_fail));
                                         if (ok) refresh();
                                     }
                                 });
@@ -357,13 +350,13 @@ public class CompareActivity extends BaseActivity {
                         }, "cmp-del").start();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     /** 操作后重跑对比（保留原哈希校验选项） */
     private void refresh() {
-        summaryView.setText("正在对比…");
+        summaryView.setText(R.string.cmp_comparing);
         rows.clear();
         adapter.notifyDataSetChanged();
         done = false;
@@ -404,17 +397,20 @@ public class CompareActivity extends BaseActivity {
                 ll.setPadding(pad, (int) (8 * den), pad, (int) (8 * den));
                 ll.setBackgroundColor(hr.same ? Color.TRANSPARENT : bgOf(C_MOD_BG));
                 TextView t1 = new TextView(CompareActivity.this);
-                t1.setText(hr.alg + (hr.same ? "  ✓ 一致" : "  ✗ 不一致"));
+                t1.setText(getString(hr.same ? R.string.cmp_hash_row_same
+                        : R.string.cmp_hash_row_diff, hr.alg));
                 t1.setTextSize(13);
                 t1.setTextColor(hr.same ? txOf(C_ADD_TX) : txOf(C_MOD_TX));
                 ll.addView(t1);
                 TextView t2 = new TextView(CompareActivity.this);
-                t2.setText("A: " + (hr.ha == null ? "(失败)" : hr.ha));
+                t2.setText(getString(R.string.cmp_hash_a, hr.ha == null
+                        ? getString(R.string.cmp_hash_fail) : hr.ha));
                 t2.setTextSize(11);
                 t2.setTextColor(ThemeManager.text(CompareActivity.this));
                 ll.addView(t2);
                 TextView t3 = new TextView(CompareActivity.this);
-                t3.setText("B: " + (hr.hb == null ? "(失败)" : hr.hb));
+                t3.setText(getString(R.string.cmp_hash_b, hr.hb == null
+                        ? getString(R.string.cmp_hash_fail) : hr.hb));
                 t3.setTextSize(11);
                 t3.setTextColor(ThemeManager.text(CompareActivity.this));
                 ll.addView(t3);
@@ -463,17 +459,19 @@ public class CompareActivity extends BaseActivity {
                 ll.setPadding(pad, (int) (6 * den), pad, (int) (6 * den));
                 ll.setBackgroundColor(bgOf(C_MOD_BG));
                 TextView t1 = new TextView(CompareActivity.this);
-                t1.setText("~ " + rd.label);
+                t1.setText(getString(R.string.cmp_apk_row_label, rd.label));
                 t1.setTextSize(12);
                 t1.setTextColor(txOf(C_MOD_TX));
                 ll.addView(t1);
                 TextView t2 = new TextView(CompareActivity.this);
-                t2.setText("A: " + (rd.valA == null ? "(无)" : rd.valA));
+                t2.setText(getString(R.string.cmp_apk_val_a, rd.valA == null
+                        ? getString(R.string.cmp_apk_none) : rd.valA));
                 t2.setTextSize(11);
                 t2.setTextColor(ThemeManager.text(CompareActivity.this));
                 ll.addView(t2);
                 TextView t3 = new TextView(CompareActivity.this);
-                t3.setText("B: " + (rd.valB == null ? "(无)" : rd.valB));
+                t3.setText(getString(R.string.cmp_apk_val_b, rd.valB == null
+                        ? getString(R.string.cmp_apk_none) : rd.valB));
                 t3.setTextSize(11);
                 t3.setTextColor(ThemeManager.text(CompareActivity.this));
                 ll.addView(t3);
@@ -485,19 +483,20 @@ public class CompareActivity extends BaseActivity {
             ll.setOrientation(LinearLayout.VERTICAL);
             ll.setPadding(pad, (int) (6 * den), pad, (int) (6 * den));
             int bg, tx;
-            String sign;
-            if (it.status == CompareUtil.ADDED) { bg = bgOf(C_ADD_BG); tx = txOf(C_ADD_TX); sign = "+ "; }
-            else if (it.status == CompareUtil.DELETED) { bg = bgOf(C_DEL_BG); tx = txOf(C_DEL_TX); sign = "- "; }
-            else { bg = bgOf(C_MOD_BG); tx = txOf(C_MOD_TX); sign = "~ "; }
+            if (it.status == CompareUtil.ADDED) { bg = bgOf(C_ADD_BG); tx = txOf(C_ADD_TX); }
+            else if (it.status == CompareUtil.DELETED) { bg = bgOf(C_DEL_BG); tx = txOf(C_DEL_TX); }
+            else { bg = bgOf(C_MOD_BG); tx = txOf(C_MOD_TX); }
+            String sign = CompareReport.sign(it);
             ll.setBackgroundColor(bg);
             TextView t1 = new TextView(CompareActivity.this);
             t1.setText(sign + it.relPath + (it.dir ? "/" : ""));
             t1.setTextSize(12);
             t1.setTextColor(tx);
             ll.addView(t1);
-            if (it.note != null && !it.note.isEmpty()) {
+            String note = CompareReport.note(CompareActivity.this, it);
+            if (!note.isEmpty()) {
                 TextView t2 = new TextView(CompareActivity.this);
-                t2.setText(it.note);
+                t2.setText(note);
                 t2.setTextSize(10);
                 t2.setTextColor(ThemeManager.textSub(CompareActivity.this));
                 ll.addView(t2);
@@ -508,26 +507,14 @@ public class CompareActivity extends BaseActivity {
 
     // ============================================================ 报告
 
-    private String folderReport(CompareUtil.Result r) {
-        StringBuilder sb = new StringBuilder(CompareUtil.summary(r)).append('\n');
-        for (CompareUtil.Item it : r.items) {
-            String sign = it.status == CompareUtil.ADDED ? "+ "
-                    : it.status == CompareUtil.DELETED ? "- " : "~ ";
-            sb.append(sign).append(it.relPath).append(it.dir ? "/" : "");
-            if (it.note != null && !it.note.isEmpty()) sb.append("  (").append(it.note).append(")");
-            sb.append('\n');
-        }
-        return sb.toString();
-    }
-
     private void copyReport() {
         if (!done || report.isEmpty()) {
-            toast("对比尚未完成");
+            toast(getString(R.string.cmp_copy_pending));
             return;
         }
         ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-        cm.setPrimaryClip(ClipData.newPlainText("对比报告", report));
-        toast("报告已复制到剪贴板");
+        cm.setPrimaryClip(ClipData.newPlainText(getString(R.string.cmp_report_label), report));
+        toast(getString(R.string.cmp_copied));
     }
 
     private void toast(String s) {
