@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：1816 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：1848 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,110 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.39.0（versionCode 232）—— F-14/26：Manifest 编辑器++ i18n
+
+`ManifestEditorActivity` 51 处中文字面量清零，是本轮最「干净」的一页：全在 ui 层，
+没有逻辑层产文案，也没有文案当控制流。要点集中在三处格式细节。
+
+### 1. 三键合成一个「副标题」
+
+列表上方那行元信息是四段拼的：
+
+```java
+apk.getName() + " · " + elements.size() + " 个元素 · " + attrCount + " 个属性"
+        + (dirty ? " · ✎未保存" : "")
+```
+
+改成两键并列，用「整句 + 可选变体」，而不是「主句 + 可空后缀」——因为英文里
+「elements / attributes」的复数与中文「个元素 / 个属性」位置不同，拼半句必然别扭：
+
+| 键 | 中文 | 英文 |
+| --- | --- | --- |
+| `mf_sub` | `%1$s · %2$d 个元素 · %3$d 个属性` | `%1$s · %2$d elements · %3$d attributes` |
+| `mf_sub_dirty` | 同上 + ` · ✎ 未保存` | 同上 + ` · ✎ unsaved` |
+
+### 2. 列表行的三空格必须整值加引号
+
+属性行原来是：
+
+```java
+name.setText(attrDisplayName(a) + "   [" + type + "]" + (changed ? "   ✎ 已修改" : ""));
+```
+
+行内 `"   ["` 是**三个空格**（属性名、类型、修改标记三栏靠空格对齐）。aapt2 处理
+未加引号的字符串时会折叠连续空白，写进资源就会变成单空格，列表对齐散掉。所以：
+
+```xml
+<string name="mf_row">"%1$s   [%2$s]"</string>
+<string name="mf_row_changed">"%1$s   [%2$s]   ✎ 已修改"</string>
+```
+
+`aapt2 dump` 反证：dump 出来的值仍是 `%1$s   [%2$s]`，三个空格都在。
+
+### 3. `@0x` 开头必须加引号，否则被当成资源引用
+
+值格式提示里有一条 `@0x 资源 id`。资源值以 `@` 开头时 aapt2 会按**引用**解析，
+`@0x` 不是合法资源名。加双引号强制当普通字符串：
+
+```xml
+<string name="mf_hint_ref">"@0x 资源 id"</string>
+```
+
+### 4. 两处异常串改 ASCII，外层补一句中文
+
+- `"APK 内未找到 AndroidManifest.xml"` → `"no AndroidManifest.xml entry in this APK"`
+- `"回读校验失败: 名 期望 x 实际 y"` → `"read-back mismatch: … expected … actual …"`
+
+这两个串会经 `SimpleName: message` 拼进对话框正文，所以不是「藏起来的技术细节」。
+处理方式是**外层加句子**、里层留诊断：
+
+| 场景 | 标题键 | 正文键 |
+| --- | --- | --- |
+| 加载失败 | `mf_load_fail`（加载失败） | `mf_load_fail_msg` = `无法加载 AndroidManifest.xml：\n%1$s` |
+| 保存失败 | `mf_save_fail`（保存失败） | `mf_save_fail_msg` = `写回失败：\n%1$s` |
+
+用户看到的是「中文引导 + 英文技术串」，与 `HexCore.Fail` / `CompareUtil` 的口径一致：
+诊断串不翻译（翻译后贴进 issue 反而搜不到）。
+
+### 5. 复用已有共享键
+
+「保存后自动签名（长按设置密钥 / 签名方案）」这一句在 v2.34.0（ARSC 编辑器）已提为
+`apk_autosign_hint`，本页两处（保存入口、退出拦截）直接复用；`确定` 用 `common_confirm`
+（不是 `common_ok`，后者值是「好」）、`保存` / `取消` / `关闭` / `知道了` 用
+`common_save` / `common_cancel` / `common_close` / `common_got_it`。
+
+### 6. 保存/退出提示的两句整句化
+
+```java
+(exiting ? "AndroidManifest.xml 有 " : "将 ") + n + (exiting ? " 处修改尚未保存。\n\n" : " 处修改写回：\n\n")
+        + apk.getName() + "\n\n（首次修改时自动备份为 同名_bak.apk）"
+```
+
+这种「三段三元」拼法只有中文语序成立。拆成两键，各写全句：
+
+```xml
+<string name="mf_prompt_exit">"AndroidManifest.xml 有 %1$d 处修改尚未保存。\n\n%2$s\n\n（首次修改时自动备份为 同名_bak.apk）"</string>
+<string name="mf_prompt_save">"将 %1$d 处修改写回：\n\n%2$s\n\n（首次修改时自动备份为 同名_bak.apk）"</string>
+```
+
+英文的备份说明里 `<same>` 转义成 `&lt;same&gt;`。
+
+### 验证
+
+- `ManifestEditorActivity` 中文字面量 **51 → 0**
+- 新增 32 个 `mf_*` 键；资源总量 **1816 → 1848 条**（引用 1805 键 / 38 文件）
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 1848 条 100% 一致 /
+  动作号 55
+- `QUICK=1` **97 通过 / 0 失败 / 4 跳过**
+- `aapt2 dump resources` 抽查 `mf_row` / `mf_row_changed`（三空格未折叠）、
+  `mf_hint_ref`（`@0x` 未被当引用）、`mf_info_str`（三行、中英行序一致）、
+  `mf_prompt_exit`（双 `\n\n`）、`mf_sub_dirty`：中英双变体齐全
+- 构建 2 分 31 秒，APK **13,325,008 B**（`7281aec8…`；与 v2.38.0 同字节数，
+  md5 不同），`aapt2 dump badging` 反证 versionCode 232 / 2.39.0，
+  dex 内 grep 到 `mf_prompt_exit`
 
 ---
 

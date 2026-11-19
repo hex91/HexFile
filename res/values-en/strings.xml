@@ -1906,4 +1906,38 @@
     <string name="cmp_copy_pending">The comparison has not finished yet</string>
     <string name="cmp_report_label">Comparison report</string>
     <string name="cmp_copied">Report copied to the clipboard</string>
+
+    <!-- v2.39.0 manifest editor (ManifestEditorActivity) -->
+    <string name="mf_loading">Parsing AndroidManifest.xml\u2026</string>
+    <string name="mf_load_fail">Load failed</string>
+    <string name="mf_load_fail_msg">Cannot load AndroidManifest.xml://n%1$s</string>
+    <string name="mf_sub">%1$s \u00b7 %2$d elements \u00b7 %3$d attributes</string>
+    <string name="mf_sub_dirty">%1$s \u00b7 %2$d elements \u00b7 %3$d attributes \u00b7 \u270e unsaved</string>
+    <string name="mf_row">"%1$s   [%2$s]"</string>
+    <string name="mf_row_changed">"%1$s   [%2$s]   \u270e modified"</string>
+    <string name="mf_row_old">Was: %1$s</string>
+    <string name="mf_info_str">"Element: %1$s\nType: %2$s\n(string \u2192 appended to the string pool on write-back)"</string>
+    <string name="mf_info_bin">"Element: %1$s\nType: %2$s\n(not a string \u2192 4-byte in-place patch)"</string>
+    <string name="mf_label_value">Value</string>
+    <string name="mf_hint_any">any text</string>
+    <string name="mf_hint_hex">0x hex</string>
+    <string name="mf_hint_ref">"@0x resource id"</string>
+    <string name="mf_hint_float">floating point</string>
+    <string name="mf_hint_int">decimal integer</string>
+    <string name="mf_hint_fmt">Input format: %1$s</string>
+    <string name="mf_revert">Revert</string>
+    <string name="mf_bad_value">The value does not match the type %1$s</string>
+    <string name="mf_preview_title">AndroidManifest.xml (read-only preview)</string>
+    <string name="mf_not_loaded">Not loaded yet</string>
+    <string name="mf_no_changes">No changes</string>
+    <string name="mf_save_title">Save changes</string>
+    <string name="mf_dirty_title">Unsaved changes</string>
+    <string name="mf_discard">Discard changes</string>
+    <string name="mf_prompt_exit">"AndroidManifest.xml has %1$d unsaved change(s).\n\n%2$s\n\n(A backup named &lt;same&gt;_bak.apk is created on the first change)"</string>
+    <string name="mf_prompt_save">"%1$d change(s) will be written back://n//n%2$s//n//n(A backup named &lt;same&gt;_bak.apk is created on the first change)"</string>
+    <string name="mf_writing">Writing AndroidManifest.xml\u2026</string>
+    <string name="mf_save_fail">Save failed</string>
+    <string name="mf_save_fail_msg">Write-back failed://n%1$s</string>
+    <string name="mf_saved_signed">Saved and signed \u2192 %1$s</string>
+    <string name="mf_saved">Saved \u2192 %1$s (not signed; it may fail to install)</string>
 </resources>

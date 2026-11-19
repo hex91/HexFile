@@ -116,14 +116,14 @@ public class ManifestEditorActivity extends BaseActivity {
 
     private void loadManifest() {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("解析 AndroidManifest.xml …");
+        pd.setMessage(getString(R.string.mf_loading));
         pd.setCancelable(false);
         pd.show();
         new Thread() { public void run() {
             String err = null;
             try {
                 byte[] data = readZipEntry(apk, "AndroidManifest.xml");
-                if (data == null) throw new IllegalStateException("APK 内未找到 AndroidManifest.xml");
+                if (data == null) throw new IllegalStateException("no AndroidManifest.xml entry in this APK");
                 axml = AxmlFile.parse(data);
                 buildRows();
             } catch (Throwable t) {
@@ -134,8 +134,9 @@ public class ManifestEditorActivity extends BaseActivity {
                 pd.dismiss();
                 if (e != null) {
                     new HfDialogBuilder(ManifestEditorActivity.this)
-                            .setTitle("加载失败").setMessage(e)
-                            .setPositiveButton("关闭", new DialogInterface.OnClickListener() {
+                            .setTitle(R.string.mf_load_fail)
+                            .setMessage(getString(R.string.mf_load_fail_msg, e))
+                            .setPositiveButton(R.string.common_close, new DialogInterface.OnClickListener() {
                                 public void onClick(DialogInterface d, int w) { finish(); }
                             }).show();
                 } else {
@@ -191,8 +192,9 @@ public class ManifestEditorActivity extends BaseActivity {
         }
         int attrCount = 0;
         for (Row r : allRows) if (!r.isHeader) attrCount++;
-        titleSub.setText(apk.getName() + " · " + axml.elements.size() + " 个元素 · "
-                + attrCount + " 个属性" + (dirty ? " · ✎未保存" : ""));
+        titleSub.setText(dirty
+                ? getString(R.string.mf_sub_dirty, apk.getName(), axml.elements.size(), attrCount)
+                : getString(R.string.mf_sub, apk.getName(), axml.elements.size(), attrCount));
         // v1.67.4：复用同一个 adapter，避免每次刷新把列表滚回顶部
         if (adapter == null) {
             adapter = new RowAdapter();
@@ -229,8 +231,9 @@ public class ManifestEditorActivity extends BaseActivity {
                 boolean changed = edits.containsKey(r.attr);
                 TextView name = new TextView(ctx);
                 // v1.67.4：改动标记改为「✎ 已修改」文字（原来的裸「●」像是多出来的点）
-                name.setText(axml.attrDisplayName(r.attr)
-                        + "   [" + r.type + "]" + (changed ? "   ✎ 已修改" : ""));
+                name.setText(changed
+                        ? getString(R.string.mf_row_changed, axml.attrDisplayName(r.attr), r.type)
+                        : getString(R.string.mf_row, axml.attrDisplayName(r.attr), r.type));
                 name.setTextSize(14);
                 name.setTextColor(ThemeManager.text(ManifestEditorActivity.this));
                 box.addView(name);
@@ -246,7 +249,7 @@ public class ManifestEditorActivity extends BaseActivity {
                 box.addView(val);
                 if (changed) {
                     TextView old = new TextView(ctx);
-                    old.setText("原值: " + axml.valueDisplay(r.attr));
+                    old.setText(getString(R.string.mf_row_old, axml.valueDisplay(r.attr)));
                     old.setTextSize(11);
                     old.setTextColor(ThemeManager.textSub(ManifestEditorActivity.this));
                     old.setMaxLines(2);
@@ -268,13 +271,13 @@ public class ManifestEditorActivity extends BaseActivity {
         box.setPadding(pad, pad, pad, pad);
 
         TextView info = new TextView(this);
-        info.setText("元素: " + r.path + "\n类型: " + r.type
-                + (a.isString() ? "（字符串 → 写回时追加进字符串池）" : "（非字符串 → 4 字节原位补丁）"));
+        info.setText(getString(a.isString() ? R.string.mf_info_str : R.string.mf_info_bin,
+                r.path, r.type));
         info.setTextSize(12);
         info.setTextColor(ThemeManager.textSub(this));
         box.addView(info);
 
-        box.addView(label("值"));
+        box.addView(label(getString(R.string.mf_label_value)));
         final EditText valEt = new EditText(this);
         valEt.setText(r.value);
         valEt.setTextSize(14);
@@ -282,13 +285,14 @@ public class ManifestEditorActivity extends BaseActivity {
         valEt.setMaxLines(6);
         box.addView(valEt);
 
-        String typeHint = a.isString() ? "任意文本"
+        String typeHint = a.isString() ? getString(R.string.mf_hint_any)
                 : (a.dataType == ArscDefs.TYPE_INT_BOOLEAN ? "true / false"
-                : (a.dataType == ArscDefs.TYPE_INT_HEX ? "0x 十六进制"
-                : (a.dataType == ArscDefs.TYPE_REFERENCE ? "@0x 资源 id"
-                : (a.dataType == ArscDefs.TYPE_FLOAT ? "浮点数" : "十进制整数"))));
+                : (a.dataType == ArscDefs.TYPE_INT_HEX ? getString(R.string.mf_hint_hex)
+                : (a.dataType == ArscDefs.TYPE_REFERENCE ? getString(R.string.mf_hint_ref)
+                : (a.dataType == ArscDefs.TYPE_FLOAT ? getString(R.string.mf_hint_float)
+                : getString(R.string.mf_hint_int)))));
         TextView hint = new TextView(this);
-        hint.setText("输入格式: " + typeHint);
+        hint.setText(getString(R.string.mf_hint_fmt, typeHint));
         hint.setTextSize(12);
         hint.setTextColor(ThemeManager.textSub(this));
         box.addView(hint);
@@ -296,14 +300,14 @@ public class ManifestEditorActivity extends BaseActivity {
         new HfDialogBuilder(this)
                 .setTitle(axml.attrDisplayName(a))
                 .setView(box)
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.common_confirm, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         String v = valEt.getText().toString();
                         if (applyEdit(a, v)) refresh();
                     }
                 })
-                .setNegativeButton("取消", null)
-                .setNeutralButton("还原", new DialogInterface.OnClickListener() {
+                .setNegativeButton(R.string.common_cancel, null)
+                .setNeutralButton(R.string.mf_revert, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         if (edits.remove(a) != null) {
                             dirty = !edits.isEmpty();
@@ -319,7 +323,8 @@ public class ManifestEditorActivity extends BaseActivity {
         if (!a.isString()) {
             Long parsed = AxmlWriter.parseValue(axml, a, v);
             if (parsed == null) {
-                Toast.makeText(this, "值格式不符合类型 " + axml.typeName(a), Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, getString(R.string.mf_bad_value, axml.typeName(a)),
+                        Toast.LENGTH_SHORT).show();
                 return false;
             }
         }
@@ -349,29 +354,29 @@ public class ManifestEditorActivity extends BaseActivity {
         ScrollView sc = new ScrollView(this);
         sc.addView(tv);
         new HfDialogBuilder(this)
-                .setTitle("AndroidManifest.xml（只读预览）")
+                .setTitle(R.string.mf_preview_title)
                 .setView(sc)
-                .setPositiveButton("关闭", null)
+                .setPositiveButton(R.string.common_close, null)
                 .show();
     }
 
     // ---------- 保存：写 AXML → 重打包 → 重签名 ----------
 
     private void askSave() {
-        if (axml == null) { toast("尚未加载完成"); return; }
-        if (!dirty) { toast("没有修改"); return; }
+        if (axml == null) { toast(getString(R.string.mf_not_loaded)); return; }
+        if (!dirty) { toast(getString(R.string.mf_no_changes)); return; }
         LinearLayout box = makeSavePrompt(false);
         final CheckBox autoSign = ApkSignHelper.addAutoSignCheckBox(this, box,
-                "保存后自动签名（长按设置密钥 / 签名方案）", true);
+                getString(R.string.apk_autosign_hint), true);
         new HfDialogBuilder(this)
-                .setTitle("保存修改")
+                .setTitle(R.string.mf_save_title)
                 .setView(box)
-                .setPositiveButton("保存", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.common_save, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         doSave(autoSign.isChecked(), false);
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -381,23 +386,23 @@ public class ManifestEditorActivity extends BaseActivity {
         if (!dirty) { super.onBackPressed(); return; }
         LinearLayout box = makeSavePrompt(true);
         final CheckBox autoSign = ApkSignHelper.addAutoSignCheckBox(this, box,
-                "保存后自动签名（长按设置密钥 / 签名方案）", true);
+                getString(R.string.apk_autosign_hint), true);
         new HfDialogBuilder(this)
-                .setTitle("数据已修改")
+                .setTitle(R.string.mf_dirty_title)
                 .setView(box)
-                .setPositiveButton("保存", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.common_save, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         doSave(autoSign.isChecked(), true);
                     }
                 })
-                .setNeutralButton("放弃修改", new DialogInterface.OnClickListener() {
+                .setNeutralButton(R.string.mf_discard, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         edits.clear();
                         dirty = false;
                         finish();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -409,10 +414,8 @@ public class ManifestEditorActivity extends BaseActivity {
         int pad = (int) (20 * den);
         box.setPadding(pad, pad / 2, pad, 0);
         TextView tv = new TextView(this);
-        tv.setText((exiting ? "AndroidManifest.xml 有 " : "将 ")
-                + edits.size() + (exiting ? " 处修改尚未保存。\n\n" : " 处修改写回：\n\n")
-                + apk.getName()
-                + "\n\n（首次修改时自动备份为 同名_bak.apk）");
+        tv.setText(getString(exiting ? R.string.mf_prompt_exit : R.string.mf_prompt_save,
+                edits.size(), apk.getName()));
         tv.setTextSize(15);
         tv.setTextColor(ThemeManager.text(this));
         box.addView(tv);
@@ -421,7 +424,7 @@ public class ManifestEditorActivity extends BaseActivity {
 
     private void doSave(final boolean autoSign, final boolean exitWhenDone) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("写入 AndroidManifest.xml …");
+        pd.setMessage(getString(R.string.mf_writing));
         pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
         pd.setMax(100);
         pd.setCancelable(false);
@@ -451,9 +454,9 @@ public class ManifestEditorActivity extends BaseActivity {
                     int ai = axml.elements.get(ei).attrs.indexOf(ed.attr);
                     AxmlFile.XAttr fresh = check.elements.get(ei).attrs.get(ai);
                     if (!ed.newValue.equals(check.valueDisplay(fresh)))
-                        throw new IllegalStateException("回读校验失败: "
-                                + axml.attrDisplayName(ed.attr) + " 期望 " + ed.newValue
-                                + " 实际 " + check.valueDisplay(fresh));
+                        throw new IllegalStateException("read-back mismatch: "
+                                + axml.attrDisplayName(ed.attr) + " expected " + ed.newValue
+                                + " actual " + check.valueDisplay(fresh));
                 }
 
                 // v1.66.8：登记 + 会话重打包写回原包（首次修改自动备份 _bak.apk）
@@ -475,15 +478,15 @@ public class ManifestEditorActivity extends BaseActivity {
                 pd.dismiss();
                 if (e != null) {
                     new HfDialogBuilder(ManifestEditorActivity.this)
-                            .setTitle("保存失败").setMessage(e)
-                            .setPositiveButton("知道了", null).show();
+                            .setTitle(R.string.mf_save_fail)
+                            .setMessage(getString(R.string.mf_save_fail_msg, e))
+                            .setPositiveButton(R.string.common_got_it, null).show();
                 } else {
                     dirty = false;
                     refresh();
                     Toast.makeText(ManifestEditorActivity.this,
-                            autoSign ? "已保存并签名 → " + apk.getName()
-                                     : "已保存 → " + apk.getName()
-                                       + "（未签名，可能无法安装）",
+                            getString(autoSign ? R.string.mf_saved_signed : R.string.mf_saved,
+                                    apk.getName()),
                             Toast.LENGTH_LONG).show();
                     if (exitWhenDone) finish();
                 }

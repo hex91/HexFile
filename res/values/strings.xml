@@ -1914,4 +1914,38 @@
     <string name="cmp_copy_pending">对比尚未完成</string>
     <string name="cmp_report_label">对比报告</string>
     <string name="cmp_copied">报告已复制到剪贴板</string>
+
+    <!-- v2.39.0 Manifest 编辑器++（ManifestEditorActivity） -->
+    <string name="mf_loading">解析 AndroidManifest.xml …</string>
+    <string name="mf_load_fail">加载失败</string>
+    <string name="mf_load_fail_msg">无法加载 AndroidManifest.xml：\n%1$s</string>
+    <string name="mf_sub">%1$s · %2$d 个元素 · %3$d 个属性</string>
+    <string name="mf_sub_dirty">%1$s · %2$d 个元素 · %3$d 个属性 · ✎ 未保存</string>
+    <string name="mf_row">"%1$s   [%2$s]"</string>
+    <string name="mf_row_changed">"%1$s   [%2$s]   ✎ 已修改"</string>
+    <string name="mf_row_old">原值: %1$s</string>
+    <string name="mf_info_str">"元素: %1$s\n类型: %2$s\n（字符串 → 写回时追加进字符串池）"</string>
+    <string name="mf_info_bin">"元素: %1$s\n类型: %2$s\n（非字符串 → 4 字节原位补丁）"</string>
+    <string name="mf_label_value">值</string>
+    <string name="mf_hint_any">任意文本</string>
+    <string name="mf_hint_hex">0x 十六进制</string>
+    <string name="mf_hint_ref">"@0x 资源 id"</string>
+    <string name="mf_hint_float">浮点数</string>
+    <string name="mf_hint_int">十进制整数</string>
+    <string name="mf_hint_fmt">输入格式: %1$s</string>
+    <string name="mf_revert">还原</string>
+    <string name="mf_bad_value">值格式不符合类型 %1$s</string>
+    <string name="mf_preview_title">AndroidManifest.xml（只读预览）</string>
+    <string name="mf_not_loaded">尚未加载完成</string>
+    <string name="mf_no_changes">没有修改</string>
+    <string name="mf_save_title">保存修改</string>
+    <string name="mf_dirty_title">数据已修改</string>
+    <string name="mf_discard">放弃修改</string>
+    <string name="mf_prompt_exit">"AndroidManifest.xml 有 %1$d 处修改尚未保存。\n\n%2$s\n\n（首次修改时自动备份为 同名_bak.apk）"</string>
+    <string name="mf_prompt_save">"将 %1$d 处修改写回：\n\n%2$s\n\n（首次修改时自动备份为 同名_bak.apk）"</string>
+    <string name="mf_writing">写入 AndroidManifest.xml …</string>
+    <string name="mf_save_fail">保存失败</string>
+    <string name="mf_save_fail_msg">写回失败：\n%1$s</string>
+    <string name="mf_saved_signed">已保存并签名 → %1$s</string>
+    <string name="mf_saved">已保存 → %1$s（未签名，可能无法安装）</string>
 </resources>
