@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：1690 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：1737 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,98 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.37.0（versionCode 230）—— F-14/24：签名流程 i18n（逻辑层一并码化）
+
+这一页不是一个 Activity，而是「自定义签名 / 解析 keystore / 去除签名校验」这条链上的三块：
+`SignFlowController` 54 处、`KeyStoreUtil` 13 处、`SigKill` 5 处，合计 **72 处清零**。
+和前几页不同，这里有三分之二的文案长在逻辑层，所以先动结构再动文案。
+
+### 1. `SigKill.Patch.kind`：字符串标签 → 枚举
+
+patch 记录原来拿中文当类型标签：
+
+```java
+kind = "checkSignatures→0";            // move-result 强置 0
+kind = "Signature调用→true";            // 调用点强置 true
+rewriteKindOf() → "Signature.verify→true" / "Signature.equals→true" / "签名方法体→恒真"
+```
+
+调用方靠文案分类统计（`p.kind.equals("Signature调用→true")`、`p.kind.contains("verify")`）——
+这是典型的「文案当控制流」：一旦翻译，统计恒为 0，报告变成「共 patch N 处」后面全员缺席。
+
+改为枚举，逻辑层只表态：
+
+| 旧字符串 | 新枚举 |
+| --- | --- |
+| `checkSignatures→0` | `Kind.CHECK_SIG_ZERO` |
+| `Signature调用→true` | `Kind.SIG_CALL_TRUE` |
+| `Signature.verify→true` | `Kind.SIG_VERIFY` |
+| `Signature.equals→true` | `Kind.SIG_EQUALS` |
+| `Signature.hashCode→1` | `Kind.SIG_HASHCODE` |
+| `签名方法体→恒真` | `Kind.BODY` |
+
+`Patch.detail`（整句中文说明「返回值强置 0（SIGNATURE_MATCH），原: …」）随之删除，
+换成 `Patch.orig` —— 被 patch 的**原始指令行**（方法体整段重写时无原文可指，为 null）。
+这样逻辑层产出的是枚举 + 原文数据，说明文案由调用方按资源拼，符合「逻辑层不产文案」。
+
+`test/SigKillTest.java` 的 5 条分类断言同步改成 `p.kind == SigKill.Kind.XXX`，
+断言从「中文标签对不对」回到「patch 分类对不对」。
+
+### 2. `KeyStoreUtil` 不塞 Context：详情搬到 `ui/KsReport`
+
+`AliasInfo.detail()` 是 9 行纯中文（别名 / 类型 / ⚠私钥密码 / 主题 / 签发者 / 有效期 /
+签名算法 / SHA-1 / SHA-256），`summary()` 也带中文括号。两个调用点分别是
+`SignFlowController.parseKeystore()` 与 `SignKeyManagerActivity` 的证书信息弹窗。
+
+给 `AliasInfo` 传 `Context` 最省事，但 `apk` 包现在零 Android 依赖、能桌面单测
+（`KeyStoreUtilTest` / `KeystoreCreateTest` 直接跑），塞 `Context` 会同时破坏依赖方向
+和单测可行性。所以：`AliasInfo` 退回**纯数据**，新建 `ui/KsReport`：
+
+```java
+public static String summary(Context c, KeyStoreUtil.AliasInfo a)  // 别名（RSA）
+public static String detail(Context c, KeyStoreUtil.AliasInfo a)   // 9 行详情
+```
+
+行模板拆成 12 个 `ks_rep_*` 键（`ks_rep_valid` 用 `%1$s ~ %2$s` 两个参数），
+行内标签随语言变、行序与行数固定，便于中英逐行对照。
+
+顺带把 `validateForSign()` 的两条中文原因、`loadAny()` 的兜底异常串改成 ASCII 诊断
+（`no private key entry in this keystore` / `cannot load keystore (.p12/…)`）：仓库内没有
+调用点把它们直接渲染给用户，桌面测试只判 `!= null`，改完不动一处断言。
+
+### 3. 拼接串整句化
+
+| 旧写法 | 新键 |
+| --- | --- |
+| `"已签名 → " + (原地 ? name+"（原地覆盖）" : name)` | `sf_signed` / `sf_signed_inplace` |
+| `"已签名（" + entry.name + "）→ " + …` | `sf_signed_with` / `sf_signed_with_inplace` |
+| `"文件: " + name + "（" + size + "）"` | `sf_file_line`（`%1$s` / `%2$s`） |
+| `"格式: "` / `"文件头: "` / `"解析失败: "` | `sf_format_line` / `sf_head_line` / `sf_parse_fail` |
+| 去签名报告 5 行 | `sf_strip_total` / `sf_strip_cs` / `sf_strip_call` / `sf_strip_body` / `sf_strip_out` |
+
+两处细节：
+
+- `"  ⚠ 密码已损坏"` 带**前导双空格**（列表项里跟在密钥名后对齐用），整值加双引号
+  `"  ⚠ 密码已损坏"`，否则 aapt2 会折叠掉空白；
+- `"已生成 <名>_nosig.apk"` 的尖括号要转义成 `&lt;名&gt;`，英文版是 `&lt;name&gt;`；
+- `sf_strip_out` 是两行（输出路径 + 重签名说明），`\n` 写在资源里，中英各自决定换行位置。
+
+### 验证
+
+- 三个文件中文字面量 **72 → 0**（`SignFlowController` 54 / `KeyStoreUtil` 13 / `SigKill` 5）
+- 新增 47 键（35 个 `sf_*` + 12 个 `ks_rep_*`）；资源总量 **1690 → 1737 条**
+- `SigKillTest` 分类断言改为枚举比较，5 条全绿（patch 总数仍为 6）
+- 四道门：依赖方向通过 / 空 catch **335（= 基线）** / 文案 1737 条 100% 一致
+  （引用 1694 键 / 35 文件）/ 动作号 55
+- `QUICK=1` **97 通过 / 0 失败 / 4 跳过**
+- `aapt2 dump resources` 抽查 `sf_key_broken`（前导双空格未折叠）/ `sf_strip_out`（`\n` 双行）/
+  `sf_nosig_ready`（`<名>` 转义）/ `ks_rep_keypass_warn`：中英双变体齐全
+- 构建 2 分 12 秒，APK **13,308,624 B**（与 v2.36.0 同字节数，md5 不同：
+  `46e8e160…`；`aapt2 dump badging` 反证 versionCode 230 / 2.37.0，
+  并确认 dex 内已含 `KsReport` 与 `sf_strip_total`）
 
 ---
 

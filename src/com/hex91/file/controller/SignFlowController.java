@@ -1,5 +1,6 @@
 package com.hex91.file.controller;
 
+import com.hex91.file.R;
 import com.hex91.file.apk.ApkEditSession;
 import com.hex91.file.apk.ApkRepack;
 import com.hex91.file.apk.ApkSignerTool;
@@ -68,6 +69,14 @@ import java.util.List;
  */
 public final class SignFlowController {
 
+    private String s(int resId) {
+        return host.ctx().getString(resId);
+    }
+
+    private String s(int resId, Object... args) {
+        return host.ctx().getString(resId, args);
+    }
+
     /** 选 keystore 文件（一次性流程）的请求码；宿主 onActivityResult 转发前比对用 */
     public static final int REQ_CUSTOM_KEYSTORE = 3002;
 
@@ -131,12 +140,12 @@ public final class SignFlowController {
         List<String> items = new ArrayList<String>();
         for (SignKeyManagerActivity.KeyEntry e : keys)
             items.add((e.id.equals(defId) ? "★ " : "") + e.name
-                    + (e.broken() ? "  ⚠ 密码已损坏"
-                                  : (e.keyCount > 0 ? "（" + e.keyCount + " 个私钥别名）" : "")));
-        items.add("从文件选择（一次性）…");
-        items.add("管理签名…（导入 / 查看证书信息 / 删除）");
+                    + (e.broken() ? s(R.string.sf_key_broken)
+                                  : (e.keyCount > 0 ? s(R.string.sf_key_count, e.keyCount) : "")));
+        items.add(s(R.string.sf_pick_once));
+        items.add(s(R.string.sf_manage));
         new HfDialogBuilder(host.ctx())
-                .setTitle("自定义密钥签名 — " + apk.getName())
+                .setTitle(s(R.string.sf_title_custom, apk.getName()))
                 .setItems(items.toArray(new String[0]), new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         if (w < keys.size()) {
@@ -149,7 +158,7 @@ public final class SignFlowController {
                         }
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -163,10 +172,10 @@ public final class SignFlowController {
         pendingSrc = apk;
         pendingInPlace = inPlace;
         try {
-            host.pickKeystore(Intent.createChooser(i, "选择 keystore（.p12/.jks/.keystore/.bks）"));
+            host.pickKeystore(Intent.createChooser(i, s(R.string.sf_chooser)));
         } catch (Throwable t) {
             pendingSrc = null;
-            host.toast("无法打开文件选择器: " + t.getMessage());
+            host.toast(s(R.string.sf_pick_fail, t.getMessage()));
         }
     }
 
@@ -194,19 +203,21 @@ public final class SignFlowController {
             final boolean inPlace) {
         final EditText pass = new EditText(host.ctx());
         pass.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        pass.setHint("keystore 密码");
+        pass.setHint(R.string.main_ks_pw_hint);
         new HfDialogBuilder(host.ctx())
-                .setTitle("自定义密钥签名")
-                .setMessage("keystore: " + (keystoreUri.getLastPathSegment() != null
-                        ? keystoreUri.getLastPathSegment() : "已选择")
-                        + "\nAPK: " + apk.getName())
+                .setTitle(R.string.sf_title_custom_bare)
+                .setMessage(s(R.string.sf_msg_ks,
+                        keystoreUri.getLastPathSegment() != null
+                                ? keystoreUri.getLastPathSegment() : s(R.string.sf_chosen),
+                        apk.getName()))
                 .setView(pass)
-                .setPositiveButton("签名", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.sf_sign,
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         final String pwd = pass.getText().toString();
-                        if (pwd.isEmpty()) { host.toast("密码不能为空"); return; }
+                        if (pwd.isEmpty()) { host.toast(s(R.string.main_pw_empty)); return; }
                         final ProgressDialog pd = ProgressDialog.show(host.ctx(),
-                                "自定义签名", apk.getName(), true, false);
+                                s(R.string.sf_signing_pd), apk.getName(), true, false);
                         new Thread(new Runnable() {
                             public void run() {
                                 String err = null;
@@ -237,11 +248,11 @@ public final class SignFlowController {
                                 host.ui(new Runnable() {
                                     public void run() {
                                         pd.dismiss();
-                                        if (ferr != null) host.toast("签名失败: " + ferr);
+                                        if (ferr != null) host.toast(s(R.string.sf_sign_fail, ferr));
                                         else {
-                                            host.toast("已签名 → " + (finPlace
-                                                    ? fout.getName() + "（原地覆盖）"
-                                                    : fout.getName()));
+                                            host.toast(finPlace
+                                                    ? s(R.string.sf_signed_inplace, fout.getName())
+                                                    : s(R.string.sf_signed, fout.getName()));
                                             host.refreshAll();
                                         }
                                     }
@@ -250,7 +261,7 @@ public final class SignFlowController {
                         }, "apk-csign").start();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -258,11 +269,11 @@ public final class SignFlowController {
     private void doCustomSignWithEntry(final SignKeyManagerActivity.KeyEntry entry,
             final File apk, final boolean inPlace) {
         if (entry.broken()) {
-            host.toast("该签名的密码已损坏（换机/清除数据导致），请到「签名管理」重新导入");
+            host.toast(s(R.string.sf_broken_reimport));
             return;
         }
         final ProgressDialog pd = ProgressDialog.show(host.ctx(),
-                "自定义签名", entry.name + " → " + apk.getName(), true, false);
+                s(R.string.sf_signing_pd), entry.name + " → " + apk.getName(), true, false);
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -290,10 +301,11 @@ public final class SignFlowController {
                 host.ui(new Runnable() {
                     public void run() {
                         pd.dismiss();
-                        if (ferr != null) host.toast("签名失败: " + ferr);
+                        if (ferr != null) host.toast(s(R.string.sf_sign_fail, ferr));
                         else {
-                            host.toast("已签名（" + entry.name + "）→ "
-                                    + (finPlace ? fout.getName() + "（原地覆盖）" : fout.getName()));
+                            host.toast(finPlace
+                                    ? s(R.string.sf_signed_with_inplace, entry.name, fout.getName())
+                                    : s(R.string.sf_signed_with, entry.name, fout.getName()));
                             host.refreshAll();
                         }
                     }
@@ -307,7 +319,7 @@ public final class SignFlowController {
     /** 解析 keystore 并展示条目详情（调用方已问过密码） */
     public void parseKeystore(final File f, final String pass) {
         final ProgressDialog pd = new ProgressDialog(host.ctx());
-        pd.setMessage("解析 keystore…");
+        pd.setMessage(s(R.string.sf_parse_pd));
         pd.setCancelable(false);
         pd.show();
         new Thread(new Runnable() {
@@ -315,23 +327,24 @@ public final class SignFlowController {
                 final StringBuilder sb = new StringBuilder();
                 try {
                     byte[] bytes = FileOps.readAllBytes(f);
-                    sb.append("文件: ").append(f.getName()).append("（")
-                            .append(FileOps.formatSize(f.length())).append("）\n");
-                    sb.append("格式: ").append(com.hex91.file.ui.FileReport.typeText(
-                            host.ctx(), FileInspect.readHead(f, 16), f.getName())).append('\n');
-                    sb.append("文件头: ").append(FileInspect.hexHead(
-                            FileInspect.readHead(f, 16), 8)).append("\n\n");
+                    sb.append(s(R.string.sf_file_line, f.getName(),
+                            FileOps.formatSize(f.length()))).append('\n');
+                    sb.append(s(R.string.sf_format_line,
+                            com.hex91.file.ui.FileReport.typeText(host.ctx(),
+                                    FileInspect.readHead(f, 16), f.getName()))).append('\n');
+                    sb.append(s(R.string.sf_head_line, FileInspect.hexHead(
+                            FileInspect.readHead(f, 16), 8))).append("\n\n");
                     List<KeyStoreUtil.AliasInfo> list =
                             KeyStoreUtil.inspect(bytes, pass.toCharArray(), null);
-                    if (list.isEmpty()) sb.append("（没有任何条目）");
+                    if (list.isEmpty()) sb.append(s(R.string.sf_no_entries));
                     for (int i = 0; i < list.size(); i++) {
                         if (i > 0) sb.append('\n');
-                        sb.append(list.get(i).detail());
+                        sb.append(com.hex91.file.ui.KsReport.detail(host.ctx(), list.get(i)));
                     }
                 } catch (Throwable t) {
                     sb.setLength(0);
-                    sb.append("解析失败: ").append(
-                            SignKeyManagerActivity.friendlyKsError(host.ctx(), t));
+                    sb.append(s(R.string.sf_parse_fail,
+                            SignKeyManagerActivity.friendlyKsError(host.ctx(), t)));
                 }
                 host.ui(new Runnable() {
                     public void run() {
@@ -347,15 +360,15 @@ public final class SignFlowController {
                         tv.setTextColor(ThemeManager.text(host.ctx()));
                         sv.addView(tv);
                         new HfDialogBuilder(host.ctx())
-                                .setTitle("签名信息")
+                                .setTitle(R.string.sf_info_title)
                                 .setView(sv)
-                                .setPositiveButton("导入到签名管理",
+                                .setPositiveButton(R.string.sf_import_ks,
                                         new android.content.DialogInterface.OnClickListener() {
                                             public void onClick(android.content.DialogInterface d, int w) {
                                                 host.importKeystore(f);
                                             }
                                         })
-                                .setNegativeButton("关闭", null)
+                                .setNegativeButton(R.string.common_close, null)
                                 .show();
                     }
                 });
@@ -371,7 +384,7 @@ public final class SignFlowController {
      */
     public void doSigKill(final File f) {
         final ProgressDialog pd = new ProgressDialog(host.ctx());
-        pd.setMessage("去除签名校验…");
+        pd.setMessage(s(R.string.sf_strip_pd));
         pd.setCancelable(false);
         pd.show();
         String base = f.getName();
@@ -407,11 +420,11 @@ public final class SignFlowController {
 
                             File smaliDir = new File(work, "smali_" + dexIdx);
                             String e = SmaliTool.decompile(dex, smaliDir, 4);
-                            if (e != null) throw new Exception("反编译 " + nm + " 失败: " + e);
+                            if (e != null) throw new Exception("decompile failed: " + nm + " : " + e);
                             patches.addAll(SigKill.run(smaliDir));
                             File outDex = new File(work, "out_" + dexIdx + ".dex");
                             e = SmaliTool.assemble(smaliDir, outDex, 4);
-                            if (e != null) throw new Exception("回编译 " + nm + " 失败: " + e);
+                            if (e != null) throw new Exception("assemble failed: " + nm + " : " + e);
 
                             byte[] data = ByteIO.readAll(outDex);
                             if (data != null) replace.put(nm, data);
@@ -422,8 +435,7 @@ public final class SignFlowController {
                     }
 
                     if (patches.isEmpty()) {
-                        err = "未发现可去除的签名校验点（没有 PackageManager.checkSignatures 调用、"
-                                + "Signature.verify/equals 调用点或自带 Signature 副本），原 APK 未修改。";
+                        err = s(R.string.sf_no_points);
                     } else {
                         // 2) 重打包（替换 dex）→ 重签名
                         File unsigned = new File(work, "unsigned.apk");
@@ -436,17 +448,16 @@ public final class SignFlowController {
                         // 3) 汇总报告
                         int cs = 0, call = 0, body = 0;
                         for (SigKill.Patch p : patches) {
-                            if (p.kind.equals("checkSignatures→0")) cs++;
-                            else if (p.kind.equals("Signature调用→true")) call++;
+                            if (p.kind == SigKill.Kind.CHECK_SIG_ZERO) cs++;
+                            else if (p.kind == SigKill.Kind.SIG_CALL_TRUE) call++;
                             else body++;
                         }
                         StringBuilder sb = new StringBuilder();
-                        sb.append("共 patch ").append(patches.size()).append(" 处\n");
-                        if (cs > 0) sb.append("· checkSignatures 返回值强置 0: ").append(cs).append(" 处\n");
-                        if (call > 0) sb.append("· Signature.verify/equals 调用点强 true: ").append(call).append(" 处\n");
-                        if (body > 0) sb.append("· 自带 Signature 副本方法体重写: ").append(body).append(" 处\n");
-                        sb.append("\n输出: ").append(out.getAbsolutePath())
-                                .append("\n已用内置密钥 v1+v2+v3 重签名");
+                        sb.append(s(R.string.sf_strip_total, patches.size())).append('\n');
+                        if (cs > 0) sb.append(s(R.string.sf_strip_cs, cs)).append('\n');
+                        if (call > 0) sb.append(s(R.string.sf_strip_call, call)).append('\n');
+                        if (body > 0) sb.append(s(R.string.sf_strip_body, body)).append('\n');
+                        sb.append(s(R.string.sf_strip_out, out.getAbsolutePath()));
                         info = sb.toString();
                     }
                 } catch (Throwable t) {
@@ -465,14 +476,14 @@ public final class SignFlowController {
                         pd.dismiss();
                         if (e != null) {
                             new HfDialogBuilder(host.ctx())
-                                    .setTitle("去除签名校验").setMessage(e)
-                                    .setPositiveButton("知道了", null).show();
+                                    .setTitle(R.string.sf_strip_title).setMessage(e)
+                                    .setPositiveButton(R.string.common_got_it, null).show();
                         } else {
                             host.refreshAll();
                             new HfDialogBuilder(host.ctx())
-                                    .setTitle("已生成 <名>_nosig.apk")
+                                    .setTitle(R.string.sf_nosig_ready)
                                     .setMessage(ok)
-                                    .setPositiveButton("关闭", null)
+                                    .setPositiveButton(R.string.common_close, null)
                                     .show();
                         }
                     }

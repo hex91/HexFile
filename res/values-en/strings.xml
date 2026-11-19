@@ -1776,4 +1776,54 @@
     <string name="dx_signed">Written back and signed → %1$s</string>
     <string name="dx_unsigned">Written back → %1$s (unsigned, may fail to install)</string>
     <string name="dx_done_title">Finished (with a message)</string>
+
+    <!-- v2.37.0 signing flow (SignFlowController) -->
+    <string name="sf_key_broken">"  ⚠ Broken password"</string>
+    <string name="sf_key_count">" (%1$d private key aliases)"</string>
+    <string name="sf_pick_once">Pick a file (one-off)…</string>
+    <string name="sf_manage">Manage signing… (import / view certificate / delete)</string>
+    <string name="sf_title_custom">Sign with a custom key — %1$s</string>
+    <string name="sf_title_custom_bare">Sign with a custom key</string>
+    <string name="sf_chooser">Choose a keystore (.p12/.jks/.keystore/.bks)</string>
+    <string name="sf_pick_fail">Cannot open the file picker: %1$s</string>
+    <string name="sf_chosen">Selected</string>
+    <string name="sf_msg_ks">"keystore: %1$s\nAPK: %2$s"</string>
+    <string name="sf_sign">Sign</string>
+    <string name="sf_signing_pd">Signing with a custom key</string>
+    <string name="sf_sign_fail">Signing failed: %1$s</string>
+    <string name="sf_signed">Signed → %1$s</string>
+    <string name="sf_signed_inplace">Signed → %1$s (overwritten in place)</string>
+    <string name="sf_signed_with">Signed (%1$s) → %2$s</string>
+    <string name="sf_signed_with_inplace">Signed (%1$s) → %2$s (overwritten in place)</string>
+    <string name="sf_broken_reimport">The password of this key is broken (device change or cleared data). Re-import it in Signing manager.</string>
+    <string name="sf_parse_pd">Parsing the keystore…</string>
+    <string name="sf_file_line">File: %1$s (%2$s)</string>
+    <string name="sf_format_line">Format: %1$s</string>
+    <string name="sf_head_line">Header: %1$s</string>
+    <string name="sf_no_entries">(no entries)</string>
+    <string name="sf_parse_fail">Parsing failed: %1$s</string>
+    <string name="sf_info_title">Signature info</string>
+    <string name="sf_import_ks">Import into signing manager</string>
+    <string name="sf_strip_pd">Removing signature checks…</string>
+    <string name="sf_strip_title">Remove signature checks</string>
+    <string name="sf_no_points">No removable signature check was found (no PackageManager.checkSignatures call, no Signature.verify/equals call site, no bundled Signature copy). The APK was left unchanged.</string>
+    <string name="sf_strip_total">%1$d patches applied</string>
+    <string name="sf_strip_cs">· checkSignatures result forced to 0: %1$d</string>
+    <string name="sf_strip_call">· Signature.verify/equals call sites forced true: %1$d</string>
+    <string name="sf_strip_body">· bundled Signature copy method bodies rewritten: %1$d</string>
+    <string name="sf_strip_out">"Output: %1$s\nRe-signed with the built-in key (v1+v2+v3)"</string>
+    <string name="sf_nosig_ready">Generated &lt;name&gt;_nosig.apk</string>
+    <!-- v2.37.0 keystore entry details (KsReport) -->
+    <string name="ks_rep_summary">%1$s (%2$s)</string>
+    <string name="ks_rep_alias">Alias: %1$s</string>
+    <string name="ks_rep_type">Type: %1$s</string>
+    <string name="ks_rep_type_key">Private key entry (%1$s)</string>
+    <string name="ks_rep_type_cert">Trusted certificate</string>
+    <string name="ks_rep_keypass_warn">"⚠ The key password differs from the keystore password; enter the key password"</string>
+    <string name="ks_rep_subject">Subject: %1$s</string>
+    <string name="ks_rep_issuer">Issuer: %1$s</string>
+    <string name="ks_rep_valid">Validity: %1$s ~ %2$s</string>
+    <string name="ks_rep_sigalg">Signature algorithm: %1$s</string>
+    <string name="ks_rep_sha1">SHA-1: %1$s</string>
+    <string name="ks_rep_sha256">SHA-256: %1$s</string>
 </resources>

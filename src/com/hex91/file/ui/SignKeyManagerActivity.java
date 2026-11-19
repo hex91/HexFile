@@ -1020,7 +1020,7 @@ public class SignKeyManagerActivity extends BaseActivity {
                 sb.append(getString(R.string.ksm_info_name, e.name));
                 for (int i = 0; i < list.size(); i++) {
                     if (i > 0) sb.append('\n');
-                    sb.append(list.get(i).detail());
+                    sb.append(KsReport.detail(SignKeyManagerActivity.this, list.get(i)));
                 }
                 text = sb.toString();
             } catch (Throwable t) {

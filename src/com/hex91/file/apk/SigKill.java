@@ -33,14 +33,34 @@ public final class SigKill {
 
     private SigKill() {}
 
+    /**
+     * patch 类型。逻辑层只给枚举，具体中文/英文说明由调用方按资源生成，
+     * 避免 apk 层产出面向用户的文案。
+     */
+    public enum Kind {
+        /** {@code checkSignatures} 调用的 move-result 强置 0（SIGNATURE_MATCH） */
+        CHECK_SIG_ZERO,
+        /** {@code Signature.verify/equals} 调用点的 move-result 强置 1（true） */
+        SIG_CALL_TRUE,
+        /** {@code Signature.verify} 方法体改为恒真 */
+        SIG_VERIFY,
+        /** {@code Signature.equals} 方法体改为恒真 */
+        SIG_EQUALS,
+        /** {@code Signature.hashCode} 方法体改为常量 1 */
+        SIG_HASHCODE,
+        /** 其它签名相关方法体改为恒真 */
+        BODY
+    }
+
     /** 一处 patch 记录，供 UI 报告 */
     public static final class Patch {
         public final String file;   // 相对 smali 根的路径
         public final int line;      // 1-based 行号
-        public final String kind;
-        public final String detail;
-        Patch(String f, int l, String k, String d) { file = f; line = l; kind = k; detail = d; }
-        @Override public String toString() { return file + ":" + line + " [" + kind + "] " + detail; }
+        public final Kind kind;
+        /** 被 patch 的原始指令行（方法体整段重写时为 null，无原文可指） */
+        public final String orig;
+        Patch(String f, int l, Kind k, String o) { file = f; line = l; kind = k; orig = o; }
+        @Override public String toString() { return file + ":" + line + " [" + kind + "] " + orig; }
     }
 
     /** 对 smaliRoot 下所有 *.smali 做原地 patch，返回全部 patch 记录（空=未改动） */
@@ -81,7 +101,7 @@ public final class SigKill {
         String cls = null;                  // 当前文件 .class 声明的类描述符（如 Landroid/content/pm/Signature;）
         boolean inMethod = false;
         boolean rewriteBody = false;        // 正在重写 verify/equals/hashCode 方法体
-        String rewriteKind = "";            // 重写的具体类型（用于 patch 记录）
+        Kind rewriteKind = null;            // 重写的具体类型（用于 patch 记录）
         int regCount = -1;                  // 当前方法 .registers 数值（-1 未知）
         int paramCount = 0;                 // 当前方法参数占用寄存器数（含 this）
         int forceMoveResult = -1;           // >=0：上一 invoke 的 move-result 强置该值（0=checkSignatures，1=Signature.verify/equals）
@@ -107,7 +127,7 @@ public final class SigKill {
                 rewriteBody = "Landroid/content/pm/Signature;".equals(cls)
                         && !t.contains(" abstract ") && !t.contains(" native ")
                         && isTargetMethod(t);
-                rewriteKind = rewriteBody ? rewriteKindOf(t) : "";
+                rewriteKind = rewriteBody ? rewriteKindOf(t) : null;
                 dst.add(raw);
                 continue;
             }
@@ -118,8 +138,7 @@ public final class SigKill {
                     // 注入恒真返回体（v0 必存在：非静态方法至少有 this=v0）
                     dst.add("    const/4 v0, 0x1");
                     dst.add("    return v0");
-                    out.add(new Patch(rel, lineNo, rewriteKind,
-                            "方法体改为恒真返回（const/4 v0, 0x1; return v0）"));
+                    out.add(new Patch(rel, lineNo, rewriteKind, null));
                     rewriteBody = false;
                 }
                 inMethod = false;
@@ -164,19 +183,17 @@ public final class SigKill {
                     String reg = extractMoveResultReg(t);
                     if (reg != null) {
                         String repl;
-                        String kind;
+                        Kind kind;
                         if (forceMoveResult == 0) {
                             if (t.startsWith("move-result-wide")) repl = "    const-wide " + reg + ", 0x0";
                             else repl = "    const/4 " + reg + ", 0x0";
-                            kind = "checkSignatures→0";
+                            kind = Kind.CHECK_SIG_ZERO;
                         } else {
                             repl = "    const/4 " + reg + ", 0x1";
-                            kind = "Signature调用→true";
+                            kind = Kind.SIG_CALL_TRUE;
                         }
                         dst.add(repl);
-                        out.add(new Patch(rel, lineNo, kind,
-                                "返回值强置 " + (forceMoveResult == 0 ? "0（SIGNATURE_MATCH）" : "1（true）")
-                                        + "，原: " + t));
+                        out.add(new Patch(rel, lineNo, kind, t));
                     } else {
                         dst.add(raw);
                     }
@@ -217,13 +234,13 @@ public final class SigKill {
         return sp < 0 ? t.substring(7).trim() : t.substring(sp + 1).trim();
     }
 
-    /** 返回重写类型的中文标签（用于 patch 记录） */
-    private static String rewriteKindOf(String methodLine) {
+    /** 返回重写类型（用于 patch 记录，文案由 UI 侧生成） */
+    private static Kind rewriteKindOf(String methodLine) {
         if (matches(methodLine, "verify", "([B)Z") || matches(methodLine, "verify", "([B[B)Z"))
-            return "Signature.verify→true";
-        if (matches(methodLine, "equals", "(Ljava/lang/Object;)Z")) return "Signature.equals→true";
-        if (matches(methodLine, "hashCode", "()I")) return "Signature.hashCode→1";
-        return "签名方法体→恒真";
+            return Kind.SIG_VERIFY;
+        if (matches(methodLine, "equals", "(Ljava/lang/Object;)Z")) return Kind.SIG_EQUALS;
+        if (matches(methodLine, "hashCode", "()I")) return Kind.SIG_HASHCODE;
+        return Kind.BODY;
     }
 
     /** 匹配 `.method <flags> <name><desc>`，忽略 flags；desc 已是完整 (params)ret 形态 */

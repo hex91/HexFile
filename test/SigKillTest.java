@@ -132,11 +132,11 @@ public class SigKillTest {
         }
         int cs = 0, vf = 0, eq = 0, hc = 0, call = 0;
         for (SigKill.Patch p : patches) {
-            if (p.kind.equals("checkSignatures→0")) cs++;
-            else if (p.kind.equals("Signature调用→true")) call++;
-            else if (p.kind.contains("verify")) vf++;
-            else if (p.kind.contains("equals")) eq++;
-            else if (p.kind.contains("hashCode")) hc++;
+            if (p.kind == SigKill.Kind.CHECK_SIG_ZERO) cs++;
+            else if (p.kind == SigKill.Kind.SIG_CALL_TRUE) call++;
+            else if (p.kind == SigKill.Kind.SIG_VERIFY) vf++;
+            else if (p.kind == SigKill.Kind.SIG_EQUALS) eq++;
+            else if (p.kind == SigKill.Kind.SIG_HASHCODE) hc++;
         }
         check("checkSignatures 改 0 命中 2", cs == 2);
         check("Signature 调用点强 true 命中 1", call == 1);

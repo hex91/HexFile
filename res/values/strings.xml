@@ -1784,4 +1784,54 @@
     <string name="dx_signed">已写回并签名 → %1$s</string>
     <string name="dx_unsigned">已写回 → %1$s（未签名，可能无法安装）</string>
     <string name="dx_done_title">完成（有提示）</string>
+
+    <!-- v2.37.0 签名流程（SignFlowController） -->
+    <string name="sf_key_broken">"  ⚠ 密码已损坏"</string>
+    <string name="sf_key_count">"（%1$d 个私钥别名）"</string>
+    <string name="sf_pick_once">从文件选择（一次性）…</string>
+    <string name="sf_manage">管理签名…（导入 / 查看证书信息 / 删除）</string>
+    <string name="sf_title_custom">自定义密钥签名 — %1$s</string>
+    <string name="sf_title_custom_bare">自定义密钥签名</string>
+    <string name="sf_chooser">选择 keystore（.p12/.jks/.keystore/.bks）</string>
+    <string name="sf_pick_fail">无法打开文件选择器: %1$s</string>
+    <string name="sf_chosen">已选择</string>
+    <string name="sf_msg_ks">"keystore: %1$s\nAPK: %2$s"</string>
+    <string name="sf_sign">签名</string>
+    <string name="sf_signing_pd">自定义签名</string>
+    <string name="sf_sign_fail">签名失败: %1$s</string>
+    <string name="sf_signed">已签名 → %1$s</string>
+    <string name="sf_signed_inplace">已签名 → %1$s（原地覆盖）</string>
+    <string name="sf_signed_with">已签名（%1$s）→ %2$s</string>
+    <string name="sf_signed_with_inplace">已签名（%1$s）→ %2$s（原地覆盖）</string>
+    <string name="sf_broken_reimport">该签名的密码已损坏（换机/清除数据导致），请到「签名管理」重新导入</string>
+    <string name="sf_parse_pd">解析 keystore…</string>
+    <string name="sf_file_line">文件: %1$s（%2$s）</string>
+    <string name="sf_format_line">格式: %1$s</string>
+    <string name="sf_head_line">文件头: %1$s</string>
+    <string name="sf_no_entries">（没有任何条目）</string>
+    <string name="sf_parse_fail">解析失败: %1$s</string>
+    <string name="sf_info_title">签名信息</string>
+    <string name="sf_import_ks">导入到签名管理</string>
+    <string name="sf_strip_pd">去除签名校验…</string>
+    <string name="sf_strip_title">去除签名校验</string>
+    <string name="sf_no_points">未发现可去除的签名校验点（没有 PackageManager.checkSignatures 调用、Signature.verify/equals 调用点或自带 Signature 副本），原 APK 未修改。</string>
+    <string name="sf_strip_total">共 patch %1$d 处</string>
+    <string name="sf_strip_cs">· checkSignatures 返回值强置 0: %1$d 处</string>
+    <string name="sf_strip_call">· Signature.verify/equals 调用点强 true: %1$d 处</string>
+    <string name="sf_strip_body">· 自带 Signature 副本方法体重写: %1$d 处</string>
+    <string name="sf_strip_out">"输出: %1$s\n已用内置密钥 v1+v2+v3 重签名"</string>
+    <string name="sf_nosig_ready">已生成 &lt;名&gt;_nosig.apk</string>
+    <!-- v2.37.0 keystore 条目详情（KsReport） -->
+    <string name="ks_rep_summary">%1$s（%2$s）</string>
+    <string name="ks_rep_alias">别名: %1$s</string>
+    <string name="ks_rep_type">类型: %1$s</string>
+    <string name="ks_rep_type_key">私钥条目（%1$s）</string>
+    <string name="ks_rep_type_cert">受信证书</string>
+    <string name="ks_rep_keypass_warn">"⚠ 私钥密码与 keystore 密码不同，需填写私钥密码"</string>
+    <string name="ks_rep_subject">主题: %1$s</string>
+    <string name="ks_rep_issuer">签发者: %1$s</string>
+    <string name="ks_rep_valid">有效期: %1$s ~ %2$s</string>
+    <string name="ks_rep_sigalg">签名算法: %1$s</string>
+    <string name="ks_rep_sha1">SHA-1: %1$s</string>
+    <string name="ks_rep_sha256">SHA-256: %1$s</string>
 </resources>

@@ -36,27 +36,7 @@ public final class KeyStoreUtil {
         public String sha1;            // 证书 SHA-1 指纹（冒号分十六进制）
         public String sha256;          // 证书 SHA-256 指纹
         public int chainLen;
-
-        /** 单行摘要（列表展示用） */
-        public String summary() {
-            return alias + "（" + (keyEntry ? keyAlg : "证书") + "）";
-        }
-
-        /** 多行详情（详情弹窗用） */
-        public String detail() {
-            StringBuilder sb = new StringBuilder();
-            sb.append("别名: ").append(alias).append('\n');
-            sb.append("类型: ").append(keyEntry ? "私钥条目（" + keyAlg + "）" : "受信证书").append('\n');
-            if (!keyReadable && keyEntry)
-                sb.append("⚠ 私钥密码与 keystore 密码不同，需填写私钥密码\n");
-            sb.append("主题: ").append(subject).append('\n');
-            sb.append("签发者: ").append(issuer).append('\n');
-            sb.append("有效期: ").append(notBefore).append(" ~ ").append(notAfter).append('\n');
-            sb.append("签名算法: ").append(sigAlg).append('\n');
-            if (sha1 != null) sb.append("SHA-1: ").append(sha1).append('\n');
-            if (sha256 != null) sb.append("SHA-256: ").append(sha256).append('\n');
-            return sb.toString();
-        }
+        // 单行摘要 / 多行详情的文案在 ui.KsReport 生成（逻辑层不产面向用户的文案）
     }
 
     /** 统一加载：PKCS12 → JKS → BKS，全失败抛最后一个异常 */
@@ -70,7 +50,7 @@ public final class KeyStoreUtil {
             } catch (Exception e) { last = e; }
         }
         throw last != null ? last
-                : new IllegalStateException("无法加载 keystore（支持 .p12/.pfx/.jks/.keystore/.bks）");
+                : new IllegalStateException("cannot load keystore (.p12/.pfx/.jks/.keystore/.bks)");
     }
 
     /**
@@ -142,7 +122,7 @@ public final class KeyStoreUtil {
         return sb.toString();
     }
 
-    /** keystore 是否可正常用于签名（有可读私钥 + 证书链），返回错误原因或 null */
+    /** keystore 是否可正常用于签名（有可读私钥 + 证书链），返回诊断串或 null（文案由 UI 侧决定） */
     public static String validateForSign(List<AliasInfo> list) {
         boolean anyKey = false;
         for (AliasInfo i : list) {
@@ -151,7 +131,7 @@ public final class KeyStoreUtil {
                 if (i.keyReadable && i.hasChain) return null;
             }
         }
-        if (!anyKey) return "keystore 中没有私钥条目";
-        return "私钥无法读取：密码错误，或私钥密码与 keystore 密码不同（请填写私钥密码）";
+        if (!anyKey) return "no private key entry in this keystore";
+        return "private key unreadable: wrong password, or the key password differs from the store password";
     }
 }
