@@ -2563,4 +2563,22 @@
     <string name="api_none">（无）</string>
     <string name="api_exported">已导出 → %1$s</string>
     <string name="api_export_fail">导出失败: %1$s</string>
+    <!-- v2.58.0 加密工具页 -->
+    <string name="cph_copy_label">结果</string>
+    <string name="cph_key_hint_prefix">需要 %1$s</string>
+    <string name="cph_hmac_hint">HMAC 密钥，任意长度</string>
+    <string name="cph_encrypt">加密</string>
+    <string name="cph_decrypt">解密</string>
+    <string name="cph_compute">计算</string>
+    <string name="cph_encode">编码</string>
+    <string name="cph_decode">解码</string>
+    <string name="cph_need_input">请先填写输入内容</string>
+    <string name="cph_op_fail">✗ 运算失败：%1$s</string>
+    <string name="cph_bits_chars">" · %1$d 位 / %2$d 字符"</string>
+    <string name="cph_suffix_enc">" 加密"</string>
+    <string name="cph_suffix_dec">" 解密"</string>
+    <string name="cph_suffix_encode">" 编码"</string>
+    <string name="cph_suffix_decode">" 解码"</string>
+    <string name="cph_out_chars">" · 输出 %1$d 字符"</string>
+    <string name="cph_b64_note">"\n解码结果按 UTF-8 显示，二进制内容请在「编码转换」里转 HEX 查看"</string>
 </resources>

@@ -75,7 +75,8 @@ public class CipherActivity extends BaseActivity {
         });
         findViewById(R.id.cp_copy).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                ToolUi.copy(CipherActivity.this, outTv.getText(), "结果");
+                ToolUi.copy(CipherActivity.this, outTv.getText(),
+                CipherActivity.this.getString(R.string.cph_copy_label));
             }
         });
         go1.setOnClickListener(new View.OnClickListener() {
@@ -132,21 +133,21 @@ public class CipherActivity extends BaseActivity {
         outBox.setVisibility(sym ? View.VISIBLE : View.GONE);
         ivEt.setVisibility(mode == CryptoCore.MODE_CBC ? View.VISIBLE : View.GONE);
 
-        String hint = sym ? "需要 " + CryptoCore.keyHint(a)
-                : (hash && CryptoCore.needKey(a) ? "HMAC 密钥，任意长度" : "");
+        String hint = sym ? getString(R.string.cph_key_hint_prefix, CryptoCore.keyHint(a))
+                : (hash && CryptoCore.needKey(a) ? getString(R.string.cph_hmac_hint) : "");
         keyHint.setText(hint);
         keyHint.setVisibility(hint.length() == 0 ? View.GONE : View.VISIBLE);
 
         if (sym) {
-            go1.setText("加密");
-            go2.setText("解密");
+            go1.setText(R.string.cph_encrypt);
+            go2.setText(R.string.cph_decrypt);
             go2.setVisibility(View.VISIBLE);
         } else if (hash) {
-            go1.setText("计算");
+            go1.setText(R.string.cph_compute);
             go2.setVisibility(View.GONE);
         } else {
-            go1.setText("编码");
-            go2.setText("解码");
+            go1.setText(R.string.cph_encode);
+            go2.setText(R.string.cph_decode);
             go2.setVisibility(View.VISIBLE);
         }
         go2.setBackground(ToolUi.card(this, 10));
@@ -161,7 +162,7 @@ public class CipherActivity extends BaseActivity {
         int a = alg();
         String input = inEt.getText().toString();
         if (input.length() == 0) {
-            ToolUi.toast(this, "请先填写输入内容");
+            ToolUi.toast(this, getString(R.string.cph_need_input));
             return;
         }
         try {
@@ -179,7 +180,7 @@ public class CipherActivity extends BaseActivity {
         } catch (Throwable e) {
             outTv.setText("");
             status.setTextColor(ThemeManager.err(this));
-            status.setText("✗ 运算失败：" + e);
+            status.setText(getString(R.string.cph_op_fail, e));
         }
     }
 
@@ -187,19 +188,19 @@ public class CipherActivity extends BaseActivity {
         StringBuilder sb = new StringBuilder();
         sb.append(CryptoCore.name(a));
         if (CryptoCore.isHash(a)) {
-            sb.append(" · ").append(r.length() * 4).append(" 位 / ").append(r.length()).append(" 字符");
+            sb.append(getString(R.string.cph_bits_chars, r.length() * 4, r.length()));
         } else if (CryptoCore.isSym(a)) {
-            sb.append(forward ? " 加密" : " 解密");
+            sb.append(getString(forward ? R.string.cph_suffix_enc : R.string.cph_suffix_dec));
             sb.append(" · ").append(mode == CryptoCore.MODE_CBC ? "CBC" : "ECB");
-            sb.append(" · 输出 ").append(r.length()).append(" 字符");
+            sb.append(getString(R.string.cph_out_chars, r.length()));
         } else {
-            sb.append(forward ? " 编码" : " 解码");
-            sb.append(" · 输出 ").append(r.length()).append(" 字符");
+            sb.append(getString(forward ? R.string.cph_suffix_encode : R.string.cph_suffix_decode));
+            sb.append(getString(R.string.cph_out_chars, r.length()));
         }
         if (ms > 0) sb.append(String.format(Locale.US, " · %d ms", ms));
         if (!CryptoCore.isHash(a) && !CryptoCore.isSym(a) && !forward) {
             // Base64/URL 解码失败时结果可能含乱码，提示一下
-            sb.append("\n解码结果按 UTF-8 显示，二进制内容请在「编码转换」里转 HEX 查看");
+            sb.append(getString(R.string.cph_b64_note));
         }
         return sb.toString();
     }

@@ -1785,6 +1785,35 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.58.0（versionCode 251）—— F-14/45：加密工具页 i18n（批量纯 UI 页第 11 页）
+
+`CipherActivity` 中文字面量 **16 → 0**（纯代码构造 UI，无布局文件），新增 17 个 `cph_*` 键，
+资源 2432 → 2449 条（中英各 2449，100%）。
+
+### 边界：逻辑层文案透传
+`CryptoCore.name(a)`（算法名数组 `NAMES`）与 `CryptoCore.keyHint(a)`（"16 / 24 / 32 字节（AES-128/192/256）…"
+等 5 条）都在 **core 包**，属逻辑层产出文案，本批纯 UI 页不做 Code 化改造，原样透传
+（同 v2.49 `SyncPlan.summary()` 的处理口径，记为逻辑层债）。本页只翻包裹它们的 UI 文案：
+`cph_key_hint_prefix`（`需要 %1$s`）拼的就是透传来的中文 keyHint。
+
+### UI 层要点
+- 按钮文案随算法类型切换：`cph_encrypt`/`cph_decrypt`（对称）、`cph_compute`（摘要）、
+  `cph_encode`/`cph_decode`（Base64/URL）。
+- `describe()` 结果行由多段组成，全部整段化：`cph_bits_chars`（`" · %1$d 位 / %2$d 字符"`）、
+  `cph_suffix_enc/dec/encode/decode`（均为前导空格，整值加引号）、
+  `cph_out_chars`（`" · 输出 %1$d 字符"`）。
+- Base64 解码提示 `cph_b64_note` 含前导 `\n`，整值加引号。
+- `cph_op_fail`（`✗ 运算失败：%1$s`）传 Throwable 直接走 `toString`，与原 `+ e` 等价。
+- `runOnUiThread` 之外，`ToolUi.copy(...)` 的剪贴板标签 `cph_copy_label` 也在匿名监听内取外部实例。
+
+### 验证
+
+四门全过（空 catch 335 基线）、`jc.sh` rc=0。APK **13,406,928 B**（md5 `433a376c…`），
+badging 反证 versionCode 251 / 2.58.0；dex 反证 `cph_bits_chars`/`cph_b64_note` 各=1、
+`cph_suffix_enc`=2（与 `cph_suffix_encode` 共享前缀）。提交 `—`。
+
+---
+
 ## v2.57.0（versionCode 250）—— F-14/44：APK 信息页 i18n（批量纯 UI 页第 10 页）
 
 `ApkInfoActivity` 中文字面量 **22 → 1**（纯代码构造 UI，无布局文件），新增 23 个 `api_*` 键，

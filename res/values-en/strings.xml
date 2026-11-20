@@ -2555,4 +2555,22 @@
     <string name="api_none">(none)</string>
     <string name="api_exported">Exported → %1$s</string>
     <string name="api_export_fail">Export failed: %1$s</string>
+    <!-- v2.58.0 cipher tool -->
+    <string name="cph_copy_label">Result</string>
+    <string name="cph_key_hint_prefix">Requires %1$s</string>
+    <string name="cph_hmac_hint">HMAC key, any length</string>
+    <string name="cph_encrypt">Encrypt</string>
+    <string name="cph_decrypt">Decrypt</string>
+    <string name="cph_compute">Compute</string>
+    <string name="cph_encode">Encode</string>
+    <string name="cph_decode">Decode</string>
+    <string name="cph_need_input">Enter some input first</string>
+    <string name="cph_op_fail">✗ Operation failed: %1$s</string>
+    <string name="cph_bits_chars">" · %1$d bits / %2$d chars"</string>
+    <string name="cph_suffix_enc">" encrypted"</string>
+    <string name="cph_suffix_dec">" decrypted"</string>
+    <string name="cph_suffix_encode">" encoded"</string>
+    <string name="cph_suffix_decode">" decoded"</string>
+    <string name="cph_out_chars">" · output %1$d chars"</string>
+    <string name="cph_b64_note">"\nDecoded bytes shown as UTF-8; for binary content use Convert → HEX"</string>
 </resources>
