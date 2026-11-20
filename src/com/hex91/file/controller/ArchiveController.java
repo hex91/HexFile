@@ -8,6 +8,7 @@ import com.hex91.file.utils.GridAction;
 import com.hex91.file.R;
 import com.hex91.file.MainActivity;
 import com.hex91.file.ui.ArchiveText;
+import com.hex91.file.ui.AxmlSyncText;
 import com.hex91.file.ui.ArscEditorActivity;
 import com.hex91.file.ui.ArscPlusActivity;
 import com.hex91.file.ui.DexEditorActivity;
@@ -440,7 +441,8 @@ public final class ArchiveController {
                             i.putExtra(TextEditorActivity.EXTRA_RT_APK, zip.getAbsolutePath());
                             host.open(i);
                         } catch (Throwable t) {
-                            host.toast(s(R.string.arch_parse_fail, t));
+                            host.toast(s(R.string.arch_parse_fail,
+                                    AxmlSyncText.errorText(host.ctx(), t)));
                         }
                     }
                 });

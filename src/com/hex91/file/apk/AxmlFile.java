@@ -77,16 +77,35 @@ public final class AxmlFile {
 
 	// ------------------------------------------------------------ parse
 
+	/** AXML 格式错误码：文案由 UI 层决定（v2.92.0 F-14/79） */
+	public static final int E_TOO_SMALL = 1;
+	public static final int E_NOT_AXML = 2;
+	public static final int E_DECLARED_TOO_LONG = 3;
+	public static final int E_CHUNK_RANGE = 4;
+	public static final int E_POOL_COUNT = 5;
+
+	/** 文件不是合法 AXML：{@link #code} 决定文案，{@link #args} 是 chunk 类型/偏移/数量 */
+	public static class AxmlFormatException extends IOException {
+		public final int code;
+		public final String[] args;
+
+		public AxmlFormatException(int code, String... args) {
+			super("AxmlFormat error " + code);
+			this.code = code;
+			this.args = args == null ? new String[0] : args;
+		}
+	}
+
 	public static AxmlFile parse(byte[] data) throws IOException {
 		AxmlFile f = new AxmlFile();
 		f.raw = data;
-		if (data.length < 8) throw new IOException("文件过小");
+		if (data.length < 8) throw new AxmlFormatException(E_TOO_SMALL);
 		int fileType = ArscDefs.u16(data, 0);
-		if (fileType != 0x0003) throw new IOException("不是 AXML 文件（type=0x"
-				+ Integer.toHexString(fileType) + "）");
+		if (fileType != 0x0003)
+			throw new AxmlFormatException(E_NOT_AXML, Integer.toHexString(fileType));
 		f.fileHeaderSize = ArscDefs.u16(data, 2);
 		int fileSize = ArscDefs.u32(data, 4);
-		if (fileSize > data.length) throw new IOException("AXML 头部声明的长度超出文件");
+		if (fileSize > data.length) throw new AxmlFormatException(E_DECLARED_TOO_LONG);
 
 		int pos = f.fileHeaderSize;
 		int len = Math.min(fileSize, data.length);
@@ -94,8 +113,9 @@ public final class AxmlFile {
 		while (pos + 8 <= len) {
 			int type = ArscDefs.u16(data, pos);
 			int size = ArscDefs.u32(data, pos + 4);
-			if (size < 8 || pos + size > len) throw new IOException(
-					"chunk 越界（type=0x" + Integer.toHexString(type) + " at " + pos + "）");
+			if (size < 8 || pos + size > len)
+				throw new AxmlFormatException(E_CHUNK_RANGE,
+						Integer.toHexString(type), String.valueOf(pos));
 			switch (type) {
 				case RES_XML_STRING_POOL:
 					f.poolStart = pos;
@@ -126,7 +146,8 @@ public final class AxmlFile {
 	private void parsePool(int start, int end) throws IOException {
 		int count = ArscDefs.u32(raw, start + 8);
 		int stringsStartField = ArscDefs.u32(raw, start + 20);
-		if (count < 0 || count > 100000) throw new IOException("字符串池数量异常: " + count);
+		if (count < 0 || count > 100000)
+			throw new AxmlFormatException(E_POOL_COUNT, String.valueOf(count));
 		strings.clear();
 		// BinaryXMLStrings 语义：buffer 从偏移数组起始（chunk+28）切片，
 		// get(id) = buffer.getInt(id*4) + stringsStart → 传 stringsStartField-28

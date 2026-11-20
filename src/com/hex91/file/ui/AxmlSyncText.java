@@ -4,12 +4,13 @@ import android.content.Context;
 
 import com.hex91.file.R;
 import com.hex91.file.core.ArscDefs;
+import com.hex91.file.apk.AxmlFile;
 import com.hex91.file.apk.AxmlTextSync;
 
 /**
- * Manifest 文本同步失败的文案映射（v2.88.0 F-14/75）。
+ * Manifest AXML 相关失败的文案映射（v2.88.0 F-14/75，v2.92.0 并入格式错误）。
  *
- * apk 层的 {@link AxmlTextSync} 只抛码；句子与「类型名」的本地化都在这里。
+ * apk 层的 {@link AxmlTextSync} 与 {@link AxmlFile} 只抛码；句子与「类型名」的本地化都在这里。
  */
 public final class AxmlSyncText {
 
@@ -17,6 +18,9 @@ public final class AxmlSyncText {
     }
 
     public static String errorText(Context c, Throwable t) {
+        if (t instanceof AxmlFile.AxmlFormatException) {
+            return formatText(c, (AxmlFile.AxmlFormatException) t);
+        }
         if (!(t instanceof AxmlTextSync.SyncException)) {
             String m = t == null ? null : t.getMessage();
             return m != null && !m.isEmpty() ? m
@@ -50,6 +54,25 @@ public final class AxmlSyncText {
                 return c.getString(R.string.axsync_err_line_newline, arg(a, 0));
             default:
                 return c.getString(R.string.axsync_err_unknown);
+        }
+    }
+
+    /** 文件不是合法 AXML（解析阶段） */
+    private static String formatText(Context c, AxmlFile.AxmlFormatException e) {
+        String[] a = e.args;
+        switch (e.code) {
+            case AxmlFile.E_TOO_SMALL:
+                return c.getString(R.string.axml_fmt_too_small);
+            case AxmlFile.E_NOT_AXML:
+                return c.getString(R.string.axml_fmt_not_axml, arg(a, 0));
+            case AxmlFile.E_DECLARED_TOO_LONG:
+                return c.getString(R.string.axml_fmt_declared_too_long);
+            case AxmlFile.E_CHUNK_RANGE:
+                return c.getString(R.string.axml_fmt_chunk_range, arg(a, 0), arg(a, 1));
+            case AxmlFile.E_POOL_COUNT:
+                return c.getString(R.string.axml_fmt_pool_count, arg(a, 0));
+            default:
+                return c.getString(R.string.axml_fmt_unknown);
         }
     }
 

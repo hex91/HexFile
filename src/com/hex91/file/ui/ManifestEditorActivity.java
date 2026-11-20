@@ -128,7 +128,9 @@ public class ManifestEditorActivity extends BaseActivity {
                 axml = AxmlFile.parse(data);
                 buildRows();
             } catch (Throwable t) {
-                err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                err = t instanceof AxmlFile.AxmlFormatException
+                        ? AxmlSyncText.errorText(ManifestEditorActivity.this, t)
+                        : t.getClass().getSimpleName() + ": " + t.getMessage();
             }
             final String e = err;
             ui.post(new Runnable() { public void run() {
@@ -465,9 +467,13 @@ public class ManifestEditorActivity extends BaseActivity {
                         apk, "AndroidManifest.xml", newAxml);
                 if (autoSign) ApkSignHelper.signInPlace(ManifestEditorActivity.this, apk);
             } catch (Throwable t) {
-                err = (t instanceof ApkToolException)
-                        ? ApkSignHelper.errorText(ManifestEditorActivity.this, t)
-                        : t.getClass().getSimpleName() + ": " + t.getMessage();
+                if (t instanceof ApkToolException) {
+                    err = ApkSignHelper.errorText(ManifestEditorActivity.this, t);
+                } else if (t instanceof AxmlFile.AxmlFormatException) {
+                    err = AxmlSyncText.errorText(ManifestEditorActivity.this, t);
+                } else {
+                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                }
                 Throwable c = t.getCause();
                 while (c != null) {
                     err += "\n↳ " + c.getClass().getSimpleName() + ": " + c.getMessage();

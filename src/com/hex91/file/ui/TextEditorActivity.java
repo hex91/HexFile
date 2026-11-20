@@ -1546,7 +1546,9 @@ public class TextEditorActivity extends BaseActivity {
                     err = AxmlSyncText.errorText(TextEditorActivity.this, e);
                     userError = true;
                 } catch (Throwable t) {
-                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    err = t instanceof AxmlFile.AxmlFormatException
+                            ? AxmlSyncText.errorText(TextEditorActivity.this, t)
+                            : t.getClass().getSimpleName() + ": " + t.getMessage();
                 }
                 final String ferr = err;
                 final boolean fuerr = userError;

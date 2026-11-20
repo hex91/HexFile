@@ -2,6 +2,7 @@ package com.hex91.file.ui;
 
 import com.hex91.file.R;
 import com.hex91.file.apk.ApkInfoUtil;
+import com.hex91.file.apk.AxmlFile;
 import com.hex91.file.apk.ApkSignCheck;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.fs.WorkDir;
@@ -86,7 +87,9 @@ public class ApkInfoActivity extends BaseActivity {
                 ApkInfoUtil.Info i = null;
                 String err = null;
                 try { i = ApkInfoUtil.parse(apk); } catch (Throwable t) {
-                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    err = t instanceof AxmlFile.AxmlFormatException
+                            ? AxmlSyncText.errorText(ApkInfoActivity.this, t)
+                            : t.getClass().getSimpleName() + ": " + t.getMessage();
                 }
                 final ApkInfoUtil.Info fi = i;
                 final String ferr = err;

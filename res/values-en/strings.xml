@@ -3071,4 +3071,11 @@
     <string name="dcp_err_bad_data_len">Unexpected dex2jar output: invalid entry length (%1$s)</string>
     <string name="dcp_err_no_classes">dex2jar produced no classes</string>
     <string name="dcp_err_unknown">Decompilation failed</string>
+    <!-- v2.92.0 AXML format errors -->
+    <string name="axml_fmt_too_small">The file is too small to be a valid AXML</string>
+    <string name="axml_fmt_not_axml">Not an AXML file (type=0x%1$s)</string>
+    <string name="axml_fmt_declared_too_long">The length declared in the AXML header exceeds the file size</string>
+    <string name="axml_fmt_chunk_range">Chunk out of range (type=0x%1$s at %2$s)</string>
+    <string name="axml_fmt_pool_count">Invalid string pool count: %1$s</string>
+    <string name="axml_fmt_unknown">Invalid AXML format</string>
 </resources>

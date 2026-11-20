@@ -3,6 +3,7 @@ package com.hex91.file.ui;
 import com.hex91.file.R;
 import com.hex91.file.apk.ApkEditSession;
 import com.hex91.file.apk.ApkSignerTool;
+import com.hex91.file.apk.AxmlFile;
 import com.hex91.file.apk.ApkToolException;
 
 
@@ -37,6 +38,9 @@ public final class ApkSignHelper {
      * 这里把码翻成句子；不是 {@link ApkToolException} 就原样透出消息。
      */
     public static String errorText(Context c, Throwable t) {
+        if (t instanceof AxmlFile.AxmlFormatException) {
+            return AxmlSyncText.errorText(c, t);
+        }
         if (!(t instanceof ApkToolException)) {
             return t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
         }

@@ -3079,4 +3079,11 @@
     <string name="dcp_err_bad_data_len">dex2jar 输出异常：条目长度非法（%1$s）</string>
     <string name="dcp_err_no_classes">dex2jar 未产出任何类</string>
     <string name="dcp_err_unknown">反编译失败</string>
+    <!-- v2.92.0 AXML 格式错误（AxmlFile 只给码） -->
+    <string name="axml_fmt_too_small">文件过小，不是有效的 AXML</string>
+    <string name="axml_fmt_not_axml">不是 AXML 文件（type=0x%1$s）</string>
+    <string name="axml_fmt_declared_too_long">AXML 头部声明的长度超出文件</string>
+    <string name="axml_fmt_chunk_range">chunk 越界（type=0x%1$s at %2$s）</string>
+    <string name="axml_fmt_pool_count">字符串池数量异常：%1$s</string>
+    <string name="axml_fmt_unknown">AXML 格式错误</string>
 </resources>
