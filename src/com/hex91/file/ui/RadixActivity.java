@@ -23,7 +23,13 @@ import android.widget.TextView;
  */
 public class RadixActivity extends BaseActivity {
 
-    private static final String[] BASE_LABEL = {"2 进制 BIN", "8 进制 OCT", "10 进制 DEC", "16 进制 HEX", "36 进制"};
+    /**
+     * 进制的显示名。v2.64.0：由中文常量数组改成资源 id 数组 —— 名字要随语言变，
+     * 且同一份名字既给 Spinner 又给结果行标签与复制提示用，故每次按 ids 取一遍。
+     */
+    private static final int[] BASE_LABEL_IDS = {
+            R.string.rd_base_bin, R.string.rd_base_oct, R.string.rd_base_dec,
+            R.string.rd_base_hex, R.string.rd_base_36};
 
     private EditText in;
     private Spinner baseSp;
@@ -40,7 +46,9 @@ public class RadixActivity extends BaseActivity {
         status = (TextView) findViewById(R.id.rd_status);
         info = (TextView) findViewById(R.id.rd_info);
 
-        baseSp.setAdapter(ToolUi.adapter(this, BASE_LABEL));
+        final String[] baseLabel = new String[BASE_LABEL_IDS.length];
+        for (int i = 0; i < baseLabel.length; i++) baseLabel[i] = getString(BASE_LABEL_IDS[i]);
+        baseSp.setAdapter(ToolUi.adapter(this, baseLabel));
         baseSp.setSelection(2); // 默认十进制
 
         LinearLayout box = (LinearLayout) findViewById(R.id.rd_box);
@@ -57,7 +65,7 @@ public class RadixActivity extends BaseActivity {
             row.setPadding(ToolUi.dp(this, 10), ToolUi.dp(this, 9), ToolUi.dp(this, 10), ToolUi.dp(this, 9));
 
             TextView label = new TextView(this);
-            label.setText(BASE_LABEL[i]);
+            label.setText(baseLabel[i]);
             label.setTextSize(11f);
             label.setTextColor(ThemeManager.textSub(this));
             label.setWidth(ToolUi.dp(this, 92));
@@ -75,7 +83,8 @@ public class RadixActivity extends BaseActivity {
 
             row.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) {
-                    ToolUi.copy(RadixActivity.this, values[idx].getText(), BASE_LABEL[idx] + " 结果");
+                    ToolUi.copy(RadixActivity.this, values[idx].getText(),
+                            getString(R.string.rd_copy_label, baseLabel[idx]));
                 }
             });
             box.addView(row);
@@ -110,7 +119,7 @@ public class RadixActivity extends BaseActivity {
             public void onClick(View v) {
                 ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                 if (cm == null || cm.getPrimaryClip() == null || cm.getPrimaryClip().getItemCount() == 0) {
-                    ToolUi.toast(RadixActivity.this, "剪贴板是空的");
+                    ToolUi.toast(RadixActivity.this, getString(R.string.rd_clip_empty));
                     return;
                 }
                 CharSequence t = cm.getPrimaryClip().getItemAt(0).coerceToText(RadixActivity.this);
@@ -127,7 +136,7 @@ public class RadixActivity extends BaseActivity {
         if (s.length() == 0) {
             for (TextView v : values) v.setText("—");
             info.setText("");
-            status.setText("输入数字即可实时换算，支持 0x / 0b / 0o 前缀与大整数");
+            status.setText(R.string.rd_hint);
             status.setTextColor(ThemeManager.textSub(this));
             return;
         }
@@ -135,16 +144,15 @@ public class RadixActivity extends BaseActivity {
         try {
             RadixCore.Result r = RadixCore.convert(s, base);
             for (int i = 0; i < values.length; i++) values[i].setText(r.values[i]);
-            info.setText("位宽    " + r.bits + " bit（" + r.byteLen + " 字节）\n"
-                    + "二进制  " + RadixCore.groupBits(r.values[0]) + "\n"
-                    + "HEX 字节  " + r.hexBytes);
+            info.setText(getString(R.string.rd_info, r.bits, r.byteLen,
+                    RadixCore.groupBits(r.values[0]), r.hexBytes));
             status.setTextColor(ThemeManager.textSub(this));
-            status.setText("源进制 " + base + " · 点任意一行可复制");
+            status.setText(getString(R.string.rd_status, base));
         } catch (IllegalArgumentException e) {
             for (TextView v : values) v.setText("—");
             info.setText("");
             status.setTextColor(ThemeManager.err(this));
-            status.setText("✗ " + e.getMessage());
+            status.setText(getString(R.string.rd_err, e.getMessage()));
         }
     }
 }

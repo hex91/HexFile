@@ -34,7 +34,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="进制转换"
+                android:text="@string/rd_title"
                 android:textSize="14sp"
                 android:textStyle="bold"
                 android:textColor="?attr/hfText"/>
@@ -42,7 +42,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="2 / 8 / 10 / 16 / 36 进制互转，支持大整数"
+                android:text="@string/rd_sub"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textSize="11sp"
@@ -56,7 +56,7 @@
             android:gravity="center"
             android:paddingLeft="12dp"
             android:paddingRight="10dp"
-            android:text="粘贴"
+            android:text="@string/rd_paste"
             android:textSize="13sp"
             android:textColor="?attr/hfTextSub"
             android:background="?android:attr/selectableItemBackground"/>
@@ -94,7 +94,7 @@
                     android:textColor="?attr/hfText"
                     android:textColorHint="?attr/hfTextSub"
                     android:background="@null"
-                    android:hint="输入数字，如 255 / 0xFF / 0b1010"/>
+                    android:hint="@string/rd_input_hint"/>
 
                 <Spinner
                     android:id="@+id/rd_base"

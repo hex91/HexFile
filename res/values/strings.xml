@@ -2656,4 +2656,20 @@
     <string name="sv_copied_one">已复制: %1$s</string>
     <string name="sv_copied_many">已复制 %1$d 条</string>
     <string name="sv_nothing">无内容可复制</string>
+    <!-- v2.64.0 进制转换页 -->
+    <string name="rd_title">进制转换</string>
+    <string name="rd_sub">2 / 8 / 10 / 16 / 36 进制互转，支持大整数</string>
+    <string name="rd_paste">粘贴</string>
+    <string name="rd_base_bin">2 进制 BIN</string>
+    <string name="rd_base_oct">8 进制 OCT</string>
+    <string name="rd_base_dec">10 进制 DEC</string>
+    <string name="rd_base_hex">16 进制 HEX</string>
+    <string name="rd_base_36">36 进制</string>
+    <string name="rd_hint">输入数字即可实时换算，支持 0x / 0b / 0o 前缀与大整数</string>
+    <string name="rd_clip_empty">剪贴板是空的</string>
+    <string name="rd_info">"位宽    %1$d bit（%2$d 字节）\n二进制  %3$s\nHEX 字节  %4$s"</string>
+    <string name="rd_status">源进制 %1$d · 点任意一行可复制</string>
+    <string name="rd_err">✗ %1$s</string>
+    <string name="rd_copy_label">%1$s 结果</string>
+    <string name="rd_input_hint">输入数字，如 255 / 0xFF / 0b1010</string>
 </resources>

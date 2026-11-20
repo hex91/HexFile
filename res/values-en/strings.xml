@@ -2648,4 +2648,20 @@
     <string name="sv_copied_one">Copied: %1$s</string>
     <string name="sv_copied_many">Copied %1$d entries</string>
     <string name="sv_nothing">Nothing to copy</string>
+    <!-- v2.64.0 radix converter -->
+    <string name="rd_title">Radix converter</string>
+    <string name="rd_sub">Convert between base 2 / 8 / 10 / 16 / 36, big integers supported</string>
+    <string name="rd_paste">Paste</string>
+    <string name="rd_base_bin">Base 2 BIN</string>
+    <string name="rd_base_oct">Base 8 OCT</string>
+    <string name="rd_base_dec">Base 10 DEC</string>
+    <string name="rd_base_hex">Base 16 HEX</string>
+    <string name="rd_base_36">Base 36</string>
+    <string name="rd_hint">Type a number to convert live — 0x / 0b / 0o prefixes and big integers supported</string>
+    <string name="rd_clip_empty">The clipboard is empty</string>
+    <string name="rd_info">"Width     %1$d bit (%2$d bytes)\nBinary    %3$s\nHEX bytes %4$s"</string>
+    <string name="rd_status">Source base %1$d · tap any row to copy</string>
+    <string name="rd_err">✗ %1$s</string>
+    <string name="rd_copy_label">%1$s result</string>
+    <string name="rd_input_hint">Type a number, e.g. 255 / 0xFF / 0b1010</string>
 </resources>

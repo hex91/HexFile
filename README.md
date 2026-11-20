@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2520 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2535 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,28 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.64.0（versionCode 257）—— F-14/51：进制转换页 i18n（批量纯 UI 页第 17 页）
+
+`RadixActivity` 中文字面量 **15 → 0**（代码 11 处 + 布局 4 处），新增 15 个 `rd_*` 键，
+资源 2520 → 2535 条（中英各 2535，100%）。
+
+### UI 层要点
+- 进制显示名原为 `static final String[]` 中文常量数组，改成 `static final int[] BASE_LABEL_IDS`，
+  `onCreate` 里按 id 取成 `String[]`：这份名字同时给 Spinner、结果行标签、复制提示三处用，
+  取一次传三处；留 static 数组会绕过语言切换（进程内改语言时不重建）。
+- 结果块（`位宽 … / 二进制 … / HEX 字节 …`，靠连续空格对齐）原是三段 `+ "\n"` 拼接，
+  改整句 `rd_info` 四参数。对齐用的连续空格必须整值加引号，否则 aapt2 会把空白吃掉导致错位。
+- 复制提示 `rd_copy_label`（`%1$s 结果`），入参是本地化后的进制名，不是原来的中文常量。
+- 状态行两态：`rd_hint`（空输入）/ `rd_status`（`源进制 %1$d · 点任意一行可复制`）；错误行 `rd_err`（`✗ %1$s`）。
+- 布局 4 处：标题 `rd_title`、副标题 `rd_sub`、右上粘贴按钮 `rd_paste`、输入框 `rd_input_hint`。
+
+### 验证
+四门全过（依赖方向、空 catch 335 基线、文案 2535/2535 100%、动作码 55）。
+APK **13,423,312 B**（md5 `c1e2658d…`），badging 反证 versionCode 257 / 2.64.0；
+dex 反证 `rd_info` / `rd_copy_label` / `rd_hint` 各 = 1，"位宽"在 dex 中 0 处。
 
 ---
 
