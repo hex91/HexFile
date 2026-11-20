@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2611 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2616 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,31 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.72.0（versionCode 265）—— F-14/59：云盘网页登录页 i18n（批量纯 UI 页第 25 页）
+
+`CloudLoginActivity` 中文字面量 **6 → 0**（页头、状态栏、超时提示全是代码构造），
+新增 5 个 `cl_*` 键，资源 2611 → 2616 条（中英各 2616，100%）。
+
+### UI 层要点
+- 标题随站点两态：`cl_title_aliyun`（登录阿里云盘）/ `cl_title`（登录），
+  原来写成 `SITE_ALIYUN.equals(mSite) ? "登录阿里云盘" : "登录"`，改成直接给两个资源 id 的三元。
+- 右上兜底按钮 `cl_paste`（"粘贴方式"）；它同时被 45 秒超时提示引用，两处保持同一措辞。
+- 状态栏初始文案 `cl_status_init`；超时提示原本是 `+` 拼接的两段，整句 `cl_slow_hint`。
+- 刻意没动：`TokenHarvest.Hit.describe()` 的返回值直接进状态栏，那是逻辑层的码串 + 报告，
+  属 Code+Fail/Report 分层，不在本页范围。
+
+### 顺手一说
+`SCAN_JS` 注入脚本与 `UA` 是**站点契约**，翻它等于改行为；`EXTRA_*` / `SITE_ALIYUN` 是协议常量，
+都不动。英文版 `cl_slow_hint` 里避免用成对英文引号包住按钮名（Android 资源对值首尾的引号有剥离语义，
+中间的双引号要转义），改成直接写按钮词。
+
+### 验证
+四门全过（依赖方向、空 catch 335 基线、文案 2616/2616 100%、动作码 55）。
+APK **13,423,312 B**（md5 `7f852a06…`），badging 反证 versionCode 265 / 2.72.0；
+dex 反证 `cl_title_aliyun` / `cl_paste` / `cl_slow_hint` 各 = 1，"粘贴方式"在 dex 中 0 处。
 
 ---
 

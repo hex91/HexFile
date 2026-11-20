@@ -2755,4 +2755,10 @@
     <string name="fp_size">字号</string>
     <string name="fp_custom_label">自定义预览文本：</string>
     <string name="fp_custom_default">在此输入任意文字预览字体效果</string>
+    <!-- v2.72.0 云盘网页登录 -->
+    <string name="cl_title_aliyun">登录阿里云盘</string>
+    <string name="cl_title">登录</string>
+    <string name="cl_paste">粘贴方式</string>
+    <string name="cl_status_init">在下方登录后会自动完成授权，不用手动复制任何东西</string>
+    <string name="cl_slow_hint">还没检测到登录状态。若页面上已经显示登录成功，可能是网盘改了存储方式：点右上角「粘贴方式」用原办法。</string>
 </resources>

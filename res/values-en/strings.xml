@@ -2747,4 +2747,10 @@
     <string name="fp_size">Size</string>
     <string name="fp_custom_label">Custom preview text:</string>
     <string name="fp_custom_default">Type anything here to preview the font</string>
+    <!-- v2.72.0 cloud web login -->
+    <string name="cl_title_aliyun">Sign in to Aliyun Drive</string>
+    <string name="cl_title">Sign in</string>
+    <string name="cl_paste">Paste instead</string>
+    <string name="cl_status_init">Signing in below completes the authorization automatically — no need to copy anything by hand</string>
+    <string name="cl_slow_hint">No sign-in detected yet. If the page already shows you are signed in, the drive may have changed how it stores the token: tap Paste instead at the top right to use the old way.</string>
 </resources>

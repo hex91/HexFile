@@ -161,7 +161,7 @@ public final class CloudLoginActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         TextView title = new TextView(this);
-        title.setText(SITE_ALIYUN.equals(mSite) ? "登录阿里云盘" : "登录");
+        title.setText(SITE_ALIYUN.equals(mSite) ? R.string.cl_title_aliyun : R.string.cl_title);
         title.setTextSize(17);
         title.setTypeface(null, Typeface.BOLD);
         title.setTextColor(mTopText);
@@ -172,7 +172,7 @@ public final class CloudLoginActivity extends Activity {
 
         // 兜底出口：万一站点改版/风控导致抓不到，用户还能回到粘贴方式，不至于卡死
         TextView paste = new TextView(this);
-        paste.setText("粘贴方式");
+        paste.setText(R.string.cl_paste);
         paste.setTextSize(13);
         paste.setTypeface(null, Typeface.BOLD);
         paste.setTextColor(mTopText);
@@ -255,7 +255,7 @@ public final class CloudLoginActivity extends Activity {
 
     private View statusBar() {
         mStatus = new TextView(this);
-        mStatus.setText("在下方登录后会自动完成授权，不用手动复制任何东西");
+        mStatus.setText(R.string.cl_status_init);
         mStatus.setTextSize(11.5f);
         mStatus.setTextColor(mTextSub);
         mStatus.setGravity(Gravity.CENTER_VERTICAL);
@@ -275,8 +275,7 @@ public final class CloudLoginActivity extends Activity {
     private final Runnable mSlowHint = new Runnable() {
         public void run() {
             if (mDone || mStatus == null) return;
-            mStatus.setText("还没检测到登录状态。若页面上已经显示登录成功，"
-                    + "可能是网盘改了存储方式：点右上角「粘贴方式」用原办法。");
+            mStatus.setText(R.string.cl_slow_hint);
         }
     };
 
