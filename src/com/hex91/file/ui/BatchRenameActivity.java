@@ -62,7 +62,7 @@ public class BatchRenameActivity extends BaseActivity {
         }
 
         title = (TextView) findViewById(R.id.br_title);
-        title.setText("批量重命名 (" + files.size() + " 项)");
+        title.setText(getString(R.string.br_title_count, files.size()));
 
         warn = (TextView) findViewById(R.id.br_warn);
         applyBtn = (TextView) findViewById(R.id.br_apply);
@@ -192,7 +192,7 @@ public class BatchRenameActivity extends BaseActivity {
         adapter.notifyDataSetChanged();
         if (c > 0) {
             warn.setVisibility(View.VISIBLE);
-            warn.setText("存在 " + c + " 个冲突（重名或已存在文件），请调整规则后再执行");
+            warn.setText(getString(R.string.br_warn_conflict, c));
             applyBtn.setEnabled(false);
         } else {
             warn.setVisibility(View.GONE);
@@ -206,7 +206,7 @@ public class BatchRenameActivity extends BaseActivity {
         for (File f : files) newNames.add(compute(f, mode));
         boolean[] cf = BatchRenameCore.detectConflicts(files, newNames);
         for (boolean b : cf) {
-            if (b) { toast("存在冲突，无法执行"); return; }
+            if (b) { toast(getString(R.string.br_conflict_toast)); return; }
         }
         File dir = files.get(0).getParentFile();
 
@@ -221,7 +221,7 @@ public class BatchRenameActivity extends BaseActivity {
         }
         if (!phase1) {
             for (int i = 0; i < temps.size(); i++) temps.get(i).renameTo(files.get(i));
-            toast("重命名失败：无法移动部分文件（已回滚）");
+            toast(getString(R.string.br_rollback));
             refresh();
             return;
         }
@@ -233,7 +233,7 @@ public class BatchRenameActivity extends BaseActivity {
             if (temps.get(i).renameTo(tgt)) done++;
             else temps.get(i).renameTo(files.get(i)); // 失败回退原名
         }
-        toast("已重命名 " + done + "/" + files.size() + " 项");
+        toast(getString(R.string.br_done, done, files.size()));
         setResult(RESULT_OK);
         finish();
     }
@@ -280,7 +280,8 @@ public class BatchRenameActivity extends BaseActivity {
             }
             Row r = rows.get(i);
             a.setText(r.oldName);
-            b.setText("→ " + (r.newName.isEmpty() ? "(空名·冲突)" : r.newName));
+            b.setText(getString(R.string.br_row_new,
+                    r.newName.isEmpty() ? getString(R.string.br_empty_name) : r.newName));
             b.setTextColor(r.conflict
                     ? ThemeManager.err(BatchRenameActivity.this)
                     : ThemeManager.text(BatchRenameActivity.this));

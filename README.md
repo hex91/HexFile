@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2543 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2568 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,34 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.66.0（versionCode 259）—— F-14/53：批量重命名页 i18n（批量纯 UI 页第 19 页）
+
+`BatchRenameActivity` 中文字面量 **26 → 0**（代码 8 处 + 布局 18 处），新增 25 个 `br_*` 键，
+复用 `common_cancel`，资源 2543 → 2568 条（中英各 2568，100%）。
+
+### UI 层要点
+- 布局 18 处一次清完：页头、三个模式单选、八个输入框 hint、三个选项勾选、两个按钮
+  （"取消"复用 `common_cancel`）。hint 也算文案，别再漏。
+- 标题与计数合并成一句 `br_title_count`（`批量重命名 (%1$d 项)`），原来是
+  `"批量重命名 (" + size + " 项)"` 两段拼接——中文语序里计数在括号内，英文可以放到前面，
+  只有整句才翻得动。
+- 冲突提示 `br_warn_conflict` / `br_conflict_toast`、回滚提示 `br_rollback`、
+  完成提示 `br_done`（`已重命名 %1$d/%2$d 项`）各自整句。
+- 预览行 `"→ " + (空名 ? "(空名·冲突)" : 新名)` 拆成 `br_row_new`（`→ %1$s`）+
+  `br_empty_name`（兜底文案），箭头不写死在代码里。
+
+### 踩坑
+布局里用脚本替换 `android:text="中文"` 时把引号一起换掉了（写成 `android:text=@string/xxx`），
+aapt2 报 `not well-formed (invalid token)`——属性值必须带引号，批量替换后要再补一轮。
+
+### 验证
+四门全过（依赖方向、空 catch 335 基线、文案 2568/2568 100%、动作码 55）。
+APK **13,423,312 B**（md5 `9f6869a1…`），badging 反证 versionCode 259 / 2.66.0；
+dex 反证 `br_title_count` / `br_row_new` / `br_apply` / `br_warn_conflict` 各 = 1，
+"批量重命名"在 dex 中 0 处、`resources.arsc` 中 2 处（页头 + 标题带计数）。
 
 ---
 

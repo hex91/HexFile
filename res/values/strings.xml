@@ -2681,4 +2681,30 @@
     <string name="arp_typeinfo_msg">"条目总数: %1$d\n配置数: %2$d\n\n%3$s\n\n点配置节点（如 %4$s）以 XML 源码方式批量编辑该配置下的所有值。"</string>
     <string name="arp_generating">生成 %1$s.xml …</string>
     <string name="arp_gen_fail">生成失败: %1$s</string>
+    <!-- v2.66.0 批量重命名页 -->
+    <string name="br_page_title">批量重命名</string>
+    <string name="br_title_count">批量重命名 (%1$d 项)</string>
+    <string name="br_mode_num">编号命名</string>
+    <string name="br_mode_rep">查找替换</string>
+    <string name="br_mode_ext">扩展名替换</string>
+    <string name="br_hint_prefix">前缀</string>
+    <string name="br_hint_suffix">后缀</string>
+    <string name="br_hint_start">起始</string>
+    <string name="br_hint_step">步长</string>
+    <string name="br_hint_digits">位数</string>
+    <string name="br_keep_ext">保留原扩展名</string>
+    <string name="br_hint_find">查找</string>
+    <string name="br_hint_replace">替换为</string>
+    <string name="br_use_regex">使用正则</string>
+    <string name="br_case_sensitive">区分大小写</string>
+    <string name="br_name_only">仅作用于文件名(保留扩展名)</string>
+    <string name="br_hint_new_ext">新扩展名(如 jpg，留空则去掉扩展名)</string>
+    <string name="br_ext_only">仅作用于已有扩展名的文件</string>
+    <string name="br_apply">开始重命名</string>
+    <string name="br_warn_conflict">存在 %1$d 个冲突（重名或已存在文件），请调整规则后再执行</string>
+    <string name="br_conflict_toast">存在冲突，无法执行</string>
+    <string name="br_rollback">重命名失败：无法移动部分文件（已回滚）</string>
+    <string name="br_done">已重命名 %1$d/%2$d 项</string>
+    <string name="br_row_new">→ %1$s</string>
+    <string name="br_empty_name">(空名·冲突)</string>
 </resources>

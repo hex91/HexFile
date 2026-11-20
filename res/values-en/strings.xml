@@ -2673,4 +2673,30 @@
     <string name="arp_typeinfo_msg">"Entries: %1$d\nConfigs: %2$d\n\n%3$s\n\nTap a config node (e.g. %4$s) to edit all values under that config as XML source."</string>
     <string name="arp_generating">Generating %1$s.xml …</string>
     <string name="arp_gen_fail">Generation failed: %1$s</string>
+    <!-- v2.66.0 batch rename -->
+    <string name="br_page_title">Batch rename</string>
+    <string name="br_title_count">Batch rename (%1$d items)</string>
+    <string name="br_mode_num">Numbering</string>
+    <string name="br_mode_rep">Find &amp; replace</string>
+    <string name="br_mode_ext">Extension replace</string>
+    <string name="br_hint_prefix">Prefix</string>
+    <string name="br_hint_suffix">Suffix</string>
+    <string name="br_hint_start">Start</string>
+    <string name="br_hint_step">Step</string>
+    <string name="br_hint_digits">Digits</string>
+    <string name="br_keep_ext">Keep the original extension</string>
+    <string name="br_hint_find">Find</string>
+    <string name="br_hint_replace">Replace with</string>
+    <string name="br_use_regex">Use regex</string>
+    <string name="br_case_sensitive">Case sensitive</string>
+    <string name="br_name_only">File name only (keep extension)</string>
+    <string name="br_hint_new_ext">New extension (e.g. jpg, leave empty to strip it)</string>
+    <string name="br_ext_only">Only files that already have an extension</string>
+    <string name="br_apply">Start renaming</string>
+    <string name="br_warn_conflict">%1$d conflicts (duplicate or existing names) — adjust the rules and try again</string>
+    <string name="br_conflict_toast">Conflicts found, cannot run</string>
+    <string name="br_rollback">Rename failed: some files could not be moved (rolled back)</string>
+    <string name="br_done">Renamed %1$d/%2$d items</string>
+    <string name="br_row_new">→ %1$s</string>
+    <string name="br_empty_name">(empty name · conflict)</string>
 </resources>

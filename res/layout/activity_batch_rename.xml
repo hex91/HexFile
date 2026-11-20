@@ -19,7 +19,7 @@
             android:layout_weight="1"
             android:layout_height="wrap_content"
             android:paddingLeft="14dp"
-            android:text="批量重命名"
+            android:text="@string/br_page_title"
             android:textSize="17sp"
             android:textColor="?attr/hfTopBarText"
             android:singleLine="true"/>
@@ -50,7 +50,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"
-            android:text="编号命名"
+            android:text="@string/br_mode_num"
             android:checked="true"
             android:textSize="13sp"/>
 
@@ -59,7 +59,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"
-            android:text="查找替换"
+            android:text="@string/br_mode_rep"
             android:textSize="13sp"/>
 
         <RadioButton
@@ -67,7 +67,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"
-            android:text="扩展名替换"
+            android:text="@string/br_mode_ext"
             android:textSize="13sp"/>
     </RadioGroup>
 
@@ -90,7 +90,7 @@
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:hint="前缀"
+                android:hint="@string/br_hint_prefix"
                 android:textSize="14sp"
                 android:inputType="textNoSuggestions"/>
 
@@ -99,7 +99,7 @@
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:hint="后缀"
+                android:hint="@string/br_hint_suffix"
                 android:textSize="14sp"
                 android:inputType="textNoSuggestions"/>
         </LinearLayout>
@@ -114,7 +114,7 @@
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:hint="起始"
+                android:hint="@string/br_hint_start"
                 android:text="1"
                 android:textSize="14sp"
                 android:inputType="number"/>
@@ -124,7 +124,7 @@
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:hint="步长"
+                android:hint="@string/br_hint_step"
                 android:text="1"
                 android:textSize="14sp"
                 android:inputType="number"/>
@@ -134,7 +134,7 @@
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:hint="位数"
+                android:hint="@string/br_hint_digits"
                 android:text="3"
                 android:textSize="14sp"
                 android:inputType="number"/>
@@ -144,7 +144,7 @@
             android:id="@+id/cb_keepnum"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="保留原扩展名"
+            android:text="@string/br_keep_ext"
             android:checked="true"
             android:textSize="14sp"/>
     </LinearLayout>
@@ -163,7 +163,7 @@
             android:id="@+id/et_find"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="查找"
+            android:hint="@string/br_hint_find"
             android:textSize="14sp"
             android:inputType="textNoSuggestions"/>
 
@@ -171,7 +171,7 @@
             android:id="@+id/et_repl"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="替换为"
+            android:hint="@string/br_hint_replace"
             android:textSize="14sp"
             android:inputType="textNoSuggestions"/>
 
@@ -179,14 +179,14 @@
             android:id="@+id/cb_regex"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="使用正则"
+            android:text="@string/br_use_regex"
             android:textSize="14sp"/>
 
         <CheckBox
             android:id="@+id/cb_ci"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="区分大小写"
+            android:text="@string/br_case_sensitive"
             android:checked="true"
             android:textSize="14sp"/>
 
@@ -194,7 +194,7 @@
             android:id="@+id/cb_keeprep"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="仅作用于文件名(保留扩展名)"
+            android:text="@string/br_name_only"
             android:checked="true"
             android:textSize="14sp"/>
     </LinearLayout>
@@ -213,7 +213,7 @@
             android:id="@+id/et_newext"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="新扩展名(如 jpg，留空则去掉扩展名)"
+            android:hint="@string/br_hint_new_ext"
             android:textSize="14sp"
             android:inputType="textNoSuggestions"/>
 
@@ -221,7 +221,7 @@
             android:id="@+id/cb_onlyext"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="仅作用于已有扩展名的文件"
+            android:text="@string/br_ext_only"
             android:checked="true"
             android:textSize="14sp"/>
     </LinearLayout>
@@ -266,7 +266,7 @@
             android:layout_weight="1"
             android:layout_height="match_parent"
             android:gravity="center"
-            android:text="取消"
+            android:text="@string/common_cancel"
             android:textSize="16sp"
             android:textColor="?attr/hfTextSub"
             android:background="?android:attr/selectableItemBackground"/>
@@ -282,7 +282,7 @@
             android:layout_weight="1"
             android:layout_height="match_parent"
             android:gravity="center"
-            android:text="开始重命名"
+            android:text="@string/br_apply"
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="?attr/hfAccent"
