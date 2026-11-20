@@ -2735,4 +2735,19 @@
     <string name="af_waiting">等待页面切换…</string>
     <string name="af_no_access">无障碍未开启（点卡片去开启）</string>
     <string name="af_tail">"%1$tH:%1$tM:%1$tS  最新"</string>
+    <!-- v2.70.0 自动签名设置 -->
+    <string name="ash_scheme_default">v1+v2+v3（推荐）</string>
+    <string name="ash_title">自动签名设置</string>
+    <string name="ash_key_label">签名密钥（点选更换）</string>
+    <string name="ash_scheme_label">签名方案</string>
+    <string name="ash_custom_gone">自定义签名已失效（可能已删除），请在自动签名设置中重新选择</string>
+    <string name="ash_custom_gone_short">自定义签名已失效（点选更换）</string>
+    <string name="ash_custom_broken_short">自定义签名密码已损坏（点选更换/重新导入）</string>
+    <string name="ash_custom_named">自定义签名：%1$s（点选更换）</string>
+    <string name="ash_builtin">内置签名文件（点选更换）</string>
+    <string name="ash_builtin_bare">内置签名文件</string>
+    <string name="ash_broken_tag">"  ⚠ 密码已损坏"</string>
+    <string name="ash_pick_title">选择签名密钥</string>
+    <string name="ash_broken_msg">该签名的密码已无法解密（换机/恢复出厂/清除数据后 Android Keystore 密钥丢失）。请到「签名管理」删除后重新导入。</string>
+    <string name="ash_go_manage">去签名管理</string>
 </resources>

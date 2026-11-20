@@ -2727,4 +2727,19 @@
     <string name="af_waiting">Waiting for a screen switch…</string>
     <string name="af_no_access">Accessibility is off (tap the card to enable)</string>
     <string name="af_tail">"%1$tH:%1$tM:%1$tS  latest"</string>
+    <!-- v2.70.0 auto-sign settings -->
+    <string name="ash_scheme_default">v1+v2+v3 (recommended)</string>
+    <string name="ash_title">Auto-sign settings</string>
+    <string name="ash_key_label">Signing key (tap to change)</string>
+    <string name="ash_scheme_label">Signature scheme</string>
+    <string name="ash_custom_gone">The custom key is no longer valid (it may have been deleted) — pick another one in the auto-sign settings</string>
+    <string name="ash_custom_gone_short">Custom key is no longer valid (tap to change)</string>
+    <string name="ash_custom_broken_short">Custom key password is broken (tap to change / re-import)</string>
+    <string name="ash_custom_named">Custom key: %1$s (tap to change)</string>
+    <string name="ash_builtin">Built-in key file (tap to change)</string>
+    <string name="ash_builtin_bare">Built-in key file</string>
+    <string name="ash_broken_tag">"  ⚠ password broken"</string>
+    <string name="ash_pick_title">Choose a signing key</string>
+    <string name="ash_broken_msg">The password of this key can no longer be decrypted (the Android Keystore key is lost after switching devices, a factory reset or clearing data). Delete it in Signing management and import it again.</string>
+    <string name="ash_go_manage">Open signing management</string>
 </resources>

@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2593 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2607 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,38 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.70.0（versionCode 263）—— F-14/57：自动签名设置 i18n（批量纯 UI 页第 23 页）
+
+`ApkSignHelper` 中文字面量 **23 → 0**（纯代码构造对话框），新增 14 个 `ash_*` 键，
+复用 `sf_manage` / `sf_broken_reimport` / `sf_key_count` / `common_confirm` / `common_cancel`，
+资源 2593 → 2607 条（中英各 2607，100%）。
+
+### 结构性改动
+- `public static final String[] SCHEMES`（中文常量数组）改成 `private static String[] schemeLabels(Context)`：
+  六项里只有第 0 项"v1+v2+v3（推荐）"含中文，其余是纯 ASCII 组合名（v1 / v2 / v3 / v1+v2 / v2+v3），
+  没必要为它们编资源键。**下标与 `schemeFlags(int)` 一一对应，顺序不能动**，注释里写清楚。
+- 整个类是 `static` 工具类：取串走 `ctx.getString` / `a.getString`；异常消息也在这里出，
+  所以 `signInPlace` 里的两条 `IllegalStateException` 用 `ctx.getString(...)`，不再拼中文。
+
+### 复用优先
+"管理签名…（导入 / 查看证书信息 / 删除）""该签名的密码已损坏（换机/清除数据导致）…""（%1$d 个私钥别名）"
+三句 `sf_*` 里原样就有，本页直接复用；`sf_broken_reimport` 与这里的异常消息本来逐字相同。
+
+### UI 层要点
+- 密钥选择行的四态（未选 / 失效 / 密码损坏 / 已命名）各自整句：`ash_custom_gone_short` /
+  `ash_custom_broken_short` / `ash_custom_named`（`自定义签名：%1$s（点选更换）`）/ `ash_builtin`。
+- 列表项后缀 `ash_broken_tag`（`"  ⚠ 密码已损坏"`，前导两空格整值加引号）。
+- 密码损坏的处理弹窗：标题用密钥名（数据），正文 `ash_broken_msg`，
+  按钮 `ash_go_manage`（去签名管理）/ `common_cancel`。
+
+### 验证
+四门全过（依赖方向、空 catch 335 基线、文案 2607/2607 100%、动作码 55）。
+APK **13,423,312 B**（md5 `104362d2…`），badging 反证 versionCode 263 / 2.70.0；
+dex 反证 `ash_pick_title` / `ash_broken_msg` / `ash_scheme_default` 各 = 1。
+（dex 里仍有一处"签名方案"，来自 `apk.ApkSignerTool` 的异常消息，属逻辑层 Code+Fail 待办，不在本页范围。）
 
 ---
 

@@ -1,5 +1,6 @@
 package com.hex91.file.ui;
 
+import com.hex91.file.R;
 import com.hex91.file.apk.ApkEditSession;
 import com.hex91.file.apk.ApkSignerTool;
 
@@ -29,8 +30,14 @@ import java.util.List;
 public final class ApkSignHelper {
 
     public static final String PREFS = "dexpp_sign";
-    public static final String[] SCHEMES = {
-            "v1+v2+v3（推荐）", "v1", "v2", "v3", "v1+v2", "v2+v3" };
+    /**
+     * 方案下拉的显示名。下标与 {@link #schemeFlags(int)} 一一对应，不能改顺序。
+     * v2.70.0：只有第 0 项带推荐字样需要翻译，其余是纯 ASCII 的 v1/v2/v3 组合，直接留字面量。
+     */
+    private static String[] schemeLabels(Context c) {
+        return new String[]{c.getString(R.string.ash_scheme_default),
+                "v1", "v2", "v3", "v1+v2", "v2+v3"};
+    }
 
     private ApkSignHelper() {}
 
@@ -76,9 +83,9 @@ public final class ApkSignHelper {
         if (sp.getInt("ks_mode", 0) == 1) {
             SignKeyManagerActivity.KeyEntry e = SignKeyManagerActivity.defaultEntry(ctx);
             if (e == null) throw new IllegalStateException(
-                    "自定义签名已失效（可能已删除），请在自动签名设置中重新选择");
+                    ctx.getString(R.string.ash_custom_gone));
             if (e.broken()) throw new IllegalStateException(
-                    "该签名的密码已损坏（换机/清除数据导致），请到「签名管理」重新导入");
+                    ctx.getString(R.string.sf_broken_reimport));
             byte[] ksBytes = SignKeyManagerActivity.loadKeyBytes(ctx, e.id);
             ApkSignerTool.signAutoAlias(ksBytes,
                     e.storePass.toCharArray(),
@@ -106,7 +113,7 @@ public final class ApkSignHelper {
         float den = a.getResources().getDisplayMetrics().density;
 
         TextView l1 = new TextView(a);
-        l1.setText("签名密钥（点选更换）");
+        l1.setText(R.string.ash_key_label);
         l1.setTextSize(13);
         l1.setTextColor(ThemeManager.textSub(a));
         box.addView(l1);
@@ -122,37 +129,37 @@ public final class ApkSignHelper {
         updateKeySelText(a, sp, ksSel);
 
         TextView l2 = new TextView(a);
-        l2.setText("签名方案");
+        l2.setText(R.string.ash_scheme_label);
         l2.setTextSize(13);
         l2.setTextColor(ThemeManager.textSub(a));
         l2.setPadding(0, (int) (10 * den), 0, 0);
         box.addView(l2);
         final Spinner scheme = new Spinner(a);
         scheme.setAdapter(new ArrayAdapter<String>(a,
-                android.R.layout.simple_spinner_dropdown_item, SCHEMES));
+                android.R.layout.simple_spinner_dropdown_item, schemeLabels(a)));
         scheme.setSelection(sp.getInt("scheme", 0));
         box.addView(scheme);
 
         new HfDialogBuilder(a)
-                .setTitle("自动签名设置")
+                .setTitle(R.string.ash_title)
                 .setView(box)
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.common_confirm, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         sp.edit().putInt("scheme", scheme.getSelectedItemPosition()).apply();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     private static void updateKeySelText(Context ctx, SharedPreferences sp, TextView tv) {
         if (sp.getInt("ks_mode", 0) == 1) {
             SignKeyManagerActivity.KeyEntry e = SignKeyManagerActivity.defaultEntry(ctx);
-            tv.setText(e == null ? "自定义签名已失效（点选更换）"
-                    : e.broken() ? "自定义签名密码已损坏（点选更换/重新导入）"
-                    : "自定义签名：" + e.name + "（点选更换）");
+            tv.setText(e == null ? ctx.getString(R.string.ash_custom_gone_short)
+                    : e.broken() ? ctx.getString(R.string.ash_custom_broken_short)
+                    : ctx.getString(R.string.ash_custom_named, e.name));
         } else {
-            tv.setText("内置签名文件（点选更换）");
+            tv.setText(R.string.ash_builtin);
         }
     }
 
@@ -176,16 +183,16 @@ public final class ApkSignHelper {
         }
 
         List<String> items = new ArrayList<String>();
-        items.add("内置签名文件");
+        items.add(a.getString(R.string.ash_builtin_bare));
         String defId2 = sp.getString("key_id", null);
         for (SignKeyManagerActivity.KeyEntry e : keys)
             items.add((e.id.equals(defId2) ? "★ " : "") + e.name
-                    + (e.broken() ? "  ⚠ 密码已损坏"
-                                  : (e.keyCount > 0 ? "（" + e.keyCount + " 个私钥别名）" : "")));
-        items.add("管理签名…（导入 / 查看证书信息 / 删除）");
+                    + (e.broken() ? a.getString(R.string.ash_broken_tag)
+                                  : (e.keyCount > 0 ? a.getString(R.string.sf_key_count, e.keyCount) : "")));
+        items.add(a.getString(R.string.sf_manage));
 
         new HfDialogBuilder(a)
-                .setTitle("选择签名密钥")
+                .setTitle(R.string.ash_pick_title)
                 .setItems(items.toArray(new String[0]), new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int which) {
                         if (which == 0) {
@@ -197,16 +204,15 @@ public final class ApkSignHelper {
                             if (e.broken()) {
                                 new HfDialogBuilder(a)
                                         .setTitle(e.name)
-                                        .setMessage("该签名的密码已无法解密（换机/恢复出厂/清除数据后 "
-                                                + "Android Keystore 密钥丢失）。请到「签名管理」删除后重新导入。")
-                                        .setPositiveButton("去签名管理",
+                                        .setMessage(R.string.ash_broken_msg)
+                                        .setPositiveButton(R.string.ash_go_manage,
                                                 new DialogInterface.OnClickListener() {
                                                     public void onClick(DialogInterface d, int w) {
                                                         a.startActivity(new Intent(a,
                                                                 SignKeyManagerActivity.class));
                                                     }
                                                 })
-                                        .setNegativeButton("取消", null)
+                                        .setNegativeButton(R.string.common_cancel, null)
                                         .show();
                                 return;
                             }
