@@ -3045,4 +3045,17 @@
     <string name="axsync_err_line_no_quote">第 %1$s 行属性值未用引号闭合：%2$s</string>
     <string name="axsync_err_line_newline">第 %1$s 行属性值含换行，暂不支持</string>
     <string name="axsync_err_unknown">Manifest 文本同步失败</string>
+    <!-- v2.89.0 ARSC 结构化编辑失败（ArscEditor 只给码） -->
+    <string name="arsc_default_cfg">默认</string>
+    <string name="arsc_err_no_type">该包没有类型 \"%1$s\"</string>
+    <string name="arsc_err_no_config">配置不存在：%1$s（%2$s）。新增资源只能加到已有配置，请先用「ARSC 编辑」处理</string>
+    <string name="arsc_err_id_taken">资源 ID 0x%1$s 已被占用</string>
+    <string name="arsc_err_not_locatable">条目不可定位：%1$s</string>
+    <string name="arsc_err_compact_entry">拒绝编辑：%1$s 是 compact 条目（Android 15 紧凑格式），请用「ARSC 编辑」逐项修改</string>
+    <string name="arsc_err_del_not_locatable">无法删除：条目不可定位 %1$s</string>
+    <string name="arsc_err_del_missing">无法删除：条目不存在 %1$s</string>
+    <string name="arsc_err_block_add">拒绝新增 %1$s：%2$s 的这个配置块使用 sparse/compact/offset16 布局（Android 15 紧凑格式），只读。请用「ARSC 编辑」逐项修改值</string>
+    <string name="arsc_err_block_edit">拒绝编辑 %1$s：%2$s 的这个配置块使用 sparse/compact/offset16 布局（Android 15 紧凑格式），只读。请用「ARSC 编辑」逐项修改值</string>
+    <string name="arsc_err_block_delete">拒绝删除 %1$s：%2$s 的这个配置块使用 sparse/compact/offset16 布局（Android 15 紧凑格式），只读。请用「ARSC 编辑」逐项修改值</string>
+    <string name="arsc_err_unknown">资源表编辑失败</string>
 </resources>

@@ -3037,4 +3037,17 @@
     <string name="axsync_err_line_no_quote">Line %1$s: the attribute value has no closing quote: %2$s</string>
     <string name="axsync_err_line_newline">Line %1$s: line breaks in attribute values are not supported yet</string>
     <string name="axsync_err_unknown">Manifest text sync failed</string>
+    <!-- v2.89.0 ARSC structured edit failures -->
+    <string name="arsc_default_cfg">default</string>
+    <string name="arsc_err_no_type">This package has no type \"%1$s\"</string>
+    <string name="arsc_err_no_config">No such configuration: %1$s (%2$s). New resources can only go into an existing configuration — handle it in ARSC Editor first</string>
+    <string name="arsc_err_id_taken">Resource ID 0x%1$s is already taken</string>
+    <string name="arsc_err_not_locatable">Cannot locate the entry: %1$s</string>
+    <string name="arsc_err_compact_entry">Edit refused: %1$s is a compact entry (Android 15 compact format) — edit it item by item in ARSC Editor</string>
+    <string name="arsc_err_del_not_locatable">Cannot delete: the entry cannot be located (%1$s)</string>
+    <string name="arsc_err_del_missing">Cannot delete: no such entry (%1$s)</string>
+    <string name="arsc_err_block_add">Add refused (%1$s): this configuration chunk of %2$s uses a sparse/compact/offset16 layout (Android 15 compact format) and is read-only. Edit the values item by item in ARSC Editor</string>
+    <string name="arsc_err_block_edit">Edit refused (%1$s): this configuration chunk of %2$s uses a sparse/compact/offset16 layout (Android 15 compact format) and is read-only. Edit the values item by item in ARSC Editor</string>
+    <string name="arsc_err_block_delete">Delete refused (%1$s): this configuration chunk of %2$s uses a sparse/compact/offset16 layout (Android 15 compact format) and is read-only. Edit the values item by item in ARSC Editor</string>
+    <string name="arsc_err_unknown">Resource table edit failed</string>
 </resources>

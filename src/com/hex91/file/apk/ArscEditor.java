@@ -49,6 +49,30 @@ import jadx.core.xmlgen.entry.ResourceEntry;
  */
 public final class ArscEditor {
 
+	/** 结构化编辑失败码：文案由 UI 层决定（v2.89.0 F-14/76） */
+	public static final int E_NO_TYPE = 1;
+	public static final int E_NO_CONFIG = 2;
+	public static final int E_ID_TAKEN = 3;
+	public static final int E_NOT_LOCATABLE = 4;
+	public static final int E_COMPACT_ENTRY = 5;
+	public static final int E_DELETE_NOT_LOCATABLE = 6;
+	public static final int E_DELETE_MISSING = 7;
+	public static final int E_BLOCK_ADD = 8;
+	public static final int E_BLOCK_EDIT = 9;
+	public static final int E_BLOCK_DELETE = 10;
+
+	/** 编辑失败：{@link #code} 决定文案，{@link #args} 是类型名/条目名/配置名 */
+	public static class ArscEditException extends IOException {
+		public final int code;
+		public final String[] args;
+
+		public ArscEditException(int code, String... args) {
+			super("ArscEditor error " + code);
+			this.code = code;
+			this.args = args == null ? new String[0] : args;
+		}
+	}
+
 	private ArscEditor() {
 	}
 
@@ -289,7 +313,7 @@ public final class ArscEditor {
 					}
 				}
 				if (typeId < 0) {
-					throw new IOException("RESOURCE_ADD_FAILED: 该包没有类型 \"" + op.typeName + "\"");
+					throw new ArscEditException(E_NO_TYPE, op.typeName);
 				}
 				for (TypeChunk jt : pkg.typeChunks) {
 					if (jt.typeId == typeId && cfgMatches(jt, op.cfgName)) {
@@ -298,12 +322,10 @@ public final class ArscEditor {
 					}
 				}
 				if (target == null) {
-					throw new IOException("RESOURCE_ADD_FAILED: 配置不存在: " + op.typeName
-							+ " (" + (op.cfgName.isEmpty() ? "默认" : op.cfgName)
-							+ ")。新增资源只能加到已有配置，请先用「ARSC 编辑」处理");
+					throw new ArscEditException(E_NO_CONFIG, op.typeName, op.cfgName);
 				}
 				Tc tc = tcs.get(target);
-				checkWritable(tc, "新增 " + op.typeName);
+				checkWritable(tc, E_BLOCK_ADD, op.typeName);
 
 				// entryId = 同 typeId 各 config 已用最大 id + 1（含各 config 偏移数组的预留位）
 				int maxId = -1;
@@ -320,8 +342,7 @@ public final class ArscEditor {
 				int fullId = (pkg.id << 24) | (typeId << 16) | newId;
 				for (ResourceEntry re : arsc.storage.getResources()) {
 					if (re.getId() == fullId) {
-						throw new IOException("RESOURCE_ADD_FAILED: 资源 ID 0x"
-								+ Integer.toHexString(fullId) + " 已被占用");
+						throw new ArscEditException(E_ID_TAKEN, Integer.toHexString(fullId));
 					}
 				}
 
@@ -390,15 +411,14 @@ public final class ArscEditor {
 				if (tc == null) {
 					continue; // 该块解析失败 → 交由 ArscWriter 补丁路径？此处结构化模式必须接管
 				}
-				checkWritable(tc, "编辑 " + e.entry.getKeyName());
+				checkWritable(tc, E_BLOCK_EDIT, e.entry.getKeyName());
 				ensureEntries(tc);
 				En en = tc.entries.get(Integer.valueOf(es.entryId));
 				if (en == null) {
-					throw new IOException("条目不可定位: " + e.entry.getKeyName());
+					throw new ArscEditException(E_NOT_LOCATABLE, e.entry.getKeyName());
 				}
 				if (en.compact) {
-					throw new IOException("拒绝编辑: " + e.entry.getKeyName()
-							+ " 是 compact 条目（Android 15 紧凑格式），请用「ARSC 编辑」逐项修改");
+					throw new ArscEditException(E_COMPACT_ENTRY, e.entry.getKeyName());
 				}
 				int poolIdx = -1;
 				switch (e.kind) {
@@ -438,13 +458,13 @@ public final class ArscEditor {
 				}
 				EntrySpan es = arsc.spanOf(op.entry);
 				if (es == null) {
-					throw new IOException("无法删除: 条目不可定位 " + op.entry.getKeyName());
+					throw new ArscEditException(E_DELETE_NOT_LOCATABLE, op.entry.getKeyName());
 				}
 				Tc tc = tcs.get(es.typeChunk);
-				checkWritable(tc, "删除 " + op.entry.getKeyName());
+				checkWritable(tc, E_BLOCK_DELETE, op.entry.getKeyName());
 				ensureEntries(tc);
 				if (!tc.entries.containsKey(Integer.valueOf(es.entryId))) {
-					throw new IOException("无法删除: 条目不存在 " + op.entry.getKeyName());
+					throw new ArscEditException(E_DELETE_MISSING, op.entry.getKeyName());
 				}
 				List<Op> dl = delsAt.get(tc);
 				if (dl == null) {
@@ -455,11 +475,9 @@ public final class ArscEditor {
 			}
 		}
 
-		private void checkWritable(Tc tc, String what) throws IOException {
+		private void checkWritable(Tc tc, int action, String subject) throws IOException {
 			if ((tc.flags & (TC_SPARSE | TC_COMPACT | TC_OFFSET16)) != 0) {
-				throw new IOException("拒绝" + what + ": " + tc.jadx.typeName
-						+ " 的这个配置块使用 sparse/compact/offset16 布局（Android 15 紧凑格式），只读。"
-						+ "请用「ARSC 编辑」逐项修改值");
+				throw new ArscEditException(action, subject, tc.jadx.typeName);
 			}
 		}
 
