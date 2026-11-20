@@ -2912,4 +2912,29 @@
     <string name="arch_zip_go">Compress</string>
     <string name="arch_zip_done">Compressed: %1$s</string>
     <string name="arch_zip_fail">Compression failed (all symlinks / unreadable, or the target is not writable)</string>
+    <!-- v2.83.0 APK info export text -->
+    <string name="api_txt_header">APK info · HexFile %1$s</string>
+    <string name="api_txt_file">File: %1$s</string>
+    <string name="api_txt_size">Size: %1$s (%2$d entries)</string>
+    <string name="api_txt_modified">Modified: %1$s</string>
+    <string name="api_txt_sec">[%1$s]</string>
+    <string name="api_txt_sec_count">[%1$s] %2$d</string>
+    <string name="api_txt_sec_dex">[DEX]</string>
+    <string name="api_txt_sec_perms">[Permissions] %1$d</string>
+    <string name="api_txt_pkg">Package: %1$s</string>
+    <string name="api_txt_version">Version: %1$s (%2$s)</string>
+    <string name="api_txt_sdk">SDK: min %1$s / target %2$s</string>
+    <string name="api_txt_sdk_compile">" / compiled %1$s"</string>
+    <string name="api_txt_sign">Signature: %1$s</string>
+    <string name="api_txt_abi">ABI: %1$s</string>
+    <string name="api_txt_dex_files">dex files: %1$d</string>
+    <string name="api_txt_dex_methods">classes.dex methods: %1$d</string>
+    <string name="api_txt_perm_item">"  %1$s"</string>
+    <string name="api_txt_comp_item">"  %1$s (%2$s)"</string>
+    <string name="api_comp_flag">"%1$s · %2$s"</string>
+    <string name="api_sign_read_fail">Read failed</string>
+    <string name="api_flag_exported">exported</string>
+    <string name="api_flag_internal">internal</string>
+    <string name="api_flag_default_exported">exported by default</string>
+    <string name="api_flag_default_internal">internal by default</string>
 </resources>

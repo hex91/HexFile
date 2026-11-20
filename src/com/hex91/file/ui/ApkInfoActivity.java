@@ -13,6 +13,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 /**
  * APK 信息查看（v1.57.0）：包名/版本/SDK/权限/组件/ABI/DEX/签名一览，
@@ -116,7 +119,8 @@ public class ApkInfoActivity extends BaseActivity {
         if (!info.compileSdk.isEmpty()) sdk += getString(R.string.api_sdk_compile, info.compileSdk);
         line("SDK", sdk);
         sec(getString(R.string.api_sec_sign));
-        line(getString(R.string.api_lbl_scheme), info.signSchemes);
+        line(getString(R.string.api_lbl_scheme), info.signReadFailed
+                ? getString(R.string.api_sign_read_fail) : info.signSchemes);
         sec(getString(R.string.api_sec_native));
         if (info.abis.isEmpty()) line(getString(R.string.api_lbl_abi), getString(R.string.api_none_lib));
         for (String abi : info.abis) line(getString(R.string.api_lbl_abi), abi);
@@ -173,7 +177,30 @@ public class ApkInfoActivity extends BaseActivity {
     private void comp(String title, java.util.List<String[]> list) {
         sec(getString(R.string.api_sec_count, title, list.size()));
         if (list.isEmpty()) line("", getString(R.string.api_none));
-        for (String[] c : list) line("", c[0] + "\n" + c[1]);
+        for (String[] c : list) {
+            line("", c[0] + "\n"
+                    + getString(R.string.api_comp_flag, c[1], exportFlagText(c[2])));
+        }
+    }
+
+    /** exported 状态码 → 文案（核心层只给 0..3） */
+    private String exportFlagText(String code) {
+        int c;
+        try {
+            c = Integer.parseInt(code);
+        } catch (NumberFormatException e) {
+            c = ApkInfoUtil.EXPORT_FALSE;
+        }
+        switch (c) {
+            case ApkInfoUtil.EXPORT_TRUE:
+                return getString(R.string.api_flag_exported);
+            case ApkInfoUtil.EXPORT_DEFAULT_TRUE:
+                return getString(R.string.api_flag_default_exported);
+            case ApkInfoUtil.EXPORT_DEFAULT_FALSE:
+                return getString(R.string.api_flag_default_internal);
+            default:
+                return getString(R.string.api_flag_internal);
+        }
     }
 
     private void exportTxt() {
@@ -185,13 +212,75 @@ public class ApkInfoActivity extends BaseActivity {
             if (base.toLowerCase().endsWith(".apk")) base = base.substring(0, base.length() - 4);
             File out = new File(dir, base + "_info.txt");
             java.io.FileOutputStream fo = new java.io.FileOutputStream(out);
-            fo.write(ApkInfoUtil.toText(info, apk).getBytes("UTF-8"));
+            fo.write(buildText(info, apk).getBytes("UTF-8"));
             fo.close();
             Toast.makeText(this, getString(R.string.api_exported, out.getAbsolutePath()),
                     Toast.LENGTH_LONG).show();
         } catch (Throwable t) {
             Toast.makeText(this, getString(R.string.api_export_fail, t.getMessage()),
                     Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** 导出用的纯文本报告：整篇在这里拼，核心层不再产文案（v2.83.0 F-14/70） */
+    private String buildText(ApkInfoUtil.Info i, File apk) {
+        StringBuilder b = new StringBuilder();
+        String ln = "──────────────"
+                + "──────────────\n";
+        b.append(getString(R.string.api_txt_header, versionName())).append(ln);
+        b.append(getString(R.string.api_txt_file, apk.getName())).append('\n');
+        b.append(getString(R.string.api_txt_size,
+                FileOps.formatSize(i.fileSize), i.entryCount)).append('\n');
+        b.append(getString(R.string.api_txt_modified,
+                new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                        .format(new Date(i.lastMod)))).append("\n\n");
+        b.append(secLine(R.string.api_sec_basic));
+        b.append(getString(R.string.api_txt_pkg, i.pkg)).append('\n');
+        b.append(getString(R.string.api_txt_version, i.versionName, i.versionCode)).append('\n');
+        StringBuilder sdk = new StringBuilder(getString(R.string.api_txt_sdk, i.minSdk, i.targetSdk));
+        if (!i.compileSdk.isEmpty()) sdk.append(getString(R.string.api_txt_sdk_compile, i.compileSdk));
+        b.append(sdk).append('\n');
+        b.append(getString(R.string.api_txt_sign, i.signReadFailed
+                ? getString(R.string.api_sign_read_fail) : i.signSchemes)).append("\n\n");
+        b.append(secLine(R.string.api_sec_native));
+        if (i.abis.isEmpty()) b.append(getString(R.string.api_none_lib)).append('\n');
+        else for (String abi : i.abis) b.append(getString(R.string.api_txt_abi, abi)).append('\n');
+        b.append('\n');
+        b.append(secLine(R.string.api_txt_sec_dex));
+        b.append(getString(R.string.api_txt_dex_files, i.dexCount)).append('\n');
+        if (i.mainDexMethods >= 0) {
+            b.append(getString(R.string.api_txt_dex_methods, i.mainDexMethods)).append('\n');
+        }
+        b.append('\n');
+        txtComp(b, "Activity", i.activities);
+        txtComp(b, "Service", i.services);
+        txtComp(b, "Receiver", i.receivers);
+        txtComp(b, "Provider", i.providers);
+        b.append(getString(R.string.api_txt_sec_perms, i.permissions.size())).append('\n');
+        for (String p : i.permissions) b.append(getString(R.string.api_txt_perm_item, p)).append('\n');
+        return b.toString();
+    }
+
+    /** 〔标题〕包一层，中英括号样式都交给资源 */
+    private String secLine(int titleRes) {
+        return getString(R.string.api_txt_sec, getString(titleRes)) + "\n";
+    }
+
+    private void txtComp(StringBuilder b, String title,
+                         java.util.List<String[]> list) {
+        b.append(getString(R.string.api_txt_sec_count, title, list.size())).append('\n');
+        for (String[] c : list) {
+            b.append(getString(R.string.api_txt_comp_item, c[0], exportFlagText(c[2]))).append('\n');
+        }
+        b.append('\n');
+    }
+
+    /** 导出文件头里的版本号：从安装包读，避免再写死一个会过期的字符串 */
+    private String versionName() {
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Throwable t) {
+            return "";
         }
     }
 }

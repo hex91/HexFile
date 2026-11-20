@@ -1,9 +1,7 @@
 package com.hex91.file.apk;
 
 import java.io.File;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.Enumeration;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -34,6 +32,8 @@ public final class ApkInfoUtil {
         public int dexCount;
         public long mainDexMethods = -1;   // -1 = 未统计
         public String signSchemes = "?";
+        /** 读取签名方案时抛异常（文案在 UI 层，这里只留标记） */
+        public boolean signReadFailed;
         public long fileSize;
         public int entryCount;
         public long lastMod;
@@ -118,7 +118,7 @@ public final class ApkInfoUtil {
         try {
             info.signSchemes = ApkSignCheck.schemes(apk);
         } catch (Throwable t) {
-            info.signSchemes = "读取失败";
+            info.signReadFailed = true;
         }
         return info;
     }
@@ -131,15 +131,21 @@ public final class ApkInfoUtil {
                 | (dex[90] & 0xFFL) << 16 | (dex[91] & 0xFFL) << 24;
     }
 
-    /** 组件行：[类名, exported 标记] */
+    /** 组件 exported 状态码：文案由 UI 层映射（v2.83.0 F-14/70） */
+    public static final int EXPORT_TRUE = 0;
+    public static final int EXPORT_FALSE = 1;
+    public static final int EXPORT_DEFAULT_TRUE = 2;
+    public static final int EXPORT_DEFAULT_FALSE = 3;
+
+    /** 组件行：[类名, 标签名, exported 状态码] */
     private static String[] comp(AxmlFile ax, AxmlFile.XElem el, String kind) {
         String name = sval(ax, el, "name");
         String exp = sval(ax, el, "exported");
-        String flag;
-        if ("true".equals(exp)) flag = "导出";
-        else if ("false".equals(exp)) flag = "内部";
-        else flag = hasIntentFilter(ax, el) ? "默认导出" : "默认内部";
-        return new String[]{ (name != null ? name : "?"), kind + " · " + flag };
+        int flag;
+        if ("true".equals(exp)) flag = EXPORT_TRUE;
+        else if ("false".equals(exp)) flag = EXPORT_FALSE;
+        else flag = hasIntentFilter(ax, el) ? EXPORT_DEFAULT_TRUE : EXPORT_DEFAULT_FALSE;
+        return new String[]{ (name != null ? name : "?"), kind, String.valueOf(flag) };
     }
 
     /** 该元素的直接子元素里有没有 intent-filter（AXML 同一标签同名元素通过 path 判定父子） */
@@ -170,44 +176,5 @@ public final class ApkInfoUtil {
             if (v < 1024) return String.format(java.util.Locale.US, "%.1f %s", v, u);
         }
         return String.format(java.util.Locale.US, "%.1f TB", v / 1024);
-    }
-
-    /** 导出为可读 txt */
-    public static String toText(Info i, File apk) {
-        StringBuilder b = new StringBuilder();
-        String ln = "──────────────────────────────\n";
-        b.append("APK 信息 · HexFile v1.57\n").append(ln);
-        b.append("文件: ").append(apk.getName()).append('\n');
-        b.append("大小: ").append(fmtSize(i.fileSize))
-                .append("（").append(i.entryCount).append(" 个条目）\n");
-        b.append("修改: ").append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                .format(new Date(i.lastMod))).append("\n\n");
-        b.append("〔基本信息〕\n");
-        b.append("包名: ").append(i.pkg).append('\n');
-        b.append("版本: ").append(i.versionName).append(" (").append(i.versionCode).append(")\n");
-        b.append("SDK: min ").append(i.minSdk).append(" / target ").append(i.targetSdk);
-        if (!i.compileSdk.isEmpty()) b.append(" / 编译 ").append(i.compileSdk);
-        b.append("\n签名: ").append(i.signSchemes).append("\n\n");
-        b.append("〔Native 库〕\n");
-        if (i.abis.isEmpty()) b.append("（无 lib 目录）\n");
-        else for (String abi : i.abis) b.append("ABI: ").append(abi).append('\n');
-        b.append('\n');
-        b.append("〔DEX〕\n");
-        b.append("dex 文件: ").append(i.dexCount).append(" 个\n");
-        if (i.mainDexMethods >= 0) b.append("classes.dex 方法数: ").append(i.mainDexMethods).append('\n');
-        b.append('\n');
-        comp(b, "Activity", i.activities);
-        comp(b, "Service", i.services);
-        comp(b, "Receiver", i.receivers);
-        comp(b, "Provider", i.providers);
-        b.append("〔权限〕").append(i.permissions.size()).append(" 项\n");
-        for (String p : i.permissions) b.append("  ").append(p).append('\n');
-        return b.toString();
-    }
-
-    private static void comp(StringBuilder b, String title, List<String[]> list) {
-        b.append("〔").append(title).append("〕").append(list.size()).append(" 个\n");
-        for (String[] c : list) b.append("  ").append(c[0]).append("（").append(c[1]).append("）\n");
-        b.append('\n');
     }
 }

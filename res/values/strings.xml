@@ -2920,4 +2920,29 @@
     <string name="arch_zip_go">压缩</string>
     <string name="arch_zip_done">已压缩：%1$s</string>
     <string name="arch_zip_fail">压缩失败（全是软链接/无法读取，或目标不可写）</string>
+    <!-- v2.83.0 APK 信息导出文本（ApkInfoActivity 拼，核心层只给码） -->
+    <string name="api_txt_header">APK 信息 · HexFile %1$s</string>
+    <string name="api_txt_file">文件: %1$s</string>
+    <string name="api_txt_size">大小: %1$s（%2$d 个条目）</string>
+    <string name="api_txt_modified">修改: %1$s</string>
+    <string name="api_txt_sec">〔%1$s〕</string>
+    <string name="api_txt_sec_count">〔%1$s〕%2$d 个</string>
+    <string name="api_txt_sec_dex">〔DEX〕</string>
+    <string name="api_txt_sec_perms">〔权限〕%1$d 项</string>
+    <string name="api_txt_pkg">包名: %1$s</string>
+    <string name="api_txt_version">版本: %1$s (%2$s)</string>
+    <string name="api_txt_sdk">SDK: min %1$s / target %2$s</string>
+    <string name="api_txt_sdk_compile">" / 编译 %1$s"</string>
+    <string name="api_txt_sign">签名: %1$s</string>
+    <string name="api_txt_abi">ABI: %1$s</string>
+    <string name="api_txt_dex_files">dex 文件: %1$d 个</string>
+    <string name="api_txt_dex_methods">classes.dex 方法数: %1$d</string>
+    <string name="api_txt_perm_item">"  %1$s"</string>
+    <string name="api_txt_comp_item">"  %1$s（%2$s）"</string>
+    <string name="api_comp_flag">"%1$s · %2$s"</string>
+    <string name="api_sign_read_fail">读取失败</string>
+    <string name="api_flag_exported">导出</string>
+    <string name="api_flag_internal">内部</string>
+    <string name="api_flag_default_exported">默认导出</string>
+    <string name="api_flag_default_internal">默认内部</string>
 </resources>
