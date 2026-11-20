@@ -639,6 +639,20 @@ public class SignKeyManagerActivity extends BaseActivity {
 
     /** keystore 相关异常转人话 */
     public static String friendlyKsError(android.content.Context ctx, Throwable t) {
+        if (t instanceof KeystoreCreate.CreateException) {
+            KeystoreCreate.CreateException ce = (KeystoreCreate.CreateException) t;
+            switch (ce.code) {
+                case KeystoreCreate.E_EMPTY_PASS:
+                    return ctx.getString(R.string.kc_err_empty_pass);
+                case KeystoreCreate.E_CREATE_FAILED:
+                    return ctx.getString(R.string.kc_err_create_failed);
+                case KeystoreCreate.E_NO_PRIVATE_KEY:
+                    return ctx.getString(R.string.kc_err_no_private_key,
+                            ce.args.length > 0 ? ce.args[0] : "0");
+                default:
+                    return ctx.getString(R.string.kc_err_create_failed);
+            }
+        }
         String m = t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
         String s = String.valueOf(m);
         if (s.contains("password") || s.contains("Password")
@@ -816,12 +830,32 @@ public class SignKeyManagerActivity extends BaseActivity {
                 reload();
                 new HfDialogBuilder(SignKeyManagerActivity.this)
                         .setTitle(R.string.ksm_created)
-                        .setMessage(getString(R.string.ksm_created_msg, fr.summary(),
+                        .setMessage(getString(R.string.ksm_created_msg, summaryText(fr),
                                 fr.storePass))
                         .setPositiveButton(R.string.common_got_it, null)
                         .show();
             }});
         }}.start();
+    }
+
+    /** 创建结果的展示文本（v2.90.0：apk 层不再产文案，逐行在这里拼） */
+    private String summaryText(KeystoreCreate.Result r) {
+        java.util.List<String> lines = new java.util.ArrayList<String>();
+        lines.add(getString(R.string.kc_line_store, r.storeType));
+        lines.add(getString(R.string.kc_line_alias, r.alias));
+        lines.add(getString(R.string.kc_line_key, r.keyBits));
+        lines.add(getString(R.string.kc_line_subject, r.subject));
+        lines.add(getString(R.string.kc_line_issuer, r.issuer));
+        lines.add(getString(R.string.kc_line_valid, r.notBefore, r.notAfter));
+        lines.add(getString(R.string.kc_line_sigalg, r.sigAlg));
+        if (r.sha1 != null) lines.add(getString(R.string.kc_line_sha1, r.sha1));
+        if (r.sha256 != null) lines.add(getString(R.string.kc_line_sha256, r.sha256));
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < lines.size(); i++) {
+            if (i > 0) b.append('\n');
+            b.append(lines.get(i));
+        }
+        return b.toString();
     }
 
     /**

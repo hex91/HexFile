@@ -30,7 +30,10 @@ public class KeystoreCreateTest {
         long cost = System.currentTimeMillis() - t0;
         System.out.println("生成耗时 " + cost + "ms，store=" + r.store.length + " 字节，"
                 + r.storeType + "，别名 " + r.alias);
-        System.out.println(r.summary());
+        System.out.println("格式 " + r.storeType + " / 别名 " + r.alias + " / RSA " + r.keyBits
+                + " / 主体 " + r.subject + " / 签发者 " + r.issuer
+                + " / " + r.notBefore + " ~ " + r.notAfter + " / " + r.sigAlg);
+        System.out.println("SHA-1 " + r.sha1 + " / SHA-256 " + r.sha256);
 
         check(r.store != null && r.store.length > 1000, "keystore 字节非空");
         check("PKCS12".equals(r.storeType) || "JKS".equals(r.storeType), "存储格式可用");

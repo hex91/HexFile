@@ -3058,4 +3058,17 @@
     <string name="arsc_err_block_edit">拒绝编辑 %1$s：%2$s 的这个配置块使用 sparse/compact/offset16 布局（Android 15 紧凑格式），只读。请用「ARSC 编辑」逐项修改值</string>
     <string name="arsc_err_block_delete">拒绝删除 %1$s：%2$s 的这个配置块使用 sparse/compact/offset16 布局（Android 15 紧凑格式），只读。请用「ARSC 编辑」逐项修改值</string>
     <string name="arsc_err_unknown">资源表编辑失败</string>
+    <!-- v2.90.0 创建签名结果（KeystoreCreate 只给码，文案在 UI） -->
+    <string name="kc_line_store">存储格式: %1$s</string>
+    <string name="kc_line_alias">别名: %1$s</string>
+    <string name="kc_line_key">密钥: RSA %1$d 位</string>
+    <string name="kc_line_subject">主题: %1$s</string>
+    <string name="kc_line_issuer">签发者: %1$s（自签名）</string>
+    <string name="kc_line_valid">有效期: %1$s ~ %2$s</string>
+    <string name="kc_line_sigalg">签名算法: %1$s</string>
+    <string name="kc_line_sha1">SHA-1: %1$s</string>
+    <string name="kc_line_sha256">SHA-256: %1$s</string>
+    <string name="kc_err_empty_pass">密码不能为空</string>
+    <string name="kc_err_create_failed">无法创建 keystore</string>
+    <string name="kc_err_no_private_key">生成的 keystore 无法取出私钥（%1$s 个条目）</string>
 </resources>

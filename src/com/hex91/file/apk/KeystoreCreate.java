@@ -28,6 +28,23 @@ public final class KeystoreCreate {
     private KeystoreCreate() {
     }
 
+    /** 创建失败码：文案由 UI 层决定（v2.90.0 F-14/77） */
+    public static final int E_EMPTY_PASS = 1;
+    public static final int E_CREATE_FAILED = 2;
+    public static final int E_NO_PRIVATE_KEY = 3;
+
+    /** 创建失败：{@link #code} 决定文案，{@link #args} 是条目数等参数 */
+    public static class CreateException extends IllegalArgumentException {
+        public final int code;
+        public final String[] args;
+
+        public CreateException(int code, String... args) {
+            super("KeystoreCreate error " + code);
+            this.code = code;
+            this.args = args == null ? new String[0] : args;
+        }
+    }
+
     /** 创建结果（含可直接落盘的 keystore 字节与展示信息） */
     public static class Result {
         public byte[] store;
@@ -44,19 +61,6 @@ public final class KeystoreCreate {
         public String keyPass;
         public int keyBits;
 
-        public String summary() {
-            StringBuilder sb = new StringBuilder();
-            sb.append("存储格式: ").append(storeType).append('\n');
-            sb.append("别名: ").append(alias).append('\n');
-            sb.append("密钥: RSA ").append(keyBits).append(" 位\n");
-            sb.append("主题: ").append(subject).append('\n');
-            sb.append("签发者: ").append(issuer).append("（自签名）\n");
-            sb.append("有效期: ").append(notBefore).append(" ~ ").append(notAfter).append('\n');
-            sb.append("签名算法: ").append(sigAlg).append('\n');
-            if (sha1 != null) sb.append("SHA-1: ").append(sha1).append('\n');
-            if (sha256 != null) sb.append("SHA-256: ").append(sha256);
-            return sb.toString();
-        }
     }
 
     /**
@@ -74,7 +78,7 @@ public final class KeystoreCreate {
             String pass, int keyBits, int validDays) throws Exception {
         if (cn == null || cn.trim().length() == 0) cn = "HexFile";
         if (alias == null || alias.trim().length() == 0) alias = "hexfile";
-        if (pass == null || pass.length() < 1) throw new IllegalArgumentException("密码不能为空");
+        if (pass == null || pass.length() < 1) throw new CreateException(E_EMPTY_PASS);
         if (keyBits < 1024) keyBits = 2048;
         if (keyBits > 4096) keyBits = 4096;
         if (validDays < 1) validDays = 1;
@@ -116,7 +120,7 @@ public final class KeystoreCreate {
             }
         }
         if (ks == null) throw last != null ? last
-                : new IllegalStateException("无法创建 keystore");
+                : new CreateException(E_CREATE_FAILED);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ks.store(out, pw);
         byte[] bytes = out.toByteArray();
@@ -126,8 +130,7 @@ public final class KeystoreCreate {
                 KeyStoreUtil.inspect(bytes, pw, null);
         String signable = KeyStoreUtil.firstSignableAlias(list);
         if (signable == null)
-            throw new IllegalStateException("生成的 keystore 无法取出私钥（"
-                    + list.size() + " 个条目）");
+            throw new CreateException(E_NO_PRIVATE_KEY, String.valueOf(list.size()));
 
         Result r = new Result();
         r.store = bytes;

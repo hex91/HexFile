@@ -3050,4 +3050,17 @@
     <string name="arsc_err_block_edit">Edit refused (%1$s): this configuration chunk of %2$s uses a sparse/compact/offset16 layout (Android 15 compact format) and is read-only. Edit the values item by item in ARSC Editor</string>
     <string name="arsc_err_block_delete">Delete refused (%1$s): this configuration chunk of %2$s uses a sparse/compact/offset16 layout (Android 15 compact format) and is read-only. Edit the values item by item in ARSC Editor</string>
     <string name="arsc_err_unknown">Resource table edit failed</string>
+    <!-- v2.90.0 keystore creation result -->
+    <string name="kc_line_store">Store type: %1$s</string>
+    <string name="kc_line_alias">Alias: %1$s</string>
+    <string name="kc_line_key">Key: RSA %1$d bit</string>
+    <string name="kc_line_subject">Subject: %1$s</string>
+    <string name="kc_line_issuer">Issuer: %1$s (self-signed)</string>
+    <string name="kc_line_valid">Valid: %1$s ~ %2$s</string>
+    <string name="kc_line_sigalg">Signature algorithm: %1$s</string>
+    <string name="kc_line_sha1">SHA-1: %1$s</string>
+    <string name="kc_line_sha256">SHA-256: %1$s</string>
+    <string name="kc_err_empty_pass">The password cannot be empty</string>
+    <string name="kc_err_create_failed">Cannot create the keystore</string>
+    <string name="kc_err_no_private_key">The generated keystore yields no private key (%1$s entries)</string>
 </resources>
