@@ -1018,7 +1018,7 @@
     <!-- ===== Video player (F-14/11) ===== -->
     <string name="common_auto">Auto</string>
     <string name="vp_nothing_to_play">Nothing to play: there is neither a file path nor a usable address</string>
-    <string name="vp_not_playable_url">Not a playable address://n%1$s</string>
+    <string name="vp_not_playable_url">Not a playable address:\n%1$s</string>
     <string name="vp_resume_toast">Resuming from %1$s</string>
     <string name="vp_first_item">Already at the first item</string>
     <string name="vp_last_item">Already at the last item</string>
@@ -1275,7 +1275,7 @@
     <string name="main_dexfix_do">Repair</string>
     <string name="main_dexfix_running">Repairing…</string>
     <string name="main_dexfix_fail">Repair failed: %1$s</string>
-    <string name="main_dexfix_done">"Repair finished://n%1$s"</string>
+    <string name="main_dexfix_done">"Repair finished:\n%1$s"</string>
     <string name="main_signing">Signing…</string>
     <string name="main_sign_fail">Signing failed: %1$s</string>
     <string name="main_signed">Signed → %1$s</string>
@@ -1680,7 +1680,7 @@
     <string name="ax_hint_unsupported">This type cannot be edited yet</string>
     <string name="ax_not_loaded">Not loaded yet</string>
     <string name="ax_no_changes">No changes</string>
-    <string name="ax_save_msg">"Write %1$d changes into %2$s and save straight into the APK://n//n%3$s//n//n(The first change backs the APK up as name_bak.apk.)"</string>
+    <string name="ax_save_msg">"Write %1$d changes into %2$s and save straight into the APK:\n\n%3$s\n\n(The first change backs the APK up as name_bak.apk.)"</string>
     <string name="apk_autosign_hint">Sign automatically after saving (long-press to set the key / scheme)</string>
     <string name="ax_save_title">Save changes</string>
     <string name="ax_writing">Writing arsc …</string>
@@ -1910,7 +1910,7 @@
     <!-- v2.39.0 manifest editor (ManifestEditorActivity) -->
     <string name="mf_loading">Parsing AndroidManifest.xml\u2026</string>
     <string name="mf_load_fail">Load failed</string>
-    <string name="mf_load_fail_msg">Cannot load AndroidManifest.xml://n%1$s</string>
+    <string name="mf_load_fail_msg">Cannot load AndroidManifest.xml:\n%1$s</string>
     <string name="mf_sub">%1$s \u00b7 %2$d elements \u00b7 %3$d attributes</string>
     <string name="mf_sub_dirty">%1$s \u00b7 %2$d elements \u00b7 %3$d attributes \u00b7 \u270e unsaved</string>
     <string name="mf_row">"%1$s   [%2$s]"</string>
@@ -1934,10 +1934,10 @@
     <string name="mf_dirty_title">Unsaved changes</string>
     <string name="mf_discard">Discard changes</string>
     <string name="mf_prompt_exit">"AndroidManifest.xml has %1$d unsaved change(s).\n\n%2$s\n\n(A backup named &lt;same&gt;_bak.apk is created on the first change)"</string>
-    <string name="mf_prompt_save">"%1$d change(s) will be written back://n//n%2$s//n//n(A backup named &lt;same&gt;_bak.apk is created on the first change)"</string>
+    <string name="mf_prompt_save">"%1$d change(s) will be written back:\n\n%2$s\n\n(A backup named &lt;same&gt;_bak.apk is created on the first change)"</string>
     <string name="mf_writing">Writing AndroidManifest.xml\u2026</string>
     <string name="mf_save_fail">Save failed</string>
-    <string name="mf_save_fail_msg">Write-back failed://n%1$s</string>
+    <string name="mf_save_fail_msg">Write-back failed:\n%1$s</string>
     <string name="mf_saved_signed">Saved and signed \u2192 %1$s</string>
     <string name="mf_saved">Saved \u2192 %1$s (not signed; it may fail to install)</string>
 
