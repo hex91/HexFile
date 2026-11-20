@@ -2452,4 +2452,26 @@
     <string name="td_check_female">" (even=F)"</string>
     <string name="td_meta_bin">" · BIN "</string>
     <string name="td_meta_card_tail">" digits · Luhn OK · test data only, not a real account"</string>
+    <!-- v2.53.0 storage analysis -->
+    <string name="sa_title">Storage analysis</string>
+    <string name="sa_dup">Duplicate files</string>
+    <string name="sa_refresh">Refresh</string>
+    <string name="sa_scan_cancelled">Scan cancelled</string>
+    <string name="sa_cache_hit">Cached result</string>
+    <string name="sa_cache_age">Cached · %1$d s ago</string>
+    <string name="sa_scanning">Scanning</string>
+    <string name="sa_progress">%1$s · %2$d / %3$d files</string>
+    <string name="sa_stat_counting">%1$s · counting %2$d files</string>
+    <string name="sa_scan_cost">Scanned in %1$d ms</string>
+    <string name="sa_up_dir">⬆️ .. (parent)</string>
+    <string name="sa_summary">Total %1$s · %2$d folders · %3$d files · %4$s (tap a folder to drill down)</string>
+    <string name="sa_sec_dirs">Folder usage (%1$d)</string>
+    <string name="sa_loose_files">(files in this folder)</string>
+    <string name="sa_sec_top">Largest files Top%1$d</string>
+    <string name="sa_top_row">📄 %1$s\n%2$s · %3$s</string>
+    <string name="sa_empty">(empty folder)</string>
+    <string name="sa_del_title">Delete file</string>
+    <string name="sa_del_msg">%1$s\n%2$s\n\nDelete this file?</string>
+    <string name="sa_deleted">Deleted</string>
+    <string name="sa_del_fail">Delete failed (permission denied?)</string>
 </resources>

@@ -1785,6 +1785,38 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.53.0（versionCode 246）—— F-14/40：存储分析页 i18n（批量纯 UI 页第 6 页）
+
+`StorageAnalysisActivity` 中文字面量 **29 → 0**（纯代码构造 UI，无布局文件），
+新增 21 个 `sa_*` 键，复用 `common_delete` / `common_cancel`，资源 2335 → 2356 条
+（中英各 2356，100%）。
+
+### UI 层要点
+- 整句化两处长拼接：`sa_summary`（`共 %1$s · 子目录 %2$d 个 · 文件 %3$d 个 · %4$s（点击目录下钻）`）
+  与 `sa_del_msg`（`%1$s\n%2$s\n\n确定删除？`），避免把 `·` `（` 等标点切碎后各语言拼不通。
+- 进度两条：`sa_progress`（`%1$s · %2$d / %3$d 个文件`）、`sa_stat_counting`
+  （`%1$s · 正在统计 %2$d 个文件`）；`Math.max(0, d)` 是 int，`%2$d` 装箱后正常。
+- 缓存状态三态：命中走 `sa_cache_hit`，有龄期走 `sa_cache_age`（`缓存 · %1$d 秒前`）。
+- 目录行/大文件行的 `📄 ` / `📁 ` 前缀是视觉记号，随整串进资源（`sa_top_row` 含 `\n`，
+  经 dump 反证落盘为真实换行）。
+
+### 匿名内部类与重载
+- 进度回调（`ScanProgress.onProgress` → `runOnUiThread`）与收尾 Runnable 共 4 处
+  `StorageAnalysisActivity.this.getString(...)`。
+- `HfDialogBuilder` 继承 `AlertDialog.Builder`，`setTitle(int)` / `setNegativeButton(int, listener)`
+  重载可用，故 `R.string.sa_del_title`、`R.string.common_cancel` 直接传 id。
+
+### 编译坑
+本类原无 `import com.hex91.file.R;`（ui 包在子包，R 在父包），加资源引用后首轮
+`jc.sh` 报 **`package R does not exist`** 十余处；补 import 后 rc=0。
+
+### 验证
+
+四门全过（空 catch 335 基线）、`jc.sh` rc=0。APK **13,406,928 B**（md5 `84ec7e4b…`），
+badging 反证 versionCode 246 / 2.53.0；dex 反证 `sa_summary`/`sa_top_row`/`sa_del_msg` 各=1。提交 `—`。
+
+---
+
 ## v2.52.0（versionCode 245）—— F-14/39：测试数据页 i18n（批量纯 UI 页第 5 页）
 
 `TestDataActivity` 中文字面量 **约 29 → 0**，新增 31 个 `td_*` 键，资源 2304 → 2335 条

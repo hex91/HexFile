@@ -1,5 +1,6 @@
 package com.hex91.file.ui;
 
+import com.hex91.file.R;
 import com.hex91.file.fs.DiskScanUtil;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.core.ScanCache;
@@ -95,7 +96,7 @@ public class StorageAnalysisActivity extends BaseActivity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView title = new TextView(this);
-        title.setText("存储分析");
+        title.setText(R.string.sa_title);
         title.setTextSize(17);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         title.setTextColor(ThemeManager.topBarText(this));
@@ -104,7 +105,7 @@ public class StorageAnalysisActivity extends BaseActivity {
         row1.addView(title, new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        TextView dup = act("重复文件", den);
+        TextView dup = act(getString(R.string.sa_dup), den);
         dup.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 if (current == null) return;
@@ -114,7 +115,7 @@ public class StorageAnalysisActivity extends BaseActivity {
             }
         });
         row1.addView(dup);
-        TextView refresh = act("刷新", den);
+        TextView refresh = act(getString(R.string.sa_refresh), den);
         refresh.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 if (current == null) return;
@@ -182,7 +183,7 @@ public class StorageAnalysisActivity extends BaseActivity {
     @Override
     public void onBackPressed() {
         // 扫描中按返回：先停扫描，停留在当前目录（避免用户以为卡死只能杀进程）
-        if (scanning) { stopScan("已取消扫描"); return; }
+        if (scanning) { stopScan(getString(R.string.sa_scan_cancelled)); return; }
         if (!atEntryRoot()) {
             File parent = current.getParentFile();
             if (parent != null) { scan(parent); return; }
@@ -246,7 +247,8 @@ public class StorageAnalysisActivity extends BaseActivity {
                 pd = null;
                 if (old != null) { try { old.dismiss(); } catch (Throwable ignored) {} }
                 long sec = cache.ageOf(dir) / 1000L;
-                render(dir, hit, sec <= 0 ? "缓存结果" : "缓存 · " + sec + " 秒前");
+                render(dir, hit, sec <= 0 ? getString(R.string.sa_cache_hit)
+                        : getString(R.string.sa_cache_age, sec));
                 return;
             }
         }
@@ -255,7 +257,7 @@ public class StorageAnalysisActivity extends BaseActivity {
         scanning = true;
 
         final ProgressDialog dialog = new ProgressDialog(this);
-        dialog.setTitle("扫描中");
+        dialog.setTitle(R.string.sa_scanning);
         dialog.setMessage(dir.getAbsolutePath());
         dialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
         dialog.setIndeterminate(true);
@@ -288,11 +290,13 @@ public class StorageAnalysisActivity extends BaseActivity {
                                             dialog.setIndeterminate(false);
                                             dialog.setMax(t);
                                             dialog.setProgress(Math.max(0, Math.min(d, t)));
-                                            dialog.setMessage(FileOps.formatSize(by) + " · "
-                                                    + Math.max(0, d) + " / " + t + " 个文件");
+                                            dialog.setMessage(StorageAnalysisActivity.this.getString(
+                                                    R.string.sa_progress, FileOps.formatSize(by),
+                                                    Math.max(0, d), t));
                                         } else {
-                                            dialog.setMessage(FileOps.formatSize(by) + " · 正在统计 "
-                                                    + Math.max(0, d) + " 个文件");
+                                            dialog.setMessage(StorageAnalysisActivity.this.getString(
+                                                    R.string.sa_stat_counting, FileOps.formatSize(by),
+                                                    Math.max(0, d)));
                                         }
                                     }
                                 });
@@ -313,12 +317,13 @@ public class StorageAnalysisActivity extends BaseActivity {
                         if (isFinishing()) return;
                         if (res == null) {
                             Toast.makeText(StorageAnalysisActivity.this,
-                                    "已取消扫描", Toast.LENGTH_SHORT).show();
+                                    R.string.sa_scan_cancelled, Toast.LENGTH_SHORT).show();
                             return;
                         }
                         // 写入缓存（LRU 自动淘汰最久未用的目录）
                         cache.put(dir, res);
-                        render(dir, res, "扫描 " + cost + "ms");
+                        render(dir, res, StorageAnalysisActivity.this.getString(
+                                R.string.sa_scan_cost, cost));
                     }
                 });
             }
@@ -340,15 +345,14 @@ public class StorageAnalysisActivity extends BaseActivity {
         // 上一级入口（保留，方便不习惯手势的用户）
         File parent = dir.getParentFile();
         if (!atEntryRoot() && parent != null && parent.canRead()) {
-            body.addView(dirRow("⬆️ ..（上一级）", "", parent));
+            body.addView(dirRow(getString(R.string.sa_up_dir), "", parent));
         }
-        summary.setText("共 " + FileOps.formatSize(r.total) + " · 子目录 "
-                + r.subDirs.size() + " 个 · 文件 " + r.fileCount + " 个 · " + info
-                + "（点击目录下钻）");
+        summary.setText(getString(R.string.sa_summary, FileOps.formatSize(r.total),
+                r.subDirs.size(), r.fileCount, info));
 
         // 子目录占用排行（真实占比横条）
         if (!r.subDirs.isEmpty()) {
-            body.addView(secTitle("目录占用（" + r.subDirs.size() + "）"));
+            body.addView(secTitle(getString(R.string.sa_sec_dirs, r.subDirs.size())));
             long sum = 0;
             for (DiskScanUtil.DirStat s : r.subDirs) {
                 sum += s.size;
@@ -357,20 +361,19 @@ public class StorageAnalysisActivity extends BaseActivity {
             // 直接放在本目录下的散文件，补上差额，让百分比能对得上 100%
             long loose = r.total - sum;
             if (loose > 0) {
-                body.addView(barRow("（本目录下的文件）", loose, r.total, null));
+                body.addView(barRow(getString(R.string.sa_loose_files), loose, r.total, null));
             }
         }
         // 大文件 Top20
         if (r.top != null && !r.top.isEmpty()) {
-            body.addView(secTitle("大文件 Top" + r.top.size()));
+            body.addView(secTitle(getString(R.string.sa_sec_top, r.top.size())));
             for (final DiskScanUtil.FileSize fs : r.top) {
                 TextView row = new TextView(this);
                 row.setTextSize(13);
                 row.setTextColor(ThemeManager.text(this));
                 row.setSingleLine(false);
-                row.setText("📄 " + fs.file.getName() + "\n"
-                        + FileOps.formatSize(fs.size) + " · "
-                        + fs.file.getParentFile().getName());
+                row.setText(getString(R.string.sa_top_row, fs.file.getName(),
+                        FileOps.formatSize(fs.size), fs.file.getParentFile().getName()));
                 row.setPadding(0, (int) (8 * den), 0, (int) (8 * den));
                 row.setOnClickListener(new View.OnClickListener() {
                     public void onClick(View v) { askDelete(fs.file); }
@@ -381,7 +384,7 @@ public class StorageAnalysisActivity extends BaseActivity {
         }
         if (r.subDirs.isEmpty() && (r.top == null || r.top.isEmpty())) {
             TextView empty = new TextView(this);
-            empty.setText("（空目录）");
+            empty.setText(R.string.sa_empty);
             empty.setTextColor(ThemeManager.textSub(this));
             empty.setPadding(0, (int) (24 * den), 0, 0);
             body.addView(empty);
@@ -518,24 +521,24 @@ public class StorageAnalysisActivity extends BaseActivity {
 
     private void askDelete(final File f) {
         new HfDialogBuilder(this)
-                .setTitle("删除文件")
-                .setMessage(f.getName() + "\n" + FileOps.formatSize(f.length())
-                        + "\n\n确定删除？")
-                .setPositiveButton("删除", new DialogInterface.OnClickListener() {
+                .setTitle(R.string.sa_del_title)
+                .setMessage(getString(R.string.sa_del_msg, f.getName(),
+                        FileOps.formatSize(f.length())))
+                .setPositiveButton(getString(R.string.common_delete), new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         if (f.delete()) {
                             Toast.makeText(StorageAnalysisActivity.this,
-                                    "已删除", Toast.LENGTH_SHORT).show();
+                                    R.string.sa_deleted, Toast.LENGTH_SHORT).show();
                             // 删了文件，本目录与所有上级的总量都变了：一并作废后重扫
                             cache.invalidate(current);
                             scan(current, true);
                         } else {
                             Toast.makeText(StorageAnalysisActivity.this,
-                                    "删除失败（可能无权限）", Toast.LENGTH_SHORT).show();
+                                    R.string.sa_del_fail, Toast.LENGTH_SHORT).show();
                         }
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 }
