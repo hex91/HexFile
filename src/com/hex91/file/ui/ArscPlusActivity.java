@@ -112,7 +112,7 @@ public class ArscPlusActivity extends BaseActivity {
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
         TextView title = new TextView(this);
-        title.setText("ARSC++ 编辑");
+        title.setText(R.string.arp_title);
         title.setTextSize(17);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         title.setTextColor(topText);
@@ -142,7 +142,7 @@ public class ArscPlusActivity extends BaseActivity {
 
     private void loadArsc() {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("解析 " + entryName + " …");
+        pd.setMessage(getString(R.string.ax_parsing, entryName));
         pd.setCancelable(false);
         pd.show();
         new Thread() { public void run() {
@@ -152,7 +152,7 @@ public class ArscPlusActivity extends BaseActivity {
                 workDir.mkdirs();
                 File arscFile = new File(workDir, "resources.arsc");
                 if (!extractZipEntry(apk, entryName, arscFile))
-                    throw new IllegalStateException("提取失败: " + entryName);
+                    throw new IllegalStateException(getString(R.string.arp_extract_fail, entryName));
                 ApkEditSession.overlayPending(apk, entryName, arscFile); // 会话修改优先
                 arsc = ArscFile.parse(arscFile);
                 buildTree();
@@ -164,12 +164,12 @@ public class ArscPlusActivity extends BaseActivity {
                 pd.dismiss();
                 if (e != null) {
                     new HfDialogBuilder(ArscPlusActivity.this)
-                            .setTitle("加载失败").setMessage(e)
-                            .setPositiveButton("关闭", new DialogInterface.OnClickListener() {
+                            .setTitle(R.string.ax_load_fail).setMessage(e)
+                            .setPositiveButton(R.string.common_close, new DialogInterface.OnClickListener() {
                                 public void onClick(DialogInterface d, int w) { finish(); }
                             }).show();
                 } else {
-                    titleSub.setText(arsc.appPackage() + " · " + arsc.entryCount() + " 个资源");
+                    titleSub.setText(getString(R.string.arp_sub, arsc.appPackage(), arsc.entryCount()));
                     refresh();
                 }
             }});
@@ -307,8 +307,8 @@ public class ArscPlusActivity extends BaseActivity {
             tv.setTextSize(n.isPkg || n.isType ? 15 : 14);
             tv.setGravity(Gravity.CENTER_VERTICAL);
             tv.setPadding(dp2(8), 0, 0, 0);
-            tv.setText(n.label + (n.isType ? "  (" + n.count + ")"
-                    : (!n.isPkg && !n.isType && !n.isTypeInfo ? "  (" + n.count + ")" : "")));
+            tv.setText(n.isType || (!n.isPkg && !n.isTypeInfo)
+                    ? n.label + getString(R.string.arp_count, n.count) : n.label);
             if (n.isPkg || n.isType) {
                 tv.setTextColor(ThemeManager.text(ArscPlusActivity.this));
                 tv.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -349,19 +349,16 @@ public class ArscPlusActivity extends BaseActivity {
             total += c.count;
         }
         new HfDialogBuilder(this)
-                .setTitle("类型信息: " + n.type)
-                .setMessage("条目总数: " + total
-                        + "\n配置数: " + cfgs.size()
-                        + "\n\n" + join(cfgs, "\n")
-                        + "\n\n点配置节点（如 " + ArscPlus.cfgLabel(n.type, "")
-                        + "）以 XML 源码方式批量编辑该配置下的所有值。")
-                .setPositiveButton("知道了", null).show();
+                .setTitle(getString(R.string.arp_typeinfo_title, n.type))
+                .setMessage(getString(R.string.arp_typeinfo_msg, total, cfgs.size(),
+                        join(cfgs, "\n"), ArscPlus.cfgLabel(n.type, "")))
+                .setPositiveButton(R.string.common_got_it, null).show();
     }
 
     /** 配置节点 → 生成 XML → 进编辑器（保存时经 ArscPlus.applyXml 写回 arsc） */
     private void openConfigXml(final Node n) {
         final ProgressDialog pd = new ProgressDialog(this);
-        pd.setMessage("生成 " + n.label + ".xml …");
+        pd.setMessage(getString(R.string.arp_generating, n.label));
         pd.setCancelable(false);
         pd.show();
         new Thread() { public void run() {
@@ -383,7 +380,7 @@ public class ArscPlusActivity extends BaseActivity {
             final File f = out;
             ui.post(new Runnable() { public void run() {
                 pd.dismiss();
-                if (e != null) { toast("生成失败: " + e); return; }
+                if (e != null) { toast(getString(R.string.arp_gen_fail, e)); return; }
                 Intent i = new Intent(ArscPlusActivity.this, TextEditorActivity.class);
                 i.putExtra(TextEditorActivity.EXTRA_FILE, f.getAbsolutePath());
                 i.putExtra(TextEditorActivity.EXTRA_ARCHIVE, apk.getAbsolutePath());

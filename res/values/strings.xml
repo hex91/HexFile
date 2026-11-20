@@ -2672,4 +2672,13 @@
     <string name="rd_err">✗ %1$s</string>
     <string name="rd_copy_label">%1$s 结果</string>
     <string name="rd_input_hint">输入数字，如 255 / 0xFF / 0b1010</string>
+    <!-- v2.65.0 ARSC++ 编辑页 -->
+    <string name="arp_title">ARSC++ 编辑</string>
+    <string name="arp_extract_fail">提取失败: %1$s</string>
+    <string name="arp_sub">%1$s · %2$d 个资源</string>
+    <string name="arp_count">"  (%1$d)"</string>
+    <string name="arp_typeinfo_title">类型信息: %1$s</string>
+    <string name="arp_typeinfo_msg">"条目总数: %1$d\n配置数: %2$d\n\n%3$s\n\n点配置节点（如 %4$s）以 XML 源码方式批量编辑该配置下的所有值。"</string>
+    <string name="arp_generating">生成 %1$s.xml …</string>
+    <string name="arp_gen_fail">生成失败: %1$s</string>
 </resources>

@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2535 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2543 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,32 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.65.0（versionCode 258）—— F-14/52：ARSC++ 编辑页 i18n（批量纯 UI 页第 18 页）
+
+`ArscPlusActivity` 中文字面量 **14 → 0**（纯代码构造 UI，无布局文件），新增 8 个 `arp_*` 键，
+复用 `ax_parsing` / `ax_load_fail` / `common_close` / `common_got_it`，资源 2535 → 2543 条
+（中英各 2543，100%）。
+
+### 复用优先
+同目录的 ARSC 编辑器（`ArscEditorActivity`，`ax_*`）已经有"解析 %1$s …"与"加载失败"这两句，
+本页原来各留一份中文，直接复用；只有"ARSC++ 编辑"这个标题与编辑器那句"ARSC 编辑器"不同，才另起 `arp_title`。
+
+### UI 层要点
+- 类型信息弹窗原来是 6 段 `+` 拼接（含两处 `\n\n` 空行），整句 `arp_typeinfo_msg` 四参数：
+  条目总数 / 配置数 / 配置清单 / 示例配置名。
+- 树行计数后缀 `  (%1$d)` 两处合并成一个键（前导两个空格，整值加引号）；顺带把原来
+  `isType ? … : (!isPkg && !isType && !isTypeInfo ? … : "")` 的三元嵌套改成
+  `n.isType || (!n.isPkg && !n.isTypeInfo)`——`isType` 已经先判过，`!isType` 是冗余条件。
+- 标题副行 `%1$s · %2$d 个资源`（`arp_sub`）与进度提示 `解析 …` / `生成 %1$s.xml …` 各一键；
+  失败路径三条：`arp_extract_fail`（异常消息）、`arp_gen_fail`（Toast）。
+
+### 验证
+四门全过（依赖方向、空 catch 335 基线、文案 2543/2543 100%、动作码 55）。
+APK **13,423,312 B**（md5 `366c37b7…`），badging 反证 versionCode 258 / 2.65.0；
+dex 反证 `arp_typeinfo_msg` / `arp_count` / `arp_title` 各 = 1，"条目总数"在 dex 中 0 处。
 
 ---
 
