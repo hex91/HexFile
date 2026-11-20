@@ -23,7 +23,6 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import java.util.List;
-import java.util.Locale;
 
 /**
  * v1.69.0 Activity 记录浮窗（前台服务）。
@@ -129,9 +128,9 @@ public class ActivityFloatService extends Service {
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm.getNotificationChannel(CHANNEL) == null) {
                 NotificationChannel ch = new NotificationChannel(
-                        CHANNEL, "Activity 记录浮窗", NotificationManager.IMPORTANCE_MIN);
+                        CHANNEL, getString(R.string.af_channel), NotificationManager.IMPORTANCE_MIN);
                 ch.setShowBadge(false);
-                ch.setDescription("在其他应用上方显示最近的页面切换记录");
+                ch.setDescription(getString(R.string.af_channel_desc));
                 nm.createNotificationChannel(ch);
             }
             b = new Notification.Builder(this, CHANNEL);
@@ -143,8 +142,8 @@ public class ActivityFloatService extends Service {
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         b.setSmallIcon(R.drawable.ic_activity_trace)
-                .setContentTitle("Activity 记录已开启")
-                .setContentText("浮窗显示最近 " + rowCount + " 条页面切换")
+                .setContentTitle(getString(R.string.af_noti_title))
+                .setContentText(getString(R.string.af_noti_text, rowCount))
                 .setContentIntent(pi)
                 .setOngoing(true)
                 .setPriority(Notification.PRIORITY_MIN);
@@ -152,7 +151,7 @@ public class ActivityFloatService extends Service {
         PendingIntent stop = PendingIntent.getService(this, 1, hide,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         b.addAction(new Notification.Action.Builder(
-                android.R.drawable.ic_menu_close_clear_cancel, "关闭浮窗", stop).build());
+                android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.af_hide), stop).build());
         startForeground(NOTI_ID, b.build());
     }
 
@@ -231,7 +230,7 @@ public class ActivityFloatService extends Service {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView hint = new TextView(this);
-        hint.setText("点此查看全部 \u203A");
+        hint.setText(R.string.af_more);
         hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9.5f);
         hint.setTextColor(0x80FFFFFF);
         hint.setPadding(0, dp(4), 0, 0);
@@ -332,8 +331,8 @@ public class ActivityFloatService extends Service {
         if (n == 0) {
             TextView tv = new TextView(this);
             tv.setText(ActivityTraceService.isEnabled(this)
-                    ? "等待页面切换…"
-                    : "无障碍未开启（点卡片去开启）");
+                    ? R.string.af_waiting
+                    : R.string.af_no_access);
             tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f);
             tv.setTextColor(0x99FFFFFF);
             tv.setSingleLine(true);
@@ -358,7 +357,7 @@ public class ActivityFloatService extends Service {
         }
         // 最后一条下面给出时间提示，避免用户以为是历史日志
         TextView tail = new TextView(this);
-        tail.setText(String.format(Locale.US, "%tH:%tM:%tS  最新", now, now, now));
+        tail.setText(getString(R.string.af_tail, now));
         tail.setTextSize(TypedValue.COMPLEX_UNIT_SP, 8.5f);
         tail.setTextColor(0x59FFFFFF);
         rowsBox.addView(tail);

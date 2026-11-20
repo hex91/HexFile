@@ -2725,4 +2725,14 @@
     <string name="pdf_exporting">导出中…</string>
     <string name="pdf_export_fail">导出失败: %1$s</string>
     <string name="pdf_exported">已导出 → %1$s</string>
+    <!-- v2.69.0 Activity 记录浮窗 -->
+    <string name="af_channel">Activity 记录浮窗</string>
+    <string name="af_channel_desc">在其他应用上方显示最近的页面切换记录</string>
+    <string name="af_noti_title">Activity 记录已开启</string>
+    <string name="af_noti_text">浮窗显示最近 %1$d 条页面切换</string>
+    <string name="af_hide">关闭浮窗</string>
+    <string name="af_more">点此查看全部 ›</string>
+    <string name="af_waiting">等待页面切换…</string>
+    <string name="af_no_access">无障碍未开启（点卡片去开启）</string>
+    <string name="af_tail">"%1$tH:%1$tM:%1$tS  最新"</string>
 </resources>

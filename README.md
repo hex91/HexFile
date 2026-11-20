@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2584 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2593 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,33 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.69.0（versionCode 262）—— F-14/56：Activity 记录浮窗 i18n（批量纯 UI 页第 22 页）
+
+`ActivityFloatService` 中文字面量 **10 → 0**（浮窗与通知全是代码构造），新增 9 个 `af_*` 键，
+资源 2584 → 2593 条（中英各 2593，100%）。
+
+### 结构性注意
+1. **通知渠道名也走资源**：`NotificationChannel` 的名字与描述原来写死中文，改 `af_channel` /
+   `af_channel_desc`。注意渠道一旦创建，名字就由系统记住——已装机的渠道名不会跟着换语言，
+   只有重装（或改 channel id）才会重新取一次。这是 Android 的行为，不是漏翻。
+2. **`String.format(Locale.US, "%tH:%tM:%tS  最新", …)` 改 `getString(af_tail, now)`**：
+   三处 `%tH/%tM/%tS` 都指向第 1 个参数，所以只传一个 `now` 即可；顺手删掉随之失效的
+   `import java.util.Locale;`。原先钉死 `Locale.US` 只是为了格式化字符串，现在时间格式本来就该跟语言走。
+3. 空态两态（`af_waiting` / `af_no_access`）直接给 `setText(int)`，不再在代码里做三元字符串选择。
+
+### UI 层要点
+- 通知：标题 `af_noti_title`、正文 `af_noti_text`（`浮窗显示最近 %1$d 条页面切换`）、
+  操作按钮 `af_hide`（"关闭浮窗"）。
+- 浮窗：底部提示 `af_more`（"点此查看全部 ›"，源里的 `\u203A` 转义在资源里写成真字符 ›）。
+
+### 验证
+四门全过（依赖方向、空 catch 335 基线、文案 2593/2593 100%、动作码 55）。
+APK **13,423,312 B**（md5 `be4ef5a4…`），badging 反证 versionCode 262 / 2.69.0；
+dex 反证 `af_noti_text` / `af_tail` 各 = 1（`af_channel` 命中 2 是包含 `af_channel_desc` 的子串），
+"等待页面切换"在 dex 中 0 处、`resources.arsc` 中 1 处。
 
 ---
 

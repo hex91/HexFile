@@ -2717,4 +2717,14 @@
     <string name="pdf_exporting">Exporting…</string>
     <string name="pdf_export_fail">Export failed: %1$s</string>
     <string name="pdf_exported">Exported → %1$s</string>
+    <!-- v2.69.0 activity trace overlay -->
+    <string name="af_channel">Activity trace overlay</string>
+    <string name="af_channel_desc">Shows recent screen switches above other apps</string>
+    <string name="af_noti_title">Activity tracing is on</string>
+    <string name="af_noti_text">The overlay shows the latest %1$d screen switches</string>
+    <string name="af_hide">Hide overlay</string>
+    <string name="af_more">Tap to see all ›</string>
+    <string name="af_waiting">Waiting for a screen switch…</string>
+    <string name="af_no_access">Accessibility is off (tap the card to enable)</string>
+    <string name="af_tail">"%1$tH:%1$tM:%1$tS  latest"</string>
 </resources>
