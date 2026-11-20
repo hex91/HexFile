@@ -34,7 +34,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="测试数据"
+                android:text="@string/td_title"
                 android:textSize="14sp"
                 android:textStyle="bold"
                 android:textColor="?attr/hfText"/>
@@ -43,7 +43,7 @@
                 android:id="@+id/td_sub"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="身份证 / 银行卡 · 校验位合法"
+                android:text="@string/td_subtitle"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textSize="11sp"
@@ -57,7 +57,7 @@
             android:gravity="center"
             android:paddingLeft="12dp"
             android:paddingRight="10dp"
-            android:text="一键填"
+            android:text="@string/td_fill_all"
             android:textSize="13sp"
             android:textColor="?attr/hfAccent"
             android:background="?android:attr/selectableItemBackground"/>
@@ -92,7 +92,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
                 android:layout_marginLeft="2dp"
-                android:text="身份证号"
+                android:text="@string/td_id_card"
                 android:textSize="13sp"
                 android:textStyle="bold"
                 android:textColor="?attr/hfText"/>
@@ -108,7 +108,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="出生地"
+                    android:text="@string/td_origin"
                     android:textSize="11sp"
                     android:textColor="?attr/hfTextSub"/>
 
@@ -145,7 +145,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:text="出生日期"
+                    android:text="@string/td_birthday"
                     android:textSize="11sp"
                     android:textColor="?attr/hfTextSub"/>
 
@@ -182,7 +182,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:text="性别"
+                    android:text="@string/td_gender"
                     android:textSize="11sp"
                     android:textColor="?attr/hfTextSub"/>
 
@@ -198,7 +198,7 @@
                         android:layout_height="36dp"
                         android:layout_weight="1"
                         android:gravity="center"
-                        android:text="男"
+                        android:text="@string/td_male"
                         android:textSize="13sp"/>
 
                     <TextView
@@ -208,7 +208,7 @@
                         android:layout_weight="1"
                         android:layout_marginLeft="8dp"
                         android:gravity="center"
-                        android:text="女"
+                        android:text="@string/td_female"
                         android:textSize="13sp"/>
                 </LinearLayout>
 
@@ -218,7 +218,7 @@
                     android:layout_height="44dp"
                     android:layout_marginTop="14dp"
                     android:gravity="center"
-                    android:text="生成身份证号"
+                    android:text="@string/td_gen_id"
                     android:textSize="14sp"
                     android:textStyle="bold"/>
 
@@ -258,7 +258,7 @@
                         android:layout_height="38dp"
                         android:layout_weight="1"
                         android:gravity="center"
-                        android:text="复制"
+                        android:text="@string/td_copy"
                         android:textSize="13sp"/>
 
                     <TextView
@@ -268,7 +268,7 @@
                         android:layout_weight="1"
                         android:layout_marginLeft="8dp"
                         android:gravity="center"
-                        android:text="换一个"
+                        android:text="@string/td_new_one"
                         android:textSize="13sp"/>
                 </LinearLayout>
             </LinearLayout>
@@ -279,7 +279,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:layout_marginLeft="2dp"
-                android:text="银行卡号"
+                android:text="@string/td_bank_card"
                 android:textSize="13sp"
                 android:textStyle="bold"
                 android:textColor="?attr/hfText"/>
@@ -295,7 +295,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="发卡行"
+                    android:text="@string/td_bank_issuer"
                     android:textSize="11sp"
                     android:textColor="?attr/hfTextSub"/>
 
@@ -312,7 +312,7 @@
                     android:layout_height="44dp"
                     android:layout_marginTop="12dp"
                     android:gravity="center"
-                    android:text="生成银行卡号"
+                    android:text="@string/td_gen_card"
                     android:textSize="14sp"
                     android:textStyle="bold"/>
 
@@ -352,7 +352,7 @@
                         android:layout_height="38dp"
                         android:layout_weight="1"
                         android:gravity="center"
-                        android:text="复制"
+                        android:text="@string/td_copy"
                         android:textSize="13sp"/>
 
                     <TextView
@@ -362,7 +362,7 @@
                         android:layout_weight="1"
                         android:layout_marginLeft="8dp"
                         android:gravity="center"
-                        android:text="换一个"
+                        android:text="@string/td_new_one"
                         android:textSize="13sp"/>
                 </LinearLayout>
             </LinearLayout>

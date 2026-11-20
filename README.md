@@ -1785,6 +1785,34 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.52.0（versionCode 245）—— F-14/39：测试数据页 i18n（批量纯 UI 页第 5 页）
+
+`TestDataActivity` 中文字面量 **约 29 → 0**，新增 31 个 `td_*` 键，资源 2304 → 2335 条
+（中英各 2335，100%）。布局 15 处 `android:text` 一并资源化。
+
+### 内容边界（本页三处数据刻意保留）
+- `loadRegions()` 的 fallback 行政区划码串（`110000|北京市|…`）是数据，保留。
+- `TestDataCore.Bank` 枚举的 `full`/`shortName`（银行中文名）在 core 包、属逻辑层数据，
+  本批纯 UI 页不透传翻译（同 `summary()` 逻辑层债），原样显示。
+- 地区名来自 `RegionTable`（3357 条行政区划数据），保留。
+
+### UI 层要点
+- 长 notice 整句一键 `td_notice`（含 `\n` 与 ⚠️）；日期后缀 `" 年"/" 月"/" 日"` 带前导空格整值加引号。
+- `genId()`/`genCard()` 的 meta 拼接段全部资源化：`td_meta_region`（含尾随 `\n`）、
+  `td_meta_birth`、`td_male_suffix`（`"  男"` 双空格）、`td_meta_check`（`%1$d` 传 char 自动转 int，编译过）、
+  `td_meta_bin`/`td_meta_card_tail`。Bank 中文名仍是数据透传，周围文案翻。
+- 复用了布局 title 键做 copy label（`td_id_card`/`td_bank_card`），按钮文案布局与代码共用键。
+
+### 构建插曲
+后台构建卡在沙箱 `rm` shim（`rm -f build/dex/classes.dex` 挂 6 分钟）；kill 后前台重跑 2 分 51 秒即过。
+**结论：构建用前台，别用后台**（同 v2.42 的教训）。
+
+### 验证
+四门全过（空 catch 335 基线）、`jc.sh` rc=0。APK **13,374,160 B**（md5 `a72bbbd0…`），
+badging 反证 versionCode 245 / 2.52.0；dex 反证 `td_notice`/`td_meta_check` 各=1。提交 `—`。
+
+---
+
 ## v2.51.0（versionCode 244）—— F-14/38：工具箱页 i18n（批量纯 UI 页第 4 页）
 
 `ToolboxActivity` 卡片首页中文字面量 **约 30 → 0**（纯代码构造 UI，无布局文件），新增 31 个

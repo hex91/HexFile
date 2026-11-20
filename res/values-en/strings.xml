@@ -2419,4 +2419,37 @@
     <string name="tb_id_desc">Region / birthday / gender</string>
     <string name="tb_bank_title">Bank card number</string>
     <string name="tb_bank_desc">6 banks · Luhn check</string>
+
+    <!-- v2.52.0 Test data page i18n (td_*) -->
+    <string name="td_title">Test data</string>
+    <string name="td_subtitle">ID / bank card · valid check digits</string>
+    <string name="td_fill_all">Fill both</string>
+    <string name="td_id_card">ID number</string>
+    <string name="td_origin">Region</string>
+    <string name="td_birthday">Birth date</string>
+    <string name="td_gender">Gender</string>
+    <string name="td_male">Male</string>
+    <string name="td_female">Female</string>
+    <string name="td_gen_id">Generate ID</string>
+    <string name="td_copy">Copy</string>
+    <string name="td_new_one">New</string>
+    <string name="td_bank_card">Bank card</string>
+    <string name="td_bank_issuer">Issuer</string>
+    <string name="td_gen_card">Generate card</string>
+    <string name="td_notice">⚠️ These are fake test values: only the format and check digits are valid (ID: ISO 7064 MOD 11-2, card: Luhn). They do not belong to any real person or account and cannot pass online identity verification.\nUse them to replace your real information when analysing malicious samples. Do not use them to forge documents or for any deception.</string>
+    <string name="td_generated_both">Generated ID and bank card</string>
+    <string name="td_year">" yr"</string>
+    <string name="td_month">" mo"</string>
+    <string name="td_day">" d"</string>
+    <string name="td_no_origin">Select a region first</string>
+    <string name="td_gen_fail">Generation failed: %1$s</string>
+    <string name="td_meta_region">"Region  %1$s  (%2$s)\n"</string>
+    <string name="td_meta_birth">"Birth  %1$s"</string>
+    <string name="td_male_suffix">"  M"</string>
+    <string name="td_female_suffix">"  F"</string>
+    <string name="td_meta_check">"Check  ISO 7064 MOD 11-2 OK · last %1$d · 17th %2$d"</string>
+    <string name="td_check_male">" (odd=M)"</string>
+    <string name="td_check_female">" (even=F)"</string>
+    <string name="td_meta_bin">" · BIN "</string>
+    <string name="td_meta_card_tail">" digits · Luhn OK · test data only, not a real account"</string>
 </resources>

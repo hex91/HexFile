@@ -69,9 +69,7 @@ public class TestDataActivity extends BaseActivity {
         });
 
         TextView notice = (TextView) findViewById(R.id.td_notice);
-        notice.setText("⚠️ 生成的是测试用假数据：只保证格式与校验位正确（身份证 ISO 7064 MOD 11-2、"
-                + "银行卡 Luhn），不对应任何真实个人或账户，也无法通过需要联网核查的实名认证。\n"
-                + "用途是分析恶意样本时代替你的真实信息，请勿用于伪造证件或其他欺骗用途。");
+        notice.setText(s(R.string.td_notice));
         notice.setTextColor(ThemeManager.textSub(this));
 
         ((View) findViewById(R.id.td_id_card)).setBackground(ToolUi.card(this, 12));
@@ -121,31 +119,31 @@ public class TestDataActivity extends BaseActivity {
         });
         findViewById(R.id.id_copy).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                ToolUi.copy(TestDataActivity.this, idValue, "身份证号");
+                ToolUi.copy(TestDataActivity.this, idValue, s(R.string.td_id_card));
             }
         });
         findViewById(R.id.card_copy).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                ToolUi.copy(TestDataActivity.this, cardValue, "银行卡号");
+                ToolUi.copy(TestDataActivity.this, cardValue, s(R.string.td_bank_card));
             }
         });
-        ToolUi.copyOnClick(idOut, this, "身份证号");
-        ToolUi.copyOnClick(cardOut, this, "银行卡号");
+        ToolUi.copyOnClick(idOut, this, s(R.string.td_id_card));
+        ToolUi.copyOnClick(cardOut, this, s(R.string.td_bank_card));
 
         findViewById(R.id.td_all).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 genId();
                 genCard();
-                ToolUi.toast(TestDataActivity.this, "已生成身份证号与银行卡号");
+                ToolUi.toast(TestDataActivity.this, s(R.string.td_generated_both));
             }
         });
 
-        stylePrimary((TextView) findViewById(R.id.btn_id), "生成身份证号");
-        stylePrimary((TextView) findViewById(R.id.btn_card), "生成银行卡号");
-        styleSecondary((TextView) findViewById(R.id.id_copy), "复制");
-        styleSecondary((TextView) findViewById(R.id.id_new), "换一个");
-        styleSecondary((TextView) findViewById(R.id.card_copy), "复制");
-        styleSecondary((TextView) findViewById(R.id.card_new), "换一个");
+        stylePrimary((TextView) findViewById(R.id.btn_id), s(R.string.td_gen_id));
+        stylePrimary((TextView) findViewById(R.id.btn_card), s(R.string.td_gen_card));
+        styleSecondary((TextView) findViewById(R.id.id_copy), s(R.string.td_copy));
+        styleSecondary((TextView) findViewById(R.id.id_new), s(R.string.td_new_one));
+        styleSecondary((TextView) findViewById(R.id.card_copy), s(R.string.td_copy));
+        styleSecondary((TextView) findViewById(R.id.card_new), s(R.string.td_new_one));
 
         building = false;
         genId();
@@ -269,12 +267,12 @@ public class TestDataActivity extends BaseActivity {
 
     private void buildDate() {
         List<String> years = new ArrayList<String>();
-        for (int y = YEAR_FROM; y <= YEAR_TO; y++) years.add(y + " 年");
+        for (int y = YEAR_FROM; y <= YEAR_TO; y++) years.add(y + s(R.string.td_year));
         spYear.setAdapter(ToolUi.adapter(this, years.toArray(new String[0])));
         spYear.setSelection(1991 - YEAR_FROM);
 
         List<String> months = new ArrayList<String>();
-        for (int m = 1; m <= 12; m++) months.add(m + " 月");
+        for (int m = 1; m <= 12; m++) months.add(m + s(R.string.td_month));
         spMonth.setAdapter(ToolUi.adapter(this, months.toArray(new String[0])));
         spMonth.setSelection(9);   // 10 月
 
@@ -303,7 +301,7 @@ public class TestDataActivity extends BaseActivity {
         if (keep == AdapterView.INVALID_POSITION) keep = 0;
 
         List<String> days = new ArrayList<String>();
-        for (int d = 1; d <= max; d++) days.add(d + " 日");
+        for (int d = 1; d <= max; d++) days.add(d + s(R.string.td_day));
         spDay.setAdapter(ToolUi.adapter(this, days.toArray(new String[0])));
         spDay.setSelection(Math.min(Math.max(keep, 0), max - 1));
     }
@@ -371,7 +369,7 @@ public class TestDataActivity extends BaseActivity {
     private void genId() {
         int distPos = spDist.getSelectedItemPosition();
         if (distPos < 0 || distPos >= distList.size()) {
-            ToolUi.toast(this, "请先选择出生地");
+            ToolUi.toast(this, s(R.string.td_no_origin));
             return;
         }
         RegionTable.Region d = distList.get(distPos);
@@ -381,7 +379,7 @@ public class TestDataActivity extends BaseActivity {
         try {
             idValue = TestDataCore.idNumber(d.code, y, m, day, male, rnd);
         } catch (IllegalArgumentException e) {
-            ToolUi.toast(this, "生成失败：" + e.getMessage());
+            ToolUi.toast(this, s(R.string.td_gen_fail, e.getMessage()));
             return;
         }
         idOut.setText(idValue);
@@ -390,12 +388,11 @@ public class TestDataActivity extends BaseActivity {
         if (regionName.length() == 0) regionName = d.name;
 
         StringBuilder sb = new StringBuilder(96);
-        sb.append("地区  ").append(regionName).append("  (").append(d.code).append(")\n");
-        sb.append("生日  ").append(TestDataCore.idBirth(idValue))
-                .append(male ? "  男" : "  女").append('\n');
-        sb.append("校验  ISO 7064 MOD 11-2 通过 · 末位 ")
-                .append(idValue.charAt(17)).append(" · 第 17 位 ")
-                .append(idValue.charAt(16)).append(male ? "（奇=男）" : "（偶=女）");
+        sb.append(s(R.string.td_meta_region, regionName, d.code));
+        sb.append(s(R.string.td_meta_birth, TestDataCore.idBirth(idValue)))
+                .append(s(male ? R.string.td_male_suffix : R.string.td_female_suffix)).append('\n');
+        sb.append(s(R.string.td_meta_check, idValue.charAt(17), idValue.charAt(16)))
+                .append(s(male ? R.string.td_check_male : R.string.td_check_female));
         idMeta.setText(sb.toString());
     }
 
@@ -404,8 +401,8 @@ public class TestDataActivity extends BaseActivity {
         cardOut.setText(TestDataCore.groupCard(cardValue));
         String bin = TestDataCore.binOf(cardValue);
         StringBuilder sb = new StringBuilder(80);
-        sb.append(bank.full).append(" · BIN ").append(bin).append('\n');
-        sb.append(cardValue.length()).append(" 位 · Luhn 校验通过 · 仅测试数据，非真实账户");
+        sb.append(bank.full).append(s(R.string.td_meta_bin)).append(bin).append('\n');
+        sb.append(cardValue.length()).append(s(R.string.td_meta_card_tail));
         cardMeta.setText(sb.toString());
     }
 
@@ -431,4 +428,7 @@ public class TestDataActivity extends BaseActivity {
         v.setBackground(ToolUi.card(this, 10));
         v.setTextColor(ThemeManager.text(this));
     }
+
+    private String s(int id) { return getString(id); }
+    private String s(int id, Object... args) { return getString(id, args); }
 }

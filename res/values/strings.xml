@@ -2427,4 +2427,37 @@
     <string name="tb_id_desc">出生地 / 生日 / 性别</string>
     <string name="tb_bank_title">银行卡号</string>
     <string name="tb_bank_desc">6 家银行 · Luhn 校验</string>
+
+    <!-- v2.52.0 测试数据页 i18n（td_*） -->
+    <string name="td_title">测试数据</string>
+    <string name="td_subtitle">身份证 / 银行卡 · 校验位合法</string>
+    <string name="td_fill_all">一键填</string>
+    <string name="td_id_card">身份证号</string>
+    <string name="td_origin">出生地</string>
+    <string name="td_birthday">出生日期</string>
+    <string name="td_gender">性别</string>
+    <string name="td_male">男</string>
+    <string name="td_female">女</string>
+    <string name="td_gen_id">生成身份证号</string>
+    <string name="td_copy">复制</string>
+    <string name="td_new_one">换一个</string>
+    <string name="td_bank_card">银行卡号</string>
+    <string name="td_bank_issuer">发卡行</string>
+    <string name="td_gen_card">生成银行卡号</string>
+    <string name="td_notice">⚠️ 生成的是测试用假数据：只保证格式与校验位正确（身份证 ISO 7064 MOD 11-2、银行卡 Luhn），不对应任何真实个人或账户，也无法通过需要联网核查的实名认证。\n用途是分析恶意样本时代替你的真实信息，请勿用于伪造证件或其他欺骗用途。</string>
+    <string name="td_generated_both">已生成身份证号与银行卡号</string>
+    <string name="td_year">" 年"</string>
+    <string name="td_month">" 月"</string>
+    <string name="td_day">" 日"</string>
+    <string name="td_no_origin">请先选择出生地</string>
+    <string name="td_gen_fail">生成失败：%1$s</string>
+    <string name="td_meta_region">"地区  %1$s  (%2$s)\n"</string>
+    <string name="td_meta_birth">"生日  %1$s"</string>
+    <string name="td_male_suffix">"  男"</string>
+    <string name="td_female_suffix">"  女"</string>
+    <string name="td_meta_check">"校验  ISO 7064 MOD 11-2 通过 · 末位 %1$d · 第 17 位 %2$d"</string>
+    <string name="td_check_male">"（奇=男）"</string>
+    <string name="td_check_female">"（偶=女）"</string>
+    <string name="td_meta_bin">" · BIN "</string>
+    <string name="td_meta_card_tail">" 位 · Luhn 校验通过 · 仅测试数据，非真实账户"</string>
 </resources>
