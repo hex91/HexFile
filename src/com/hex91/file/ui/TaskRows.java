@@ -75,7 +75,7 @@ final class TaskRows {
         foot.setOrientation(LinearLayout.HORIZONTAL);
         foot.setGravity(Gravity.CENTER_VERTICAL);
         TextView info = new TextView(c);
-        info.setText(detail(t));
+        info.setText(detail(c, t));
         info.setTextSize(11f);
         info.setTextColor(ThemeManager.textSub(c));
         info.setPadding(0, UiDecor.dp(c, 7), UiDecor.dp(c, 6), 0);
@@ -100,7 +100,8 @@ final class TaskRows {
             foot.addView(go);
         }
         if (t.cancelable()) {
-            TextView cancel = UiDecor.action(c, "✕", "取消", ThemeManager.err(c));
+            TextView cancel = UiDecor.action(c, "✕", c.getString(R.string.common_cancel),
+                    ThemeManager.err(c));
             cancel.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) { FileTaskEngine.get().cancel(t.id); }
             });
@@ -109,16 +110,17 @@ final class TaskRows {
                 && t.srcs != null && !t.srcs.isEmpty()) {
             // 失败 / 部分失败 / 取消过的任务一键重来 —— 源和目标都还在任务里，
             // 不需要用户再选一遍（大目录尤其折腾）
-            TextView again = UiDecor.action(c, "↻", "重试", ThemeManager.accent(c));
+            TextView again = UiDecor.action(c, "↻", c.getString(R.string.tr_retry),
+                    ThemeManager.accent(c));
             again.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) {
                     FileTask nt = FileTaskEngine.get().retry(t.id);
                     if (nt == null) {
-                        Toast.makeText(c, "无法重试：原始来源已不可用",
+                        Toast.makeText(c, R.string.tr_retry_fail,
                                 Toast.LENGTH_SHORT).show();
                     } else {
                         TaskService.start(c);
-                        Toast.makeText(c, "已重新提交", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(c, R.string.tr_resubmitted, Toast.LENGTH_SHORT).show();
                     }
                 }
             });
@@ -129,12 +131,19 @@ final class TaskRows {
         return wrap;
     }
 
-    /** 两行明细：字节/文件数（运行中加速度），失败原因，最后一行目标路径 */
-    static String detail(FileTask t) {
+    /**
+     * 两行明细：字节/文件数（运行中加速度），失败原因，最后一行目标路径。
+     *
+     * <p>v2.73.0：加 {@code c} 只为取文件数的量词 —— 中文里量词是后缀、英文里是复数名词，
+     * 只能整句成键（复用 {@code task_noti_files}），不能在这里手工拼接量词。
+     * 字节数之间的 {@code " / "}、{@code " · "}、{@code "/s"} 是纯符号，不含文字，留字面量。</p>
+     */
+    static String detail(Context c, FileTask t) {
         StringBuilder sb = new StringBuilder();
         sb.append(FileOps.formatSize(t.doneBytes)).append(" / ")
                 .append(FileOps.formatSize(t.totalBytes))
-                .append(" · ").append(t.doneFiles).append('/').append(t.totalFiles).append(" 个文件");
+                .append(" · ")
+                .append(c.getString(R.string.task_noti_files, t.doneFiles, t.totalFiles));
         if (t.state == FileTask.RUNNING) {
             long sp = t.speed(System.currentTimeMillis());
             if (sp > 0) sb.append(" · ").append(FileOps.formatSize(sp)).append("/s");

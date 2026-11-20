@@ -2753,4 +2753,8 @@
     <string name="cl_paste">Paste instead</string>
     <string name="cl_status_init">Signing in below completes the authorization automatically — no need to copy anything by hand</string>
     <string name="cl_slow_hint">No sign-in detected yet. If the page already shows you are signed in, the drive may have changed how it stores the token: tap Paste instead at the top right to use the old way.</string>
+    <!-- v2.73.0 task card -->
+    <string name="tr_retry">Retry</string>
+    <string name="tr_retry_fail">Cannot retry: the original source is no longer available</string>
+    <string name="tr_resubmitted">Submitted again</string>
 </resources>

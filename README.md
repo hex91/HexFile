@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2616 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2619 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,36 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.73.0（versionCode 266）—— F-14/60：任务卡片 i18n（批量纯 UI 页第 26 页）
+
+`TaskRows` 中文字面量 **5 → 0**，新增 3 个 `tr_*` 键，复用 `common_cancel` 与 `task_noti_files`，
+资源 2616 → 2619 条（中英各 2619，100%）。
+
+### 结构性改动：`detail(FileTask)` → `detail(Context, FileTask)`
+明细行原来是 `… .append(t.doneFiles).append('/').append(t.totalFiles).append(" 个文件")`。
+中文里"个文件"是**后置量词**、英文里是**复数名词**（"12/30 files"），语序完全不同，
+只能在文件数整体处成键 —— 直接复用通知里那句 `task_noti_files`（`%1$d/%2$d 个文件`），
+不为同一个格式再造第二份。所以 `detail` 要多一个 `Context`（它是 `static`，没有 `this`）。
+调用点只有本文件第 78 行一处，改完即闭环。
+
+### 复用优先
+"取消" → `common_cancel`；"重试" 是新键 `tr_retry`（`task_resume` 是"继续"、语义不同，不能借用）。
+Toast 两条（`tr_retry_fail` / `tr_resubmitted`）走资源 id 重载。
+
+### 统计口径提醒
+首次扫描报了 2 处残留，实际是我**写在 javadoc 里的示例文本**（`"个文件"`、`+ " 个文件"`）——
+扫描脚本只剥 `//` 行注释，不剥 `/** */` 块注释。已把示例改成不含该词的中文描述，
+否则下次审计会一直误报。同类情况在 `HfDialogBuilder`（4 处全在 javadoc 的 `setTitle("删除")` 示例里）
+与 `TextEditorActivity` 第 75 行同样存在——它们不是债。
+
+### 验证
+四门全过（依赖方向、空 catch 335 基线、文案 2619/2619 100%、动作码 55）。
+APK **13,423,312 B**（md5 `eb8f6329…`），badging 反证 versionCode 266 / 2.73.0；
+dex 反证 `tr_retry_fail` / `tr_resubmitted` 各 = 1（`tr_retry` 命中 2 是 `tr_retry_fail` 的前缀子串），
+"无法重试"在 dex 中 0 处、`resources.arsc` 中 1 处。
 
 ---
 
