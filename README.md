@@ -1785,6 +1785,35 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.56.0（versionCode 249）—— F-14/43：反编译查看页 i18n（批量纯 UI 页第 9 页）
+
+`DecompileActivity` 中文字面量 **25 → 0**（纯代码构造 UI，无布局文件），新增 20 个 `dcp_*` 键，
+复用 `common_confirm` / `common_cancel`，资源 2389 → 2409 条（中英各 2409，100%）。
+
+### 修掉一处"文案当控制流"
+原来 `mStatus` 用 `javaSrc.contains("控制流扁平化")` 判断是否扁平化——探测依据是**注入的中文提示语**，
+一旦翻译就失效。改为在注入注释的**最前面加稳定 ASCII 标记** `CFF_MARK = "CFF_SUSPECT"`，
+探测 `javaSrc.contains(CFF_MARK)`；提示正文走 `dcp_cff_note`（整段 `/* … */` 注释模板，
+含 `\n`，两侧整值加引号）。附带把 `annotate()` 由 `static` 改实例方法以便取资源。
+
+### 其他要点
+- 反编译流水线 6 条进度消息（`dcp_loading_engine` / `dcp_assembling` / `dcp_dex2jar` /
+  `dcp_prep_types` / `dcp_extract_class` / `dcp_cfr`）全部资源化；`doWork()` 内 4 处
+  `throw new Exception(getString(...))` 用带参键拼装（`dcp_asm_fail`、`dcp_dex2jar_fail`、
+  `dcp_class_not_found`），异常在同类内捕获后仅作消息展示，不参与控制流。
+- 状态栏两条：`dcp_status_ok`（`dex2jar + CFR 0.152 · %1$d 行`）与可选尾巴
+  `dcp_suspect_flat`（`" · ⚠ 疑似扁平化"`，前导空格整值加引号）。
+- 失败分支 `dcp_fail_prefix`（`反编译失败：\n\n%1$s`）与 `dcp_status_fail`。
+- 标签页、字号对话框（`字体大小（sp，8-40）`）、复制提示均已资源化。
+
+### 验证
+
+四门全过（空 catch 335 基线）、`jc.sh` rc=0。APK **13,406,928 B**（md5 `1d7d6dce…`），
+badging 反证 versionCode 249 / 2.56.0；dex 反证 `CFF_SUSPECT`/`dcp_status_ok`/`dcp_cff_note`/
+`dcp_class_not_found` 各=1。提交 `—`。
+
+---
+
 ## v2.55.0（versionCode 248）—— F-14/42：重复文件查找页 i18n（批量纯 UI 页第 8 页）
 
 `DupFinderActivity` 中文字面量 **27 → 0**（纯代码构造 UI，无布局文件），新增 15 个 `df_*` 键，

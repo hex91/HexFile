@@ -2517,4 +2517,26 @@
     <string name="df_deleted">已删除 %1$d 个</string>
     <string name="df_deleted_partial">已删除 %1$d 个，失败 %2$d 个</string>
     <string name="df_remaining">%1$s\n剩余重复组 %2$d 组 · 可释放约 %3$s</string>
+    <!-- v2.56.0 反编译查看页 -->
+    <string name="dcp_copy">复制</string>
+    <string name="dcp_font_title">字体大小（sp，8-40）</string>
+    <string name="dcp_bad_format">格式错误</string>
+    <string name="dcp_tab_java">Java 源码</string>
+    <string name="dcp_tab_smali">Smali 对照</string>
+    <string name="dcp_copied">已复制到剪贴板</string>
+    <string name="dcp_prep_engine">准备反编译引擎…</string>
+    <string name="dcp_fail_prefix">反编译失败：\n\n%1$s</string>
+    <string name="dcp_status_fail">失败</string>
+    <string name="dcp_status_ok">dex2jar + CFR 0.152 · %1$d 行</string>
+    <string name="dcp_suspect_flat">" · ⚠ 疑似扁平化"</string>
+    <string name="dcp_loading_engine">加载反编译引擎…</string>
+    <string name="dcp_assembling">汇编 smali…</string>
+    <string name="dcp_asm_fail">smali 汇编失败（smali 语法可能有误）：\n%1$s</string>
+    <string name="dcp_dex2jar">dex2jar 转换…</string>
+    <string name="dcp_dex2jar_fail">dex2jar 失败：\n%1$s</string>
+    <string name="dcp_prep_types">首次准备类型库（整个 dex，需 10-60 秒）…</string>
+    <string name="dcp_extract_class">提取类文件…</string>
+    <string name="dcp_class_not_found">dex2jar 输出中找不到 %1$s.class</string>
+    <string name="dcp_cfr">CFR 反编译…</string>
+    <string name="dcp_cff_note">"/* CFF_SUSPECT ⚠ 检测到疑似控制流扁平化（while(true) + switch 状态分发）。\n * 状态变量的赋值已标注为「→ case N」，顺着编号读即可还原原始顺序。 */\n"</string>
 </resources>

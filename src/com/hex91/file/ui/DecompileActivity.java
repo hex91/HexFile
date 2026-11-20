@@ -56,6 +56,9 @@ public class DecompileActivity extends BaseActivity {
     public static final String EXTRA_CLS = "cls";     // 类名，如 com/foo/Bar
     public static final String EXTRA_DEX = "dex";     // 工程 dex（用于生成类型库），可为空
 
+    /** 扁平化标记：稳定的 ASCII 串，状态栏靠它探测，文案翻译不影响判定 */
+    static final String CFF_MARK = "CFF_SUSPECT";
+
     private static final Pattern WHILE_TRUE = Pattern.compile("while\\s*\\(\\s*true\\s*\\)");
     /** switch 的选择子变量名：switch (n3) → n3 */
     private static final Pattern SWITCH_VAR = Pattern.compile("switch\\s*\\(\\s*([A-Za-z_$][\\w$]*)\\s*\\)");
@@ -149,7 +152,7 @@ public class DecompileActivity extends BaseActivity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         TextView copy = new TextView(this);
-        copy.setText("复制");
+        copy.setText(R.string.dcp_copy);
         copy.setTextSize(15);
         copy.setTypeface(null, Typeface.BOLD);
         copy.setTextColor(topText);
@@ -195,9 +198,9 @@ public class DecompileActivity extends BaseActivity {
         input.setText(String.valueOf((int) mTextSize));
         input.setSelection(input.getText().length());
         new HfDialogBuilder(this)
-                .setTitle("字体大小（sp，8-40）")
+                .setTitle(R.string.dcp_font_title)
                 .setView(input)
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.common_confirm, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         try {
                             float v = Float.parseFloat(input.getText().toString().trim());
@@ -205,11 +208,12 @@ public class DecompileActivity extends BaseActivity {
                             getSharedPreferences("dec_view", Context.MODE_PRIVATE)
                                     .edit().putFloat("font", mTextSize).apply();
                         } catch (Exception e) {
-                            Toast.makeText(DecompileActivity.this, "格式错误", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(DecompileActivity.this, R.string.dcp_bad_format,
+                                    Toast.LENGTH_SHORT).show();
                         }
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -218,8 +222,8 @@ public class DecompileActivity extends BaseActivity {
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setBackgroundColor(mCardBg);
         bar.setPadding(dp(10), dp(6), dp(10), dp(6));
-        mTabJava = tab("Java 源码", true);
-        mTabSmali = tab("Smali 对照", false);
+        mTabJava = tab(getString(R.string.dcp_tab_java), true);
+        mTabSmali = tab(getString(R.string.dcp_tab_smali), false);
         bar.addView(mTabJava);
         bar.addView(mTabSmali);
         return bar;
@@ -339,14 +343,14 @@ public class DecompileActivity extends BaseActivity {
         if (src == null) return;
         ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         cm.setPrimaryClip(ClipData.newPlainText("code", src));
-        Toast.makeText(this, "已复制到剪贴板", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, R.string.dcp_copied, Toast.LENGTH_SHORT).show();
     }
 
     // ---------------- 反编译 ----------------
 
     private void load() {
         mPd = new ProgressDialog(this);
-        mPd.setMessage("准备反编译引擎…");
+        mPd.setMessage(getString(R.string.dcp_prep_engine));
         mPd.setCancelable(false);
         mPd.show();
         new Thread() {
@@ -367,12 +371,14 @@ public class DecompileActivity extends BaseActivity {
                     public void run() {
                         if (mPd != null) { mPd.dismiss(); mPd = null; }
                         if (res[1] != null) {
-                            javaSrc = "反编译失败：\n\n" + res[1];
-                            mStatus.setText("失败");
+                            javaSrc = DecompileActivity.this.getString(R.string.dcp_fail_prefix, res[1]);
+                            mStatus.setText(R.string.dcp_status_fail);
                         } else {
                             javaSrc = res[0] == null ? "" : res[0];
-                            mStatus.setText("dex2jar + CFR 0.152 · " + lines(javaSrc) + " 行"
-                                    + (javaSrc.contains("控制流扁平化") ? " · ⚠ 疑似扁平化" : ""));
+                            mStatus.setText(DecompileActivity.this.getString(R.string.dcp_status_ok,
+                                    lines(javaSrc))
+                                    + (javaSrc.contains(DecompileActivity.CFF_MARK)
+                                            ? DecompileActivity.this.getString(R.string.dcp_suspect_flat) : ""));
                         }
                         show();
                     }
@@ -389,7 +395,7 @@ public class DecompileActivity extends BaseActivity {
     private String doWork(Progress p) throws Exception {
         smaliSrc = readText(new File(smaliPath));
 
-        p.onProgress("加载反编译引擎…");
+        p.onProgress(getString(R.string.dcp_loading_engine));
         String e = Decompiler.ensure(this);
         if (e != null) throw new Exception(e);
 
@@ -398,20 +404,20 @@ public class DecompileActivity extends BaseActivity {
         tmp.mkdirs();
 
         // 1) smali（当前内容，含改动）→ dex
-        p.onProgress("汇编 smali…");
+        p.onProgress(getString(R.string.dcp_assembling));
         File asmDir = new File(tmp, "asm");
         File dst = new File(asmDir, cls + ".smali");
         dst.getParentFile().mkdirs();
         copyFile(new File(smaliPath), dst);
         File dex = new File(tmp, "cls.dex");
         e = SmaliTool.assemble(asmDir, dex, 1);
-        if (e != null) throw new Exception("smali 汇编失败（smali 语法可能有误）：\n" + SmaliReport.err(this, e));
+        if (e != null) throw new Exception(getString(R.string.dcp_asm_fail, SmaliReport.err(this, e)));
 
         // 2) dex → jar
-        p.onProgress("dex2jar 转换…");
+        p.onProgress(getString(R.string.dcp_dex2jar));
         File jar = new File(tmp, "cls.jar");
         e = Decompiler.dexToJar(dex, jar);
-        if (e != null) throw new Exception("dex2jar 失败：\n" + e);
+        if (e != null) throw new Exception(getString(R.string.dcp_dex2jar_fail, e));
 
         // 3) 工程级类型库（缓存一次，供 CFR 解析跨类签名）
         File cpJar = null;
@@ -420,7 +426,7 @@ public class DecompileActivity extends BaseActivity {
             cache.mkdirs();
             cpJar = new File(cache, new File(dexPath).getName() + ".jar");
             if (!cpJar.exists() || cpJar.length() == 0) {
-                p.onProgress("首次准备类型库（整个 dex，需 10-60 秒）…");
+                p.onProgress(getString(R.string.dcp_prep_types));
                 String e2 = Decompiler.dexToJar(new File(dexPath), cpJar);
                 if (e2 != null) {
                     cpJar.delete();
@@ -430,14 +436,14 @@ public class DecompileActivity extends BaseActivity {
         }
 
         // 4) 取出目标 class
-        p.onProgress("提取类文件…");
+        p.onProgress(getString(R.string.dcp_extract_class));
         File clsDir = new File(tmp, "classes");
         clsDir.mkdirs();
         File clsFile = extractClass(jar, cls, clsDir);
-        if (clsFile == null) throw new Exception("dex2jar 输出中找不到 " + cls + ".class");
+        if (clsFile == null) throw new Exception(getString(R.string.dcp_class_not_found, cls));
 
         // 5) CFR 反编译（走 API 直出源码，不走会 System.exit 的 Main.main）
-        p.onProgress("CFR 反编译…");
+        p.onProgress(getString(R.string.dcp_cfr));
         String src = Decompiler.decompileSource(clsFile, cpJar);
         return annotate(src);
     }
@@ -476,7 +482,7 @@ public class DecompileActivity extends BaseActivity {
      * 这里不改动代码结构（避免破坏可读性），只做两件事：
      * 把状态赋值标注成「跳到哪个 case」，并在文件头提示存在分发器。
      */
-    private static String annotate(String src) {
+    private String annotate(String src) {
         if (src == null) return src;
         if (!WHILE_TRUE.matcher(src).find()) return src;
         // 取所有 switch 的选择子作为「状态变量」候选
@@ -496,9 +502,7 @@ public class DecompileActivity extends BaseActivity {
             out = p.matcher(out).replaceAll(repl);
         }
         if (out.equals(src)) return src; // 没抓到状态赋值，不加提示避免误导
-        return "/* ⚠ 检测到疑似控制流扁平化（while(true) + switch 状态分发）。\n"
-                + " * 状态变量的赋值已标注为「→ case N」，顺着编号读即可还原原始顺序。 */\n"
-                + out;
+        return getString(R.string.dcp_cff_note) + out;
     }
 
     // ---------------- 小工具 ----------------

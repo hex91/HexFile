@@ -2509,4 +2509,26 @@
     <string name="df_deleted">Deleted %1$d</string>
     <string name="df_deleted_partial">Deleted %1$d, failed %2$d</string>
     <string name="df_remaining">%1$s\n%2$d groups left · ~%3$s reclaimable</string>
+    <!-- v2.56.0 decompiled source viewer -->
+    <string name="dcp_copy">Copy</string>
+    <string name="dcp_font_title">Font size (sp, 8-40)</string>
+    <string name="dcp_bad_format">Invalid number</string>
+    <string name="dcp_tab_java">Java source</string>
+    <string name="dcp_tab_smali">Smali side-by-side</string>
+    <string name="dcp_copied">Copied to clipboard</string>
+    <string name="dcp_prep_engine">Preparing decompiler engine…</string>
+    <string name="dcp_fail_prefix">Decompilation failed:\n\n%1$s</string>
+    <string name="dcp_status_fail">Failed</string>
+    <string name="dcp_status_ok">dex2jar + CFR 0.152 · %1$d lines</string>
+    <string name="dcp_suspect_flat">" · ⚠ possibly flattened"</string>
+    <string name="dcp_loading_engine">Loading decompiler engine…</string>
+    <string name="dcp_assembling">Assembling smali…</string>
+    <string name="dcp_asm_fail">smali assembly failed (check smali syntax):\n%1$s</string>
+    <string name="dcp_dex2jar">dex2jar conversion…</string>
+    <string name="dcp_dex2jar_fail">dex2jar failed:\n%1$s</string>
+    <string name="dcp_prep_types">Preparing type library on first run (whole dex, 10-60 s)…</string>
+    <string name="dcp_extract_class">Extracting class file…</string>
+    <string name="dcp_class_not_found">%1$s.class not found in dex2jar output</string>
+    <string name="dcp_cfr">CFR decompiling…</string>
+    <string name="dcp_cff_note">"/* CFF_SUSPECT ⚠ Suspected control-flow flattening (while(true) + switch state dispatch).\n * State assignments are annotated as → case N; follow the numbers to recover the original order. */\n"</string>
 </resources>
