@@ -36,6 +36,7 @@ import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.ArrayAdapter;
+import android.content.Context;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
@@ -274,7 +275,7 @@ public class TextEditorActivity extends BaseActivity {
             final Button btn = (Button) symBar.getChildAt(i);
             btn.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) {
-                    insertAtCursor(btn.getText().toString());
+                    insertAtCursor(btn);
                 }
             });
         }
@@ -805,11 +806,23 @@ public class TextEditorActivity extends BaseActivity {
 
     // ============================================================ 符号栏 / 插入
 
-    private void insertAtCursor(String sym) {
+    /**
+     * 插入符号栏按钮对应的字符。
+     *
+     * <p>v2.75.0：入参由按钮文字改成按钮本身，真正的插入值优先从 {@code android:tag} 取。
+     * 原因是空格 / 制表符 / 换行这三个键的<b>显示文字不是它要插入的字符</b>，旧代码靠
+     * {@code equals} 比较按钮文字来分派——其中空格那个键的哨兵值还是个肉眼看不见的
+     * U+00A0（不换行空格）。一旦界面切到英文（按钮显示 NL），比较必然失配，按下去会把
+     * "NL" 两个字符插进正文。现在 tag 是 ASCII 码（sp / tab / nl），与语言无关；
+     * 其余符号键没有 tag，直接用按钮文字。</p>
+     */
+    private void insertAtCursor(Button btn) {
         if (userReadOnly) { toast(getString(R.string.te_readonly)); return; }
-        if ("Tab".equals(sym)) sym = "\t";
-        else if ("换行".equals(sym)) sym = "\n";
-        else if (" ".equals(sym)) sym = " ";
+        Object code = btn.getTag();
+        String sym = code == null ? btn.getText().toString() : code.toString();
+        if ("tab".equals(sym)) sym = "\t";
+        else if ("nl".equals(sym)) sym = "\n";
+        else if ("sp".equals(sym)) sym = " ";
         editor.insertOrReplaceTextOnCursor(sym);
         suppressWatch = false;
         setModified(true);
@@ -1488,7 +1501,7 @@ public class TextEditorActivity extends BaseActivity {
                     byte[] newAxml = AxmlTextSync.sync(axml, text);
                     AxmlFile check = AxmlFile.parse(newAxml);
                     if (check.elements.size() != axml.elements.size())
-                        throw new IllegalStateException("回读校验失败：元素数不一致");
+                        throw new IllegalStateException(getString(R.string.te_sync_check_fail));
                     // v1.66.8：登记 + 会话重打包写回原包（首次修改自动备份 _bak.apk）
                     outApk = ApkEditSession.putEdit(TextEditorActivity.this,
                             rtApkFile, "AndroidManifest.xml", newAxml);
@@ -1615,7 +1628,7 @@ public class TextEditorActivity extends BaseActivity {
                     }
                     // 2) 重新解析 arsc（会话中有未落地修改则优先，避免用过期模型）
                     byte[] arscBytes = ApkEditSession.editBytes(archiveFile, arscppEntry);
-                    if (arscBytes == null) arscBytes = readZipEntry(archiveFile, arscppEntry);
+                    if (arscBytes == null) arscBytes = readZipEntry(TextEditorActivity.this, archiveFile, arscppEntry);
                     ArscFile af = ArscFile.parse(arscBytes);
                     // 3) XML → 编辑列表（值级 + 结构化 v1.64.2: rename/delete/add）
                     java.util.List<ArscEditor.Op> ops =
@@ -1659,11 +1672,11 @@ public class TextEditorActivity extends BaseActivity {
         }, "arscpp-save").start();
     }
 
-    private static byte[] readZipEntry(File zip, String entryName) throws Exception {
+    private static byte[] readZipEntry(Context c, File zip, String entryName) throws Exception {
         java.util.zip.ZipFile zf = new java.util.zip.ZipFile(zip);
         try {
             java.util.zip.ZipEntry ze = zf.getEntry(entryName);
-            if (ze == null) throw new Exception("压缩包内找不到 " + entryName);
+            if (ze == null) throw new Exception(c.getString(R.string.te_zip_entry_missing, entryName));
             java.io.InputStream in = zf.getInputStream(ze);
             java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
             byte[] buf = new byte[65536];

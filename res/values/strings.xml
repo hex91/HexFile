@@ -2768,4 +2768,8 @@
     <!-- v2.74.0 工具页通用反馈 -->
     <string name="tu_nothing">没有可复制的内容</string>
     <string name="tu_copied">%1$s已复制（%2$d 字符）</string>
+    <!-- v2.75.0 编辑器符号键与错误消息 -->
+    <string name="te_sym_newline">换行</string>
+    <string name="te_sync_check_fail">回读校验失败：元素数不一致</string>
+    <string name="te_zip_entry_missing">压缩包内找不到 %1$s</string>
 </resources>

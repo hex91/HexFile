@@ -346,9 +346,11 @@
             <Button style="@style/SymBtn" android:text="$"/>
             <Button style="@style/SymBtn" android:text="%"/>
             <Button style="@style/SymBtn" android:text="\\"/>
-            <Button style="@style/SymBtn" android:text=" "/>
-            <Button style="@style/SymBtn" android:text="Tab"/>
-            <Button style="@style/SymBtn" android:text="换行"/>
+            <!-- 这三个键的显示文字与要插入的字符不是一回事（不换行空格 / 制表符 / 换行），
+                 用 tag 存真正的插入值（sp / tab / nl），代码不再拿按钮文字当控制流 -->
+            <Button style="@style/SymBtn" android:text=" " android:tag="sp"/>
+            <Button style="@style/SymBtn" android:text="Tab" android:tag="tab"/>
+            <Button style="@style/SymBtn" android:text="@string/te_sym_newline" android:tag="nl"/>
         </LinearLayout>
     </HorizontalScrollView>
 

@@ -2760,4 +2760,8 @@
     <!-- v2.74.0 shared tool feedback -->
     <string name="tu_nothing">Nothing to copy</string>
     <string name="tu_copied">%1$s copied (%2$d characters)</string>
+    <!-- v2.75.0 editor symbol key and error messages -->
+    <string name="te_sym_newline">NL</string>
+    <string name="te_sync_check_fail">Read-back check failed: the element count does not match</string>
+    <string name="te_zip_entry_missing">%1$s was not found in the archive</string>
 </resources>

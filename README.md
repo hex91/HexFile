@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2621 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2624 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,40 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.75.0（versionCode 268）—— F-14/62：文本编辑器符号栏与错误消息 i18n（第 28 页）
+
+`TextEditorActivity` 中文字面量 **4 → 1**（保留的 1 处是第 75 行 javadoc 里的示例词，不是债），
+新增 3 个 `te_*` 键，资源 2621 → 2624 条（中英各 2624，100%）。补 `import android.content.Context;`。
+
+### 修掉一处"文案当控制流"（本版重点）
+符号栏的 `Tab` / 空格 / `换行` 三个键，**显示文字不是它要插入的字符**，旧代码靠比较按钮文字分派：
+`if ("Tab".equals(sym)) … else if ("换行".equals(sym)) … else if ("<U+00A0>".equals(sym)) …`。
+两个问题：
+
+1. **一翻就坏**：界面切英文后 `换行` 按钮显示 `NL`，`"换行".equals(...)` 必然失配，
+   按下去会把 `NL` 两个字符插进正文（`Tab` 键侥幸没坏，因为它是 ASCII 且没翻译）。
+2. **哨兵不可见**：空格键那一支比较的是 **U+00A0（不换行空格）**，肉眼与普通空格完全一样，
+   连排查都无从下手。
+
+改法：布局给这三个键加 `android:tag`（`sp` / `tab` / `nl`），`insertAtCursor(String)` 改成
+`insertAtCursor(Button)`，优先读 tag、没有 tag 才用按钮文字。tag 是 ASCII 码，与语言无关，
+显示文字随便翻。注释里把"为什么会坏"写清楚了，避免以后有人把 tag 删掉"简化"。
+
+### 另外两处
+- `回读校验失败：元素数不一致` → `te_sync_check_fail`（这条经 `catch (Throwable)` 变成错误对话框，用户可见）。
+- `readZipEntry(...)` 里 `"压缩包内找不到 " + entryName` → `te_zip_entry_missing`，
+  方法加 `Context` 首参（唯一调用点一处，改完闭环）。
+- 布局里 `换行` 改 `@string/te_sym_newline`（英文 `NL`）。
+
+### 验证
+四门全过（依赖方向、空 catch 335 基线、文案 2624/2624 100%、动作码 55）。
+APK **13,423,312 B**（md5 `756074cc…`），badging 反证 versionCode 268 / 2.75.0；
+dex 反证 `te_sym_newline` / `te_sync_check_fail` / `te_zip_entry_missing` 各 = 1。
+（dex 里"回读校验失败"仍有 2 处，来自 `apk.ApkCloneTool` 的两条异常消息 `package 未生效` /
+属性名那两条——属逻辑层 Code+Fail 待办，与本页不是同一句。）
 
 ---
 
