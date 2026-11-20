@@ -1810,7 +1810,7 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 四门全过（空 catch 335 基线）、`jc.sh` rc=0。APK **13,406,928 B**（md5 `433a376c…`），
 badging 反证 versionCode 251 / 2.58.0；dex 反证 `cph_bits_chars`/`cph_b64_note` 各=1、
-`cph_suffix_enc`=2（与 `cph_suffix_encode` 共享前缀）。提交 `—`。
+`cph_suffix_enc`=2（与 `cph_suffix_encode` 共享前缀）。提交 `c068634`。
 
 ---
 
