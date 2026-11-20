@@ -2255,4 +2255,29 @@
     <string name="trash_summary_on">已开启</string>
     <string name="trash_clean_none">无需清理</string>
     <string name="trash_cleaned">已清理 %1$d 项，释放 %2$s</string>
+
+    <!-- v2.47.0 压缩包浏览页剩余文案（zip_* 补充） -->
+    <string name="zip_open_fail">无法打开压缩包: %1$s</string>
+    <string name="zip_title">"%1$s  [%2$s]\n内部路径: %3$s  (%4$d 项)"</string>
+    <string name="zip_read_fail">读取失败: %1$s</string>
+    <string name="zip_extract_to">解压到: %1$s</string>
+    <string name="zip_extract_to_same">解压到压缩包同目录: %1$s</string>
+    <string name="zip_extract_all_fmt">解压全部 (%1$s)</string>
+    <string name="zip_stopping">正在停止…（当前条目写完后停下）</string>
+    <string name="zip_progress">"%1$d / %2$d 项  %3$s"</string>
+    <string name="zip_extract_fail_partial">解压失败（已完成 %1$d 项）: %2$s</string>
+    <string name="zip_extract_cancelled">已取消，已解压 %1$d / %2$d 项</string>
+    <string name="zip_extract_done">已解压 %1$d 项 →\n%2$s</string>
+    <string name="zip_extract_fail">解压失败: %1$s</string>
+    <string name="zip_unknown_error">未知错误</string>
+    <string name="zip_op_dex_editor">Dex 编辑器++</string>
+    <string name="zip_op_arsc_edit">ARSC 编辑</string>
+    <string name="zip_op_arscpp_edit">ARSC++ 编辑</string>
+    <string name="zip_op_extract_one">解压此条目</string>
+    <string name="zip_op_decompile">反编译为 smali</string>
+    <string name="zip_dex_cache_fail">提取 dex 到缓存失败: %1$s</string>
+    <string name="zip_dex_cache_fail_plain">提取 dex 到缓存失败</string>
+    <string name="zip_decompiling">反编译中…（大型 dex 可能需要较长时间）</string>
+    <string name="zip_smali_done">已生成 smali →\n%1$s</string>
+    <string name="zip_decompile_fail">反编译失败: %1$s</string>
 </resources>

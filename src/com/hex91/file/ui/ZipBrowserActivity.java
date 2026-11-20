@@ -83,7 +83,7 @@ public class ZipBrowserActivity extends BaseActivity {
             archive = ArchiveUtil.open(archiveFile);
             format = archive.format();
         } catch (Exception e) {
-            Toast.makeText(this, "无法打开压缩包: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, s(R.string.zip_open_fail, e.getMessage()), Toast.LENGTH_LONG).show();
             finish();
             return;
         }
@@ -165,10 +165,9 @@ public class ZipBrowserActivity extends BaseActivity {
             adapter.set(entries);
             btnUp.setText(R.string.zip_up);
             String inner = prefix.isEmpty() ? "/" : "/" + prefix;
-            titleView.setText(archiveFile.getName() + "  [" + format + "]\n内部路径: " + inner
-                    + "  (" + entries.size() + " 项)");
+            titleView.setText(s(R.string.zip_title, archiveFile.getName(), format, inner, entries.size()));
         } catch (Exception e) {
-            Toast.makeText(this, "读取失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, s(R.string.zip_read_fail, e.getMessage()), Toast.LENGTH_LONG).show();
             finish();
         }
     }
@@ -203,11 +202,11 @@ public class ZipBrowserActivity extends BaseActivity {
         if (extracting || searching) { toast(getString(R.string.zip_busy)); return; }
         final File[] targets = {dest, archiveFile.getParentFile()};
         String[] labels = {
-                "解压到: " + dest.getPath(),
-                "解压到压缩包同目录: " + archiveFile.getParentFile().getPath()
+                s(R.string.zip_extract_to, dest.getPath()),
+                s(R.string.zip_extract_to_same, archiveFile.getParentFile().getPath())
         };
         new HfDialogBuilder(this)
-                .setTitle("解压全部 (" + format + ")")
+                .setTitle(s(R.string.zip_extract_all_fmt, format))
                 .setItems(labels, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int which) {
                         startExtract(targets[which]);
@@ -230,17 +229,17 @@ public class ZipBrowserActivity extends BaseActivity {
         extracting = true;
         final ProgressDialog pd = new ProgressDialog(this);
         pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
-        pd.setTitle("解压全部 (" + format + ")");
+        pd.setTitle(s(R.string.zip_extract_all_fmt, format));
         pd.setMessage(target.getPath());
         pd.setMax(100);
         pd.setProgress(0);
         pd.setCancelable(false);
         pd.show();
-        pd.setButton(android.content.DialogInterface.BUTTON_NEGATIVE, "取消",
+        pd.setButton(android.content.DialogInterface.BUTTON_NEGATIVE, s(R.string.common_cancel),
                 new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         cancel[0] = true;
-                        pd.setMessage("正在停止…（当前条目写完后停下）");
+                        pd.setMessage(ZipBrowserActivity.this.s(R.string.zip_stopping));
                     }
                 });
         new Thread(new Runnable() {
@@ -255,7 +254,7 @@ public class ZipBrowserActivity extends BaseActivity {
                                     public void run() {
                                         if (!pd.isShowing()) return;
                                         pd.setProgress(pct);
-                                        pd.setMessage(done + " / " + total + " 项  " + show);
+                                        pd.setMessage(ZipBrowserActivity.this.s(R.string.zip_progress, done, total, show));
                                     }
                                 });
                             }
@@ -270,11 +269,11 @@ public class ZipBrowserActivity extends BaseActivity {
                         extracting = false;
                         dismissQuietly(pd);
                         if (fr.error != null) {
-                            toast("解压失败（已完成 " + fr.done + " 项）: " + fr.error);
+                            toast(ZipBrowserActivity.this.s(R.string.zip_extract_fail_partial, fr.done, fr.error));
                         } else if (fr.cancelled) {
-                            toast("已取消，已解压 " + fr.done + " / " + fr.total + " 项");
+                            toast(ZipBrowserActivity.this.s(R.string.zip_extract_cancelled, fr.done, fr.total));
                         } else {
-                            toast("已解压 " + fr.done + " 项 →\n" + target.getPath());
+                            toast(ZipBrowserActivity.this.s(R.string.zip_extract_done, fr.done, target.getPath()));
                         }
                     }
                 });
@@ -288,7 +287,7 @@ public class ZipBrowserActivity extends BaseActivity {
             // 用完整条目名：搜索结果的短名可能同名多行，只报短名分不清解的是哪个
             toast(getString(R.string.zip_extracted_one, e.full, dest.getPath()));
         } catch (Exception ex) {
-            toast("解压失败: " + ex.getMessage());
+            toast(s(R.string.zip_extract_fail, ex.getMessage()));
         }
     }
 
@@ -342,7 +341,7 @@ public class ZipBrowserActivity extends BaseActivity {
                 try {
                     got = ArchiveSearch.filter(archive.listAll(), q, ArchiveSearch.MAX_HITS);
                 } catch (Throwable t) {
-                    err = shortMsg(t);
+                    err = shortMsg(ZipBrowserActivity.this, t);
                 }
                 final ArchiveSearch.Result fr = got;
                 final String fe = err;
@@ -389,9 +388,9 @@ public class ZipBrowserActivity extends BaseActivity {
     }
 
     /** 异常压成一行（ArchiveUtil 里那份是包内可见，这里跨包拿不到） */
-    private static String shortMsg(Throwable t) {
+    private static String shortMsg(android.content.Context c, Throwable t) {
         String m = t == null ? null : t.getMessage();
-        if (m == null || m.isEmpty()) m = t == null ? "未知错误" : t.getClass().getSimpleName();
+        if (m == null || m.isEmpty()) m = t == null ? c.getString(R.string.zip_unknown_error) : t.getClass().getSimpleName();
         return m.length() > 160 ? m.substring(0, 160) : m;
     }
 
@@ -402,12 +401,12 @@ public class ZipBrowserActivity extends BaseActivity {
         final boolean zipMode = "ZIP".equals(format);
         java.util.List<String> opList = new java.util.ArrayList<String>();
         final java.util.List<Integer> actList = new java.util.ArrayList<Integer>();
-        if (zipMode && isDex) { opList.add("Dex 编辑器++"); actList.add(0); }
-        if (zipMode && isArsc) { opList.add("ARSC 编辑"); actList.add(3); }
-        if (zipMode && isArsc) { opList.add("ARSC++ 编辑"); actList.add(5); }
-        opList.add("解压此条目"); actList.add(1);
-        if (zipMode && isDex) { opList.add("反编译为 smali"); actList.add(2); }
-        opList.add("解压全部"); actList.add(4);
+        if (zipMode && isDex) { opList.add(s(R.string.zip_op_dex_editor)); actList.add(0); }
+        if (zipMode && isArsc) { opList.add(s(R.string.zip_op_arsc_edit)); actList.add(3); }
+        if (zipMode && isArsc) { opList.add(s(R.string.zip_op_arscpp_edit)); actList.add(5); }
+        opList.add(s(R.string.zip_op_extract_one)); actList.add(1);
+        if (zipMode && isDex) { opList.add(s(R.string.zip_op_decompile)); actList.add(2); }
+        opList.add(s(R.string.zip_extract_all)); actList.add(4);
         new HfDialogBuilder(this)
                 .setTitle(e.name + (isDex ? "  (dex)" : isArsc ? "  (arsc)" : ""))
                 .setItems(opList.toArray(new String[0]),
@@ -446,12 +445,12 @@ public class ZipBrowserActivity extends BaseActivity {
         try {
             archive.extractEntry(e.full, cache);
         } catch (Exception ex) {
-            toast("提取 dex 到缓存失败: " + ex.getMessage());
+            toast(s(R.string.zip_dex_cache_fail, ex.getMessage()));
             return;
         }
         final File dexFile = new File(cache, e.name);
         if (!dexFile.exists()) {
-            toast("提取 dex 到缓存失败");
+            toast(s(R.string.zip_dex_cache_fail_plain));
             return;
         }
         String apkName = archiveFile.getName();
@@ -462,7 +461,7 @@ public class ZipBrowserActivity extends BaseActivity {
         if (dot > 0) dexName = dexName.substring(0, dot);
         final File outDir = new File(WorkDir.base(), "Smali/" + apkName + "/" + dexName);
 
-        toast("反编译中…（大型 dex 可能需要较长时间）");
+        toast(s(R.string.zip_decompiling));
         new Thread(new Runnable() {
             public void run() {
                 final String err = SmaliTool.decompile(dexFile, outDir, 4);
@@ -470,12 +469,13 @@ public class ZipBrowserActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         if (err == null) {
-                            toast("已生成 smali →\n" + outDir.getPath());
+                            toast(ZipBrowserActivity.this.s(R.string.zip_smali_done, outDir.getPath()));
                             Intent i = new Intent(ZipBrowserActivity.this, MainActivity.class);
                             i.putExtra("dir", outDir.getAbsolutePath());
                             startActivity(i);   // MainActivity singleTop：onNewIntent 跳转目录
                         } else {
-                            toast("反编译失败: " + SmaliReport.err(ZipBrowserActivity.this, err));
+                            toast(ZipBrowserActivity.this.s(R.string.zip_decompile_fail,
+                                    SmaliReport.err(ZipBrowserActivity.this, err)));
                         }
                     }
                 });
@@ -486,4 +486,7 @@ public class ZipBrowserActivity extends BaseActivity {
     private void toast(String s) {
         Toast.makeText(this, s, Toast.LENGTH_LONG).show();
     }
+
+    private String s(int id) { return getString(id); }
+    private String s(int id, Object... args) { return getString(id, args); }
 }

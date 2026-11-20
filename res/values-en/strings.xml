@@ -2247,4 +2247,29 @@
     <string name="trash_summary_on">On</string>
     <string name="trash_clean_none">Nothing to clean</string>
     <string name="trash_cleaned">Cleaned %1$d items, freed %2$s</string>
+
+    <!-- v2.47.0 Zip browser remaining strings (zip_* additions) -->
+    <string name="zip_open_fail">Could not open archive: %1$s</string>
+    <string name="zip_title">"%1$s  [%2$s]\nPath: %3$s  (%4$d items)"</string>
+    <string name="zip_read_fail">Read failed: %1$s</string>
+    <string name="zip_extract_to">Extract to: %1$s</string>
+    <string name="zip_extract_to_same">Extract next to archive: %1$s</string>
+    <string name="zip_extract_all_fmt">Extract all (%1$s)</string>
+    <string name="zip_stopping">Stopping… (will pause after the current entry)</string>
+    <string name="zip_progress">"%1$d / %2$d items  %3$s"</string>
+    <string name="zip_extract_fail_partial">Extraction failed (after %1$d items): %2$s</string>
+    <string name="zip_extract_cancelled">Cancelled, extracted %1$d / %2$d items</string>
+    <string name="zip_extract_done">Extracted %1$d items →\n%2$s</string>
+    <string name="zip_extract_fail">Extraction failed: %1$s</string>
+    <string name="zip_unknown_error">Unknown error</string>
+    <string name="zip_op_dex_editor">Dex Editor++</string>
+    <string name="zip_op_arsc_edit">ARSC Editor</string>
+    <string name="zip_op_arscpp_edit">ARSC++ Editor</string>
+    <string name="zip_op_extract_one">Extract this entry</string>
+    <string name="zip_op_decompile">Decompile to smali</string>
+    <string name="zip_dex_cache_fail">Failed to extract dex to cache: %1$s</string>
+    <string name="zip_dex_cache_fail_plain">Failed to extract dex to cache</string>
+    <string name="zip_decompiling">Decompiling… (large dex files may take a while)</string>
+    <string name="zip_smali_done">Generated smali →\n%1$s</string>
+    <string name="zip_decompile_fail">Decompilation failed: %1$s</string>
 </resources>

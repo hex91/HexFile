@@ -1785,6 +1785,33 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.47.0（versionCode 240）—— F-14/34：压缩包浏览页 i18n（补齐半迁移页）
+
+`ZipBrowserActivity` 剩余中文字面量 **24 → 0**。这页之前做过一半（已有 17 个 `zip_*` 键、
+`SmaliReport.err` 也接过），本版把残余的解压/反编译提示、进度条、菜单项全量资源化，
+新增 23 个 `zip_*` 键，资源 2142 → 2165 条（中英各 2165，100% 对齐）。**无逻辑层码化**
+——全是 UI 文案，没有异常串或文案当控制流。
+
+### 复用与新增
+- 复用现有 `common_cancel`（取消）、`zip_extract_all`（解压全部，菜单项）；
+  `zip_extract_to/done/fail` 等与既有 `zip_extracted_one`/`zip_search_failed` 语义相近但不重叠，单列。
+- `zip_title` = `%1$s  [%2$s]\n内部路径: %3$s  (%4$d 项)`：双空格对齐，整值加引号保护；
+  `zip_progress` = `%1$d / %2$d 项  %3$s` 同理。英文侧双空格一并保留。
+- 箭头 `→`、`\n`、省略号 `…` 两侧一致；`Dex 编辑器++`/`ARSC++` 等 `++` 是记号不翻。
+
+### UI 层要点
+- 加 `s(id)` / `s(id, args)` 包 `getString`；**匿名内部类里必须 `ZipBrowserActivity.this.s()`**
+  ——进度回调（`OnProgress`/`runOnUiThread`）与搜索线程共 7 处，首轮漏了会编译报找不到方法。
+- `shortMsg(Throwable)` 原是 static 且含「未知错误」：加 `Context` 首参、回退文案走
+  `zip_unknown_error`；唯一调用点在搜索后台线程，传 `ZipBrowserActivity.this`。
+
+### 验证
+四门全过（空 catch 335 基线）、全量 **97 通过 / 0 失败 / 4 跳过**、`jc.sh` rc=0。
+APK **13,374,160 B**（md5 `233fb041…`），badging 反证 versionCode 240 / 2.47.0；
+dex 反证 `zip_progress`=1、`zip_decompile_fail`=1、`zip_op_dex_editor`=1。提交 `—`。
+
+---
+
 ## v2.46.0（versionCode 239）—— F-14/33：回收站页 i18n（保留策略报告码化）
 
 回收站管理 + 保留策略弹窗：`TrashActivity` 中文字面量 **33 → 0**、
