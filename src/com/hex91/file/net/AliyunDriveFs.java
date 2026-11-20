@@ -61,7 +61,7 @@ public final class AliyunDriveFs implements NetFs {
     public static AliyunDriveFs connect(String refreshToken, OAuthClient.TokenSink sink,
                                         File tempDir) throws IOException {
         if (OAuthClient.isBlank(refreshToken))
-            throw new IOException("尚未授权：请先填入阿里云盘的 refresh_token");
+            throw NetFsError.notAuthed(NetFsError.CLOUD_ALIYUN);
         AliyunDriveFs fs = new AliyunDriveFs(refreshToken.trim(), sink, tempDir);
         fs.access();
         fs.driveId();
@@ -75,13 +75,12 @@ public final class AliyunDriveFs implements NetFs {
         if (token != null && token.hasAccess() && !token.expired(System.currentTimeMillis()))
             return token.access;
         if (OAuthClient.isBlank(refresh))
-            throw new IOException("阿里云盘授权已丢失，请重新填入 refresh_token");
+            throw NetFsError.authLost(NetFsError.CLOUD_ALIYUN);
         OAuthToken t;
         try {
             t = OAuthClient.refreshAliyun(refresh);
         } catch (OAuthToken.OAuthError e) {
-            throw new IOException("阿里云盘授权已失效（" + e.code + "）：refresh_token 是一次性的，"
-                    + "请重新从浏览器获取新的 token", e);
+            throw NetFsError.authExpired(NetFsError.CLOUD_ALIYUN, e.code, e);
         }
         token = t;
         if (t.hasRefresh() && !t.refresh.equals(refresh)) {
@@ -106,9 +105,7 @@ public final class AliyunDriveFs implements NetFs {
         String code = Json.str(root, "code");
         // 阿里云盘成功响应不带 code（或 code="success"），错误响应才有
         if (!code.isEmpty() && !"success".equalsIgnoreCase(code)) {
-            throw new IOException(path + " 失败: " + code
-                    + (Json.str(root, "message").isEmpty() ? "" : " · " + Json.str(root, "message"))
-                    + hintOf(code));
+            throw NetFsError.apiFail(path, code, Json.str(root, "message"), hintCode(code));
         }
         return resp;
     }
@@ -136,21 +133,21 @@ public final class AliyunDriveFs implements NetFs {
             int code = c.getResponseCode();
             String body = readAll(code >= 400 ? c.getErrorStream() : c.getInputStream());
             if (code >= 400 && body.trim().isEmpty())
-                throw new IOException(path + " 失败: HTTP " + code);
+                throw NetFsError.httpFail(path, code, NetFsError.HINT_NONE);
             return body;
         } finally {
             c.disconnect();
         }
     }
 
-    private static String hintOf(String code) {
-        if (code == null) return "";
-        if (code.startsWith("NotFound")) return "（文件或目录不存在，可能在别处被删/移动）";
-        if (code.contains("QuotaExhausted")) return "（云盘空间不足）";
-        if (code.contains("TooManyRequests")) return "（请求过于频繁，稍后再试）";
-        if (code.contains("ForbiddenFile")) return "（该文件类型不允许上传）";
-        if (code.contains("Name")) return "（名称不合法或重名）";
-        return "";
+    private static int hintCode(String code) {
+        if (code == null) return NetFsError.HINT_NONE;
+        if (code.startsWith("NotFound")) return NetFsError.HINT_ALI_NOT_FOUND;
+        if (code.contains("QuotaExhausted")) return NetFsError.HINT_ALI_QUOTA;
+        if (code.contains("TooManyRequests")) return NetFsError.HINT_ALI_BUSY;
+        if (code.contains("ForbiddenFile")) return NetFsError.HINT_ALI_FILE_TYPE;
+        if (code.contains("Name")) return NetFsError.HINT_ALI_NAME;
+        return NetFsError.HINT_NONE;
     }
 
     // ---------------------------------------------------------------- 目录 id
@@ -160,7 +157,7 @@ public final class AliyunDriveFs implements NetFs {
         String resp = api("/adrive/v2/user/get", "{}");
         String id = Json.str(Json.parseOrNull(resp), "default_drive_id");
         if (id.isEmpty()) id = Json.str(Json.parseOrNull(resp), "drive_id");
-        if (id.isEmpty()) throw new IOException("取不到云盘 drive_id（授权可能不完整）");
+        if (id.isEmpty()) throw NetFsError.noDriveId();
         driveId = id;
         return driveId;
     }
@@ -193,7 +190,7 @@ public final class AliyunDriveFs implements NetFs {
                 idCache.put(key, e.id);
                 if (e.name.equals(seg)) found = e.id;
             }
-            if (found == null) throw new IOException("路径不存在: " + cur);
+            if (found == null) throw NetFsError.pathNotFound(cur);
             parentId = found;
             parentPath = cur;
         }
@@ -313,7 +310,7 @@ public final class AliyunDriveFs implements NetFs {
                 + ",\"file_id\":" + OAuthClient.quote(id) + ",\"expire_sec\":14400}";
         Object root = Json.parseOrNull(api("/adrive/v2/file/get_download_url", req));
         String url = Json.str(root, "url");
-        if (url.isEmpty()) throw new IOException("拿不到下载地址：" + path);
+        if (url.isEmpty()) throw NetFsError.noDownloadUrl(path);
 
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setConnectTimeout(15000);
@@ -323,11 +320,11 @@ public final class AliyunDriveFs implements NetFs {
         if (offset > 0) c.setRequestProperty("Range", "bytes=" + offset + "-");
         int code = c.getResponseCode();
         if (offset > 0) {
-            if (code == 200) { drain(c); throw new IOException("服务端忽略了 Range，无法续传"); }
-            if (code != 206) { drain(c); throw new IOException("续传失败: HTTP " + code); }
+            if (code == 200) { drain(c); throw NetFsError.rangeIgnored(); }
+            if (code != 206) { drain(c); throw NetFsError.httpFail(path, code, NetFsError.HINT_NONE); }
             return c.getInputStream();
         }
-        if (code != 200) { drain(c); throw new IOException("下载 " + path + " 失败: HTTP " + code); }
+        if (code != 200) { drain(c); throw NetFsError.httpFail(path, code, NetFsError.HINT_NONE); }
         return c.getInputStream();
     }
 
@@ -336,9 +333,9 @@ public final class AliyunDriveFs implements NetFs {
     @Override
     public OutputStream openWrite(String path) throws IOException {
         File dir = tempDir;
-        if (dir == null) throw new IOException("缺少上传临时目录");
+        if (dir == null) throw NetFsError.tmpDirMissing();
         if (!dir.isDirectory() && !dir.mkdirs() && !dir.isDirectory())
-            throw new IOException("无法创建上传临时目录: " + dir.getAbsolutePath());
+            throw NetFsError.tmpDirFail(dir.getAbsolutePath());
         return new SpoolOut(File.createTempFile("aliup", TempFiles.PART, dir), path);
     }
 
@@ -365,13 +362,13 @@ public final class AliyunDriveFs implements NetFs {
             try { out.close(); } catch (IOException ignore) {}
             try {
                 String name = CloudPath.name(path);
-                String reason = CloudPath.illegalNameReason(name);
-                if (reason != null) throw new IOException(reason);
+                CloudPath.NameError reason = CloudPath.illegalNameReason(name);
+                if (reason != null) throw NetFsError.badName(reason);
                 long size = tmp.length();
                 String parentId = resolve(CloudPath.parent(path));
 
                 int parts = (int) Math.max(1, (size + PART_SIZE - 1) / PART_SIZE);
-                if (parts > 1000) throw new IOException("文件过大（超过 4GB），请改用 SMB/WebDAV");
+                if (parts > 1000) throw NetFsError.uploadTooLarge("4GB", "", "SMB / WebDAV");
 
                 StringBuilder req = new StringBuilder();
                 req.append("{\"drive_id\":").append(OAuthClient.quote(driveId()))
@@ -388,7 +385,7 @@ public final class AliyunDriveFs implements NetFs {
                 Object created = Json.parseOrNull(api("/adrive/v2/file/create", req.toString()));
                 String fileId = Json.str(created, "file_id");
                 String uploadId = Json.str(created, "upload_id");
-                if (fileId.isEmpty()) throw new IOException("创建上传任务失败（没返回 file_id）");
+                if (fileId.isEmpty()) throw NetFsError.createUploadFail();
 
                 if (Json.bool(created, "rapid_upload", false)) {
                     invalidate(CloudPath.parent(path));
@@ -396,7 +393,7 @@ public final class AliyunDriveFs implements NetFs {
                 }
 
                 List<Object> partList = Json.arr(created, "part_info_list");
-                if (partList.isEmpty()) throw new IOException("服务端没有返回分片上传地址");
+                if (partList.isEmpty()) throw NetFsError.noPartUrls();
 
                 FileInputStream in = new FileInputStream(tmp);
                 try {
@@ -442,7 +439,7 @@ public final class AliyunDriveFs implements NetFs {
                 while (left > 0) {
                     int want = (int) Math.min(buf.length, left);
                     int n = in.read(buf, 0, want);
-                    if (n <= 0) throw new IOException("本地文件提前结束（上传中文件被改动？）");
+                    if (n <= 0) throw NetFsError.localEofEarly();
                     os.write(buf, 0, n);
                     left -= n;
                 }
@@ -452,8 +449,7 @@ public final class AliyunDriveFs implements NetFs {
             int code = c.getResponseCode();
             if (code >= 400) {
                 String body = readAll(c.getErrorStream());
-                throw new IOException("分片上传失败: HTTP " + code
-                        + (body.isEmpty() ? "" : " — " + abbreviate(body)));
+                throw NetFsError.partUploadFail(code, body.isEmpty() ? "" : abbreviate(body));
             }
             readAll(c.getInputStream());
         } finally {
@@ -468,8 +464,8 @@ public final class AliyunDriveFs implements NetFs {
         String p = CloudPath.normalize(path);
         if (p.isEmpty()) return;
         String name = CloudPath.name(p);
-        String reason = CloudPath.illegalNameReason(name);
-        if (reason != null) throw new IOException(reason);
+        CloudPath.NameError reason = CloudPath.illegalNameReason(name);
+        if (reason != null) throw NetFsError.badName(reason);
         String parentId = resolve(CloudPath.parent(p));
         String req = "{\"drive_id\":" + OAuthClient.quote(driveId())
                 + ",\"parent_file_id\":" + OAuthClient.quote(parentId)
@@ -492,8 +488,8 @@ public final class AliyunDriveFs implements NetFs {
 
     @Override
     public void rename(String path, String newName) throws IOException {
-        String reason = CloudPath.illegalNameReason(newName);
-        if (reason != null) throw new IOException(reason);
+        CloudPath.NameError reason = CloudPath.illegalNameReason(newName);
+        if (reason != null) throw NetFsError.badName(reason);
         String id = resolve(path);
         String req = "{\"drive_id\":" + OAuthClient.quote(driveId())
                 + ",\"file_id\":" + OAuthClient.quote(id)

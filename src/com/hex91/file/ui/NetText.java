@@ -54,6 +54,57 @@ public final class NetText {
                 return c.getString(R.string.netfs_err_resp_parse, e.str(0));
             case SHA_UNAVAILABLE:
                 return c.getString(R.string.netfs_err_sha_unavailable);
+
+            // ---- 云盘通用码 ----
+            case NOT_AUTHED:
+                return c.getString(R.string.netfs_err_not_authed, cloud(c, e.num(0)));
+            case AUTH_LOST:
+                return c.getString(R.string.netfs_err_auth_lost, cloud(c, e.num(0)));
+            case AUTH_EXPIRED:
+                return c.getString(R.string.netfs_err_auth_expired, cloud(c, e.num(0)), e.str(1));
+            case API_FAIL:
+                return c.getString(R.string.netfs_err_api_fail, e.str(0), e.str(1), e.str(2),
+                        hint(c, e.num(3)));
+            case HTTP_FAIL:
+                return c.getString(R.string.netfs_err_http_fail, e.str(0), e.num(1), hint(c, e.num(2)));
+            case HTTP_DETAIL_FAIL:
+                return c.getString(R.string.netfs_err_http_detail, e.str(0), e.num(1),
+                        hint(c, e.num(2)), detail(c, e.str(3)));
+            case PATH_NOT_FOUND:
+                return c.getString(R.string.netfs_err_path_not_found, e.str(0));
+            case NO_DOWNLOAD_URL:
+                return c.getString(R.string.netfs_err_no_download_url, e.str(0));
+            case ROOT_NOT_ALLOWED:
+                return c.getString(R.string.netfs_err_root_not_allowed, action(c, e.str(0)));
+            case BAD_NAME:
+                return nameError(c, e.num(0), e.str(1));
+            case FIELD_REQUIRED:
+                return c.getString(R.string.netfs_err_field_required, e.str(0));
+            case QUOTA_EXHAUSTED:
+                return c.getString(R.string.netfs_err_quota);
+            case TOO_MANY_REQUESTS:
+                return c.getString(R.string.netfs_err_too_many);
+            case FILE_TYPE_FORBIDDEN:
+                return c.getString(R.string.netfs_err_file_type);
+            case NAME_INVALID:
+                return c.getString(R.string.netfs_err_name_invalid);
+            case NO_DRIVE_ID:
+                return c.getString(R.string.netfs_err_no_drive_id);
+            case NO_PART_URLS:
+                return c.getString(R.string.netfs_err_no_part_urls);
+            case CREATE_UPLOAD_FAIL:
+                return c.getString(R.string.netfs_err_create_upload);
+            case LOCAL_EOF_EARLY:
+                return c.getString(R.string.netfs_err_local_eof);
+            case PART_UPLOAD_FAIL:
+                return c.getString(R.string.netfs_err_part_upload, e.num(0), detail(c, e.str(1)));
+            case UPLOAD_TOO_LARGE:
+                return c.getString(R.string.netfs_err_upload_too_large, e.str(0), e.str(1), e.str(2));
+            case EMPTY_UPLOAD_PATH:
+                return c.getString(R.string.netfs_err_empty_upload_path);
+            case NO_ITEM_ID:
+                return c.getString(R.string.netfs_err_no_item_id, e.str(0));
+
             default:
                 return c.getString(R.string.netfs_err_unknown);
         }
@@ -79,7 +130,51 @@ public final class NetText {
             case NetFsError.HINT_S3_REGION:   return c.getString(R.string.netfs_hint_s3_region);
             case NetFsError.HINT_S3_SIGN:     return c.getString(R.string.netfs_hint_s3_sign);
             case NetFsError.HINT_S3_NOTFOUND: return c.getString(R.string.netfs_hint_s3_notfound);
+            case NetFsError.HINT_CLOUD_NOT_FOUND:    return c.getString(R.string.netfs_hint_cloud_not_found);
+            case NetFsError.HINT_CLOUD_AUTH_EXPIRED: return c.getString(R.string.netfs_hint_cloud_auth);
+            case NetFsError.HINT_CLOUD_NO_PERM:      return c.getString(R.string.netfs_hint_cloud_perm);
+            case NetFsError.HINT_CLOUD_QUOTA:        return c.getString(R.string.netfs_hint_cloud_quota);
+            case NetFsError.HINT_CLOUD_413:          return c.getString(R.string.netfs_hint_cloud_413);
+            case NetFsError.HINT_ALI_NOT_FOUND:  return c.getString(R.string.netfs_hint_ali_not_found);
+            case NetFsError.HINT_ALI_QUOTA:      return c.getString(R.string.netfs_hint_ali_quota);
+            case NetFsError.HINT_ALI_BUSY:       return c.getString(R.string.netfs_hint_ali_busy);
+            case NetFsError.HINT_ALI_FILE_TYPE:  return c.getString(R.string.netfs_hint_ali_file_type);
+            case NetFsError.HINT_ALI_NAME:       return c.getString(R.string.netfs_hint_ali_name);
             default:                          return "";
+        }
+    }
+
+    /** 云盘名（码 → 资源），给「尚未授权 / 授权失效」整句当参数。 */
+    private static String cloud(Context c, int code) {
+        switch (code) {
+            case NetFsError.CLOUD_ALIYUN:   return c.getString(R.string.netfs_cloud_aliyun);
+            case NetFsError.CLOUD_ONEDRIVE: return c.getString(R.string.netfs_cloud_onedrive);
+            default:                        return "";
+        }
+    }
+
+    /** 根目录动作（ASCII 码 → 资源词），给「不能对根目录 X」整句当参数。 */
+    private static String action(Context c, String code) {
+        if ("download".equals(code)) return c.getString(R.string.netfs_action_download);
+        if ("operate".equals(code))  return c.getString(R.string.netfs_action_operate);
+        return "";
+    }
+
+    /** CloudPath.NameError → 文案（名称非法的五种原因）。 */
+    private static String nameError(Context c, int code, String arg) {
+        switch (code) {
+            case com.hex91.file.net.CloudPath.NameError.EMPTY:
+                return c.getString(R.string.netfs_name_empty);
+            case com.hex91.file.net.CloudPath.NameError.TOO_LONG:
+                return c.getString(R.string.netfs_name_too_long);
+            case com.hex91.file.net.CloudPath.NameError.BAD_CHAR:
+                return c.getString(R.string.netfs_name_bad_char, arg);
+            case com.hex91.file.net.CloudPath.NameError.CONTROL_CHAR:
+                return c.getString(R.string.netfs_name_control);
+            case com.hex91.file.net.CloudPath.NameError.DOT_ONLY:
+                return c.getString(R.string.netfs_name_dot);
+            default:
+                return c.getString(R.string.netfs_err_name_invalid);
         }
     }
 

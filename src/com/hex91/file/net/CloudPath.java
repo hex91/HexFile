@@ -36,7 +36,7 @@ public final class CloudPath {
         List<String> out = new ArrayList<String>();
         for (String seg : p.split("/")) {
             if (seg.isEmpty() || ".".equals(seg)) continue;
-            if ("..".equals(seg)) throw new IllegalArgumentException("路径不允许包含 .. : " + path);
+            if ("..".equals(seg)) throw new IllegalArgumentException("Path must not contain '..': " + path);
             out.add(seg);
         }
         StringBuilder sb = new StringBuilder();
@@ -142,17 +142,32 @@ public final class CloudPath {
      *
      * <p>OneDrive 的非法字符是 {@code " * : < > ? / \ |}；阿里云盘还会拦 {@code # % & { } $ ' @ + `}
      * 里的一部分，这里取两者的交集之外最保守的一档：只拦所有云盘都不会放行的那些。</p>
+     *
+     * <p>v2.95.0：返回值从中文文案改为 {@link NameError}（错误码 + 参数），文案由
+     * {@code ui/NetText} 映射。null 仍表示合法，测试口径不变。</p>
      */
-    public static String illegalNameReason(String name) {
-        if (name == null || name.trim().isEmpty()) return "名称不能为空";
-        if (name.length() > 255) return "名称过长（超过 255 字符）";
+    public static NameError illegalNameReason(String name) {
+        if (name == null || name.trim().isEmpty()) return new NameError(NameError.EMPTY, null);
+        if (name.length() > 255) return new NameError(NameError.TOO_LONG, null);
         String bad = "\"*:<>?/\\|";
         for (int i = 0; i < name.length(); i++) {
             char c = name.charAt(i);
-            if (bad.indexOf(c) >= 0) return "名称不能包含 " + c;
-            if (c < 0x20) return "名称不能包含控制字符";
+            if (bad.indexOf(c) >= 0) return new NameError(NameError.BAD_CHAR, String.valueOf(c));
+            if (c < 0x20) return new NameError(NameError.CONTROL_CHAR, null);
         }
-        if (".".equals(name) || "..".equals(name)) return "名称不能是 . 或 ..";
+        if (".".equals(name) || "..".equals(name)) return new NameError(NameError.DOT_ONLY, null);
         return null;                            // null = 合法
+    }
+
+    /** 名称非法的结构化原因（码 + 可选参数），交给 NetFsError.badName → UI 映射。 */
+    public static final class NameError {
+        public static final int EMPTY = 1, TOO_LONG = 2, BAD_CHAR = 3,
+                CONTROL_CHAR = 4, DOT_ONLY = 5;
+        public final int code;
+        public final String arg;
+        public NameError(int code, String arg) {
+            this.code = code;
+            this.arg = arg;
+        }
     }
 }

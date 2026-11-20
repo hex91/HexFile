@@ -1785,6 +1785,23 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.95.0（versionCode 288）—— F-14/82：云盘三件套（CloudPath / 阿里云盘 / OneDrive）去中文
+
+承接 v2.94.0 的 NetFsError+NetText 架构，清掉两个 OAuth 云盘与共享路径工具的全部中文异常。
+
+- **CloudPath**：`illegalNameReason` 返回值从中文文案改为 `NameError`（5 种码 + 参数），
+  测试只判 null/non-null，口径不变；`normalize` 的 `..` 异常改 ASCII 诊断串（开发者契约，非用户文案）。
+- **AliyunDriveFs** 24 行 → 0：授权三态、API/HTTP 失败、路径/下载地址、分片上传、
+  名称合法性全走码；状态码 hint（NotFound/Quota/Busy/FileType/Name）改为 hint 码。
+- **OneDriveFs** 23 行 → 0：同上，add `HTTP_DETAIL_FAIL`（带 error.code/message 详情）。
+- 云盘名（阿里云盘/OneDrive）也码化为 `CLOUD_*`（英文侧显示 "Aliyun Drive"，不能直接透传中文）。
+
+扩展 NetFsError 至 40 码 + NetText 映射，新增 41 个 `netfs_*` 键，资源 2928 → 2969（100%）。
+四门全过（空 catch 335、文案 2969/2969、动作码 55）、全量 97/0/4（CloudPathTest/OAuthTokenTest 均 PASS）；
+APK 13,488,848 B（md5 `60703621…`），badging 288/2.95.0。
+
+---
+
 ## v2.94.0（versionCode 287）—— F-14/81：net 层结构化异常（S3Fs 先行）
 
 `net` 包去中文化开工。cloud/ftp 类大量 `throw new IOException("中文提示…")` 直接被 UI 展示，

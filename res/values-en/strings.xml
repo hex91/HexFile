@@ -3113,4 +3113,48 @@
     <string name="netfs_err_resp_parse">Failed to parse response (is this endpoint S3-compatible?): %1$s</string>
     <string name="netfs_err_sha_unavailable">SHA-256 unavailable</string>
     <string name="netfs_err_unknown">Network storage operation failed</string>
+    <!-- v2.95.0 cloud commons (AliyunDriveFs / OneDriveFs / CloudPath) -->
+    <string name="netfs_cloud_aliyun">Aliyun Drive</string>
+    <string name="netfs_cloud_onedrive">OneDrive</string>
+    <string name="netfs_err_not_authed">Not authorized: please sign in to %1$s first</string>
+    <string name="netfs_err_auth_lost">%1$s authorization was lost; please sign in again</string>
+    <string name="netfs_err_auth_expired">%1$s authorization expired (%2$s); please sign in again</string>
+    <string name="netfs_err_api_fail">%1$s failed: %2$s%3$s%4$s</string>
+    <string name="netfs_err_http_fail">%1$s failed: HTTP %2$d%3$s</string>
+    <string name="netfs_err_http_detail">%1$s failed: HTTP %2$d%3$s%4$s</string>
+    <string name="netfs_err_path_not_found">Path not found: %1$s</string>
+    <string name="netfs_err_no_download_url">Cannot get a download URL for: %1$s</string>
+    <string name="netfs_err_root_not_allowed">Cannot %1$s the root directory</string>
+    <string name="netfs_action_download">download</string>
+    <string name="netfs_action_operate">operate on</string>
+    <string name="netfs_err_field_required">%1$s cannot be empty</string>
+    <string name="netfs_err_quota">Cloud storage is full</string>
+    <string name="netfs_err_too_many">Too many requests; try again later</string>
+    <string name="netfs_err_file_type">This file type cannot be uploaded</string>
+    <string name="netfs_err_name_invalid">Invalid name or name already exists</string>
+    <string name="netfs_err_no_drive_id">Cannot get the cloud drive_id (authorization may be incomplete)</string>
+    <string name="netfs_err_no_part_urls">The server returned no multipart upload URLs</string>
+    <string name="netfs_err_create_upload">Failed to create the upload task (no file_id returned)</string>
+    <string name="netfs_err_local_eof">Local file ended early (was it modified during upload?)</string>
+    <string name="netfs_err_part_upload">Multipart upload failed: HTTP %1$d%2$s</string>
+    <string name="netfs_err_upload_too_large">Single upload limit is %1$s; current file is %2$s (use %3$s for large files)</string>
+    <string name="netfs_err_empty_upload_path">Upload path is empty</string>
+    <string name="netfs_err_no_item_id">Cannot get item id: %1$s</string>
+    <!-- CloudPath.NameError reasons -->
+    <string name="netfs_name_empty">Name cannot be empty</string>
+    <string name="netfs_name_too_long">Name is too long (over 255 characters)</string>
+    <string name="netfs_name_bad_char">Name cannot contain %1$s</string>
+    <string name="netfs_name_control">Name cannot contain control characters</string>
+    <string name="netfs_name_dot">Name cannot be . or ..</string>
+    <!-- cloud HTTP/API status hints (quoted to protect leading space and parentheses) -->
+    <string name="netfs_hint_cloud_not_found">" (path not found)"</string>
+    <string name="netfs_hint_cloud_auth">" (authorization expired, please sign in again)"</string>
+    <string name="netfs_hint_cloud_perm">" (no permission: grant file read/write during authorization)"</string>
+    <string name="netfs_hint_cloud_quota">" (cloud storage is full)"</string>
+    <string name="netfs_hint_cloud_413">" (file exceeds the single upload limit)"</string>
+    <string name="netfs_hint_ali_not_found">" (file or directory does not exist; it may have been deleted or moved)"</string>
+    <string name="netfs_hint_ali_quota">" (cloud storage is full)"</string>
+    <string name="netfs_hint_ali_busy">" (too many requests; try again later)"</string>
+    <string name="netfs_hint_ali_file_type">" (this file type cannot be uploaded)"</string>
+    <string name="netfs_hint_ali_name">" (invalid name or name already exists)"</string>
 </resources>

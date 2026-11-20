@@ -66,9 +66,9 @@ public final class OneDriveFs implements NetFs {
      */
     public static OneDriveFs connect(String clientId, String refreshToken,
                                      OAuthClient.TokenSink sink, File tempDir) throws IOException {
-        if (OAuthClient.isBlank(clientId)) throw new IOException("Client ID 不能为空");
+        if (OAuthClient.isBlank(clientId)) throw NetFsError.fieldRequired("Client ID");
         if (OAuthClient.isBlank(refreshToken))
-            throw new IOException("尚未授权：请先点「登录 OneDrive」完成设备码授权");
+            throw NetFsError.notAuthed(NetFsError.CLOUD_ONEDRIVE);
         OneDriveFs fs = new OneDriveFs(clientId.trim(), refreshToken.trim(), sink, tempDir);
         fs.access();                    // 先换一次 access，失败信息更准确
         fs.list("");
@@ -81,12 +81,12 @@ public final class OneDriveFs implements NetFs {
         if (token != null && token.hasAccess() && !token.expired(System.currentTimeMillis()))
             return token.access;
         if (OAuthClient.isBlank(refresh))
-            throw new IOException("OneDrive 授权已丢失，请在服务器设置里重新登录");
+            throw NetFsError.authLost(NetFsError.CLOUD_ONEDRIVE);
         OAuthToken t;
         try {
             t = OAuthClient.refreshMs(clientId, refresh);
         } catch (OAuthToken.OAuthError e) {
-            throw new IOException("OneDrive 授权已失效（" + e.code + "），请重新登录", e);
+            throw NetFsError.authExpired(NetFsError.CLOUD_ONEDRIVE, e.code, e);
         }
         token = t;
         // 微软通常不轮换 refresh_token，但一旦轮换就必须落盘
@@ -144,18 +144,18 @@ public final class OneDriveFs implements NetFs {
         return r.body;
     }
 
-    private static IOException httpErr(String op, Resp r) {
+    private static NetFsError httpErr(String op, Resp r) {
         Object root = Json.parseOrNull(r.body);
         String code = Json.strPath(root, "error.code");
         String msg = Json.strPath(root, "error.message");
-        String hint = "";
-        if ("itemNotFound".equals(code)) hint = "（路径不存在）";
-        else if ("invalidAuthenticationToken".equals(code) || r.code == 401) hint = "（授权已过期，请重新登录）";
-        else if ("accessDenied".equals(code) || "forbidden".equals(code)) hint = "（没有权限：授权时需勾选文件读写）";
-        else if (r.code == 507 || "quotaLimitReached".equals(code)) hint = "（云盘空间不足）";
-        else if (r.code == 413) hint = "（文件超过 250MB 单次上传上限）";
+        int hint = NetFsError.HINT_NONE;
+        if ("itemNotFound".equals(code)) hint = NetFsError.HINT_CLOUD_NOT_FOUND;
+        else if ("invalidAuthenticationToken".equals(code) || r.code == 401) hint = NetFsError.HINT_CLOUD_AUTH_EXPIRED;
+        else if ("accessDenied".equals(code) || "forbidden".equals(code)) hint = NetFsError.HINT_CLOUD_NO_PERM;
+        else if (r.code == 507 || "quotaLimitReached".equals(code)) hint = NetFsError.HINT_CLOUD_QUOTA;
+        else if (r.code == 413) hint = NetFsError.HINT_CLOUD_413;
         String detail = code.isEmpty() ? abbreviate(r.body) : code + (msg.isEmpty() ? "" : " · " + msg);
-        return new IOException(op + " 失败: HTTP " + r.code + hint + (detail.isEmpty() ? "" : " — " + detail));
+        return NetFsError.httpDetailFail(op, r.code, hint, detail);
     }
 
     // ---------------------------------------------------------------- 列目录
@@ -221,16 +221,16 @@ public final class OneDriveFs implements NetFs {
         if (offset > 0) c.setRequestProperty("Range", "bytes=" + offset + "-");
         int code = c.getResponseCode();
         if (offset > 0) {
-            if (code == 200) { drain(c); throw new IOException("服务端忽略了 Range，无法续传"); }
+            if (code == 200) { drain(c); throw NetFsError.rangeIgnored(); }
             if (code != 206) {
                 drain(c);
-                throw new IOException("续传失败: HTTP " + code);
+                throw NetFsError.httpFail(path, code, NetFsError.HINT_NONE);
             }
             return c.getInputStream();
         }
         if (code != 200) {
             drain(c);
-            throw new IOException("下载 " + path + " 失败: HTTP " + code);
+            throw NetFsError.httpFail(path, code, NetFsError.HINT_NONE);
         }
         return c.getInputStream();
     }
@@ -238,11 +238,11 @@ public final class OneDriveFs implements NetFs {
     /** 取预签名下载地址（有效期约 1 小时，够一次下载） */
     private String downloadUrl(String path) throws IOException {
         String p = CloudPath.normalize(path);
-        if (p.isEmpty()) throw new IOException("不能下载根目录");
+        if (p.isEmpty()) throw NetFsError.rootNotAllowed("download");
         String body = call("GET", CloudPath.graphItem(p) + "?$select=id,size,@microsoft.graph.downloadUrl", null);
         Object root = Json.parseOrNull(body);
         String url = Json.str(root, "@microsoft.graph.downloadUrl");
-        if (url.isEmpty()) throw new IOException("拿不到下载地址（" + p + "）");
+        if (url.isEmpty()) throw NetFsError.noDownloadUrl(p);
         return url;
     }
 
@@ -251,9 +251,9 @@ public final class OneDriveFs implements NetFs {
     @Override
     public OutputStream openWrite(String path) throws IOException {
         File dir = tempDir;
-        if (dir == null) throw new IOException("缺少上传临时目录");
+        if (dir == null) throw NetFsError.tmpDirMissing();
         if (!dir.isDirectory() && !dir.mkdirs() && !dir.isDirectory())
-            throw new IOException("无法创建上传临时目录: " + dir.getAbsolutePath());
+            throw NetFsError.tmpDirFail(dir.getAbsolutePath());
         return new SpoolOut(File.createTempFile("odup", TempFiles.PART, dir), path);
     }
 
@@ -281,9 +281,8 @@ public final class OneDriveFs implements NetFs {
             try {
                 long len = tmp.length();
                 if (len > MAX_SIMPLE_UPLOAD)
-                    throw new IOException("OneDrive 单次上传上限 250MB，当前文件 "
-                            + FileOps.formatSize(len) + "（大文件请用 SMB/WebDAV 或分片上传）");
-                if (CloudPath.name(path).isEmpty()) throw new IOException("上传路径为空");
+                    throw NetFsError.uploadTooLarge("250MB", FileOps.formatSize(len), "SMB / WebDAV");
+                if (CloudPath.name(path).isEmpty()) throw NetFsError.emptyUploadPath();
                 mkdirs(CloudPath.parent(path));        // Graph 不会自动建父目录，会直接 404
 
                 String url = BASE + CloudPath.graphContent(path);
@@ -312,7 +311,7 @@ public final class OneDriveFs implements NetFs {
                         Resp r = new Resp();
                         r.code = code;
                         r.body = body;
-                        throw httpErr("上传 " + path, r);
+                        throw httpErr("Upload " + path, r);
                     }
                 } finally {
                     c.disconnect();
@@ -329,8 +328,8 @@ public final class OneDriveFs implements NetFs {
     public void mkdir(String path) throws IOException {
         String p = CloudPath.normalize(path);
         if (p.isEmpty()) return;
-        String reason = CloudPath.illegalNameReason(CloudPath.name(p));
-        if (reason != null) throw new IOException(reason);
+        CloudPath.NameError reason = CloudPath.illegalNameReason(CloudPath.name(p));
+        if (reason != null) throw NetFsError.badName(reason);
         createFolder(CloudPath.parent(p), CloudPath.name(p));
     }
 
@@ -346,8 +345,8 @@ public final class OneDriveFs implements NetFs {
     }
 
     private void createFolder(String parent, String name) throws IOException {
-        String reason = CloudPath.illegalNameReason(name);
-        if (reason != null) throw new IOException(reason);
+        CloudPath.NameError reason = CloudPath.illegalNameReason(name);
+        if (reason != null) throw NetFsError.badName(reason);
         String body = "{\"name\":" + OAuthClient.quote(name)
                 + ",\"folder\":{},\"@microsoft.graph.conflictBehavior\":\"replace\"}";
         call("POST", CloudPath.graphChildren(parent), body);
@@ -362,8 +361,8 @@ public final class OneDriveFs implements NetFs {
 
     @Override
     public void rename(String path, String newName) throws IOException {
-        String reason = CloudPath.illegalNameReason(newName);
-        if (reason != null) throw new IOException(reason);
+        CloudPath.NameError reason = CloudPath.illegalNameReason(newName);
+        if (reason != null) throw NetFsError.badName(reason);
         String id = itemId(path);
         call("PATCH", "/me/drive/items/" + CloudPath.encodeSegment(id),
                 "{\"name\":" + OAuthClient.quote(newName) + "}");
@@ -371,10 +370,10 @@ public final class OneDriveFs implements NetFs {
 
     private String itemId(String path) throws IOException {
         String p = CloudPath.normalize(path);
-        if (p.isEmpty()) throw new IOException("不能操作根目录");
+        if (p.isEmpty()) throw NetFsError.rootNotAllowed("operate");
         String body = call("GET", CloudPath.graphItem(p) + "?$select=id", null);
         String id = Json.str(Json.parseOrNull(body), "id");
-        if (id.isEmpty()) throw new IOException("取不到条目 id：" + p);
+        if (id.isEmpty()) throw NetFsError.noItemId(p);
         return id;
     }
 

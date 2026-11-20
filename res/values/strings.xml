@@ -3121,4 +3121,48 @@
     <string name="netfs_err_resp_parse">响应解析失败（该端点不是 S3 兼容服务？）: %1$s</string>
     <string name="netfs_err_sha_unavailable">SHA-256 不可用</string>
     <string name="netfs_err_unknown">网络存储操作失败</string>
+    <!-- v2.95.0 云盘通用（AliyunDriveFs / OneDriveFs / CloudPath） -->
+    <string name="netfs_cloud_aliyun">阿里云盘</string>
+    <string name="netfs_cloud_onedrive">OneDrive</string>
+    <string name="netfs_err_not_authed">尚未授权：请先登录%1$s</string>
+    <string name="netfs_err_auth_lost">%1$s授权已丢失，请重新登录</string>
+    <string name="netfs_err_auth_expired">%1$s授权已失效（%2$s），请重新登录</string>
+    <string name="netfs_err_api_fail">%1$s 失败: %2$s%3$s%4$s</string>
+    <string name="netfs_err_http_fail">%1$s 失败: HTTP %2$d%3$s</string>
+    <string name="netfs_err_http_detail">%1$s 失败: HTTP %2$d%3$s%4$s</string>
+    <string name="netfs_err_path_not_found">路径不存在: %1$s</string>
+    <string name="netfs_err_no_download_url">拿不到下载地址：%1$s</string>
+    <string name="netfs_err_root_not_allowed">不能%1$s根目录</string>
+    <string name="netfs_action_download">下载</string>
+    <string name="netfs_action_operate">操作</string>
+    <string name="netfs_err_field_required">%1$s 不能为空</string>
+    <string name="netfs_err_quota">云盘空间不足</string>
+    <string name="netfs_err_too_many">请求过于频繁，稍后再试</string>
+    <string name="netfs_err_file_type">该文件类型不允许上传</string>
+    <string name="netfs_err_name_invalid">名称不合法或重名</string>
+    <string name="netfs_err_no_drive_id">取不到云盘 drive_id（授权可能不完整）</string>
+    <string name="netfs_err_no_part_urls">服务端没有返回分片上传地址</string>
+    <string name="netfs_err_create_upload">创建上传任务失败（没返回 file_id）</string>
+    <string name="netfs_err_local_eof">本地文件提前结束（上传中文件被改动？）</string>
+    <string name="netfs_err_part_upload">分片上传失败: HTTP %1$d%2$s</string>
+    <string name="netfs_err_upload_too_large">单次上传上限 %1$s，当前文件 %2$s（大文件请用 %3$s）</string>
+    <string name="netfs_err_empty_upload_path">上传路径为空</string>
+    <string name="netfs_err_no_item_id">取不到条目 id：%1$s</string>
+    <!-- CloudPath.NameError 名称非法原因 -->
+    <string name="netfs_name_empty">名称不能为空</string>
+    <string name="netfs_name_too_long">名称过长（超过 255 字符）</string>
+    <string name="netfs_name_bad_char">名称不能包含 %1$s</string>
+    <string name="netfs_name_control">名称不能包含控制字符</string>
+    <string name="netfs_name_dot">名称不能是 . 或 ..</string>
+    <!-- 云盘 HTTP/API 状态码提示（整值加引号保护前导空格与括号） -->
+    <string name="netfs_hint_cloud_not_found">"（路径不存在）"</string>
+    <string name="netfs_hint_cloud_auth">"（授权已过期，请重新登录）"</string>
+    <string name="netfs_hint_cloud_perm">"（没有权限：授权时需勾选文件读写）"</string>
+    <string name="netfs_hint_cloud_quota">"（云盘空间不足）"</string>
+    <string name="netfs_hint_cloud_413">"（文件超过单次上传上限）"</string>
+    <string name="netfs_hint_ali_not_found">"（文件或目录不存在，可能在别处被删/移动）"</string>
+    <string name="netfs_hint_ali_quota">"（云盘空间不足）"</string>
+    <string name="netfs_hint_ali_busy">"（请求过于频繁，稍后再试）"</string>
+    <string name="netfs_hint_ali_file_type">"（该文件类型不允许上传）"</string>
+    <string name="netfs_hint_ali_name">"（名称不合法或重名）"</string>
 </resources>
