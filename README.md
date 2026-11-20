@@ -1810,7 +1810,7 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 四门全过（空 catch 335 基线）、`jc.sh` rc=0。APK **13,406,928 B**（md5 `1d7d6dce…`），
 badging 反证 versionCode 249 / 2.56.0；dex 反证 `CFF_SUSPECT`/`dcp_status_ok`/`dcp_cff_note`/
-`dcp_class_not_found` 各=1。提交 `—`。
+`dcp_class_not_found` 各=1。提交 `ccab0d0`。
 
 ---
 
