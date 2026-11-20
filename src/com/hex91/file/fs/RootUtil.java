@@ -248,7 +248,7 @@ public final class RootUtil {
      * 读完自行 waitFor + destroy。启动失败抛异常。
      */
     public static Process catProcess(String shellCmd) throws Exception {
-        if (!isRootAvailable()) throw new IllegalStateException("没有可用的提权后端");
+        if (!isRootAvailable()) throw new IllegalStateException("No privilege backend available");
         Process p = Shell.start(shellCmd, enabled);
         drain(p);
         return p;

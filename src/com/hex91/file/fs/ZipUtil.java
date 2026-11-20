@@ -202,7 +202,8 @@ public class ZipUtil {
             }
             // v1.99.2（R-06）：失败原因（含备份/临时文件路径）写日志，界面提示里也会带上
             AtomicReplace.Result r = AtomicReplace.replaceWith(tmp, zip);
-            if (!r.ok) android.util.Log.w("ZipUtil", "写回压缩包失败: " + r.message);
+            if (!r.ok) android.util.Log.w("ZipUtil",
+                    FsError.of(FsError.Code.ZIP_WRITE_FAIL, r.message).getMessage());
             return r.ok;
         } catch (Exception e) {
             return false;
@@ -279,7 +280,8 @@ public class ZipUtil {
                 return false;
             }
             AtomicReplace.Result r = AtomicReplace.replaceWith(tmp, zip);
-            if (!r.ok) android.util.Log.w("ZipUtil", "重命名写回失败: " + r.message);
+            if (!r.ok) android.util.Log.w("ZipUtil",
+                    FsError.of(FsError.Code.ZIP_RENAME_FAIL, r.message).getMessage());
             return r.ok;
         } catch (Exception e) {
             return false;

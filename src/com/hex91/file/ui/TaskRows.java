@@ -149,7 +149,7 @@ final class TaskRows {
             if (sp > 0) sb.append(" · ").append(FileOps.formatSize(sp)).append("/s");
         }
         if (t.message != null && t.finished() && t.state != FileTask.DONE) {
-            sb.append('\n').append(t.message);
+            sb.append('\n').append(FsText.taskError(c, t));
         }
         sb.append('\n').append(t.dstPath);
         return sb.toString();

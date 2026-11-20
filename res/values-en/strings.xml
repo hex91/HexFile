@@ -3223,4 +3223,33 @@
     <string name="fs_stage_fingerprint">Quick fingerprint…</string>
     <string name="fs_stage_verify">Full verification…</string>
     <string name="fs_read_unknown">Unknown error</string>
+    <!-- v2.104.0 fs errors (FsError + FsText.errorText) -->
+    <string name="fs_err_src_missing">Source file does not exist: %1$s</string>
+    <string name="fs_err_chunk_invalid">Chunk size must be greater than 0</string>
+    <string name="fs_err_empty_source">Empty file needs no splitting</string>
+    <string name="fs_err_too_small">File (%1$d B) is not larger than chunk size (%2$d B); nothing to split</string>
+    <string name="fs_err_part_missing">Part does not exist: %1$s</string>
+    <string name="fs_err_not_part">Not a split part (missing .NNN suffix): %1$s</string>
+    <string name="fs_err_no_sequence">No split sequence found</string>
+    <string name="fs_err_start_missing">Missing first part %1$s.001; cannot merge</string>
+    <string name="fs_err_parts_incomplete">Incomplete set: expected %1$d parts, found %2$d (%3$s)</string>
+    <string name="fs_err_single_part">Only one part %1$s found; set is incomplete</string>
+    <string name="fs_err_part_size">Part sizes differ: %1$s (a part may be missing)</string>
+    <string name="fs_err_merge_empty">Merged result is empty (parts may be damaged)</string>
+    <string name="fs_err_merge_size">Merged size differs: expected %1$d B, got %2$d B (parts may be damaged)</string>
+    <string name="fs_err_mkdir">Cannot create directory: %1$s</string>
+    <string name="fs_err_delete_src">Copied, but failed to delete source: %1$s</string>
+    <string name="fs_err_deep">Directory nesting too deep: %1$s</string>
+    <string name="fs_err_target_busy">Target path is occupied: %1$s</string>
+    <string name="fs_err_create">Cannot create: %1$s</string>
+    <string name="fs_err_read">Cannot read: %1$s</string>
+    <string name="fs_err_write">Write failed: %1$s</string>
+    <string name="fs_err_resume_eof">Resume offset is past end of source: %1$d byte(s) short</string>
+    <string name="fs_err_null_path">Path is empty</string>
+    <string name="fs_err_link_unsupported">Target filesystem does not support symbolic links: %1$s</string>
+    <string name="fs_err_zip_write">Archive write-back failed: %1$s</string>
+    <string name="fs_err_zip_rename">Archive rename write-back failed: %1$s</string>
+    <string name="fs_err_no_input">Nothing to compress</string>
+    <string name="fs_err_bad_magic">Not a zstd file (bad magic): %1$s</string>
+    <string name="fs_err_outdir">Cannot create output directory: %1$s</string>
 </resources>

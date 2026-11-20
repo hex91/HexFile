@@ -75,7 +75,7 @@ public class ZstdUtil {
      */
     public static void compress(File out, List<File> sources, int level) throws IOException {
         if (sources == null || sources.isEmpty())
-            throw new IOException("没有可压缩的内容");
+            throw FsError.of(FsError.Code.NO_INPUT);
         if (level < 1) level = 1;
         if (level > 19) level = 19;
         boolean single = sources.size() == 1 && sources.get(0).isFile();
@@ -146,9 +146,9 @@ public class ZstdUtil {
      * 返回实际输出（目录或文件）。
      */
     public static File extract(File src, File outDir) throws IOException {
-        if (!isZst(src)) throw new IOException("不是 zstd 文件（魔数不符）: " + src.getName());
+        if (!isZst(src)) throw FsError.of(FsError.Code.BAD_MAGIC, src.getName());
         if (!outDir.exists() && !outDir.mkdirs())
-            throw new IOException("无法创建输出目录: " + outDir);
+            throw FsError.of(FsError.Code.OUTDIR_FAIL, outDir);
 
         ZstdInputStream zis = new ZstdInputStream(
                 new BufferedInputStream(new FileInputStream(src)));

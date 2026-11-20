@@ -498,6 +498,8 @@ public final class FileTaskEngine {
                 } catch (Throwable e) {
                     // 单个文件失败不该让整批停下：记下来继续，最后报「部分失败」
                     t.failedFiles++;
+                    t.error = e;
+                    t.errorName = f.getName();
                     t.message = f.getName() + ": " + shortMsg(e);
                 }
             }
@@ -508,6 +510,8 @@ public final class FileTaskEngine {
             t.state = FileTask.PAUSED;
         } catch (Throwable e) {
             t.state = FileTask.FAILED;
+            t.error = e;
+            t.errorName = null;
             t.message = shortMsg(e);
         } finally {
             if (t.state == FileTask.PAUSED) {
@@ -565,7 +569,7 @@ public final class FileTaskEngine {
             return;
         }
         if (!dstDir.isDirectory() && !dstDir.mkdirs() && !dstDir.isDirectory())
-            throw new IOException("无法创建目录: " + dstDir);
+            throw FsError.of(FsError.Code.MKDIR_FAIL, dstDir);
         if (src.renameTo(dst)) {          // 同分区：秒完成，不需要逐字节拷
             creditDone(src, t);
             markCopied(t, src);           // 续传时源已经不在，靠这份记录跳过
@@ -578,7 +582,7 @@ public final class FileTaskEngine {
         if (!TreeOps.delete(src)) {
             RootFallback r = root;
             if (r == null || !r.delete(src))
-                throw new IOException("已复制，但源删除失败: " + src.getPath());
+                throw FsError.of(FsError.Code.DELETE_SRC_FAIL, src.getPath());
         }
         markCopied(t, src);
     }
@@ -622,7 +626,7 @@ public final class FileTaskEngine {
      */
     public static void copyTree(File src, File dstDir, FileTask t, Sink sink) throws IOException {
         if (!dstDir.isDirectory() && !dstDir.mkdirs() && !dstDir.isDirectory())
-            throw new IOException("无法创建目录: " + dstDir);
+            throw FsError.of(FsError.Code.MKDIR_FAIL, dstDir);
         copyNode(src, new File(dstDir, src.getName()), t, sink, 0);
     }
 
@@ -631,7 +635,7 @@ public final class FileTaskEngine {
         if (t != null && t.cancelRequested) throw new Cancel();
         // v2.15.0（F-19）：暂停在文件边界也生效，不必等下一个 128KB 块
         if (t != null && t.pauseRequested) throw new Pause();
-        if (depth > MAX_DEPTH) throw new IOException("目录层级过深: " + src.getPath());
+        if (depth > MAX_DEPTH) throw FsError.of(FsError.Code.DEEP_PATH, src.getPath());
         // v1.97.0：软链接不能跟进。src.isDirectory()/listFiles() 会跟随链接，
         // 于是「复制一个链接目录」会把目标整棵树复制一份（链接成环时还会递归到栈溢出）。
         // 这里按原样复刻成链接；文件系统不支持（FAT32 等）就跳过该条，不判整单失败。
@@ -648,12 +652,12 @@ public final class FileTaskEngine {
         if (t != null && isCopied(t, src)) return;
         if (src.isDirectory()) {
             if (dst.isFile()) {                       // 同名文件挡路：目录优先，让位
-                if (!dst.delete()) throw new IOException("目标被占用: " + dst);
+                if (!dst.delete()) throw FsError.of(FsError.Code.TARGET_BUSY, dst);
             }
             if (!dst.isDirectory() && !dst.mkdirs() && !dst.isDirectory())
-                throw new IOException("无法创建: " + dst);
+                throw FsError.of(FsError.Code.CREATE_FAIL, dst);
             File[] kids = src.listFiles();
-            if (kids == null) throw new IOException("无法读取: " + src.getPath());
+            if (kids == null) throw FsError.of(FsError.Code.READ_FAIL, src.getPath());
             for (File k : kids) {
                 copyNode(k, new File(dst, k.getName()), t, sink, depth + 1);
             }
@@ -671,7 +675,7 @@ public final class FileTaskEngine {
         if (dst.isDirectory()) dst = uniqueFile(dst.getParentFile(), src.getName());
         File parent = dst.getParentFile();
         if (parent != null && !parent.isDirectory() && !parent.mkdirs() && !parent.isDirectory())
-            throw new IOException("无法创建: " + parent);
+            throw FsError.of(FsError.Code.CREATE_FAIL, parent);
         File part = new File(parent, dst.getName() + TempFiles.PART);
         // v2.15.0（F-19）：这个文件上次被暂停在 half-way 的话，从那里接着写
         long base = resumeBase(t, src, part);
@@ -687,7 +691,7 @@ public final class FileTaskEngine {
                 // 少数文件系统不支持覆盖式 rename（目标已存在时）
                 if (!dst.delete() || !part.renameTo(dst)) {
                     part.delete();
-                    throw new IOException("写入失败: " + dst.getPath());
+                    throw FsError.of(FsError.Code.WRITE_FAIL, dst.getPath());
                 }
             }
         } catch (Pause p) {
@@ -744,7 +748,7 @@ public final class FileTaskEngine {
                 left -= s;
                 continue;
             }
-            if (in.read() < 0) throw new IOException("续传起点超出源文件: 还差 " + left + " 字节");
+            if (in.read() < 0) throw FsError.of(FsError.Code.RESUME_EOF, left);
             left--;
         }
     }

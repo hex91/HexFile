@@ -41,12 +41,12 @@ public final class FileSplit {
      * @throws IOException 分卷小于等于 0、源不可读或写盘失败
      */
     public static List<File> split(File in, File outDir, long chunkSize) throws IOException {
-        if (in == null || !in.isFile()) throw new IOException("源文件不存在: " + in);
-        if (chunkSize <= 0) throw new IOException("分卷大小必须大于 0");
+        if (in == null || !in.isFile()) throw FsError.of(FsError.Code.SRC_MISSING, in);
+        if (chunkSize <= 0) throw FsError.of(FsError.Code.CHUNK_INVALID);
         if (!in.getParentFile().equals(outDir)) outDir.mkdirs();
-        if (in.length() == 0) throw new IOException("空文件无需分割");
-        if (in.length() <= chunkSize) throw new IOException("文件(" + in.length()
-                + "B)不大于分卷大小(" + chunkSize + "B)，无需分割");
+        if (in.length() == 0) throw FsError.of(FsError.Code.EMPTY_SOURCE);
+        if (in.length() <= chunkSize) throw FsError.of(FsError.Code.TOO_SMALL,
+                in.length(), chunkSize);
 
         String base = in.getName();
         List<File> parts = new ArrayList<File>();
@@ -91,9 +91,9 @@ public final class FileSplit {
      * @throws IOException 序号不连续（缺卷）或写盘失败
      */
     public static MergeResult merge(File part, File outDir) throws IOException {
-        if (part == null || !part.isFile()) throw new IOException("分卷不存在: " + part);
+        if (part == null || !part.isFile()) throw FsError.of(FsError.Code.PART_MISSING, part);
         String[] parsed = parsePartName(part.getName());
-        if (parsed == null) throw new IOException("不是分卷文件（缺 .NNN 序号后缀）: " + part.getName());
+        if (parsed == null) throw FsError.of(FsError.Code.NOT_PART, part.getName());
         String base = parsed[0];
         int start = Integer.parseInt(parsed[1]);
 
@@ -114,8 +114,8 @@ public final class FileSplit {
             i++;
         }
         if (start > first && seq.indexOf(part) < 0) { /* 不可能，防御 */ }
-        if (seq.isEmpty()) throw new IOException("找不到分卷序列");
-        if (first != 1) throw new IOException("缺少起始分卷 " + base + ".001，无法合并");
+        if (seq.isEmpty()) throw FsError.of(FsError.Code.NO_SEQUENCE);
+        if (first != 1) throw FsError.of(FsError.Code.START_MISSING, base);
 
         // 缺卷校验：有清单按清单精确校验；无清单用启发式（单卷可疑 + 非末卷必须等大小）
         File manifest = new File(part.getParentFile(), base + ".parts");
@@ -134,15 +134,15 @@ public final class FileSplit {
         }
         if (expectParts >= 0) {
             if (seq.size() != expectParts)
-                throw new IOException("分卷不完整: 应有 " + expectParts + " 卷，只找到 " + seq.size()
-                        + " 卷（" + base + ".001 ~ " + pad(first + seq.size() - 1) + "）");
+                throw FsError.of(FsError.Code.PARTS_INCOMPLETE, expectParts, seq.size(),
+                        base + ".001 ~ " + pad(first + seq.size() - 1));
         } else {
             if (seq.size() < 2)
-                throw new IOException("仅找到一个分卷 " + seq.get(0).getName() + "，分卷不完整");
+                throw FsError.of(FsError.Code.SINGLE_PART, seq.get(0).getName());
             long ref = seq.get(0).length();
             for (int k = 0; k < seq.size() - 1; k++)
                 if (seq.get(k).length() != ref)
-                    throw new IOException("分卷大小不一致: " + seq.get(k).getName() + "，疑似缺卷");
+                    throw FsError.of(FsError.Code.PART_SIZE_MISMATCH, seq.get(k).getName());
         }
 
         File out = new File(outDir, base);
@@ -168,11 +168,11 @@ public final class FileSplit {
         // 大小校验：有清单时精确比对总字节数
         if (total == 0) {
             out.delete();
-            throw new IOException("合并结果为空（分卷可能损坏）");
+            throw FsError.of(FsError.Code.MERGE_EMPTY);
         }
         if (expectSize >= 0 && total != expectSize) {
             out.delete();
-            throw new IOException("合并结果大小不符: 期望 " + expectSize + "B，实际 " + total + "B（分卷可能损坏）");
+            throw FsError.of(FsError.Code.MERGE_SIZE, expectSize, total);
         }
         return new MergeResult(out, seq.size(), total);
     }

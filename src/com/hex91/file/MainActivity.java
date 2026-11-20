@@ -3225,8 +3225,7 @@ public class MainActivity extends BaseActivity {
                             parts.get(0).getName(), parts.get(parts.size() - 1).getName(),
                             f.getName(), f.getParent());
                 } catch (Throwable t) {
-                    err = t.getMessage() != null ? t.getMessage()
-                            : t.getClass().getSimpleName();
+                    err = FsText.errorText(MainActivity.this, t);
                 }
                 final String e = err, ok = info;
                 runOnUiThread(new Runnable() {
@@ -3262,8 +3261,7 @@ public class MainActivity extends BaseActivity {
                     info = s(R.string.main_merge_info, r.parts,
                             r.output.getAbsolutePath(), FileOps.formatSize(r.bytes));
                 } catch (Throwable t) {
-                    err = t.getMessage() != null ? t.getMessage()
-                            : t.getClass().getSimpleName();
+                    err = FsText.errorText(MainActivity.this, t);
                 }
                 final String e = err, ok = info;
                 runOnUiThread(new Runnable() {
@@ -3316,8 +3314,7 @@ public class MainActivity extends BaseActivity {
                             FileOps.formatSize(f.isFile() ? f.length() : dirSize(f)),
                             ZstdUtil.DEFAULT_LEVEL);
                 } catch (Throwable t) {
-                    err = t.getMessage() != null ? t.getMessage()
-                            : t.getClass().getSimpleName();
+                    err = FsText.errorText(MainActivity.this, t);
                 }
                 final String e = err, ok = info;
                 runOnUiThread(new Runnable() {
@@ -3355,8 +3352,7 @@ public class MainActivity extends BaseActivity {
                     File r = ZstdUtil.extract(f, outDir);
                     info = s(R.string.main_zstd_x_info, r.getAbsolutePath());
                 } catch (Throwable t) {
-                    err = t.getMessage() != null ? t.getMessage()
-                            : t.getClass().getSimpleName();
+                    err = FsText.errorText(MainActivity.this, t);
                 }
                 final String e = err, ok = info;
                 runOnUiThread(new Runnable() {

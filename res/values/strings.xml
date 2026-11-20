@@ -3231,4 +3231,33 @@
     <string name="fs_stage_fingerprint">快速指纹…</string>
     <string name="fs_stage_verify">全量校验…</string>
     <string name="fs_read_unknown">未知错误</string>
+    <!-- v2.104.0 fs 异常码（FsError + FsText.errorText） -->
+    <string name="fs_err_src_missing">源文件不存在：%1$s</string>
+    <string name="fs_err_chunk_invalid">分卷大小必须大于 0</string>
+    <string name="fs_err_empty_source">空文件无需分割</string>
+    <string name="fs_err_too_small">文件（%1$d B）不大于分卷大小（%2$d B），无需分割</string>
+    <string name="fs_err_part_missing">分卷不存在：%1$s</string>
+    <string name="fs_err_not_part">不是分卷文件（缺 .NNN 序号后缀）：%1$s</string>
+    <string name="fs_err_no_sequence">找不到分卷序列</string>
+    <string name="fs_err_start_missing">缺少起始分卷 %1$s.001，无法合并</string>
+    <string name="fs_err_parts_incomplete">分卷不完整：应有 %1$d 卷，只找到 %2$d 卷（%3$s）</string>
+    <string name="fs_err_single_part">仅找到一个分卷 %1$s，分卷不完整</string>
+    <string name="fs_err_part_size">分卷大小不一致：%1$s，疑似缺卷</string>
+    <string name="fs_err_merge_empty">合并结果为空（分卷可能损坏）</string>
+    <string name="fs_err_merge_size">合并结果大小不符：期望 %1$d B，实际 %2$d B（分卷可能损坏）</string>
+    <string name="fs_err_mkdir">无法创建目录：%1$s</string>
+    <string name="fs_err_delete_src">已复制，但源删除失败：%1$s</string>
+    <string name="fs_err_deep">目录层级过深：%1$s</string>
+    <string name="fs_err_target_busy">目标被占用：%1$s</string>
+    <string name="fs_err_create">无法创建：%1$s</string>
+    <string name="fs_err_read">无法读取：%1$s</string>
+    <string name="fs_err_write">写入失败：%1$s</string>
+    <string name="fs_err_resume_eof">续传起点超出源文件：还差 %1$d 字节</string>
+    <string name="fs_err_null_path">路径为空</string>
+    <string name="fs_err_link_unsupported">目标文件系统不支持符号链接：%1$s</string>
+    <string name="fs_err_zip_write">写回压缩包失败：%1$s</string>
+    <string name="fs_err_zip_rename">重命名写回失败：%1$s</string>
+    <string name="fs_err_no_input">没有可压缩的内容</string>
+    <string name="fs_err_bad_magic">不是 zstd 文件（魔数不符）：%1$s</string>
+    <string name="fs_err_outdir">无法创建输出目录：%1$s</string>
 </resources>

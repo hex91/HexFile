@@ -197,7 +197,7 @@ public class FileOps {
                 sb.append(String.format(Locale.US, "%02x", b));
             return sb.toString();
         } catch (Exception e) {
-            return "错误: " + e.getMessage();
+            return "ERR: " + e.getMessage();
         }
     }
 }

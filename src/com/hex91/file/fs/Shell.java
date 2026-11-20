@@ -46,7 +46,7 @@ public final class Shell {
     public static String name(int backend) {
         if (backend == ROOT) return "Root";
         if (backend == SHIZUKU) return "Shizuku";
-        return "无";
+        return "None";
     }
 
     /**
@@ -63,6 +63,6 @@ public final class Shell {
         if (b == SHIZUKU) {
             return ShizukuBridge.start(shellCmd);
         }
-        throw new IllegalStateException("没有可用的提权后端");
+        throw new IllegalStateException("No privilege backend available");
     }
 }

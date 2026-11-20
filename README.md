@@ -1785,6 +1785,28 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.104.0（versionCode 297）—— F-14/91：fs 异常码化，fs 包中文清零
+
+新增 `fs/FsError extends IOException`（28 个码 + 数据参数，`getMessage()` 只给 ASCII
+`FS <CODE>: <args>` 诊断串），`ui/FsText.errorText()` 统一映射到资源。原有 `throws IOException`
+与 catch 分支全部不变；纯 JVM 测试只看异常类型/抛出与否，不受影响。
+
+- **FileSplit**：源文件缺失、卷大小非法、空文件/过小、分卷缺失/非分卷、无序列/缺起始卷、
+  卷数不符/大小不一、合并空/大小不符，共 13 类改码。
+- **FileTaskEngine**：建目录、删源失败、层级过深、目标占用、创建/读取/写入失败、续传 EOF
+  共 10 类改码；`FileTask` 增加 `error/errorName`，`TaskRows` 走 `FsText.taskError()`，
+  单文件失败仍保留「文件名: 原因」前缀。
+- **TreeOps / ZstdUtil / ZipUtil**：路径为空、链接不支持、zstd 魔数/输出目录、压缩包写回
+  日志全部改码；`RootUtil/Shell` 的提权缺失与 `FileOps.hash()` 的兜底改 ASCII 诊断串。
+
+至此 fs 包**代码字符串中文清零**（注释与文件路径等数据不在口径内）。MainActivity 的
+分割/合并/zstd 四条失败分支改走 `FsText.errorText()`。
+
+新增 FsError + 28 个 `fs_err_*` 键，资源 3029 → 3057（100%）。四门全过、全量 97/0/4；
+APK 13,505,232 B（md5 `ab97a2c5…`），badging 297/2.104.0。
+
+---
+
 ## v2.103.0（versionCode 296）—— F-14/90：fs 状态与显示码化
 
 fs 是纯 Java 层，不碰 `Context/R`。本版把「会显示在界面上、但原来写在 fs 里的短文案」

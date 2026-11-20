@@ -97,8 +97,12 @@ public final class FileTask {
      */
     java.util.Set<String> copied;
 
-    /** 最近一次错误（含文件名），失败/部分失败时展示 */
+    /** 最近一次错误（含文件名），失败/部分失败时展示；诊断串，文案由 ui/FsText 映射 */
     public volatile String message;
+    /** 结构化错误：FsError 走资源映射，非结构化错误回落到 message */
+    public volatile Throwable error;
+    /** 单文件失败时的文件名，UI 拼在映射文案前面 */
+    public volatile String errorName;
 
     public volatile long startedAt;
     public volatile long finishedAt;

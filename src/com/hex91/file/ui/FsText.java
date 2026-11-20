@@ -5,6 +5,7 @@ import android.content.Context;
 import com.hex91.file.R;
 import com.hex91.file.fs.DirReader;
 import com.hex91.file.fs.DiskScanUtil;
+import com.hex91.file.fs.FsError;
 import com.hex91.file.fs.FileClipboard;
 import com.hex91.file.fs.FileItem;
 import com.hex91.file.fs.FileTask;
@@ -116,5 +117,87 @@ public final class FsText {
         if (error == null || DirReader.ERROR_UNKNOWN.equals(error))
             return c.getString(R.string.fs_read_unknown);
         return error;
+    }
+
+    /** 结构化 fs 异常 → 资源文案；非 FsError 原样透出诊断串 */
+    public static String errorText(Context c, Throwable t) {
+        if (!(t instanceof FsError)) {
+            String m = t == null ? null : t.getMessage();
+            if (m != null && !m.isEmpty()) return m;
+            return t == null ? "" : t.getClass().getSimpleName();
+        }
+        FsError e = (FsError) t;
+        switch (e.code) {
+            case SRC_MISSING:
+                return c.getString(R.string.fs_err_src_missing, e.str(0));
+            case CHUNK_INVALID:
+                return c.getString(R.string.fs_err_chunk_invalid);
+            case EMPTY_SOURCE:
+                return c.getString(R.string.fs_err_empty_source);
+            case TOO_SMALL:
+                return c.getString(R.string.fs_err_too_small, e.lng(0), e.lng(1));
+            case PART_MISSING:
+                return c.getString(R.string.fs_err_part_missing, e.str(0));
+            case NOT_PART:
+                return c.getString(R.string.fs_err_not_part, e.str(0));
+            case NO_SEQUENCE:
+                return c.getString(R.string.fs_err_no_sequence);
+            case START_MISSING:
+                return c.getString(R.string.fs_err_start_missing, e.str(0));
+            case PARTS_INCOMPLETE:
+                return c.getString(R.string.fs_err_parts_incomplete,
+                        e.num(0), e.num(1), e.str(2));
+            case SINGLE_PART:
+                return c.getString(R.string.fs_err_single_part, e.str(0));
+            case PART_SIZE_MISMATCH:
+                return c.getString(R.string.fs_err_part_size, e.str(0));
+            case MERGE_EMPTY:
+                return c.getString(R.string.fs_err_merge_empty);
+            case MERGE_SIZE:
+                return c.getString(R.string.fs_err_merge_size, e.lng(0), e.lng(1));
+            case MKDIR_FAIL:
+                return c.getString(R.string.fs_err_mkdir, e.str(0));
+            case DELETE_SRC_FAIL:
+                return c.getString(R.string.fs_err_delete_src, e.str(0));
+            case DEEP_PATH:
+                return c.getString(R.string.fs_err_deep, e.str(0));
+            case TARGET_BUSY:
+                return c.getString(R.string.fs_err_target_busy, e.str(0));
+            case CREATE_FAIL:
+                return c.getString(R.string.fs_err_create, e.str(0));
+            case READ_FAIL:
+                return c.getString(R.string.fs_err_read, e.str(0));
+            case WRITE_FAIL:
+                return c.getString(R.string.fs_err_write, e.str(0));
+            case RESUME_EOF:
+                return c.getString(R.string.fs_err_resume_eof, e.lng(0));
+            case NULL_PATH:
+                return c.getString(R.string.fs_err_null_path);
+            case LINK_UNSUPPORTED:
+                return c.getString(R.string.fs_err_link_unsupported, e.str(0));
+            case ZIP_WRITE_FAIL:
+                return c.getString(R.string.fs_err_zip_write, e.str(0));
+            case ZIP_RENAME_FAIL:
+                return c.getString(R.string.fs_err_zip_rename, e.str(0));
+            case NO_INPUT:
+                return c.getString(R.string.fs_err_no_input);
+            case BAD_MAGIC:
+                return c.getString(R.string.fs_err_bad_magic, e.str(0));
+            case OUTDIR_FAIL:
+                return c.getString(R.string.fs_err_outdir, e.str(0));
+            default:
+                return e.getMessage();
+        }
+    }
+
+    /** 任务详情里的失败原因：单文件失败保留文件名前缀 */
+    public static String taskError(Context c, FileTask t) {
+        if (t == null) return "";
+        if (t.error instanceof FsError) {
+            String text = errorText(c, t.error);
+            if (t.errorName != null && !t.errorName.isEmpty()) return t.errorName + ": " + text;
+            return text;
+        }
+        return t.message == null ? "" : t.message;
     }
 }
