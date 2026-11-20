@@ -19,8 +19,44 @@ import java.util.Locale;
  * <p>单位识别交给 {@link TimeCore#parseStamp}（≤10 位秒、≤13 位毫秒、≤16 位微秒），
  * 日期解析支持 {@code 2024-01-01 12:00:00}、{@code 2024/01/01}、{@code 20240101120000}、
  * 带 {@code Z} 或 {@code +08:00} 后缀等写法。
+ *
+ * <p>v2.78.0（F-14/65）：{@link TimeCore} 改成只产码，本页负责把单位码 / 相对时间 / 错误码
+ * 翻成 R.string —— 所以「哪段文案」全在这一层，改文案不用动核心逻辑。
  */
 public class TimeToolActivity extends BaseActivity {
+
+    /** 页头秒表用（不带毫秒，秒级刷新才不抖） */
+    private static final String PAT_STAMP = "yyyy-MM-dd HH:mm:ss";
+    /** 详情行用 */
+    private static final String PAT_FULL = "yyyy-MM-dd HH:mm:ss.SSS";
+    private static final String PAT_ISO = "yyyy-MM-dd'T'HH:mm:ss.SSSXXX";
+    private static final String PAT_RFC = "EEE, dd MMM yyyy HH:mm:ss zzz";
+
+    /** 单位码 → 资源，下标与 {@link TimeCore#UNIT_SECOND} 等保持一一对应 */
+    private static final int[] UNIT_LABELS = {
+            R.string.tt_unit_second, R.string.tt_unit_millis,
+            R.string.tt_unit_micros, R.string.tt_unit_nanos
+    };
+
+    /** 错误码 → 资源，下标与 {@link TimeCore#ERR_EMPTY_STAMP} 等对应（0 号不用） */
+    private static final int[] ERROR_LABELS = {
+            0,
+            R.string.tt_err_empty_stamp, R.string.tt_err_stamp_number,
+            R.string.tt_err_stamp_overflow, R.string.tt_err_empty_time,
+            R.string.tt_err_time_unknown
+    };
+
+    /** 相对时间单位码 → 资源：整句带参，避免「数字 + 量词」硬拼出复数和语序问题 */
+    private static final int[] REL_PAST = {
+            R.string.tt_rel_ms_past, R.string.tt_rel_sec_past, R.string.tt_rel_min_past,
+            R.string.tt_rel_hour_past, R.string.tt_rel_day_past,
+            R.string.tt_rel_month_past, R.string.tt_rel_year_past
+    };
+    private static final int[] REL_FUTURE = {
+            R.string.tt_rel_ms_future, R.string.tt_rel_sec_future, R.string.tt_rel_min_future,
+            R.string.tt_rel_hour_future, R.string.tt_rel_day_future,
+            R.string.tt_rel_month_future, R.string.tt_rel_year_future
+    };
 
     private TextView nowTv, nowStamp, outStamp, outDate;
     private EditText inStamp, inDate;
@@ -32,9 +68,8 @@ public class TimeToolActivity extends BaseActivity {
     private final Runnable tick = new Runnable() {
         public void run() {
             long now = System.currentTimeMillis();
-            nowTv.setText(TimeCore.fmt(now, "yyyy-MM-dd HH:mm:ss", null)
-                    + "  " + TimeCore.weekday(now));
-            nowStamp.setText("秒     " + (now / 1000L) + "\n毫秒   " + now);
+            nowTv.setText(TimeCore.fmt(now, PAT_STAMP, null) + "  " + weekday(now));
+            nowStamp.setText(getString(R.string.tt_now_stamp, now / 1000L, now));
             if (ticking) ui.postDelayed(this, 1000L);
         }
     };
@@ -59,13 +94,14 @@ public class TimeToolActivity extends BaseActivity {
         });
         nowTv.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                ToolUi.copy(TimeToolActivity.this, String.valueOf(System.currentTimeMillis() / 1000L), "当前秒级时间戳");
+                ToolUi.copy(TimeToolActivity.this, String.valueOf(System.currentTimeMillis() / 1000L),
+                        getString(R.string.tt_copy_now));
             }
         });
         pauseBtn.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 ticking = !ticking;
-                pauseBtn.setText(ticking ? "暂停" : "继续");
+                pauseBtn.setText(ticking ? R.string.tt_pause : R.string.tt_continue);
                 if (ticking) ui.post(tick);
             }
         });
@@ -88,7 +124,7 @@ public class TimeToolActivity extends BaseActivity {
         if (b == null) {
             long now = System.currentTimeMillis();
             inStamp.setText(String.valueOf(now / 1000L));
-            inDate.setText(TimeCore.fmt(now, "yyyy-MM-dd HH:mm:ss", null));
+            inDate.setText(TimeCore.fmt(now, PAT_STAMP, null));
         }
         // 秒表只在 onResume 里启动：onCreate 之后再 post 一次会让两条 Runnable 链并存，
         // 表现为刷新速度翻倍（每 0.5s 跳两次）
@@ -116,15 +152,16 @@ public class TimeToolActivity extends BaseActivity {
     private void convertStamp() {
         String s = inStamp.getText().toString().trim();
         if (s.length() == 0) {
-            outStamp.setText("—");
+            outStamp.setText(R.string.tt_placeholder);
             return;
         }
         try {
             TimeCore.Stamp st = TimeCore.parseStamp(s);
-            outStamp.setText("识别单位  " + st.unit + "\n" + TimeCore.describe(st.millis));
+            outStamp.setText(getString(R.string.tt_unit_detected, getString(UNIT_LABELS[st.unit]))
+                    + "\n" + describe(st.millis));
             outStamp.setTextColor(ThemeManager.text(this));
-        } catch (IllegalArgumentException e) {
-            outStamp.setText("✗ " + e.getMessage());
+        } catch (TimeCore.TimeException e) {
+            outStamp.setText(errorText(e));
             outStamp.setTextColor(ThemeManager.err(this));
         }
     }
@@ -132,17 +169,53 @@ public class TimeToolActivity extends BaseActivity {
     private void convertDate() {
         String s = inDate.getText().toString().trim();
         if (s.length() == 0) {
-            outDate.setText("—");
+            outDate.setText(R.string.tt_placeholder);
             return;
         }
         try {
             long ms = TimeCore.parseDateTime(s);
-            outDate.setText(String.format(Locale.US, "秒     %d\n毫秒   %d\n微秒   %d\n\n%s",
-                    ms / 1000L, ms, ms * 1000L, TimeCore.relative(ms)));
+            outDate.setText(getString(R.string.tt_date_rows,
+                    ms / 1000L, ms, ms * 1000L, relativeText(ms)));
             outDate.setTextColor(ThemeManager.text(this));
-        } catch (IllegalArgumentException e) {
-            outDate.setText("✗ " + e.getMessage());
+        } catch (TimeCore.TimeException e) {
+            outDate.setText(errorText(e));
             outDate.setTextColor(ThemeManager.err(this));
         }
+    }
+
+    /** 本地 / UTC / ISO / RFC / 人读 / 相对 / 纪元秒毫秒，一行一条方便直接复制 */
+    private String describe(long millis) {
+        StringBuilder sb = new StringBuilder(320);
+        sb.append(getString(R.string.tt_row_local, TimeCore.fmt(millis, PAT_FULL, null))).append('\n');
+        sb.append(getString(R.string.tt_row_utc, TimeCore.fmt(millis, PAT_FULL, "UTC"))).append('\n');
+        sb.append(getString(R.string.tt_row_iso, TimeCore.fmt(millis, PAT_ISO, null))).append('\n');
+        // RFC 1123 的星期/月份缩写是英文规范，中文环境也必须是 Wed / Nov
+        sb.append(getString(R.string.tt_row_rfc,
+                TimeCore.fmt(millis, PAT_RFC, "UTC", Locale.US))).append('\n');
+        sb.append(getString(R.string.tt_row_human,
+                TimeCore.fmt(millis, getString(R.string.tt_pat_human), null), weekday(millis))).append('\n');
+        sb.append(getString(R.string.tt_row_relative, relativeText(millis))).append('\n');
+        sb.append(getString(R.string.tt_row_epoch, millis / 1000L, millis));
+        return sb.toString();
+    }
+
+    private String weekday(long millis) {
+        String[] names = getResources().getStringArray(R.array.tt_weekdays);
+        return names[TimeCore.weekdayIndex(millis)];
+    }
+
+    private String relativeText(long millis) {
+        TimeCore.Relative r = TimeCore.relative(millis);
+        String num = r.oneDecimal
+                ? (r.count / 10L) + "." + Math.abs(r.count % 10L)
+                : String.valueOf(r.count);
+        int[] table = r.future ? REL_FUTURE : REL_PAST;
+        return getString(table[r.unit], num);
+    }
+
+    private String errorText(TimeCore.TimeException e) {
+        int res = (e.code >= 0 && e.code < ERROR_LABELS.length) ? ERROR_LABELS[e.code] : 0;
+        String msg = res == 0 ? e.getMessage() : getString(res);
+        return getString(R.string.tt_err, msg);
     }
 }

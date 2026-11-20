@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v1.70.0 时间戳：当前时间 + 时间戳↔日期 双向换算 -->
+<!-- v1.70.0 timestamp page: live clock + two-way timestamp/date conversion -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:orientation="vertical"
     android:layout_width="match_parent"
@@ -34,7 +34,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="时间戳"
+                android:text="@string/tt_title"
                 android:textSize="14sp"
                 android:textStyle="bold"
                 android:textColor="?attr/hfText"/>
@@ -42,7 +42,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="秒 / 毫秒 / 微秒自动识别"
+                android:text="@string/tt_subtitle"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textSize="11sp"
@@ -56,7 +56,7 @@
             android:gravity="center"
             android:paddingLeft="10dp"
             android:paddingRight="10dp"
-            android:text="暂停"
+            android:text="@string/tt_pause"
             android:textSize="13sp"
             android:textColor="?attr/hfTextSub"
             android:background="?android:attr/selectableItemBackground"/>
@@ -74,7 +74,7 @@
             android:orientation="vertical"
             android:padding="12dp">
 
-            <!-- 当前时间 -->
+            <!-- live clock -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -85,7 +85,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="当前时间（点一下复制）"
+                    android:text="@string/tt_now_label"
                     android:textSize="11sp"
                     android:textColor="?attr/hfTextSub"/>
 
@@ -111,13 +111,13 @@
                     android:textColor="?attr/hfTextSub"/>
             </LinearLayout>
 
-            <!-- 时间戳 → 时间 -->
+            <!-- timestamp to time -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:layout_marginBottom="4dp"
-                android:text="时间戳 → 时间"
+                android:text="@string/tt_sec_stamp"
                 android:textSize="11sp"
                 android:textColor="?attr/hfTextSub"/>
 
@@ -130,7 +130,7 @@
                 android:singleLine="true"
                 android:textSize="13sp"
                 android:inputType="numberSigned|numberDecimal"
-                android:hint="例如 1700000000 或 1700000000123"
+                android:hint="@string/tt_hint_stamp"
                 android:textColorHint="?attr/hfTextSub"
                 android:textColor="?attr/hfText"
                 android:background="?attr/hfSurfaceAlt"/>
@@ -149,13 +149,13 @@
                 android:textColor="?attr/hfText"
                 android:background="?attr/hfSurfaceAlt"/>
 
-            <!-- 时间 → 时间戳 -->
+            <!-- time to timestamp -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:layout_marginBottom="4dp"
-                android:text="时间 → 时间戳"
+                android:text="@string/tt_sec_date"
                 android:textSize="11sp"
                 android:textColor="?attr/hfTextSub"/>
 

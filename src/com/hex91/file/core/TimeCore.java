@@ -13,14 +13,59 @@ import java.util.TimeZone;
  * {@code java.time} 在 Android 8.0 以下直接崩。这里统一用 {@link SimpleDateFormat} + {@link Calendar}。
  *
  * <p>时间戳自动识别单位：≤ 10 位按秒、≤ 13 位按毫秒、≤ 16 位按微秒、更长按纳秒 —— 手输时不用记单位。
+ *
+ * <p>v2.78.0（F-14/65）：本类只产「码」，不产文案 —— 单位返回 {@link #UNIT_SECOND} 这类常量，
+ * 相对时间返回 {@link Relative}，错误返回 {@link TimeException#code}，由 UI 层映射到 R.string。
+ * 好处是 test/ToolboxCoreTest 仍是纯 JVM 测试，不必为了取字符串而塞一个 Context 进来。
  */
 public final class TimeCore {
+
+    /** 时间戳单位码：UI 层按码取资源 */
+    public static final int UNIT_SECOND = 0;
+    public static final int UNIT_MILLIS = 1;
+    public static final int UNIT_MICROS = 2;
+    public static final int UNIT_NANOS = 3;
+
+    /** 相对时间的单位码 */
+    public static final int REL_MILLIS = 0;
+    public static final int REL_SECONDS = 1;
+    public static final int REL_MINUTES = 2;
+    public static final int REL_HOURS = 3;
+    public static final int REL_DAYS = 4;
+    public static final int REL_MONTHS = 5;
+    public static final int REL_YEARS = 6;
+
+    /** 错误码：UI 层按码取资源，日志里只出现编号 */
+    public static final int ERR_EMPTY_STAMP = 1;
+    public static final int ERR_STAMP_NOT_NUMBER = 2;
+    public static final int ERR_STAMP_OVERFLOW = 3;
+    public static final int ERR_EMPTY_TIME = 4;
+    public static final int ERR_TIME_UNKNOWN = 5;
+
+    /** 解析失败：{@link #code} 决定给用户看哪句提示 */
+    public static final class TimeException extends IllegalArgumentException {
+        public final int code;
+
+        public TimeException(int code) {
+            super("TimeCore error " + code);
+            this.code = code;
+        }
+    }
 
     /** 解析成功后的结果（毫秒 + 原始单位猜测） */
     public static final class Stamp {
         public long millis;
-        public String unit = "秒";
+        public int unit = UNIT_SECOND;
         public boolean negative;
+    }
+
+    /** 相对时间：{@link #count} 配 {@link #unit}，{@link #future} 决定「前 / 后」 */
+    public static final class Relative {
+        public long count;
+        public int unit = REL_MILLIS;
+        public boolean future;
+        /** 只有年份走一位小数，此时 count 是十分之一年的整数（35 = 3.5 年） */
+        public boolean oneDecimal;
     }
 
     private TimeCore() {
@@ -30,16 +75,16 @@ public final class TimeCore {
 
     /** 解析时间戳字符串：允许负数、允许带小数（小数部分按当前单位折算） */
     public static Stamp parseStamp(String s) {
-        if (s == null) throw new IllegalArgumentException("请输入时间戳");
+        if (s == null) throw new TimeException(ERR_EMPTY_STAMP);
         String t = s.trim().replace("_", "").replace(" ", "").replace(",", "");
-        if (t.isEmpty()) throw new IllegalArgumentException("请输入时间戳");
+        if (t.isEmpty()) throw new TimeException(ERR_EMPTY_STAMP);
         boolean neg = t.startsWith("-");
         if (neg || t.startsWith("+")) t = t.substring(1);
         // 整数位数（去掉小数点后的部分不影响单位判断）
         int dot = t.indexOf('.');
         String intPart = dot >= 0 ? t.substring(0, dot) : t;
         if (intPart.isEmpty() || !isDigits(intPart)) {
-            throw new IllegalArgumentException("时间戳只能是数字（例如 1700000000 或 1700000000123）");
+            throw new TimeException(ERR_STAMP_NOT_NUMBER);
         }
         int digits = intPart.length();
         Stamp st = new Stamp();
@@ -47,19 +92,19 @@ public final class TimeCore {
         try {
             v = Long.parseLong(intPart);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("时间戳过长，超出 64 位整数范围");
+            throw new TimeException(ERR_STAMP_OVERFLOW);
         }
         if (digits <= 10) {
-            st.unit = "秒";
+            st.unit = UNIT_SECOND;
             st.millis = v * 1000L;
         } else if (digits <= 13) {
-            st.unit = "毫秒";
+            st.unit = UNIT_MILLIS;
             st.millis = v;
         } else if (digits <= 16) {
-            st.unit = "微秒";
+            st.unit = UNIT_MICROS;
             st.millis = v / 1000L;
         } else {
-            st.unit = "纳秒";
+            st.unit = UNIT_NANOS;
             st.millis = v / 1000000L;
         }
         st.negative = neg;
@@ -67,46 +112,54 @@ public final class TimeCore {
         return st;
     }
 
-    /** 本地时间 + UTC + ISO8601 + RFC1123 + 星期 + 相对时间，一行一条方便直接复制 */
-    public static String describe(long millis) {
-        StringBuilder sb = new StringBuilder(320);
-        sb.append("本地时间   ").append(fmt(millis, "yyyy-MM-dd HH:mm:ss.SSS", null)).append('\n');
-        sb.append("UTC        ").append(fmt(millis, "yyyy-MM-dd HH:mm:ss.SSS", "UTC")).append("  (UTC)\n");
-        sb.append("ISO 8601   ").append(fmt(millis, "yyyy-MM-dd'T'HH:mm:ss.SSSXXX", null)).append('\n');
-        sb.append("RFC 1123   ").append(fmt(millis, "EEE, dd MMM yyyy HH:mm:ss zzz", "UTC")).append('\n');
-        sb.append("中文       ").append(fmt(millis, "yyyy 年 M 月 d 日 HH:mm:ss", null))
-          .append("  ").append(weekday(millis)).append('\n');
-        sb.append("相对       ").append(relative(millis)).append('\n');
-        sb.append("秒 / 毫秒  ").append(millis / 1000L).append(" / ").append(millis);
-        return sb.toString();
+    public static String fmt(long millis, String pattern, String tzId) {
+        return fmt(millis, pattern, tzId, Locale.getDefault());
     }
 
-    public static String fmt(long millis, String pattern, String tzId) {
-        SimpleDateFormat f = new SimpleDateFormat(pattern, Locale.CHINA);
+    /** 指定语言格式化：RFC 1123 这类规范格式要用 {@link Locale#US}，否则中文环境会输出「周三」 */
+    public static String fmt(long millis, String pattern, String tzId, Locale locale) {
+        SimpleDateFormat f = new SimpleDateFormat(pattern, locale);
         if (tzId != null) f.setTimeZone(TimeZone.getTimeZone(tzId));
         return f.format(new Date(millis));
     }
 
-    public static String weekday(long millis) {
-        String[] w = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
+    /** 星期几：0 = 周日 … 6 = 周六，名字由 UI 层按码查表 */
+    public static int weekdayIndex(long millis) {
         Calendar c = Calendar.getInstance();
         c.setTimeInMillis(millis);
-        return w[c.get(Calendar.DAY_OF_WEEK) - 1];
+        return c.get(Calendar.DAY_OF_WEEK) - 1;
     }
 
-    public static String relative(long millis) {
+    /** 相对现在多久：只给数字和单位码，前后由 {@link Relative#future} 表示 */
+    public static Relative relative(long millis) {
         long diff = System.currentTimeMillis() - millis;
-        boolean future = diff < 0;
+        Relative r = new Relative();
+        r.future = diff < 0;
         long d = Math.abs(diff);
-        String s;
-        if (d < 1000) s = d + " 毫秒";
-        else if (d < 60_000) s = (d / 1000) + " 秒";
-        else if (d < 3_600_000) s = (d / 60_000) + " 分钟";
-        else if (d < 86_400_000L) s = (d / 3_600_000) + " 小时";
-        else if (d < 30L * 86_400_000L) s = (d / 86_400_000L) + " 天";
-        else if (d < 365L * 86_400_000L) s = (d / (30L * 86_400_000L)) + " 个月";
-        else s = String.format(Locale.US, "%.1f", d / (365.0 * 86_400_000L)) + " 年";
-        return future ? s + "后" : s + "前";
+        if (d < 1000) {
+            r.count = d;
+            r.unit = REL_MILLIS;
+        } else if (d < 60_000) {
+            r.count = d / 1000;
+            r.unit = REL_SECONDS;
+        } else if (d < 3_600_000) {
+            r.count = d / 60_000;
+            r.unit = REL_MINUTES;
+        } else if (d < 86_400_000L) {
+            r.count = d / 3_600_000;
+            r.unit = REL_HOURS;
+        } else if (d < 30L * 86_400_000L) {
+            r.count = d / 86_400_000L;
+            r.unit = REL_DAYS;
+        } else if (d < 365L * 86_400_000L) {
+            r.count = d / (30L * 86_400_000L);
+            r.unit = REL_MONTHS;
+        } else {
+            r.count = Math.round(d / (365.0 * 86_400_000L) * 10L);
+            r.unit = REL_YEARS;
+            r.oneDecimal = true;
+        }
+        return r;
     }
 
     // ============================================================ 时间 → 时间戳
@@ -122,9 +175,9 @@ public final class TimeCore {
      * </ul>
      */
     public static long parseDateTime(String s) {
-        if (s == null) throw new IllegalArgumentException("请输入时间");
+        if (s == null) throw new TimeException(ERR_EMPTY_TIME);
         String t = s.trim();
-        if (t.isEmpty()) throw new IllegalArgumentException("请输入时间");
+        if (t.isEmpty()) throw new TimeException(ERR_EMPTY_TIME);
         if (t.matches("^-?\\d+(\\.\\d+)?$")) {
             // 纯数字先看长度：8/12/14 位是「紧凑日期」（20240101 / 202401011200 / 20240101120000），
             // 其余按时间戳处理，避免 20240101120000 被当成微秒戳
@@ -159,9 +212,10 @@ public final class TimeCore {
                 "yyyy-MM-dd HH:mm:ss.SSS", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm", "yyyy-MM-dd",
                 "yyyyMMdd HHmmss", "yyyyMMddHHmmss", "yyyyMMdd HHmm", "yyyyMMdd", "HH:mm:ss", "HH:mm"
         };
+        Locale locale = Locale.getDefault();
         for (String p : patterns) {
             try {
-                SimpleDateFormat f = new SimpleDateFormat(p, Locale.CHINA);
+                SimpleDateFormat f = new SimpleDateFormat(p, locale);
                 f.setLenient(false);
                 // 带 Z 或 +08:00 时区后缀时一律按 UTC 解析，再由 offset 折算（
                 // 否则在 +08:00 机器上解析 +08:00 时间会被重复折算一次）
@@ -169,7 +223,7 @@ public final class TimeCore {
                 Date d = f.parse(t);
                 if (d == null) continue;
                 long ms = d.getTime();
-                if (p.startsWith("HH") ) {
+                if (p.startsWith("HH")) {
                     // 只给了时分秒：补今天的日期
                     Calendar now = Calendar.getInstance();
                     Calendar c = Calendar.getInstance();
@@ -192,7 +246,7 @@ public final class TimeCore {
                 // 换下一个格式
             }
         }
-        throw new IllegalArgumentException("认不出这个时间格式，试试 2024-01-01 12:00:00");
+        throw new TimeException(ERR_TIME_UNKNOWN);
     }
 
     private static boolean isDigits(String s) {

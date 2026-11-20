@@ -2801,4 +2801,59 @@
     <string name="dp_move_fail">移动失败</string>
     <string name="dp_bad_path">非法路径：%1$s</string>
     <string name="dp_out_of_scope">超出允许范围：%1$s</string>
+    <!-- v2.78.0 时间戳页（TimeToolActivity / TimeCore） -->
+    <string name="tt_title">时间戳</string>
+    <string name="tt_subtitle">秒 / 毫秒 / 微秒自动识别</string>
+    <string name="tt_pause">暂停</string>
+    <string name="tt_continue">继续</string>
+    <string name="tt_now_label">当前时间（点一下复制）</string>
+    <string name="tt_sec_stamp">时间戳 → 时间</string>
+    <string name="tt_hint_stamp">例如 1700000000 或 1700000000123</string>
+    <string name="tt_sec_date">时间 → 时间戳</string>
+    <string name="tt_copy_now">当前秒级时间戳</string>
+    <string name="tt_placeholder">—</string>
+    <string name="tt_err">✗ %1$s</string>
+    <string name="tt_now_stamp">"秒     %1$d\n毫秒   %2$d"</string>
+    <string name="tt_unit_detected">"识别单位  %1$s"</string>
+    <string name="tt_row_local">"本地时间   %1$s"</string>
+    <string name="tt_row_utc">"UTC        %1$s  (UTC)"</string>
+    <string name="tt_row_iso">"ISO 8601   %1$s"</string>
+    <string name="tt_row_rfc">"RFC 1123   %1$s"</string>
+    <string name="tt_row_human">"中文       %1$s  %2$s"</string>
+    <string name="tt_row_relative">"相对       %1$s"</string>
+    <string name="tt_row_epoch">"秒 / 毫秒  %1$d / %2$d"</string>
+    <string name="tt_date_rows">"秒     %1$d\n毫秒   %2$d\n微秒   %3$d\n\n%4$s"</string>
+    <string name="tt_pat_human">yyyy 年 M 月 d 日 HH:mm:ss</string>
+    <string name="tt_unit_second">秒</string>
+    <string name="tt_unit_millis">毫秒</string>
+    <string name="tt_unit_micros">微秒</string>
+    <string name="tt_unit_nanos">纳秒</string>
+    <string name="tt_rel_ms_past">%1$s 毫秒前</string>
+    <string name="tt_rel_ms_future">%1$s 毫秒后</string>
+    <string name="tt_rel_sec_past">%1$s 秒前</string>
+    <string name="tt_rel_sec_future">%1$s 秒后</string>
+    <string name="tt_rel_min_past">%1$s 分钟前</string>
+    <string name="tt_rel_min_future">%1$s 分钟后</string>
+    <string name="tt_rel_hour_past">%1$s 小时前</string>
+    <string name="tt_rel_hour_future">%1$s 小时后</string>
+    <string name="tt_rel_day_past">%1$s 天前</string>
+    <string name="tt_rel_day_future">%1$s 天后</string>
+    <string name="tt_rel_month_past">%1$s 个月前</string>
+    <string name="tt_rel_month_future">%1$s 个月后</string>
+    <string name="tt_rel_year_past">%1$s 年前</string>
+    <string name="tt_rel_year_future">%1$s 年后</string>
+    <string name="tt_err_empty_stamp">请输入时间戳</string>
+    <string name="tt_err_stamp_number">时间戳只能是数字（例如 1700000000 或 1700000000123）</string>
+    <string name="tt_err_stamp_overflow">时间戳过长，超出 64 位整数范围</string>
+    <string name="tt_err_empty_time">请输入时间</string>
+    <string name="tt_err_time_unknown">认不出这个时间格式，试试 2024-01-01 12:00:00</string>
+    <string-array name="tt_weekdays">
+        <item>周日</item>
+        <item>周一</item>
+        <item>周二</item>
+        <item>周三</item>
+        <item>周四</item>
+        <item>周五</item>
+        <item>周六</item>
+    </string-array>
 </resources>

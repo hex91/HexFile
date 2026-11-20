@@ -261,14 +261,16 @@ public class ToolboxCoreTest {
         System.out.println("[9] 时间戳");
         TimeCore.Stamp s10 = TimeCore.parseStamp("1700000000");
         eq("10 位按秒", 1700000000000L, s10.millis);
-        eq("10 位单位", "秒", s10.unit);
+        eq("10 位单位码", TimeCore.UNIT_SECOND, s10.unit);
         TimeCore.Stamp s13 = TimeCore.parseStamp("1700000000123");
         eq("13 位按毫秒", 1700000000123L, s13.millis);
-        eq("13 位单位", "毫秒", s13.unit);
+        eq("13 位单位码", TimeCore.UNIT_MILLIS, s13.unit);
         eq("16 位按微秒", 1700000000123L, TimeCore.parseStamp("1700000000123456").millis);
+        eq("16 位单位码", TimeCore.UNIT_MICROS, TimeCore.parseStamp("1700000000123456").unit);
+        eq("19 位单位码", TimeCore.UNIT_NANOS, TimeCore.parseStamp("1700000000123456789").unit);
         eq("本地时间格式化", "2023-11-15 06:13:20", TimeCore.fmt(1700000000000L, "yyyy-MM-dd HH:mm:ss", null));
         eq("UTC 格式化", "2023-11-14 22:13:20", TimeCore.fmt(1700000000000L, "yyyy-MM-dd HH:mm:ss", "UTC"));
-        eq("星期", "周三", TimeCore.weekday(1700000000000L));
+        eq("星期索引（0=周日）", 3, TimeCore.weekdayIndex(1700000000000L));
         eq("时间→时间戳", 1704081600000L, TimeCore.parseDateTime("2024-01-01 12:00:00"));
         eq("斜杠分隔", 1704081600000L, TimeCore.parseDateTime("2024/01/01 12:00:00"));
         eq("只要日期", 1704038400000L, TimeCore.parseDateTime("2024-01-01"));
@@ -278,8 +280,21 @@ public class ToolboxCoreTest {
         eq("带毫秒", 1704081600123L, TimeCore.parseDateTime("2024-01-01 12:00:00.123"));
         eq("点分日期", 1704081600000L, TimeCore.parseDateTime("2024.01.01 12:00:00"));
         eq("ISO 带 Z", 1704067200000L, TimeCore.parseDateTime("2024-01-01T00:00:00Z"));
-        ok("相对时间含「前」", TimeCore.relative(System.currentTimeMillis() - 90_000L).endsWith("前"));
-        ok("未来时间含「后」", TimeCore.relative(System.currentTimeMillis() + 90_000L).endsWith("后"));
+        // 相对时间只回码：过去/未来 + 单位码 + 数值，文案在 UI 层拼
+        TimeCore.Relative past = TimeCore.relative(System.currentTimeMillis() - 30_000L);
+        ok("30 秒前算作过去", !past.future);
+        eq("过去单位码", TimeCore.REL_SECONDS, past.unit);
+        eq("过去数值", 30L, past.count);
+        TimeCore.Relative ahead = TimeCore.relative(System.currentTimeMillis() + 30_000L);
+        ok("未来 30 秒算作未来", ahead.future);
+        TimeCore.Relative years = TimeCore.relative(System.currentTimeMillis() - 3L * 365L * 86_400_000L);
+        eq("多年单位码", TimeCore.REL_YEARS, years.unit);
+        ok("多年保留一位小数", years.oneDecimal);
+        throwsErr("空时间报错", new Runnable() {
+            public void run() {
+                TimeCore.parseDateTime("");
+            }
+        });
         throwsErr("乱写时间报错", new Runnable() {
             public void run() {
                 TimeCore.parseDateTime("明年这个时候");

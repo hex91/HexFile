@@ -2793,4 +2793,59 @@
     <string name="dp_move_fail">Move failed</string>
     <string name="dp_bad_path">Invalid path: %1$s</string>
     <string name="dp_out_of_scope">Outside the allowed scope: %1$s</string>
+    <!-- v2.78.0 timestamp page -->
+    <string name="tt_title">Timestamp</string>
+    <string name="tt_subtitle">Seconds / milliseconds / microseconds, auto-detected</string>
+    <string name="tt_pause">Pause</string>
+    <string name="tt_continue">Resume</string>
+    <string name="tt_now_label">Current time (tap to copy)</string>
+    <string name="tt_sec_stamp">Timestamp → time</string>
+    <string name="tt_hint_stamp">e.g. 1700000000 or 1700000000123</string>
+    <string name="tt_sec_date">Time → timestamp</string>
+    <string name="tt_copy_now">current second-level timestamp</string>
+    <string name="tt_placeholder">—</string>
+    <string name="tt_err">✗ %1$s</string>
+    <string name="tt_now_stamp">"sec    %1$d\nmsec   %2$d"</string>
+    <string name="tt_unit_detected">"Unit       %1$s"</string>
+    <string name="tt_row_local">"Local      %1$s"</string>
+    <string name="tt_row_utc">"UTC        %1$s  (UTC)"</string>
+    <string name="tt_row_iso">"ISO 8601   %1$s"</string>
+    <string name="tt_row_rfc">"RFC 1123   %1$s"</string>
+    <string name="tt_row_human">"Chinese    %1$s  %2$s"</string>
+    <string name="tt_row_relative">"Relative   %1$s"</string>
+    <string name="tt_row_epoch">"Epoch      %1$d / %2$d"</string>
+    <string name="tt_date_rows">"sec    %1$d\nmsec   %2$d\nusec   %3$d\n\n%4$s"</string>
+    <string name="tt_pat_human">MMM d, yyyy HH:mm:ss</string>
+    <string name="tt_unit_second">s</string>
+    <string name="tt_unit_millis">ms</string>
+    <string name="tt_unit_micros">µs</string>
+    <string name="tt_unit_nanos">ns</string>
+    <string name="tt_rel_ms_past">%1$s ms ago</string>
+    <string name="tt_rel_ms_future">in %1$s ms</string>
+    <string name="tt_rel_sec_past">%1$s s ago</string>
+    <string name="tt_rel_sec_future">in %1$s s</string>
+    <string name="tt_rel_min_past">%1$s min ago</string>
+    <string name="tt_rel_min_future">in %1$s min</string>
+    <string name="tt_rel_hour_past">%1$s h ago</string>
+    <string name="tt_rel_hour_future">in %1$s h</string>
+    <string name="tt_rel_day_past">%1$s d ago</string>
+    <string name="tt_rel_day_future">in %1$s d</string>
+    <string name="tt_rel_month_past">%1$s mo ago</string>
+    <string name="tt_rel_month_future">in %1$s mo</string>
+    <string name="tt_rel_year_past">%1$s y ago</string>
+    <string name="tt_rel_year_future">in %1$s y</string>
+    <string name="tt_err_empty_stamp">Enter a timestamp</string>
+    <string name="tt_err_stamp_number">A timestamp must be digits only (e.g. 1700000000 or 1700000000123)</string>
+    <string name="tt_err_stamp_overflow">Timestamp too long — beyond the 64-bit integer range</string>
+    <string name="tt_err_empty_time">Enter a time</string>
+    <string name="tt_err_time_unknown">Unrecognised time format — try 2024-01-01 12:00:00</string>
+    <string-array name="tt_weekdays">
+        <item>Sun</item>
+        <item>Mon</item>
+        <item>Tue</item>
+        <item>Wed</item>
+        <item>Thu</item>
+        <item>Fri</item>
+        <item>Sat</item>
+    </string-array>
 </resources>
