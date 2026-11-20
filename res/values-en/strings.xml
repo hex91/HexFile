@@ -2863,4 +2863,43 @@
     <string name="fmt_err_num_pos">Invalid number in JSON (at %1$d)</string>
     <string name="fmt_err_num">Malformed number: %1$s</string>
     <string name="fmt_err_unknown_mode">Unknown format type</string>
+    <!-- v2.80.0 cipher page: algorithm names and error text -->
+    <string-array name="cph_alg_names">
+        <item>Base64 encode</item>
+        <item>Base64 decode</item>
+        <item>Base32 encode</item>
+        <item>Base32 decode</item>
+        <item>URL encode</item>
+        <item>URL decode</item>
+        <item>MD5</item>
+        <item>SHA-1</item>
+        <item>SHA-256</item>
+        <item>SHA-512</item>
+        <item>SM3</item>
+        <item>CRC32</item>
+        <item>HMAC-SHA256</item>
+        <item>HMAC-SM3</item>
+        <item>AES</item>
+        <item>DES</item>
+        <item>3DES</item>
+        <item>SM4</item>
+    </string-array>
+    <string name="cph_hint_aes">16 / 24 / 32 bytes (AES-128/192/256), zero-padded if shorter</string>
+    <string name="cph_hint_des">8 bytes (DES), zero-padded if shorter</string>
+    <string name="cph_hint_3des">16 or 24 bytes (3DES), zero-padded if shorter</string>
+    <string name="cph_hint_sm4">16 bytes (SM4), zero-padded if shorter</string>
+    <string name="cph_hint_any">any length</string>
+    <string name="cph_err_prefix">✗ %1$s</string>
+    <string name="cph_err_no_key">Enter a key (%1$s)</string>
+    <string name="cph_err_bad_pad">Decryption failed: bad padding (wrong key / IV / mode)</string>
+    <string name="cph_err_ct_block">Decryption failed: the ciphertext is not a whole number of blocks, or is incomplete</string>
+    <string name="cph_err_op">Operation failed: %1$s</string>
+    <string name="cph_err_ct_align16">Decryption failed: the ciphertext length must be a multiple of 16 (currently %1$d bytes)</string>
+    <string name="cph_err_digest_unsupported">Unsupported digest algorithm: %1$s</string>
+    <string name="cph_err_hmac_fail">HMAC failed: %1$s</string>
+    <string name="cph_err_aes_key">AES keys are at most 32 bytes (currently %1$d)</string>
+    <string name="cph_err_des_key">DES keys must be 8 bytes (currently %1$d)</string>
+    <string name="cph_err_3des_key">3DES keys are at most 24 bytes (currently %1$d)</string>
+    <string name="cph_err_sm4_key">SM4 keys must be 16 bytes (currently %1$d)</string>
+    <string name="cph_err_no_cipher">Enter the ciphertext</string>
 </resources>

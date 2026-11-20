@@ -52,9 +52,9 @@ public class CipherActivity extends BaseActivity {
         fmtB64 = (TextView) findViewById(R.id.cp_fmt_b64);
         fmtHex = (TextView) findViewById(R.id.cp_fmt_hex);
 
-        algSp.setAdapter(ToolUi.adapter(this, CryptoCore.NAMES));
+        algSp.setAdapter(ToolUi.adapter(this, algNames()));
         int alg = getIntent().getIntExtra(ToolboxActivity.EXTRA_ALG, CryptoCore.A_AES);
-        if (alg < 0 || alg >= CryptoCore.NAMES.length) alg = CryptoCore.A_AES;
+        if (alg < 0 || alg >= CryptoCore.ALG_COUNT) alg = CryptoCore.A_AES;
         algSp.setSelection(alg);
 
         algSp.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -133,7 +133,7 @@ public class CipherActivity extends BaseActivity {
         outBox.setVisibility(sym ? View.VISIBLE : View.GONE);
         ivEt.setVisibility(mode == CryptoCore.MODE_CBC ? View.VISIBLE : View.GONE);
 
-        String hint = sym ? getString(R.string.cph_key_hint_prefix, CryptoCore.keyHint(a))
+        String hint = sym ? getString(R.string.cph_key_hint_prefix, keyHintText(a))
                 : (hash && CryptoCore.needKey(a) ? getString(R.string.cph_hmac_hint) : "");
         keyHint.setText(hint);
         keyHint.setVisibility(hint.length() == 0 ? View.GONE : View.VISIBLE);
@@ -173,10 +173,10 @@ public class CipherActivity extends BaseActivity {
             outTv.setText(r);
             status.setTextColor(ThemeManager.textSub(this));
             status.setText(describe(a, forward, r, ms));
-        } catch (IllegalArgumentException e) {
+        } catch (CryptoCore.CryptoException e) {
             outTv.setText("");
             status.setTextColor(ThemeManager.err(this));
-            status.setText("✗ " + e.getMessage());
+            status.setText(getString(R.string.cph_err_prefix, cryptoErrorText(e)));
         } catch (Throwable e) {
             outTv.setText("");
             status.setTextColor(ThemeManager.err(this));
@@ -184,9 +184,63 @@ public class CipherActivity extends BaseActivity {
         }
     }
 
+    /** 算法名：顺序必须与 CryptoCore.A_* 常量一一对应 */
+    private String[] algNames() {
+        if (names == null) names = getResources().getStringArray(R.array.cph_alg_names);
+        return names;
+    }
+
+    private String[] names;
+
+    /** 对称算法的密钥长度说明（核心层只给编号，说明文字在这里） */
+    private String keyHintText(int a) {
+        switch (a) {
+            case CryptoCore.A_AES:
+                return getString(R.string.cph_hint_aes);
+            case CryptoCore.A_DES:
+                return getString(R.string.cph_hint_des);
+            case CryptoCore.A_3DES:
+                return getString(R.string.cph_hint_3des);
+            case CryptoCore.A_SM4:
+                return getString(R.string.cph_hint_sm4);
+            default:
+                return getString(R.string.cph_hint_any);
+        }
+    }
+
+    /** 把 CryptoCore 的错误码翻成文案（v2.80.0 F-14/67） */
+    private String cryptoErrorText(CryptoCore.CryptoException e) {
+        switch (e.code) {
+            case CryptoCore.ERR_NO_KEY:
+                return getString(R.string.cph_err_no_key, keyHintText(alg()));
+            case CryptoCore.ERR_BAD_PAD:
+                return getString(R.string.cph_err_bad_pad);
+            case CryptoCore.ERR_CT_BLOCK:
+                return getString(R.string.cph_err_ct_block);
+            case CryptoCore.ERR_OP_FAIL:
+                return getString(R.string.cph_err_op, e.text);
+            case CryptoCore.ERR_CT_ALIGN16:
+                return getString(R.string.cph_err_ct_align16, e.value);
+            case CryptoCore.ERR_DIGEST_UNSUPPORTED:
+                return getString(R.string.cph_err_digest_unsupported, e.text);
+            case CryptoCore.ERR_HMAC_FAIL:
+                return getString(R.string.cph_err_hmac_fail, e.text);
+            case CryptoCore.ERR_AES_KEY:
+                return getString(R.string.cph_err_aes_key, e.value);
+            case CryptoCore.ERR_DES_KEY:
+                return getString(R.string.cph_err_des_key, e.value);
+            case CryptoCore.ERR_3DES_KEY:
+                return getString(R.string.cph_err_3des_key, e.value);
+            case CryptoCore.ERR_SM4_KEY:
+                return getString(R.string.cph_err_sm4_key, e.value);
+            default:
+                return getString(R.string.cph_err_no_cipher);
+        }
+    }
+
     private String describe(int a, boolean forward, String r, long ms) {
         StringBuilder sb = new StringBuilder();
-        sb.append(CryptoCore.name(a));
+        sb.append(algNames()[a]);
         if (CryptoCore.isHash(a)) {
             sb.append(getString(R.string.cph_bits_chars, r.length() * 4, r.length()));
         } else if (CryptoCore.isSym(a)) {

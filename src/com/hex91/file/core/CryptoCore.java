@@ -38,22 +38,48 @@ public final class CryptoCore {
     public static final int A_3DES     = 16;
     public static final int A_SM4      = 17;
 
-    public static final String[] NAMES = {
-            "Base64 编码", "Base64 解码", "Base32 编码", "Base32 解码",
-            "URL 编码", "URL 解码",
-            "MD5", "SHA-1", "SHA-256", "SHA-512", "SM3", "CRC32",
-            "HMAC-SHA256", "HMAC-SM3",
-            "AES", "DES", "3DES", "SM4"
-    };
+    /** 算法总数：算法名由 UI 层的 string-array 提供，核心层只管编号范围（v2.80.0 F-14/67） */
+    public static final int ALG_COUNT = 18;
+
+    public static final int ERR_NO_KEY = 1;
+    public static final int ERR_BAD_PAD = 2;
+    public static final int ERR_CT_BLOCK = 3;
+    public static final int ERR_OP_FAIL = 4;
+    public static final int ERR_CT_ALIGN16 = 5;
+    public static final int ERR_DIGEST_UNSUPPORTED = 6;
+    public static final int ERR_HMAC_FAIL = 7;
+    public static final int ERR_AES_KEY = 8;
+    public static final int ERR_DES_KEY = 9;
+    public static final int ERR_3DES_KEY = 10;
+    public static final int ERR_SM4_KEY = 11;
+    public static final int ERR_NO_CIPHER = 12;
+
+    /** 运算失败：{@link #code} 决定文案，{@link #value} 是长度，{@link #text} 是原始异常/算法名 */
+    public static final class CryptoException extends IllegalArgumentException {
+        public final int code;
+        public final int value;
+        public final String text;
+
+        public CryptoException(int code) {
+            this(code, -1, null);
+        }
+
+        public CryptoException(int code, int value) {
+            this(code, value, null);
+        }
+
+        public CryptoException(int code, int value, String text) {
+            super("CryptoCore error " + code);
+            this.code = code;
+            this.value = value;
+            this.text = text;
+        }
+    }
 
     public static final int MODE_ECB = 0;
     public static final int MODE_CBC = 1;
     public static final int OUT_B64 = 0;
     public static final int OUT_HEX = 1;
-
-    public static String name(int a) {
-        return (a >= 0 && a < NAMES.length) ? NAMES[a] : "未知";
-    }
 
     /** 是否需要密钥（对称加密与 HMAC） */
     public static boolean needKey(int a) {
@@ -71,19 +97,6 @@ public final class CryptoCore {
 
     public static boolean isHash(int a) {
         return a >= A_MD5 && a <= A_HMAC_SM3;
-    }
-
-    /** 对称算法需要的密钥字节数说明（含合法长度集合） */
-    public static String keyHint(int a) {
-        switch (a) {
-            case A_AES:  return "16 / 24 / 32 字节（AES-128/192/256），不足自动补 0";
-            case A_DES:  return "8 字节（DES），不足自动补 0";
-            case A_3DES: return "16 或 24 字节（3DES），不足自动补 0";
-            case A_SM4:  return "16 字节（SM4），不足自动补 0";
-            case A_HMAC256:
-            case A_HMAC_SM3: return "任意长度";
-            default: return "";
-        }
     }
 
     public static int blockSize(int a) {
@@ -138,7 +151,7 @@ public final class CryptoCore {
     private static String sym(int alg, boolean encrypt, String input, String key, String iv,
                               int mode, int outFmt) {
         byte[] kb = fitKey(alg, toKeyBytes(key));
-        if (kb == null) throw new IllegalArgumentException("请填写密钥（" + keyHint(alg) + "）");
+        if (kb == null) throw new CryptoException(ERR_NO_KEY);
         if (alg == A_SM4) return sm4(encrypt, input, kb, iv, mode, outFmt);
 
         String algName = alg == A_AES ? "AES" : (alg == A_DES ? "DES" : "DESede");
@@ -177,13 +190,13 @@ public final class CryptoCore {
             }
             return new String(out, utf8());
         } catch (javax.crypto.BadPaddingException e) {
-            throw new IllegalArgumentException("解密失败：填充校验不通过（密钥 / IV / 模式不对）");
+            throw new CryptoException(ERR_BAD_PAD);
         } catch (javax.crypto.IllegalBlockSizeException e) {
-            throw new IllegalArgumentException("解密失败：密文长度不是分组的整数倍，或密文不完整");
+            throw new CryptoException(ERR_CT_BLOCK);
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
-            throw new IllegalArgumentException("运算失败：" + e.getMessage());
+            throw new CryptoException(ERR_OP_FAIL, -1, e.getMessage());
         }
     }
 
@@ -236,7 +249,7 @@ public final class CryptoCore {
         }
         byte[] ct = parseCipherText(input);
         if (ct.length == 0 || ct.length % 16 != 0) {
-            throw new IllegalArgumentException("解密失败：密文长度必须是 16 的整数倍（当前 " + ct.length + " 字节）");
+            throw new CryptoException(ERR_CT_ALIGN16, ct.length);
         }
         byte[] out = new byte[ct.length];
         byte[] prev = ivb;
@@ -249,9 +262,9 @@ public final class CryptoCore {
             }
         }
         int pad = out[out.length - 1] & 0xFF;
-        if (pad < 1 || pad > 16) throw new IllegalArgumentException("解密失败：填充校验不通过（密钥 / IV / 模式不对）");
+        if (pad < 1 || pad > 16) throw new CryptoException(ERR_BAD_PAD);
         for (int i = out.length - pad; i < out.length; i++) {
-            if ((out[i] & 0xFF) != pad) throw new IllegalArgumentException("解密失败：填充校验不通过（密钥 / IV / 模式不对）");
+            if ((out[i] & 0xFF) != pad) throw new CryptoException(ERR_BAD_PAD);
         }
         return new String(out, 0, out.length - pad, utf8());
     }
@@ -262,7 +275,7 @@ public final class CryptoCore {
         try {
             return MessageDigest.getInstance(jceAlg).digest(data);
         } catch (Exception e) {
-            throw new IllegalArgumentException("不支持该摘要算法：" + jceAlg);
+            throw new CryptoException(ERR_DIGEST_UNSUPPORTED, -1, jceAlg);
         }
     }
 
@@ -276,7 +289,7 @@ public final class CryptoCore {
             m.init(new SecretKeySpec(key, jceAlg));
             return m.doFinal(data);
         } catch (Exception e) {
-            throw new IllegalArgumentException("HMAC 失败：" + e.getMessage());
+            throw new CryptoException(ERR_HMAC_FAIL, -1, e.getMessage());
         }
     }
 
@@ -319,16 +332,16 @@ public final class CryptoCore {
                 if (key.length <= 16) return pad(key, 16);
                 if (key.length <= 24) return pad(key, 24);
                 if (key.length <= 32) return pad(key, 32);
-                throw new IllegalArgumentException("AES 密钥最长 32 字节（当前 " + key.length + "）");
+                throw new CryptoException(ERR_AES_KEY, key.length);
             case A_DES:
-                if (key.length > 8) throw new IllegalArgumentException("DES 密钥必须 8 字节（当前 " + key.length + "）");
+                if (key.length > 8) throw new CryptoException(ERR_DES_KEY, key.length);
                 return pad(key, 8);
             case A_3DES:
                 if (key.length <= 16) return pad(key, 16);
                 if (key.length <= 24) return pad(key, 24);
-                throw new IllegalArgumentException("3DES 密钥最长 24 字节（当前 " + key.length + "）");
+                throw new CryptoException(ERR_3DES_KEY, key.length);
             case A_SM4:
-                if (key.length > 16) throw new IllegalArgumentException("SM4 密钥必须 16 字节（当前 " + key.length + "）");
+                if (key.length > 16) throw new CryptoException(ERR_SM4_KEY, key.length);
                 return pad(key, 16);
             default:
                 return key;
@@ -348,7 +361,7 @@ public final class CryptoCore {
      */
     public static byte[] parseCipherText(String s) {
         String t = s.trim();
-        if (t.isEmpty()) throw new IllegalArgumentException("请填写密文");
+        if (t.isEmpty()) throw new CryptoException(ERR_NO_CIPHER);
         boolean looksHex = true;
         int digits = 0;
         for (int i = 0; i < t.length(); i++) {
