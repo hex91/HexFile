@@ -31,18 +31,21 @@ public class SignCheckTest {
             throws Exception {
         File apk = new File(path);
         if (!apk.exists()) { System.out.println("SKIP (missing): " + path); return; }
-        String s = ApkSignCheck.schemes(apk);
+        ApkSignCheck.Scheme sc = ApkSignCheck.check(apk);
+        String s = sc.list;
         boolean ok;
         if (expectSigned) {
             ok = expectSchemes == null || s.equals(expectSchemes);
         } else {
-            ok = s.equals("未签名") || s.equals("检测失败");
+            ok = sc.state == ApkSignCheck.ST_UNSIGNED || sc.state == ApkSignCheck.ST_FAILED;
         }
-        System.out.println((ok ? "PASS" : "FAIL") + "  " + label + " -> schemes=" + s);
-        List<String[]> rows = ApkSignCheck.detailRows(apk);
-        for (String[] row : rows) {
-            if (row[0].startsWith("v1") || row[0].equals("校验结果")) {
-                System.out.println("      " + row[0] + " = " + row[1]);
+        System.out.println((ok ? "PASS" : "FAIL") + "  " + label
+                + " -> state=" + sc.state + " schemes=" + s);
+        List<ApkSignCheck.Row> rows = ApkSignCheck.detailRows(apk);
+        for (ApkSignCheck.Row row : rows) {
+            if (row.label == ApkSignCheck.ROW_V1 || row.label == ApkSignCheck.ROW_RESULT) {
+                System.out.println("      row=" + row.label + " code=" + row.valueCode
+                        + " value=" + row.value);
             }
         }
         if (ok) pass++; else fail++;

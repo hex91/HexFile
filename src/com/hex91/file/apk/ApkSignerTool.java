@@ -39,16 +39,16 @@ public final class ApkSignerTool {
     public static void sign(InputStream keyStoreIn, char[] password, File in, File out,
             int minSdk, boolean v1, boolean v2, boolean v3) throws Exception {
         if (!v1 && !v2 && !v3)
-            throw new IllegalArgumentException("至少需要启用一种签名方案 (v1/v2/v3)");
+            throw new ApkToolException(ApkToolException.NO_SCHEME);
         KeyStore ks = KeyStore.getInstance("PKCS12");
         ks.load(keyStoreIn, password);
         java.security.Key key = ks.getKey(KEY_ALIAS, password);
         if (!(key instanceof PrivateKey))
-            throw new IllegalStateException("keystore 中无别名 " + KEY_ALIAS + " 的私钥");
+            throw new ApkToolException(ApkToolException.KEY_ALIAS_MISSING, KEY_ALIAS);
         PrivateKey privateKey = (PrivateKey) key;
         java.security.cert.Certificate[] rawChain = ks.getCertificateChain(KEY_ALIAS);
         if (rawChain == null || rawChain.length == 0)
-            throw new IllegalStateException("keystore 中无证书链");
+            throw new ApkToolException(ApkToolException.NO_CERT_CHAIN);
         List<X509Certificate> chain = new ArrayList<X509Certificate>();
         for (java.security.cert.Certificate c : rawChain)
             chain.add((X509Certificate) c);
@@ -112,7 +112,7 @@ public final class ApkSignerTool {
             String alias, File in, File out, int minSdk,
             boolean v1, boolean v2, boolean v3) throws Exception {
         if (!v1 && !v2 && !v3)
-            throw new IllegalArgumentException("至少需要启用一种签名方案 (v1/v2/v3)");
+            throw new ApkToolException(ApkToolException.NO_SCHEME);
         KeyStore ks = KeyStoreUtil.loadAny(keyStoreBytes, storePass);
         char[] kp = keyPass != null ? keyPass : storePass;
         if (alias == null) {
@@ -131,15 +131,14 @@ public final class ApkSignerTool {
                 }
             }
         }
-        if (alias == null) throw new IllegalStateException(
-                "keystore 中无可用私钥条目（密码错误，或私钥密码与 keystore 密码不同）");
+        if (alias == null) throw new ApkToolException(ApkToolException.NO_KEY_ENTRY);
         java.security.Key k = ks.getKey(alias, kp);
         if (!(k instanceof PrivateKey))
-            throw new IllegalStateException("别名 " + alias + " 私钥无法读取（私钥密码错误？）");
+            throw new ApkToolException(ApkToolException.KEY_UNREADABLE, alias);
         PrivateKey privateKey = (PrivateKey) k;
         java.security.cert.Certificate[] rawChain = ks.getCertificateChain(alias);
         if (rawChain == null || rawChain.length == 0)
-            throw new IllegalStateException("别名 " + alias + " 无证书链");
+            throw new ApkToolException(ApkToolException.ALIAS_NO_CHAIN, alias);
         List<X509Certificate> chain = new ArrayList<X509Certificate>();
         for (java.security.cert.Certificate c : rawChain)
             chain.add((X509Certificate) c);

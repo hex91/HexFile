@@ -34,15 +34,15 @@ public final class ApkCloneTool {
     /** 生成共存清单：newPkg 为新包名 */
     public static Result buildClonedManifest(File apk, String newPkg) throws Exception {
         byte[] data = readZipEntry(apk, "AndroidManifest.xml");
-        if (data == null) throw new IllegalStateException("APK 内未找到 AndroidManifest.xml");
+        if (data == null) throw new ApkToolException(ApkToolException.NO_MANIFEST);
         AxmlFile axml = AxmlFile.parse(data);
 
         AxmlFile.XAttr pkgAttr = pkgAttr(axml);
-        if (pkgAttr == null) throw new IllegalStateException("manifest 缺少 package 属性");
+        if (pkgAttr == null) throw new ApkToolException(ApkToolException.NO_PACKAGE_ATTR);
         String oldPkg = axml.valueDisplay(pkgAttr);
         if (oldPkg == null || oldPkg.isEmpty())
-            throw new IllegalStateException("package 属性值读取失败");
-        if (newPkg.equals(oldPkg)) throw new IllegalStateException("新包名与原包名相同");
+            throw new ApkToolException(ApkToolException.PACKAGE_UNREADABLE);
+        if (newPkg.equals(oldPkg)) throw new ApkToolException(ApkToolException.SAME_PACKAGE);
 
         List<AxmlWriter.Edit> edits = new ArrayList<AxmlWriter.Edit>();
         edits.add(new AxmlWriter.Edit(pkgAttr, newPkg));
@@ -67,7 +67,7 @@ public final class ApkCloneTool {
         AxmlFile check = AxmlFile.parse(newAxml);
         AxmlFile.XAttr cpkg = pkgAttr(check);
         if (cpkg == null || !newPkg.equals(check.valueDisplay(cpkg)))
-            throw new IllegalStateException("回读校验失败: package 未生效");
+            throw new ApkToolException(ApkToolException.READBACK_PACKAGE);
         for (int i = 1; i < edits.size(); i++) {
             AxmlWriter.Edit ed = edits.get(i);
             int ei = axml.elements.indexOf(ed.attr.owner);
@@ -75,15 +75,15 @@ public final class ApkCloneTool {
             AxmlFile.XAttr fresh = check.elements.get(ei).attrs.get(ai);
             String now = check.valueDisplay(fresh);
             if (!ed.newValue.equals(now))
-                throw new IllegalStateException("回读校验失败: " + axml.attrDisplayName(ed.attr)
-                        + " 期望 " + ed.newValue + " 实际 " + now);
+                throw new ApkToolException(ApkToolException.READBACK_ATTR,
+                        axml.attrDisplayName(ed.attr), ed.newValue, now);
         }
         // 残留检查：不存在任何「精确等于原包名」的属性值（完整值替换才算替换成功）
         for (AxmlFile.XElem el : check.elements) {
             for (AxmlFile.XAttr a : el.attrs) {
                 String v = check.valueDisplay(a);
                 if (oldPkg.equals(v))
-                    throw new IllegalStateException("残留未替换: " + check.attrDisplayName(a));
+                    throw new ApkToolException(ApkToolException.LEFTOVER_ATTR, check.attrDisplayName(a));
             }
         }
 

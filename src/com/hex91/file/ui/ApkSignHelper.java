@@ -3,6 +3,7 @@ package com.hex91.file.ui;
 import com.hex91.file.R;
 import com.hex91.file.apk.ApkEditSession;
 import com.hex91.file.apk.ApkSignerTool;
+import com.hex91.file.apk.ApkToolException;
 
 
 import android.app.Activity;
@@ -30,6 +31,50 @@ import java.util.List;
 public final class ApkSignHelper {
 
     public static final String PREFS = "dexpp_sign";
+
+    /**
+     * 签名 / 克隆失败的文案（v2.85.0，F-14/72）：核心层只给码，
+     * 这里把码翻成句子；不是 {@link ApkToolException} 就原样透出消息。
+     */
+    public static String errorText(Context c, Throwable t) {
+        if (!(t instanceof ApkToolException)) {
+            return t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
+        }
+        ApkToolException e = (ApkToolException) t;
+        switch (e.code) {
+            case ApkToolException.NO_SCHEME:
+                return c.getString(R.string.sign_err_no_scheme);
+            case ApkToolException.KEY_ALIAS_MISSING:
+                return c.getString(R.string.sign_err_key_alias_missing, e.text);
+            case ApkToolException.NO_CERT_CHAIN:
+                return c.getString(R.string.sign_err_no_cert_chain);
+            case ApkToolException.NO_KEY_ENTRY:
+                return c.getString(R.string.sign_err_no_key_entry);
+            case ApkToolException.KEY_UNREADABLE:
+                return c.getString(R.string.sign_err_key_unreadable, e.text);
+            case ApkToolException.ALIAS_NO_CHAIN:
+                return c.getString(R.string.sign_err_alias_no_chain, e.text);
+            case ApkToolException.NO_MANIFEST:
+                return c.getString(R.string.sign_err_no_manifest);
+            case ApkToolException.NO_PACKAGE_ATTR:
+                return c.getString(R.string.sign_err_no_package_attr);
+            case ApkToolException.PACKAGE_UNREADABLE:
+                return c.getString(R.string.sign_err_package_unreadable);
+            case ApkToolException.SAME_PACKAGE:
+                return c.getString(R.string.sign_err_same_package);
+            case ApkToolException.READBACK_PACKAGE:
+                return c.getString(R.string.sign_err_readback_package);
+            case ApkToolException.READBACK_ATTR:
+                return c.getString(R.string.sign_err_readback_attr,
+                        e.text, e.expected, e.actual);
+            case ApkToolException.LEFTOVER_ATTR:
+                return c.getString(R.string.sign_err_leftover_attr, e.text);
+            default:
+                return t.getMessage() != null ? t.getMessage() : c.getString(
+                        R.string.sign_err_unknown);
+        }
+    }
+
     /**
      * 方案下拉的显示名。下标与 {@link #schemeFlags(int)} 一一对应，不能改顺序。
      * v2.70.0：只有第 0 项带推荐字样需要翻译，其余是纯 ASCII 的 v1/v2/v3 组合，直接留字面量。

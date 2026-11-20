@@ -1,6 +1,7 @@
 package com.hex91.file.ui;
 
 import com.hex91.file.R;
+import com.hex91.file.apk.ApkToolException;
 import com.hex91.file.apk.ApkEditSession;
 import com.hex91.file.apk.AxmlFile;
 import com.hex91.file.apk.AxmlWriter;
@@ -464,7 +465,9 @@ public class ManifestEditorActivity extends BaseActivity {
                         apk, "AndroidManifest.xml", newAxml);
                 if (autoSign) ApkSignHelper.signInPlace(ManifestEditorActivity.this, apk);
             } catch (Throwable t) {
-                err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                err = (t instanceof ApkToolException)
+                        ? ApkSignHelper.errorText(ManifestEditorActivity.this, t)
+                        : t.getClass().getSimpleName() + ": " + t.getMessage();
                 Throwable c = t.getCause();
                 while (c != null) {
                     err += "\n↳ " + c.getClass().getSimpleName() + ": " + c.getMessage();

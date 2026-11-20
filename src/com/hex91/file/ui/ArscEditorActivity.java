@@ -890,7 +890,7 @@ public class ArscEditorActivity extends BaseActivity {
                 arsc = ArscFile.parse(newArsc);
                 buildRows();
             } catch (Throwable t) {
-                err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                err = ApkSignHelper.errorText(ArscEditorActivity.this, t);
             }
             final String e = err;
             ui.post(new Runnable() { public void run() {

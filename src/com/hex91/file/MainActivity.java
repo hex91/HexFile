@@ -20,6 +20,7 @@ import com.hex91.file.controller.PropsController;
 import com.hex91.file.controller.SignFlowController;
 import com.hex91.file.controller.TaskUiController;
 import com.hex91.file.ui.ApkInfoActivity;
+import com.hex91.file.ui.ApkSignHelper;
 import com.hex91.file.ui.ArscEditorActivity;
 import com.hex91.file.ui.ArscPlusActivity;
 import com.hex91.file.ui.BaseActivity;
@@ -1958,7 +1959,7 @@ public class MainActivity extends BaseActivity {
                         try { ks.close(); } catch (java.io.IOException ignored) {}
                     }
                 } catch (Throwable t) {
-                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    err = ApkSignHelper.errorText(MainActivity.this, t);
                 }
                 final String ferr = err;
                 final File fout = out;
@@ -2013,7 +2014,7 @@ public class MainActivity extends BaseActivity {
                     ApkEditSession.safeReplace(tmp, apk);
                     try { ApkEditSession.markSigned(apk); } catch (Throwable ignored) {}
                 } catch (Throwable t) {
-                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    err = ApkSignHelper.errorText(MainActivity.this, t);
                 }
                 final String ferr = err;
                 runOnUiThread(new Runnable() {

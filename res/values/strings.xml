@@ -2972,4 +2972,20 @@
     <string name="sign_val_signed">✅ 已签名</string>
     <string name="sign_val_count">%1$d 条</string>
     <string name="sign_val_calc_fail">（计算失败）</string>
+    <!-- v2.85.0 签名/克隆失败（ApkToolException 只给码） -->
+    <string name="sign_err_no_scheme">至少需要启用一种签名方案 (v1/v2/v3)</string>
+    <string name="sign_err_key_alias_missing">keystore 中无别名 %1$s 的私钥</string>
+    <string name="sign_err_no_cert_chain">keystore 中无证书链</string>
+    <string name="sign_err_no_key_entry">keystore 中无可用私钥条目（密码错误，或私钥密码与 keystore 密码不同）</string>
+    <string name="sign_err_key_unreadable">别名 %1$s 私钥无法读取（私钥密码错误？）</string>
+    <string name="sign_err_alias_no_chain">别名 %1$s 无证书链</string>
+    <string name="sign_err_no_manifest">APK 内未找到 AndroidManifest.xml</string>
+    <string name="sign_err_no_package_attr">manifest 缺少 package 属性</string>
+    <string name="sign_err_package_unreadable">package 属性值读取失败</string>
+    <string name="sign_err_same_package">新包名与原包名相同</string>
+    <string name="sign_err_readback_package">回读校验失败：package 未生效</string>
+    <string name="sign_err_readback_attr">回读校验失败：%1$s 期望 %2$s 实际 %3$s</string>
+    <string name="sign_err_leftover_attr">残留未替换：%1$s</string>
+    <string name="sign_err_unknown">签名失败</string>
+    <string name="dex_sign_after_write_fail">已写回，但签名失败：%1$s</string>
 </resources>

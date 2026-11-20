@@ -84,9 +84,12 @@ public class KeystoreCreateTest {
                         + out.length() + " 字节）");
                 // 从签名产物里回读证书（签名方案串 + 证书主题）
                 String schemes = com.hex91.file.apk.ApkSignCheck.schemes(out);
-                List<String[]> rows = com.hex91.file.apk.ApkSignCheck.detailRows(out);
+                java.util.List<com.hex91.file.apk.ApkSignCheck.Row> rows =
+                        com.hex91.file.apk.ApkSignCheck.detailRows(out);
                 StringBuilder sb = new StringBuilder(String.valueOf(schemes));
-                for (String[] row : rows) sb.append(" | ").append(row[0]).append('=').append(row[1]);
+                for (com.hex91.file.apk.ApkSignCheck.Row row : rows) {
+                    sb.append(" | ").append(row.label).append('=').append(row.value);
+                }
                 check(schemes != null && schemes.length() > 0, "签名产物可被校验: " + sb);
                 check(sb.toString().contains("HexFile Test"), "签名产物证书主题回到 CN");
                 out.delete();

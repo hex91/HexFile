@@ -821,7 +821,8 @@ public class DexEditorActivity extends BaseActivity {
                     ApkSignHelper.signInPlace(DexEditorActivity.this, apk);
                 } catch (Throwable t) {
                     // 签名失败不算写回失败——包已更新，仅提示
-                    err = "written back, but signing failed: " + t.getMessage();
+                    err = getString(R.string.dex_sign_after_write_fail,
+                            ApkSignHelper.errorText(DexEditorActivity.this, t));
                 }
             }
             final String e = err;

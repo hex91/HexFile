@@ -11,6 +11,7 @@ import com.hex91.file.apk.SmaliTool;
 import com.hex91.file.core.ByteIO;
 import com.hex91.file.fs.FileKind;
 import com.hex91.file.fs.FileOps;
+import com.hex91.file.ui.ApkSignHelper;
 import com.hex91.file.ui.HfDialogBuilder;
 import com.hex91.file.ui.SignKeyManagerActivity;
 import com.hex91.file.ui.ThemeManager;
@@ -238,9 +239,7 @@ public final class SignFlowController {
                                         catch (Throwable ignored) {}
                                     }
                                 } catch (Throwable t) {
-                                    err = t.getMessage() != null
-                                            ? t.getMessage()
-                                            : t.getClass().getSimpleName();
+                                    err = ApkSignHelper.errorText(host.ctx(), t);
                                 }
                                 final String ferr = err;
                                 final File fout = apk;
@@ -293,7 +292,7 @@ public final class SignFlowController {
                         catch (Throwable ignored) {}
                     }
                 } catch (Throwable t) {
-                    err = t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
+                    err = ApkSignHelper.errorText(host.ctx(), t);
                 }
                 final String ferr = err;
                 final File fout = apk;

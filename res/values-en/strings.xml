@@ -2964,4 +2964,20 @@
     <string name="sign_val_signed">✅ Signed</string>
     <string name="sign_val_count">%1$d</string>
     <string name="sign_val_calc_fail">(calculation failed)</string>
+    <!-- v2.85.0 signing / cloning failures -->
+    <string name="sign_err_no_scheme">At least one signing scheme must be enabled (v1/v2/v3)</string>
+    <string name="sign_err_key_alias_missing">The keystore has no private key under alias %1$s</string>
+    <string name="sign_err_no_cert_chain">The keystore has no certificate chain</string>
+    <string name="sign_err_no_key_entry">The keystore has no usable private key entry (wrong password, or the key password differs from the keystore password)</string>
+    <string name="sign_err_key_unreadable">Cannot read the private key of alias %1$s (wrong key password?)</string>
+    <string name="sign_err_alias_no_chain">Alias %1$s has no certificate chain</string>
+    <string name="sign_err_no_manifest">No AndroidManifest.xml inside the APK</string>
+    <string name="sign_err_no_package_attr">The manifest has no package attribute</string>
+    <string name="sign_err_package_unreadable">Cannot read the package attribute value</string>
+    <string name="sign_err_same_package">The new package name matches the old one</string>
+    <string name="sign_err_readback_package">Read-back check failed: the package attribute did not take effect</string>
+    <string name="sign_err_readback_attr">Read-back check failed: %1$s expected %2$s but got %3$s</string>
+    <string name="sign_err_leftover_attr">Not replaced: %1$s</string>
+    <string name="sign_err_unknown">Signing failed</string>
+    <string name="dex_sign_after_write_fail">Written back, but signing failed: %1$s</string>
 </resources>

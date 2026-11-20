@@ -39,7 +39,7 @@ public class SignSchemeTest {
             InputStream ks = new FileInputStream("assets/hexfile.p12");
             ApkSignerTool.sign(ks, ApkSignerTool.KEY_PASSWORD, sample, out, 21, v1, v2, v3);
             ks.close();
-            String sc = ApkSignCheck.schemes(out);
+            String sc = ApkSignCheck.check(out).list;
             boolean ok = sc.contains(expect) && (notExpect == null || !sc.contains(notExpect));
             chk("方案 " + label, ok, sc);
         }

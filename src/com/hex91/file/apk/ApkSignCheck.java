@@ -110,6 +110,11 @@ public class ApkSignCheck {
         return out;
     }
 
+    /** 只要方案串的旧入口（未签名时为 ""）；需要区分「未签名 / 读失败」用 {@link #check} */
+    public static String schemes(File apk) {
+        return check(apk).list;
+    }
+
     /** 签名详情页行列表；失败时返回只含一行错误说明的列表 */
     public static List<Row> detailRows(File apk) {
         List<Row> rows = new ArrayList<Row>();
