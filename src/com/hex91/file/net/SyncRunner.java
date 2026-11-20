@@ -43,13 +43,14 @@ public final class SyncRunner {
         public final List<String> errors = new ArrayList<String>();
         public boolean cancelled;
 
+        /** 诊断串（全 ASCII，日志 / 单测用），界面文案请用 ui/SyncText.summaryText。 */
         public String summary() {
             StringBuilder sb = new StringBuilder();
-            sb.append("上传 ").append(uploaded)
-              .append(" · 下载 ").append(downloaded)
-              .append(" · 冲突处理 ").append(conflicts);
-            if (failed > 0) sb.append(" · 失败 ").append(failed);
-            if (cancelled) sb.append("\n已取消");
+            sb.append("up ").append(uploaded)
+              .append(" · down ").append(downloaded)
+              .append(" · conflict ").append(conflicts);
+            if (failed > 0) sb.append(" · failed ").append(failed);
+            if (cancelled) sb.append("\ncancelled");
             return sb.toString();
         }
     }
@@ -144,28 +145,27 @@ public final class SyncRunner {
                     if (it.dir) {
                         // 一边是目录一边是文件：不做任何覆盖，留给用户判断
                         rep.failed++;
-                        rep.errors.add(it.path + "：本地与远端类型不同（目录/文件）");
-                        log(cb, "⚠ 跳过类型冲突 " + it.path);
+                        rep.errors.add(it.path + ": type mismatch (dir/file)");
+                        log(cb, "! skip type conflict " + it.path);
                     } else {
                         File dst = new File(localRoot, it.path);
                         File backup = new File(localRoot,
                                 SyncPlan.conflictName(it.path, System.currentTimeMillis()));
                         if (dst.exists() && !dst.renameTo(backup)) {
-                            throw new IOException("无法重命名本地副本");
+                            throw NetFsError.renameDetail("cannot rename local backup");
                         }
                         // 重命名后原路径已空出，直接把远端版本拉下来
                         download(fs, join(remoteRoot, it.path), dst, it.remoteMtime);
                         rep.conflicts++;
-                        log(cb, "⚡ " + it.path + " → 本地副本另存为 "
-                                + backup.getName());
+                        log(cb, "* " + it.path + " -> backup " + backup.getName());
                     }
                 }
             } catch (Throwable e) {
                 rep.failed++;
                 String msg = e.getMessage() == null ? e.getClass().getSimpleName()
                         : e.getMessage();
-                rep.errors.add(it.path + "：" + msg);
-                log(cb, "✗ " + it.path + "：" + msg);
+                rep.errors.add(it.path + ": " + msg);
+                log(cb, "x " + it.path + ": " + msg);
             }
         }
         if (cb != null) cb.onFinish(rep);
@@ -175,7 +175,7 @@ public final class SyncRunner {
     // ------------------------------------------------------------------ 传输
 
     private static void upload(NetFs fs, File src, String remote) throws IOException {
-        if (!src.isFile()) throw new IOException("本地文件不存在");
+        if (!src.isFile()) throw NetFsError.pathNotFound(src.getAbsolutePath());
         InputStream in = new FileInputStream(src);
         try {
             OutputStream out = fs.openWrite(remote);
@@ -200,7 +200,7 @@ public final class SyncRunner {
             throws IOException {
         File parent = dst.getParentFile();
         if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
-            throw new IOException("无法创建本地目录");
+            throw NetFsError.mkdirFail(parent == null ? "" : parent.getAbsolutePath(), -1, null);
         }
         File part = new File(dst.getAbsolutePath() + TempFiles.PART);
         // v2.4.0（R-08）：下载期间登记为活动临时文件，遗留扫描不会把它列出来
@@ -220,7 +220,7 @@ public final class SyncRunner {
             if (!part.renameTo(dst)) {
                 // 极少数情况 rename 失败（目标已存在且被占用）→ 退化为覆盖写
                 if (!dst.delete() || !part.renameTo(dst)) {
-                    throw new IOException("保存失败");
+                    throw NetFsError.opFail(NetFsError.OP_UPLOAD, dst.getAbsolutePath(), -1, NetFsError.HINT_NONE, "save failed");
                 }
             }
             if (mtime > 0) dst.setLastModified(mtime);

@@ -3201,4 +3201,8 @@
     <string name="oauth_client_id_required">Client ID 不能为空（需先在 Azure 注册应用）</string>
     <string name="netfs_err_oauth_device">申请设备码失败%1$s</string>
     <string name="netfs_err_oauth_http">授权服务器 HTTP %1$d：%2$s</string>
+    <!-- v3.0.0 同步完成状态行（SyncRunner.Report 只给字段） -->
+    <string name="sy_summary">上传 %1$d · 下载 %2$d · 冲突处理 %3$d</string>
+    <string name="sy_summary_fail">上传 %1$d · 下载 %2$d · 冲突处理 %3$d · 失败 %4$d</string>
+    <string name="sy_summary_cancelled">已取消</string>
 </resources>

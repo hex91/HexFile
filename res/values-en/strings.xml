@@ -3193,4 +3193,8 @@
     <string name="oauth_client_id_required">Client ID cannot be empty (register an app in Azure first)</string>
     <string name="netfs_err_oauth_device">Failed to request a device code%1$s</string>
     <string name="netfs_err_oauth_http">Authorization server HTTP %1$d: %2$s</string>
+    <!-- v3.0.0 sync completion status (SyncRunner.Report carries fields only) -->
+    <string name="sy_summary">Uploaded %1$d · Downloaded %2$d · Conflicts %3$d</string>
+    <string name="sy_summary_fail">Uploaded %1$d · Downloaded %2$d · Conflicts %3$d · Failed %4$d</string>
+    <string name="sy_summary_cancelled">Cancelled</string>
 </resources>

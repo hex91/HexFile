@@ -1785,6 +1785,22 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.100.0（versionCode 293）—— F-14/87：同步执行器 SyncRunner 去中文
+
+清掉 v2.49 遗留的逻辑层债：`SyncRunner.Report.summary()` 原本直接产中文（上传/下载/冲突/失败/已取消），
+且 `errors` / 日志回调、多处 IOException 都带中文，全部展示在同步页 tvLog/tvStatus。
+
+- **Report.summary()** 改 ASCII 诊断串（up/down/conflict/failed/cancelled，无测试依赖）；
+  新增 `ui/SyncText.summaryText(Context, Report)` 按 `sy_summary` / `sy_summary_fail` /
+  `sy_summary_cancelled` 拼整句，SyncActivity.onFinish 改用它。
+- errors/log 的中文（类型冲突、副本另存为、✗/⚡ 提示）改 ASCII（路径 + 原因是主要信息）；
+  本地文件/目录/保存失败等 IOException 改 NetFsError 复用码。
+
+新增 3 个 `sy_*` 键，资源 3002 → 3005（100%）。四门全过、全量 97/0/4（SyncPlanTest PASS）；
+APK 13,488,848 B（md5 `10431f31…`），badging 293/2.100.0。
+
+---
+
 ## v2.99.0（versionCode 292）—— F-14/86：OAuth 授权链路去中文
 
 - **OAuthClient**：`requestDeviceCode(Context, clientId)` 加 Context（调用点 CloudAuthDialog 传 act），

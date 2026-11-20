@@ -284,7 +284,7 @@ public class SyncActivity extends BaseActivity {
                         public void onFinish(final SyncRunner.Report r) {
                             ui.post(new Runnable() {
                                 public void run() {
-                                    tvStatus.setText(r.summary());
+                                    tvStatus.setText(SyncText.summaryText(SyncActivity.this, r));
                                     progress.setProgress(100);
                                     if (!r.errors.isEmpty()) {
                                         StringBuilder sb = new StringBuilder(SyncActivity.this.s(R.string.sy_fail_detail));
