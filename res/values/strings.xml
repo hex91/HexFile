@@ -2945,4 +2945,31 @@
     <string name="api_flag_internal">内部</string>
     <string name="api_flag_default_exported">默认导出</string>
     <string name="api_flag_default_internal">默认内部</string>
+    <!-- v2.84.0 签名详情行（ApkSignCheck 只给码） -->
+    <string name="api_sign_unsigned">未签名</string>
+    <string name="api_sign_verified">已验证</string>
+    <string name="sign_row_result">校验结果</string>
+    <string name="sign_row_v1">v1 (JAR)</string>
+    <string name="sign_row_v2">v2 (APK Sig)</string>
+    <string name="sign_row_v3">v3 (Key Rot)</string>
+    <string name="sign_row_cert_count">证书数量</string>
+    <string name="sign_row_subject">主体</string>
+    <string name="sign_row_issuer">颁发者</string>
+    <string name="sign_row_serial">序列号</string>
+    <string name="sign_row_algo">算法</string>
+    <string name="sign_row_not_after">有效期至</string>
+    <string name="sign_row_warnings">警告</string>
+    <string name="sign_row_errors">错误</string>
+    <string name="sign_row_md5">MD5</string>
+    <string name="sign_row_sha1">SHA-1</string>
+    <string name="sign_row_sha256">SHA-256</string>
+    <string name="sign_cert_tag">"证书[%1$d] "</string>
+    <string name="sign_val_pass">✅ 通过</string>
+    <string name="sign_val_fail">❌ 未通过</string>
+    <string name="sign_val_v1_ok">✅ 已校验</string>
+    <string name="sign_val_v1_files">✅ 有签名（平台跳过校验）</string>
+    <string name="sign_val_none">— 无</string>
+    <string name="sign_val_signed">✅ 已签名</string>
+    <string name="sign_val_count">%1$d 条</string>
+    <string name="sign_val_calc_fail">（计算失败）</string>
 </resources>

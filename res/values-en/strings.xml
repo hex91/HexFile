@@ -2937,4 +2937,31 @@
     <string name="api_flag_internal">internal</string>
     <string name="api_flag_default_exported">exported by default</string>
     <string name="api_flag_default_internal">internal by default</string>
+    <!-- v2.84.0 signature detail rows -->
+    <string name="api_sign_unsigned">Unsigned</string>
+    <string name="api_sign_verified">Verified</string>
+    <string name="sign_row_result">Result</string>
+    <string name="sign_row_v1">v1 (JAR)</string>
+    <string name="sign_row_v2">v2 (APK Sig)</string>
+    <string name="sign_row_v3">v3 (Key Rot)</string>
+    <string name="sign_row_cert_count">Certificates</string>
+    <string name="sign_row_subject">Subject</string>
+    <string name="sign_row_issuer">Issuer</string>
+    <string name="sign_row_serial">Serial</string>
+    <string name="sign_row_algo">Algorithm</string>
+    <string name="sign_row_not_after">Valid until</string>
+    <string name="sign_row_warnings">Warnings</string>
+    <string name="sign_row_errors">Errors</string>
+    <string name="sign_row_md5">MD5</string>
+    <string name="sign_row_sha1">SHA-1</string>
+    <string name="sign_row_sha256">SHA-256</string>
+    <string name="sign_cert_tag">"Certificate[%1$d] "</string>
+    <string name="sign_val_pass">✅ Passed</string>
+    <string name="sign_val_fail">❌ Failed</string>
+    <string name="sign_val_v1_ok">✅ Verified</string>
+    <string name="sign_val_v1_files">✅ Signed (this platform skips the check)</string>
+    <string name="sign_val_none">— None</string>
+    <string name="sign_val_signed">✅ Signed</string>
+    <string name="sign_val_count">%1$d</string>
+    <string name="sign_val_calc_fail">(calculation failed)</string>
 </resources>

@@ -31,9 +31,9 @@ public final class ApkInfoUtil {
         public final List<String> abis = new ArrayList<String>();
         public int dexCount;
         public long mainDexMethods = -1;   // -1 = 未统计
-        public String signSchemes = "?";
-        /** 读取签名方案时抛异常（文案在 UI 层，这里只留标记） */
-        public boolean signReadFailed;
+        public String signSchemes = "";
+        /** 签名三态：{@link ApkSignCheck#ST_UNSIGNED} 等，文案在 UI 层 */
+        public int signState = ApkSignCheck.ST_UNSIGNED;
         public long fileSize;
         public int entryCount;
         public long lastMod;
@@ -116,9 +116,11 @@ public final class ApkInfoUtil {
             zf.close();
         }
         try {
-            info.signSchemes = ApkSignCheck.schemes(apk);
+            ApkSignCheck.Scheme sc = ApkSignCheck.check(apk);
+            info.signState = sc.state;
+            info.signSchemes = sc.list;
         } catch (Throwable t) {
-            info.signReadFailed = true;
+            info.signState = ApkSignCheck.ST_FAILED;
         }
         return info;
     }

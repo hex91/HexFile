@@ -2431,12 +2431,12 @@ public class MainActivity extends BaseActivity {
         // 后台检测签名方案（V1+V2+V3 等），完成后刷新签名状态行（解析失败时跳过）
         if (!broken) new Thread(new Runnable() {
             public void run() {
-                final String sc = ApkSignCheck.schemes(f);
+                final ApkSignCheck.Scheme sc = ApkSignCheck.check(f);
                 runOnUiThread(new Runnable() {
                     public void run() {
                         for (String[] r : rowsF) {
                             if (s(R.string.apk_row_sign).equals(r[0])) {
-                                r[1] = sc;
+                                r[1] = signSchemeText(sc);
                                 rowsAdapter.notifyDataSetChanged();
                             }
                         }
@@ -2479,12 +2479,61 @@ public class MainActivity extends BaseActivity {
         return row;
     }
 
+    /** 签名三态 → 文案（信息页签名行用） */
+    private String signSchemeText(ApkSignCheck.Scheme sc) {
+        if (sc.state == ApkSignCheck.ST_FAILED) return s(R.string.api_sign_read_fail);
+        if (sc.state == ApkSignCheck.ST_UNSIGNED) return s(R.string.api_sign_unsigned);
+        return sc.list.isEmpty() ? s(R.string.api_sign_verified) : sc.list;
+    }
+
+    /** 详情行标签：tagNo > 0 时加「证书[n] 」前缀 */
+    private String signRowLabel(ApkSignCheck.Row r) {
+        int res;
+        switch (r.label) {
+            case ApkSignCheck.ROW_RESULT: res = R.string.sign_row_result; break;
+            case ApkSignCheck.ROW_V1: res = R.string.sign_row_v1; break;
+            case ApkSignCheck.ROW_V2: res = R.string.sign_row_v2; break;
+            case ApkSignCheck.ROW_V3: res = R.string.sign_row_v3; break;
+            case ApkSignCheck.ROW_CERT_COUNT: res = R.string.sign_row_cert_count; break;
+            case ApkSignCheck.ROW_SUBJECT: res = R.string.sign_row_subject; break;
+            case ApkSignCheck.ROW_ISSUER: res = R.string.sign_row_issuer; break;
+            case ApkSignCheck.ROW_SERIAL: res = R.string.sign_row_serial; break;
+            case ApkSignCheck.ROW_SIG_ALG: res = R.string.sign_row_algo; break;
+            case ApkSignCheck.ROW_NOT_AFTER: res = R.string.sign_row_not_after; break;
+            case ApkSignCheck.ROW_WARNINGS: res = R.string.sign_row_warnings; break;
+            case ApkSignCheck.ROW_ERRORS: res = R.string.sign_row_errors; break;
+            case ApkSignCheck.ROW_MD5: res = R.string.sign_row_md5; break;
+            case ApkSignCheck.ROW_SHA1: res = R.string.sign_row_sha1; break;
+            case ApkSignCheck.ROW_SHA256: res = R.string.sign_row_sha256; break;
+            default: res = R.string.sign_row_result; break;
+        }
+        return r.tagNo > 0 ? s(R.string.sign_cert_tag, r.tagNo) + s(res) : s(res);
+    }
+
+    /** 详情行值：值码优先，0 表示直接用原文（DN / 指纹 / 算法名） */
+    private String signRowValue(ApkSignCheck.Row r) {
+        switch (r.valueCode) {
+            case ApkSignCheck.V_PASS: return s(R.string.sign_val_pass);
+            case ApkSignCheck.V_FAIL: return s(R.string.sign_val_fail);
+            case ApkSignCheck.V_V1_OK: return s(R.string.sign_val_v1_ok);
+            case ApkSignCheck.V_V1_FILES: return s(R.string.sign_val_v1_files);
+            case ApkSignCheck.V_NONE: return s(R.string.sign_val_none);
+            case ApkSignCheck.V_SIGNED: return s(R.string.sign_val_signed);
+            case ApkSignCheck.V_COUNT: return s(R.string.sign_val_count, r.count);
+            case ApkSignCheck.V_CALC_FAIL: return s(R.string.sign_val_calc_fail);
+            default: return r.value == null ? "" : r.value;
+        }
+    }
+
     /** 签名详情页：后台读取 apksig 结果，逐行展示，点击行复制 */
     private void showSignDialog(final File f) {
         toast(s(R.string.main_sign_reading));
         new Thread(new Runnable() {
             public void run() {
-                final List<String[]> rows = ApkSignCheck.detailRows(f);
+                final List<String[]> rows = new ArrayList<String[]>();
+                for (ApkSignCheck.Row r : ApkSignCheck.detailRows(f)) {
+                    rows.add(new String[]{signRowLabel(r), signRowValue(r)});
+                }
                 runOnUiThread(new Runnable() {
                     public void run() {
                         float density = getResources().getDisplayMetrics().density;

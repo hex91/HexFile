@@ -16,9 +16,12 @@ import javax.security.auth.x500.X500Principal;
 
 /**
  * APK 签名校验 —— 基于 Google 官方 apksig 库（与 apksigner / MT 同源方案）。
- * schemes(): 返回 "V1"/"V1+V2"/"V1+V2+V3" 等方案串（信息页签名状态栏用）；
- * detailRows(): 签名详情页逐行数据（校验结论/各方案/每张证书的序列号、
+ * {@link #check}：方案串 + 三态结论（信息页签名状态栏用）；
+ * {@link #detailRows}：签名详情页逐行数据（校验结论/各方案/每张证书的序列号、
  * 颁发者、MD5/SHA-1/SHA-256 等），行值可点击复制。
+ *
+ * <p>v2.84.0（F-14/71）：本类不再产文案 —— 结论返回 {@link Scheme#state}，
+ * 详情行返回 {@link Row}（标签码 + 值码 + 原文），文字由 UI 层映射。</p>
  *
  * 注意 v1 的两种语义：
  *   - isVerifiedUsingV1Scheme()：apksig 仅在「minSdk<24 或无 v2/v3 签名」时才
@@ -29,8 +32,64 @@ import javax.security.auth.x500.X500Principal;
  */
 public class ApkSignCheck {
 
-    /** 签名方案串，如 "V1+V2+V3"；未签名返回 "未签名"，异常返回 "检测失败" */
-    public static String schemes(File apk) {
+    /** 三态结论 */
+    public static final int ST_UNSIGNED = 0;
+    public static final int ST_VERIFIED = 1;
+    public static final int ST_FAILED = 2;
+
+    /** 方案检测结果：state 决定文案，list 是 "V1+V2+V3"（无具体方案时为空） */
+    public static final class Scheme {
+        public int state = ST_UNSIGNED;
+        public String list = "";
+    }
+
+    /* 详情行的标签码 */
+    public static final int ROW_RESULT = 1;
+    public static final int ROW_V1 = 2;
+    public static final int ROW_V2 = 3;
+    public static final int ROW_V3 = 4;
+    public static final int ROW_CERT_COUNT = 5;
+    public static final int ROW_SUBJECT = 6;
+    public static final int ROW_ISSUER = 7;
+    public static final int ROW_SERIAL = 8;
+    public static final int ROW_SIG_ALG = 9;
+    public static final int ROW_NOT_AFTER = 10;
+    public static final int ROW_WARNINGS = 11;
+    public static final int ROW_ERRORS = 12;
+    public static final int ROW_MD5 = 13;
+    public static final int ROW_SHA1 = 14;
+    public static final int ROW_SHA256 = 15;
+
+    /* 详情行的值码；0 表示直接用 value 原文 */
+    public static final int V_PASS = 1;
+    public static final int V_FAIL = 2;
+    public static final int V_V1_OK = 3;
+    public static final int V_V1_FILES = 4;
+    public static final int V_NONE = 5;
+    public static final int V_SIGNED = 6;
+    public static final int V_COUNT = 7;
+    public static final int V_CALC_FAIL = 8;
+
+    /** 详情行：{@link #label} 标签码，{@link #tagNo} > 0 时前缀「证书[n] 」 */
+    public static final class Row {
+        public final int label;
+        public final int valueCode;
+        public final String value;
+        public final int count;
+        public final int tagNo;
+
+        Row(int label, int valueCode, String value, int count, int tagNo) {
+            this.label = label;
+            this.valueCode = valueCode;
+            this.value = value;
+            this.count = count;
+            this.tagNo = tagNo;
+        }
+    }
+
+    /** 签名方案 + 三态结论；读不出来时 state = {@link #ST_FAILED} */
+    public static Scheme check(File apk) {
+        Scheme out = new Scheme();
         try {
             ApkVerifier.Result r = new ApkVerifier.Builder(apk).build().verify();
             StringBuilder s = new StringBuilder();
@@ -39,57 +98,72 @@ public class ApkSignCheck {
             if (r.isVerifiedUsingV3Scheme()) s.append("V3+");
             if (r.isVerifiedUsingV31Scheme()) s.append("V3.1+");
             if (r.isVerifiedUsingV4Scheme()) s.append("V4+");
-            if (s.length() == 0) return r.isVerified() ? "已验证" : "未签名";
-            return s.substring(0, s.length() - 1);
+            if (s.length() > 0) {
+                out.list = s.substring(0, s.length() - 1);
+                out.state = ST_VERIFIED;
+            } else {
+                out.state = r.isVerified() ? ST_VERIFIED : ST_UNSIGNED;
+            }
         } catch (Exception e) {
-            return "检测失败";
+            out.state = ST_FAILED;
         }
+        return out;
     }
 
-    /** 签名详情页行列表 {label, value}；失败时返回含错误行的列表 */
-    public static List<String[]> detailRows(File apk) {
-        List<String[]> rows = new ArrayList<String[]>();
+    /** 签名详情页行列表；失败时返回只含一行错误说明的列表 */
+    public static List<Row> detailRows(File apk) {
+        List<Row> rows = new ArrayList<Row>();
         try {
             ApkVerifier.Result r = new ApkVerifier.Builder(apk).build().verify();
-            rows.add(new String[]{"校验结果", r.isVerified() ? "✅ 通过" : "❌ 未通过"});
+            rows.add(row(ROW_RESULT, r.isVerified() ? V_PASS : V_FAIL));
             boolean v1Ok = r.isVerifiedUsingV1Scheme();
             boolean v1Files = hasJarSignatureFiles(apk);
-            rows.add(new String[]{"v1 (JAR)",
-                    v1Ok ? "✅ 已校验" : v1Files ? "✅ 有签名(平台跳过校验)" : "— 无"});
-            rows.add(new String[]{"v2 (APK Sig)", mark(r.isVerifiedUsingV2Scheme())});
-            rows.add(new String[]{"v3 (Key Rot)", mark(r.isVerifiedUsingV3Scheme())});
+            rows.add(row(ROW_V1, v1Ok ? V_V1_OK : v1Files ? V_V1_FILES : V_NONE));
+            rows.add(row(ROW_V2, r.isVerifiedUsingV2Scheme() ? V_SIGNED : V_NONE));
+            rows.add(row(ROW_V3, r.isVerifiedUsingV3Scheme() ? V_SIGNED : V_NONE));
 
             List<X509Certificate> certs = r.getSignerCertificates();
-            rows.add(new String[]{"证书数量", String.valueOf(certs == null ? 0 : certs.size())});
+            int n = certs == null ? 0 : certs.size();
+            rows.add(new Row(ROW_CERT_COUNT, 0, String.valueOf(n), 0, 0));
             if (certs != null) {
-                for (int i = 0; i < certs.size(); i++) {
+                for (int i = 0; i < n; i++) {
                     X509Certificate c = certs.get(i);
-                    String tag = certs.size() > 1 ? "证书[" + (i + 1) + "] " : "";
-                    rows.add(new String[]{tag + "主体", dn(c.getSubjectX500Principal())});
-                    rows.add(new String[]{tag + "颁发者", dn(c.getIssuerX500Principal())});
-                    rows.add(new String[]{tag + "序列号",
-                            c.getSerialNumber().toString(16).toUpperCase()});
-                    rows.add(new String[]{tag + "算法", c.getSigAlgName()});
-                    rows.add(new String[]{tag + "有效期至",
-                            FileOps.formatTime(c.getNotAfter().getTime())});
-                    rows.add(new String[]{tag + "MD5", fp(c.getEncoded(), "MD5")});
-                    rows.add(new String[]{tag + "SHA-1", fp(c.getEncoded(), "SHA-1")});
-                    rows.add(new String[]{tag + "SHA-256", fp(c.getEncoded(), "SHA-256")});
+                    int tag = n > 1 ? i + 1 : 0;
+                    rows.add(new Row(ROW_SUBJECT, 0, dn(c.getSubjectX500Principal()), 0, tag));
+                    rows.add(new Row(ROW_ISSUER, 0, dn(c.getIssuerX500Principal()), 0, tag));
+                    rows.add(new Row(ROW_SERIAL, 0,
+                            c.getSerialNumber().toString(16).toUpperCase(), 0, tag));
+                    rows.add(new Row(ROW_SIG_ALG, 0, c.getSigAlgName(), 0, tag));
+                    rows.add(new Row(ROW_NOT_AFTER, 0,
+                            FileOps.formatTime(c.getNotAfter().getTime()), 0, tag));
+                    rows.add(fpRow(ROW_MD5, c.getEncoded(), "MD5", tag));
+                    rows.add(fpRow(ROW_SHA1, c.getEncoded(), "SHA-1", tag));
+                    rows.add(fpRow(ROW_SHA256, c.getEncoded(), "SHA-256", tag));
                 }
             }
-            if (!r.getWarnings().isEmpty())
-                rows.add(new String[]{"警告", r.getWarnings().size() + " 条"});
-            if (!r.isVerified() && !r.getErrors().isEmpty())
-                rows.add(new String[]{"错误", r.getErrors().size() + " 条"});
+            if (!r.getWarnings().isEmpty()) {
+                rows.add(new Row(ROW_WARNINGS, V_COUNT, null, r.getWarnings().size(), 0));
+            }
+            if (!r.isVerified() && !r.getErrors().isEmpty()) {
+                rows.add(new Row(ROW_ERRORS, V_COUNT, null, r.getErrors().size(), 0));
+            }
             return rows;
         } catch (Exception e) {
-            rows.add(new String[]{"错误", e.getClass().getSimpleName()
-                    + (e.getMessage() == null ? "" : ": " + e.getMessage())});
+            rows.add(new Row(ROW_ERRORS, 0, e.getClass().getSimpleName()
+                    + (e.getMessage() == null ? "" : ": " + e.getMessage()), 0, 0));
             return rows;
         }
     }
 
-    private static String mark(boolean b) { return b ? "✅ 已签名" : "— 无"; }
+    private static Row row(int label, int valueCode) {
+        return new Row(label, valueCode, null, 0, 0);
+    }
+
+    private static Row fpRow(int label, byte[] data, String alg, int tagNo) {
+        String s = fp(data, alg);
+        return s == null ? new Row(label, V_CALC_FAIL, null, 0, tagNo)
+                : new Row(label, 0, s, 0, tagNo);
+    }
 
     /**
      * v1 (JAR) 签名文件是否存在：META-INF/&lt;base&gt;.SF 且有配套
@@ -130,7 +204,7 @@ public class ApkSignCheck {
         }
     }
 
-    /** 连续十六进制大写指纹（无空格，复制即用） */
+    /** 连续十六进制大写指纹（无空格，复制即用）；算不出来返回 null，由 UI 显示占位 */
     private static String fp(byte[] data, String alg) {
         try {
             byte[] d = MessageDigest.getInstance(alg).digest(data);
@@ -138,7 +212,7 @@ public class ApkSignCheck {
             for (byte b : d) hex.append(String.format("%02X", b));
             return hex.toString();
         } catch (Exception e) {
-            return "(计算失败)";
+            return null;
         }
     }
 }

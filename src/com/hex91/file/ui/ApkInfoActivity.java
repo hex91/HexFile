@@ -2,6 +2,7 @@ package com.hex91.file.ui;
 
 import com.hex91.file.R;
 import com.hex91.file.apk.ApkInfoUtil;
+import com.hex91.file.apk.ApkSignCheck;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.fs.WorkDir;
 import android.graphics.Typeface;
@@ -119,8 +120,7 @@ public class ApkInfoActivity extends BaseActivity {
         if (!info.compileSdk.isEmpty()) sdk += getString(R.string.api_sdk_compile, info.compileSdk);
         line("SDK", sdk);
         sec(getString(R.string.api_sec_sign));
-        line(getString(R.string.api_lbl_scheme), info.signReadFailed
-                ? getString(R.string.api_sign_read_fail) : info.signSchemes);
+        line(getString(R.string.api_lbl_scheme), signText(info));
         sec(getString(R.string.api_sec_native));
         if (info.abis.isEmpty()) line(getString(R.string.api_lbl_abi), getString(R.string.api_none_lib));
         for (String abi : info.abis) line(getString(R.string.api_lbl_abi), abi);
@@ -222,6 +222,13 @@ public class ApkInfoActivity extends BaseActivity {
         }
     }
 
+    /** 签名三态 → 文案：读失败 / 未签名 / 已验证（有方案串就显示方案串） */
+    private String signText(ApkInfoUtil.Info i) {
+        if (i.signState == ApkSignCheck.ST_FAILED) return getString(R.string.api_sign_read_fail);
+        if (i.signState == ApkSignCheck.ST_UNSIGNED) return getString(R.string.api_sign_unsigned);
+        return i.signSchemes.isEmpty() ? getString(R.string.api_sign_verified) : i.signSchemes;
+    }
+
     /** 导出用的纯文本报告：整篇在这里拼，核心层不再产文案（v2.83.0 F-14/70） */
     private String buildText(ApkInfoUtil.Info i, File apk) {
         StringBuilder b = new StringBuilder();
@@ -240,8 +247,7 @@ public class ApkInfoActivity extends BaseActivity {
         StringBuilder sdk = new StringBuilder(getString(R.string.api_txt_sdk, i.minSdk, i.targetSdk));
         if (!i.compileSdk.isEmpty()) sdk.append(getString(R.string.api_txt_sdk_compile, i.compileSdk));
         b.append(sdk).append('\n');
-        b.append(getString(R.string.api_txt_sign, i.signReadFailed
-                ? getString(R.string.api_sign_read_fail) : i.signSchemes)).append("\n\n");
+        b.append(getString(R.string.api_txt_sign, signText(i))).append("\n\n");
         b.append(secLine(R.string.api_sec_native));
         if (i.abis.isEmpty()) b.append(getString(R.string.api_none_lib)).append('\n');
         else for (String abi : i.abis) b.append(getString(R.string.api_txt_abi, abi)).append('\n');
