@@ -2644,4 +2644,16 @@
     <string name="sp_pwd_empty">密码不能为空</string>
     <string name="sp_signing">正在签名…</string>
     <string name="sp_pick_title">选择签名文件（.p12/.jks/.keystore）</string>
+    <!-- v2.63.0 strings 提取查看页 -->
+    <string name="sv_title">"strings 提取\n%1$s"</string>
+    <string name="sv_filter_hint">过滤字符串…</string>
+    <string name="sv_scanning">正在扫描…</string>
+    <string name="sv_copy_all">复制全部</string>
+    <string name="sv_scan_head">%1$s · 扫描 %2$d KB · 命中 %3$d</string>
+    <string name="sv_truncated">（超上限已截断）</string>
+    <string name="sv_scan_fail">扫描失败: %1$s</string>
+    <string name="sv_filter_sum">"过滤 \"%1$s\" → %2$d 条 / 共 %3$d 条"</string>
+    <string name="sv_copied_one">已复制: %1$s</string>
+    <string name="sv_copied_many">已复制 %1$d 条</string>
+    <string name="sv_nothing">无内容可复制</string>
 </resources>

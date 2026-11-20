@@ -1,5 +1,6 @@
 package com.hex91.file.ui;
 
+import com.hex91.file.R;
 import com.hex91.file.core.StringExtract;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -53,7 +54,7 @@ public class StringsViewerActivity extends BaseActivity {
 
         // 顶栏：标题
         TextView title = new TextView(this);
-        title.setText("strings 提取\n" + file.getName());
+        title.setText(getString(R.string.sv_title, file.getName()));
         title.setTextSize(14);
         title.setTextColor(ThemeManager.topBarText(this));
         title.setBackgroundColor(C_BAR);
@@ -63,13 +64,13 @@ public class StringsViewerActivity extends BaseActivity {
 
         // 搜索框
         EditText search = new EditText(this);
-        search.setHint("过滤字符串…");
+        search.setHint(R.string.sv_filter_hint);
         search.setTextSize(13);
         search.setSingleLine(true);
         root.addView(search);
 
         countView = new TextView(this);
-        countView.setText("正在扫描…");
+        countView.setText(R.string.sv_scanning);
         countView.setTextSize(12);
         countView.setTextColor(C_SUB);
         countView.setPadding(pad, (int) (4 * getResources().getDisplayMetrics().density),
@@ -78,7 +79,7 @@ public class StringsViewerActivity extends BaseActivity {
 
         // 复制全部按钮
         android.widget.Button copyAll = new android.widget.Button(this);
-        copyAll.setText("复制全部");
+        copyAll.setText(R.string.sv_copy_all);
         copyAll.setTextSize(12);
         root.addView(copyAll, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -91,7 +92,8 @@ public class StringsViewerActivity extends BaseActivity {
                 StringExtract.Hit h = shown.get(pos);
                 ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
                 cm.setPrimaryClip(ClipData.newPlainText("string", h.text));
-                toast("已复制: " + (h.text.length() > 40 ? h.text.substring(0, 40) + "…" : h.text));
+                toast(getString(R.string.sv_copied_one,
+                        h.text.length() > 40 ? h.text.substring(0, 40) + "…" : h.text));
             }
         });
         root.addView(list, new LinearLayout.LayoutParams(
@@ -116,11 +118,12 @@ public class StringsViewerActivity extends BaseActivity {
                         all = r.hits;
                         truncated = r.truncated;
                         refilter("");
-                        String head = file.getName() + " · 扫描 " + r.scannedBytes / 1024 + " KB · 命中 " + all.size();
+                        String head = getString(R.string.sv_scan_head, file.getName(),
+                                r.scannedBytes / 1024, all.size());
                         if (r.error != null) {
-                            lastSummary = "扫描失败: " + r.error;
+                            lastSummary = getString(R.string.sv_scan_fail, r.error);
                         } else {
-                            lastSummary = head + (truncated ? "（超上限已截断）" : "");
+                            lastSummary = head + (truncated ? getString(R.string.sv_truncated) : "");
                         }
                         countView.setText(lastSummary);
                     }
@@ -141,11 +144,11 @@ public class StringsViewerActivity extends BaseActivity {
         }
         adapter.notifyDataSetChanged();
         countView.setText(q == null || q.isEmpty() ? lastSummary
-                : "过滤 \"" + q + "\" → " + shown.size() + " 条 / 共 " + all.size() + " 条");
+                : getString(R.string.sv_filter_sum, q, shown.size(), all.size()));
     }
 
     private void copyAll() {
-        if (shown.isEmpty()) { toast("无内容可复制"); return; }
+        if (shown.isEmpty()) { toast(getString(R.string.sv_nothing)); return; }
         StringBuilder sb = new StringBuilder();
         for (StringExtract.Hit h : shown) {
             sb.append(StringExtract.hex(h.offset)).append(h.utf16 ? "  U  " : "    ")
@@ -153,7 +156,7 @@ public class StringsViewerActivity extends BaseActivity {
         }
         ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
         cm.setPrimaryClip(ClipData.newPlainText("strings", sb.toString()));
-        toast("已复制 " + shown.size() + " 条");
+        toast(getString(R.string.sv_copied_many, shown.size()));
     }
 
     private class HitAdapter extends BaseAdapter {

@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2509 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2520 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,34 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.63.0（versionCode 256）—— F-14/50：strings 提取页 i18n（批量纯 UI 页第 16 页）
+
+`StringsViewerActivity` 中文字面量 **11 → 0**（纯代码构造 UI，无布局文件），新增 11 个 `sv_*` 键，
+资源 2509 → 2520 条（中英各 2520，100%）。补 `import com.hex91.file.R;`。
+
+### UI 层要点
+- 顶栏标题原为 `"strings 提取\n" + file.getName()`，改整句 `sv_title`（`"strings 提取\n%1$s"`，整值加引号）。
+- 扫描完成的状态行原是三段拼接（`名 · 扫描 N KB · 命中 M`），整句 `sv_scan_head` 三参数；
+  失败与截断各一键（`sv_scan_fail` / `sv_truncated`），截断标记仍用 `+` 追加——它本身就是括号补语，
+  中文版无前导空格、英文版带前导空格，各写各的。
+- 过滤状态行 `过滤 "q" → m 条 / 共 n 条` 整句 `sv_filter_sum`，内嵌双引号以 `\"` 转义写在资源值里。
+- 复制反馈两态：`sv_copied_one`（单条，超 40 字符仍截断加 `…`）/ `sv_copied_many`（全部）。
+
+### 附带修复：版本守卫的源码指纹在 Windows 上恒为空
+`build.sh` 的指纹算法是 `… | xargs -d '\n' md5sum`，而 MSYS 的 xargs 一启动就
+`assertion "bc_ctl.arg_max >= LINE_MAX" failed` 崩掉，输出为空 → 指纹恒等于空串 md5
+（`d41d8cd98f00b204`）。也就是说"改了码没升版"这条规则在 Windows 上**从未生效过**，
+只有"versionCode 回退"那条在工作。改成 `find -exec md5sum {} +`（由 find 自己批量攒参数，
+不经 xargs）：实测 6 秒（逐文件 `while read` 要 86 秒，别退回去），指纹 `2eb7262b…`，本版起真正生效。
+
+### 验证
+四门全过（依赖方向、空 catch 335 基线、文案 2520/2520 100%、动作码 55）。
+APK **13,423,312 B**（md5 `d6e543c9…`），badging 反证 versionCode 256 / 2.63.0；
+dex 反证 `sv_filter_sum` / `sv_scan_head` / `sv_copy_all` 各 = 1，"过滤字符串"在 dex 中 0 处、
+在 `resources.arsc` 中 1 处。
 
 ---
 
