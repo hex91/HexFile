@@ -50,7 +50,7 @@ public final class Sm4 {
     /** 128 bit 密钥扩展成 32 个轮密钥 */
     public static int[] expandKey(byte[] key) {
         if (key == null || key.length != 16) {
-            throw new IllegalArgumentException("SM4 密钥必须是 16 字节（当前 " + (key == null ? 0 : key.length) + "）");
+            throw new IllegalArgumentException("SM4 key must be 16 bytes (current " + (key == null ? 0 : key.length) + ")");
         }
         int[] k = new int[4];
         for (int i = 0; i < 4; i++) k[i] = beInt(key, i * 4) ^ FK[i];

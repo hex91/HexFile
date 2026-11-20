@@ -32,7 +32,7 @@ public final class RadixCore {
      * @param base  输入进制 2~36（前缀与 base 冲突时以 auto 前缀为准）
      */
     public static Result convert(String input, int base) {
-        if (input == null) throw new IllegalArgumentException("请输入要转换的数");
+        if (input == null) throw new RadixException(RadixException.EMPTY_INPUT);
         BigInteger v = parse(input, base);
         Result r = new Result();
         for (int i = 0; i < BASES.length; i++) {
@@ -49,7 +49,7 @@ public final class RadixCore {
 
     public static BigInteger parse(String input, int base) {
         String s = input.trim();
-        if (s.isEmpty()) throw new IllegalArgumentException("请输入要转换的数");
+        if (s.isEmpty()) throw new RadixException(RadixException.EMPTY_INPUT);
         boolean neg = false;
         if (s.startsWith("-")) {
             neg = true;
@@ -64,23 +64,23 @@ public final class RadixCore {
         else if (s.startsWith("0") && s.length() > 1 && base == 10) {
             // 010 在十进制语境里仍按十进制处理，不猜八进制（避免用户误判）
         }
-        if (base < 2 || base > 36) throw new IllegalArgumentException("进制必须在 2~36 之间");
+        if (base < 2 || base > 36) throw new RadixException(RadixException.BASE_RANGE);
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
             if (c == ' ' || c == '_' || c == ',' || c == '\'' || c == ':') continue;
             int d = digitVal(c);
-            if (d < 0) throw new IllegalArgumentException("非法字符：" + c);
-            if (d >= base) throw new IllegalArgumentException("字符 " + c + " 不属于 " + base + " 进制");
+            if (d < 0) throw new RadixException(RadixException.ILLEGAL_CHAR, c, -1);
+            if (d >= base) throw new RadixException(RadixException.CHAR_OVER_BASE, c, base);
             sb.append(c);
         }
-        if (sb.length() == 0) throw new IllegalArgumentException("请输入要转换的数");
+        if (sb.length() == 0) throw new RadixException(RadixException.EMPTY_INPUT);
         BigInteger v = new BigInteger(sb.toString(), base);
         return neg ? v.negate() : v;
     }
 
     public static String toBase(BigInteger v, int base) {
-        if (base < 2 || base > 36) throw new IllegalArgumentException("进制必须在 2~36 之间");
+        if (base < 2 || base > 36) throw new RadixException(RadixException.BASE_RANGE);
         return v.toString(base).toUpperCase(Locale.US);
     }
 

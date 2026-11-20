@@ -3205,4 +3205,10 @@
     <string name="sy_summary">上传 %1$d · 下载 %2$d · 冲突处理 %3$d</string>
     <string name="sy_summary_fail">上传 %1$d · 下载 %2$d · 冲突处理 %3$d · 失败 %4$d</string>
     <string name="sy_summary_cancelled">已取消</string>
+    <!-- v2.102.0 进制转换错误（RadixException / RadixText） -->
+    <string name="radix_err_empty">请输入要转换的数</string>
+    <string name="radix_err_base_range">进制必须在 2~36 之间</string>
+    <string name="radix_err_illegal_char">非法字符：%1$s</string>
+    <string name="radix_err_char_base">字符 %1$s 不属于 %2$d 进制</string>
+    <string name="radix_err_unknown">转换失败</string>
 </resources>

@@ -1785,6 +1785,26 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.102.0（versionCode 295）—— F-14/89：core 层异常去中文（第一批）
+
+core 是依赖最底层，不能引用 R。按「异常一律不含用户文案」纪律清理：
+
+- **ASCII 诊断串**：AtomicReplace（10 处，含 failMessage 的全角括号 + lastError 拼装）、
+  ByteIO(2)、CredentialCodec(1)、Sm4(1)、TestDataCore 的 8 处 IAE、Json(14 解析器内部错误，
+  全被 parseOrNull 吞掉，无 UI 影响)。这些是技术错误描述，不是用户文案。
+- **RadixCore 码化**：新增 `core/RadixException extends IllegalArgumentException`（4 码：
+  空输入/进制越界/非法字符/字符超进制）+ `ui/RadixText` 映射，RadixActivity 用 RadixText.errorText。
+  extends IAE 保住 ToolboxCoreTest 的 catch 语义（测试不断言 message）。
+
+**保留数据**：ThemeSchemes.NAMES（22 主题名，与 MT 主题页一一对应的产品定义）、
+RegionTable「市辖区」（行政区划术语，用于比较而非展示）、CodecCore 标点归一化集、
+TestDataCore Bank 中文名（测试数据内容）——同 v2.52/TestData 数据口径，不翻。
+
+新增 RadixException + RadixText + 5 个 `radix_err_*` 键，资源 3005 → 3010（100%）。
+四门全过、全量 97/0/4（ToolboxCoreTest PASS）；APK 13,488,848 B（md5 `59b3c0a1…`），badging 295/2.102.0。
+
+---
+
 ## v2.101.0（versionCode 294）—— F-14/88：LAN 快传 + TS 转封装去中文（net 包收尾）
 
 清掉 net 包最后一批用户可见中文，至此 net 包仅剩 StreamUrl 5 处功能标点数据（保留）。

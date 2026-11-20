@@ -52,7 +52,7 @@ public final class AtomicReplace {
      */
     public static String failMessage(String what) {
         String why = lastError;
-        return why == null ? what : what + "（" + why + "）";
+        return why == null ? what : what + " (" + why + ")";
     }
 
     /** 替换结果（成功 {@code message} 为 null） */
@@ -87,14 +87,14 @@ public final class AtomicReplace {
             return new Result(true, null);
         } catch (IOException e) {
             StringBuilder sb = new StringBuilder(
-                    e.getMessage() == null ? "替换失败" : e.getMessage());
+                    e.getMessage() == null ? "replace failed" : e.getMessage());
             // R-06：把可能留在原目录里的文件点出来 —— 用户在自己文件夹里看到它们时能对上号
             File parent = target == null ? null : target.getParentFile();
             if (parent != null && target != null) {
                 File bak = new File(parent, target.getName() + BAK_SUFFIX);
-                if (bak.exists()) sb.append("；原内容备份在 ").append(bak.getPath());
+                if (bak.exists()) sb.append("; original backed up at ").append(bak.getPath());
             }
-            if (tmp != null && tmp.exists()) sb.append("；新内容保留在 ").append(tmp.getPath());
+            if (tmp != null && tmp.exists()) sb.append("; new content kept at ").append(tmp.getPath());
             lastError = sb.toString();
             return new Result(false, lastError);
         }
@@ -110,9 +110,9 @@ public final class AtomicReplace {
      *                     若连还原都失败，异常信息里会给出备份路径
      */
     public static void replace(File tmp, File target) throws IOException {
-        if (tmp == null || target == null) throw new IOException("替换参数为空");
+        if (tmp == null || target == null) throw new IOException("replace args are empty");
         File parent = target.getParentFile();
-        if (parent == null) throw new IOException("目标没有父目录: " + target);
+        if (parent == null) throw new IOException("target has no parent: " + target);
 
         File bak = new File(parent, target.getName() + BAK_SUFFIX);
 
@@ -125,11 +125,11 @@ public final class AtomicReplace {
             if (!bak.renameTo(target)) copy(bak, target);
         }
 
-        if (!tmp.isFile()) throw new IOException("临时文件不存在: " + tmp);
+        if (!tmp.isFile()) throw new IOException("temp file missing: " + tmp);
 
         if (bak.exists() && !bak.delete()) {
             // 旧备份清不掉（被占用）：不硬来，原文件一个字节都不动
-            throw new IOException("旧备份无法清理: " + bak.getPath());
+            throw new IOException("cannot clear old backup: " + bak.getPath());
         }
         boolean hadOld = target.exists();
 
@@ -142,7 +142,7 @@ public final class AtomicReplace {
             copy(target, bak);
             if (!target.delete()) {
                 bak.delete();
-                throw new IOException("原文件无法挪开（复制出的备份也删不掉）: " + target.getPath());
+                throw new IOException("cannot move original (backup copy cannot be deleted either): " + target.getPath());
             }
         }
 
@@ -159,7 +159,7 @@ public final class AtomicReplace {
         } catch (IOException e) {
             if (target.exists()) target.delete();
             if (hadOld && bak.exists() && !bak.renameTo(target)) {
-                throw new IOException("替换失败且还原失败，原内容保留在 " + bak.getPath());
+                throw new IOException("replace and restore both failed; original kept at " + bak.getPath());
             }
             throw e;
         }

@@ -48,7 +48,7 @@ public final class CredentialCodec {
     public static String decrypt(String stored, SecretKey key) throws Exception {
         if (!isEncrypted(stored)) return stored;
         byte[] raw = Base64Codec.decode(stored.substring(PREFIX.length()));
-        if (raw == null || raw.length <= IV_LEN) throw new IllegalArgumentException("密文格式错误");
+        if (raw == null || raw.length <= IV_LEN) throw new IllegalArgumentException("invalid ciphertext format");
         byte[] iv = new byte[IV_LEN];
         System.arraycopy(raw, 0, iv, 0, IV_LEN);
         Cipher c = Cipher.getInstance("AES/GCM/NoPadding");

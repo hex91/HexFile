@@ -152,7 +152,7 @@ public class RadixActivity extends BaseActivity {
             for (TextView v : values) v.setText("—");
             info.setText("");
             status.setTextColor(ThemeManager.err(this));
-            status.setText(getString(R.string.rd_err, e.getMessage()));
+            status.setText(getString(R.string.rd_err, RadixText.errorText(this, e)));
         }
     }
 }

@@ -3197,4 +3197,10 @@
     <string name="sy_summary">Uploaded %1$d · Downloaded %2$d · Conflicts %3$d</string>
     <string name="sy_summary_fail">Uploaded %1$d · Downloaded %2$d · Conflicts %3$d · Failed %4$d</string>
     <string name="sy_summary_cancelled">Cancelled</string>
+    <!-- v2.102.0 radix conversion errors (RadixException / RadixText) -->
+    <string name="radix_err_empty">Enter a number to convert</string>
+    <string name="radix_err_base_range">Base must be between 2 and 36</string>
+    <string name="radix_err_illegal_char">Illegal character: %1$s</string>
+    <string name="radix_err_char_base">Character %1$s is not valid in base %2$d</string>
+    <string name="radix_err_unknown">Conversion failed</string>
 </resources>

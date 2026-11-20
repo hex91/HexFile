@@ -30,12 +30,12 @@ public final class TestDataCore {
     /** ISO 7064 MOD 11-2 校验位：输入前 17 位，返回第 18 位（0-9 或 X） */
     public static char idCheckDigit(String first17) {
         if (first17 == null || first17.length() != 17) {
-            throw new IllegalArgumentException("需要 17 位数字");
+            throw new IllegalArgumentException("17 digits required");
         }
         int sum = 0;
         for (int i = 0; i < 17; i++) {
             char c = first17.charAt(i);
-            if (c < '0' || c > '9') throw new IllegalArgumentException("第 " + (i + 1) + " 位不是数字");
+            if (c < '0' || c > '9') throw new IllegalArgumentException("digit " + (i + 1) + " is not numeric");
             sum += (c - '0') * W[i];
         }
         return CHECK[sum % 11];
@@ -52,15 +52,15 @@ public final class TestDataCore {
      * @param r       随机源，可为 null
      */
     public static String idNumber(String region6, int year, int month, int day, boolean male, Random r) {
-        if (region6 == null || region6.length() != 6) throw new IllegalArgumentException("地区码需 6 位");
+        if (region6 == null || region6.length() != 6) throw new IllegalArgumentException("region code must be 6 digits");
         for (int i = 0; i < 6; i++) {
             char c = region6.charAt(i);
-            if (c < '0' || c > '9') throw new IllegalArgumentException("地区码只能是数字");
+            if (c < '0' || c > '9') throw new IllegalArgumentException("region code must be numeric");
         }
-        if (year < 1800 || year > 2099) throw new IllegalArgumentException("出生年超出范围");
-        if (month < 1 || month > 12) throw new IllegalArgumentException("月份需 1-12");
+        if (year < 1800 || year > 2099) throw new IllegalArgumentException("birth year out of range");
+        if (month < 1 || month > 12) throw new IllegalArgumentException("month must be 1-12");
         int max = daysInMonth(year, month);
-        if (day < 1 || day > max) throw new IllegalArgumentException(month + " 月只有 " + max + " 天");
+        if (day < 1 || day > max) throw new IllegalArgumentException("month " + month + " has only " + max + " days");
         if (r == null) r = new Random();
 
         StringBuilder sb = new StringBuilder(18);
@@ -159,12 +159,12 @@ public final class TestDataCore {
 
     /** Luhn 校验位：输入缺校验位的数字串，返回应补的那一位 */
     public static char luhnDigit(String payload) {
-        if (payload == null || payload.length() == 0) throw new IllegalArgumentException("空串");
+        if (payload == null || payload.length() == 0) throw new IllegalArgumentException("empty string");
         int sum = 0;
         boolean dbl = true;                       // 从右往左，校验位左侧那位开始翻倍
         for (int i = payload.length() - 1; i >= 0; i--) {
             int d = payload.charAt(i) - '0';
-            if (d < 0 || d > 9) throw new IllegalArgumentException("含非数字");
+            if (d < 0 || d > 9) throw new IllegalArgumentException("contains non-digit");
             if (dbl) {
                 d *= 2;
                 if (d > 9) d -= 9;

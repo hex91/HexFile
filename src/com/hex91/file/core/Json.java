@@ -44,13 +44,13 @@ public final class Json {
      * @throws IllegalArgumentException 语法错误（含字符下标，便于定位）
      */
     public static Object parse(String text) {
-        if (text == null) throw new IllegalArgumentException("JSON 为空");
+        if (text == null) throw new IllegalArgumentException("JSON is null");
         Json p = new Json(text);
         p.ws();
         Object v = p.value();
         p.ws();
         if (p.i < p.s.length())
-            throw p.err("多余内容");
+            throw p.err("trailing content");
         return v;
     }
 
@@ -174,7 +174,7 @@ public final class Json {
     // ---------------------------------------------------------------- 解析
 
     private Object value() {
-        if (i >= s.length()) throw err("意外结束");
+        if (i >= s.length()) throw err("unexpected end");
         char c = s.charAt(i);
         switch (c) {
             case '{': return object();
@@ -194,10 +194,10 @@ public final class Json {
         if (peek() == '}') { i++; return m; }
         while (true) {
             ws();
-            if (peek() != '"') throw err("对象键必须是字符串");
+            if (peek() != '"') throw err("object key must be a string");
             String k = string();
             ws();
-            if (peek() != ':') throw err("缺少冒号");
+            if (peek() != ':') throw err("missing colon");
             i++;
             ws();
             m.put(k, value());
@@ -205,7 +205,7 @@ public final class Json {
             char c = peek();
             if (c == ',') { i++; continue; }
             if (c == '}') { i++; return m; }
-            throw err("对象未闭合");
+            throw err("unterminated object");
         }
     }
 
@@ -221,7 +221,7 @@ public final class Json {
             char c = peek();
             if (c == ',') { i++; continue; }
             if (c == ']') { i++; return l; }
-            throw err("数组未闭合");
+            throw err("unterminated array");
         }
     }
 
@@ -229,11 +229,11 @@ public final class Json {
         i++;                                   // 开头的 "
         StringBuilder sb = new StringBuilder();
         while (true) {
-            if (i >= s.length()) throw err("字符串未闭合");
+            if (i >= s.length()) throw err("unterminated string");
             char c = s.charAt(i++);
             if (c == '"') return sb.toString();
             if (c != '\\') { sb.append(c); continue; }
-            if (i >= s.length()) throw err("转义未闭合");
+            if (i >= s.length()) throw err("unterminated escape");
             char e = s.charAt(i++);
             switch (e) {
                 case '"': sb.append('"'); break;
@@ -245,11 +245,11 @@ public final class Json {
                 case 'r': sb.append('\r'); break;
                 case 't': sb.append('\t'); break;
                 case 'u':
-                    if (i + 4 > s.length()) throw err("\\u 转义长度不足");
+                    if (i + 4 > s.length()) throw err("short \\u escape");
                     try {
                         sb.append((char) Integer.parseInt(s.substring(i, i + 4), 16));
                     } catch (NumberFormatException nfe) {
-                        throw err("\\u 转义非法");
+                        throw err("invalid \\u escape");
                     }
                     i += 4;
                     break;
@@ -271,20 +271,20 @@ public final class Json {
             break;
         }
         String t = s.substring(start, i);
-        if (t.isEmpty() || "-".equals(t) || "+".equals(t)) throw err("非法值");
+        if (t.isEmpty() || "-".equals(t) || "+".equals(t)) throw err("invalid value");
         try {
             return fp ? (Object) Double.valueOf(t) : (Object) Long.valueOf(t);
         } catch (NumberFormatException e) {
             try {
                 return (Object) Double.valueOf(t);
             } catch (NumberFormatException e2) {
-                throw err("数字非法: " + t);
+                throw err("invalid number: " + t);
             }
         }
     }
 
     private void expect(String lit) {
-        if (!s.startsWith(lit, i)) throw err("期望 " + lit);
+        if (!s.startsWith(lit, i)) throw err("expected " + lit);
         i += lit.length();
     }
 

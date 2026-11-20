@@ -29,7 +29,7 @@ public final class ByteIO {
 
     /** 整读一个文件；文件不存在/无权限直接抛 IOException（调用方自己拼提示） */
     public static byte[] readAll(File f) throws IOException {
-        if (f == null) throw new IOException("文件为空");
+        if (f == null) throw new IOException("file is null");
         FileInputStream in = new FileInputStream(f);
         try {
             return readAll(in);
@@ -40,7 +40,7 @@ public final class ByteIO {
 
     /** 整读一个流（不关闭传入的流，由调用方负责） */
     public static byte[] readAll(InputStream in) throws IOException {
-        if (in == null) throw new IOException("流为空");
+        if (in == null) throw new IOException("stream is null");
         ByteArrayOutputStream bo = new ByteArrayOutputStream();
         byte[] buf = new byte[BUF];
         int n;
