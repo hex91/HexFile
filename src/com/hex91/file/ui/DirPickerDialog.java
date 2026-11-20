@@ -1,5 +1,6 @@
 package com.hex91.file.ui;
 
+import com.hex91.file.R;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
@@ -55,7 +56,7 @@ public final class DirPickerDialog {
                 adapter.clear();
                 File parent = d.getParentFile();
                 hasParent[0] = parent != null && parent.canRead();
-                if (hasParent[0]) adapter.add("⬆ 上一级");
+                if (hasParent[0]) adapter.add(a.getString(R.string.dpd_up));
                 File[] arr = d.listFiles();
                 if (arr != null) {
                     Arrays.sort(arr, new Comparator<File>() {
@@ -67,11 +68,11 @@ public final class DirPickerDialog {
                         // 只列目录；无权限的目录也列出来（部分 ROM 的 canRead 会误报 false）
                         if (!k.isDirectory()) continue;
                         kids.add(k);
-                        adapter.add("📁 " + k.getName() + "/");
+                        adapter.add(a.getString(R.string.dpd_dir, k.getName()));
                     }
                 }
-                if (kids.isEmpty()) adapter.add("（此目录下没有子文件夹）");
-                if (holder[0] != null) holder[0].setTitle("选择目录\n" + d.getAbsolutePath());
+                if (kids.isEmpty()) adapter.add(a.getString(R.string.dpd_empty));
+                if (holder[0] != null) holder[0].setTitle(a.getString(R.string.dpd_title, d.getAbsolutePath()));
             }
         };
 
@@ -98,19 +99,19 @@ public final class DirPickerDialog {
                 LinearLayout.LayoutParams.MATCH_PARENT, h));
 
         holder[0] = new HfDialogBuilder(a)
-                .setTitle("选择目录")
+                .setTitle(R.string.dpd_pick)
                 .setView(wrap)
-                .setPositiveButton("选此目录", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.main_cmp_pick_ok, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         if (cb != null) cb.onPick(cur[0]);
                     }
                 })
-                .setNeutralButton("手输路径", new DialogInterface.OnClickListener() {
+                .setNeutralButton(R.string.dpd_manual, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         askManual(a, cur[0], cb);
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .create();
         // 先 refresh 再 show：setTitle 里要拿到 dialog 实例
         refresh[0].run();
@@ -130,15 +131,15 @@ public final class DirPickerDialog {
         box.setPadding(pad, 8, pad, 0);
         box.addView(et);
         new HfDialogBuilder(a)
-                .setTitle("输入目录路径")
-                .setMessage("只接受绝对路径，例如 /storage/1A2B-3C4D/HexFile")
+                .setTitle(R.string.dpd_path_title)
+                .setMessage(R.string.dpd_path_msg)
                 .setView(box)
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.common_confirm, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         if (cb != null) cb.onPick(new File(et.getText().toString().trim()));
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 }

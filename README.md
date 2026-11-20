@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2568 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2576 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,30 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.67.0（versionCode 260）—— F-14/54：目录选择对话框 i18n（批量纯 UI 页第 20 页）
+
+`DirPickerDialog` 中文字面量 **11 → 0**（纯代码构造对话框，无布局文件），新增 8 个 `dpd_*` 键，
+复用 `main_cmp_pick_ok` / `common_cancel` / `common_confirm`，资源 2568 → 2576 条
+（中英各 2576，100%）。
+
+### 结构性注意
+这是个 `static` 工具类（`DirPickerDialog.show(Activity, File, OnPick)`），没有 `this` 也没有
+`getString`——取串一律走入参 `a.getString(...)`。刷新列表的 `Runnable`、列表项点击、
+按钮回调都是匿名内部类，同样只有 `a` 可用，别再往里加 Activity 强转。
+
+### UI 层要点
+- 标题动态化：`"选择目录\n" + path` → `dpd_title`（`"选择目录\n%1$s"`，整值加引号）。
+- 列表三态：`dpd_up`（⬆ 上一级）/ `dpd_dir`（`📁 %1$s/`，emoji 与斜杠都在资源里）/ `dpd_empty`。
+- 三个按钮：确认 `main_cmp_pick_ok`（"选此目录"，与主界面"对比目标"选择器同义，故复用）、
+  中立 `dpd_manual`、取消 `common_cancel`；手输路径对话框的确定 `common_confirm`。
+
+### 验证
+四门全过（依赖方向、空 catch 335 基线、文案 2576/2576 100%、动作码 55）。
+APK **13,423,312 B**（md5 `2706fbb5…`），badging 反证 versionCode 260 / 2.67.0；
+dex 反证 `dpd_title` / `dpd_dir` / `dpd_path_msg` 各 = 1，"选择目录"在 dex 中 0 处。
 
 ---
 

@@ -2707,4 +2707,13 @@
     <string name="br_done">已重命名 %1$d/%2$d 项</string>
     <string name="br_row_new">→ %1$s</string>
     <string name="br_empty_name">(空名·冲突)</string>
+    <!-- v2.67.0 目录选择对话框 -->
+    <string name="dpd_title">"选择目录\n%1$s"</string>
+    <string name="dpd_pick">选择目录</string>
+    <string name="dpd_up">⬆ 上一级</string>
+    <string name="dpd_dir">📁 %1$s/</string>
+    <string name="dpd_empty">（此目录下没有子文件夹）</string>
+    <string name="dpd_manual">手输路径</string>
+    <string name="dpd_path_title">输入目录路径</string>
+    <string name="dpd_path_msg">只接受绝对路径，例如 /storage/1A2B-3C4D/HexFile</string>
 </resources>

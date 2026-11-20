@@ -2699,4 +2699,13 @@
     <string name="br_done">Renamed %1$d/%2$d items</string>
     <string name="br_row_new">→ %1$s</string>
     <string name="br_empty_name">(empty name · conflict)</string>
+    <!-- v2.67.0 folder picker dialog -->
+    <string name="dpd_title">"Choose a folder\n%1$s"</string>
+    <string name="dpd_pick">Choose a folder</string>
+    <string name="dpd_up">⬆ Up one level</string>
+    <string name="dpd_dir">📁 %1$s/</string>
+    <string name="dpd_empty">(no subfolders here)</string>
+    <string name="dpd_manual">Type a path</string>
+    <string name="dpd_path_title">Enter a folder path</string>
+    <string name="dpd_path_msg">Absolute paths only, e.g. /storage/1A2B-3C4D/HexFile</string>
 </resources>
