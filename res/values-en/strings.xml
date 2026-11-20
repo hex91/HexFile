@@ -2573,4 +2573,24 @@
     <string name="cph_suffix_decode">" decoded"</string>
     <string name="cph_out_chars">" · output %1$d chars"</string>
     <string name="cph_b64_note">"\nDecoded bytes shown as UTF-8; for binary content use Convert → HEX"</string>
+    <!-- v2.59.0 Smali syntax reference -->
+    <string name="smd_title">Smali syntax reference</string>
+    <string name="smd_tab_grammar">Grammar</string>
+    <string name="smd_tab_opcode">Opcodes</string>
+    <string name="smd_tab_fav">★ Favorites</string>
+    <string name="smd_tab_fav_n">★ Favorites (%1$d)</string>
+    <string name="smd_tab_grammar_n">Grammar (%1$d)</string>
+    <string name="smd_tab_opcode_n">Opcodes (%1$d)</string>
+    <string name="smd_search_hint">Search instructions / opcodes / keywords, e.g. move, 0x90, invoke, jump…</string>
+    <string name="smd_sec_grammar">Grammar · %1$s</string>
+    <string name="smd_sec_opcode">Opcodes</string>
+    <string name="smd_fav_empty">No favorites yet. Tap ☆ at the top right of any card to save it; favorites survive restarts.</string>
+    <string name="smd_fav_no_hit">No favorite matches this keyword.</string>
+    <string name="smd_count_fav">%1$d / %2$d favorites</string>
+    <string name="smd_op_no_hit">No matching opcode; try 0x90, invoke, const…</string>
+    <string name="smd_count_n">%1$d entries</string>
+    <string name="smd_gram_no_hit">No matching entry; try another keyword (e.g. add-int, invoke-static, jump, field)</string>
+    <string name="smd_fav_added">Added to favorites</string>
+    <string name="smd_fav_removed">Removed from favorites</string>
+    <string name="smd_copied">Copied: %1$s</string>
 </resources>

@@ -118,7 +118,7 @@ public class SmaliDocActivity extends BaseActivity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         TextView title = new TextView(this);
-        title.setText("Smali 语法查询");
+        title.setText(R.string.smd_title);
         title.setTextSize(18);
         title.setTypeface(null, Typeface.BOLD);
         title.setTextColor(mText);
@@ -141,7 +141,8 @@ public class SmaliDocActivity extends BaseActivity {
         row.setBackgroundColor(mCardBg);
         row.setPadding(dp(12), dp(6), dp(12), dp(6));
 
-        final String[] names = {"语法", "操作码", "★ 收藏"};
+        final String[] names = {getString(R.string.smd_tab_grammar),
+                getString(R.string.smd_tab_opcode), getString(R.string.smd_tab_fav)};
         for (int i = 0; i < 3; i++) {
             final int idx = i;
             TextView tv = new TextView(this);
@@ -172,9 +173,9 @@ public class SmaliDocActivity extends BaseActivity {
             mTabViews[i].setBackgroundColor(on ? mAccent : Color.TRANSPARENT);
             mTabViews[i].setTextColor(on ? Color.WHITE : mSub);
             mTabViews[i].setTypeface(null, on ? Typeface.BOLD : Typeface.NORMAL);
-            if (i == 2) mTabViews[i].setText("★ 收藏 (" + mFavs.size() + ")");
-            else if (i == 0) mTabViews[i].setText("语法 (" + SmaliDocs.E.length + ")");
-            else mTabViews[i].setText("操作码 (" + SmaliDocs.OP.length + ")");
+            if (i == 2) mTabViews[i].setText(getString(R.string.smd_tab_fav_n, mFavs.size()));
+            else if (i == 0) mTabViews[i].setText(getString(R.string.smd_tab_grammar_n, SmaliDocs.E.length));
+            else mTabViews[i].setText(getString(R.string.smd_tab_opcode_n, SmaliDocs.OP.length));
         }
     }
 
@@ -185,7 +186,7 @@ public class SmaliDocActivity extends BaseActivity {
         wrap.setPadding(dp(12), dp(8), dp(12), dp(8));
 
         mSearch = new EditText(this);
-        mSearch.setHint("搜索指令 / 操作码 / 关键字，如 move、0x90、invoke、跳转…");
+        mSearch.setHint(R.string.smd_search_hint);
         mSearch.setTextSize(14);
         mSearch.setTextColor(mText);
         mSearch.setHintTextColor(mSub);
@@ -218,12 +219,12 @@ public class SmaliDocActivity extends BaseActivity {
                 if (key.startsWith(PK_E)) {
                     String[] e = findE(key.substring(PK_E.length()));
                     if (e == null || (q != null && !q.isEmpty() && !match(e, q))) continue;
-                    mContainer.addView(sectionHeader("语法 · " + e[0]));
+                    mContainer.addView(sectionHeader(getString(R.string.smd_sec_grammar, e[0])));
                     mContainer.addView(entryCard(e, false));
                 } else {
                     String[] o = findOp(key.substring(PK_O.length()));
                     if (o == null || (q != null && !q.isEmpty() && !matchOp(o, q))) continue;
-                    mContainer.addView(sectionHeader("操作码"));
+                    mContainer.addView(sectionHeader(getString(R.string.smd_sec_opcode)));
                     mContainer.addView(opCard(o));
                 }
                 mContainer.addView(spacer(dp(8)));
@@ -232,10 +233,10 @@ public class SmaliDocActivity extends BaseActivity {
             }
             if (hits == 0) {
                 mContainer.addView(emptyView(mFavs.isEmpty()
-                        ? "还没有收藏。在任意条目卡片右上角点 ☆ 即可收藏，重启 App 仍保留。"
-                        : "当前关键词没有命中收藏条目。"));
+                        ? getString(R.string.smd_fav_empty)
+                        : getString(R.string.smd_fav_no_hit)));
             }
-            mCount.setText(hits + " / 收藏 " + mFavs.size());
+            mCount.setText(getString(R.string.smd_count_fav, hits, mFavs.size()));
             return;
         }
 
@@ -247,8 +248,9 @@ public class SmaliDocActivity extends BaseActivity {
                 mContainer.addView(spacer(dp(6)));
                 hits++;
             }
-            if (hits == 0) mContainer.addView(emptyView("没有匹配的操作码，试试 0x90、invoke、const…"));
-            mCount.setText(q.isEmpty() ? SmaliDocs.OP.length + " 条" : hits + "/" + SmaliDocs.OP.length);
+            if (hits == 0) mContainer.addView(emptyView(getString(R.string.smd_op_no_hit)));
+            mCount.setText(q.isEmpty() ? getString(R.string.smd_count_n, SmaliDocs.OP.length)
+                    : hits + "/" + SmaliDocs.OP.length);
             return;
         }
 
@@ -264,8 +266,9 @@ public class SmaliDocActivity extends BaseActivity {
             mContainer.addView(spacer(dp(8)));
             hits++;
         }
-        if (hits == 0) mContainer.addView(emptyView("没有匹配的条目，换个关键词试试（如 add-int、invoke-static、跳转、字段）"));
-        mCount.setText(q.isEmpty() ? SmaliDocs.E.length + " 条" : hits + "/" + SmaliDocs.E.length);
+        if (hits == 0) mContainer.addView(emptyView(getString(R.string.smd_gram_no_hit)));
+        mCount.setText(q.isEmpty() ? getString(R.string.smd_count_n, SmaliDocs.E.length)
+                    : hits + "/" + SmaliDocs.E.length);
     }
 
     private static boolean match(String[] e, String q) {
@@ -417,7 +420,9 @@ public class SmaliDocActivity extends BaseActivity {
                 ((TextView) v).setText(now ? "★" : "☆");
                 ((TextView) v).setTextColor(now ? mAccent : mSub);
                 Toast.makeText(SmaliDocActivity.this,
-                        now ? "已收藏" : "已取消收藏", Toast.LENGTH_SHORT).show();
+                        now ? SmaliDocActivity.this.getString(R.string.smd_fav_added)
+                                : SmaliDocActivity.this.getString(R.string.smd_fav_removed),
+                        Toast.LENGTH_SHORT).show();
                 refreshTabs();
                 if (mMode == 2) render(mSearch.getText().toString());
             }
@@ -488,7 +493,7 @@ public class SmaliDocActivity extends BaseActivity {
         try {
             ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             cm.setPrimaryClip(ClipData.newPlainText("smali", text));
-            Toast.makeText(this, "已复制：" + text, Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.smd_copied, text), Toast.LENGTH_SHORT).show();
         } catch (Exception ignore) {}
     }
 

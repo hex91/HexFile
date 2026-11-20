@@ -2581,4 +2581,24 @@
     <string name="cph_suffix_decode">" 解码"</string>
     <string name="cph_out_chars">" · 输出 %1$d 字符"</string>
     <string name="cph_b64_note">"\n解码结果按 UTF-8 显示，二进制内容请在「编码转换」里转 HEX 查看"</string>
+    <!-- v2.59.0 Smali 语法查询页 -->
+    <string name="smd_title">Smali 语法查询</string>
+    <string name="smd_tab_grammar">语法</string>
+    <string name="smd_tab_opcode">操作码</string>
+    <string name="smd_tab_fav">★ 收藏</string>
+    <string name="smd_tab_fav_n">★ 收藏 (%1$d)</string>
+    <string name="smd_tab_grammar_n">语法 (%1$d)</string>
+    <string name="smd_tab_opcode_n">操作码 (%1$d)</string>
+    <string name="smd_search_hint">搜索指令 / 操作码 / 关键字，如 move、0x90、invoke、跳转…</string>
+    <string name="smd_sec_grammar">语法 · %1$s</string>
+    <string name="smd_sec_opcode">操作码</string>
+    <string name="smd_fav_empty">还没有收藏。在任意条目卡片右上角点 ☆ 即可收藏，重启 App 仍保留。</string>
+    <string name="smd_fav_no_hit">当前关键词没有命中收藏条目。</string>
+    <string name="smd_count_fav">%1$d / 收藏 %2$d</string>
+    <string name="smd_op_no_hit">没有匹配的操作码，试试 0x90、invoke、const…</string>
+    <string name="smd_count_n">%1$d 条</string>
+    <string name="smd_gram_no_hit">没有匹配的条目，换个关键词试试（如 add-int、invoke-static、跳转、字段）</string>
+    <string name="smd_fav_added">已收藏</string>
+    <string name="smd_fav_removed">已取消收藏</string>
+    <string name="smd_copied">已复制：%1$s</string>
 </resources>

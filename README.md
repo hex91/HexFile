@@ -1785,6 +1785,34 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.59.0（versionCode 252）—— F-14/46：Smali 语法查询页 i18n（批量纯 UI 页第 12 页）
+
+`SmaliDocActivity` 中文字面量 **19 → 0**（纯代码构造 UI，无布局文件），新增 19 个 `smd_*` 键，
+资源 2449 → 2468 条（中英各 2468，100%）。
+
+### 边界：语法数据不翻
+`SmaliDocs.E` / `SmaliDocs.OP`（语法条目与操作码表，约 500+ 行中文数据）是**查询内容本身**，
+按 `SmaliDocs` 文档数据的一贯口径保留不翻。`sectionHeader("语法 · " + e[0])` 里的 `e[0]` 也是
+该数据（语法分类名），只翻包裹它的 `smd_sec_grammar`（`语法 · %1$s`）。
+
+### UI 层要点
+- 标签栏三态：静态文案 `smd_tab_grammar/opcode/fav` + 带计数版
+  `smd_tab_grammar_n`/`smd_tab_opcode_n`/`smd_tab_fav_n`（半角括号 `(%1$d)`，与原文一致）。
+- 计数行两种：收藏态 `smd_count_fav`（`%1$d / 收藏 %2$d`）、空关键词 `smd_count_n`（`%1$d 条`）；
+  非空关键词的 `hits/total` 是纯数字斜杠，保留原样。
+- 三条空态提示（收藏空、收藏无命中、操作码无命中、语法无命中）各自整句成键。
+- 局部数组 `final String[] names = {"语法", …}` 每次调用时用 `getString` 重新构造，
+  不是 `static final`，语言切换后重进页面即生效。
+- 收藏按钮的 Toast 在匿名 `OnClickListener` 内，用 `SmaliDocActivity.this.getString(...)`。
+
+### 验证
+
+四门全过（空 catch 335 基线）、`jc.sh` rc=0。APK **13,406,928 B**（md5 `f00a311a…`），
+badging 反证 versionCode 252 / 2.59.0；dex 反证 `smd_tab_fav_n`/`smd_count_fav`/`smd_gram_no_hit` 各=1。
+提交 `—`。
+
+---
+
 ## v2.58.0（versionCode 251）—— F-14/45：加密工具页 i18n（批量纯 UI 页第 11 页）
 
 `CipherActivity` 中文字面量 **16 → 0**（纯代码构造 UI，无布局文件），新增 17 个 `cph_*` 键，
