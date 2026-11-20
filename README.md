@@ -1785,6 +1785,37 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.54.0（versionCode 247）—— F-14/41：终端页 i18n（批量纯 UI 页第 7 页）
+
+`TerminalActivity` 中文字面量 **约 19 → 0**（另有 12 行是写入磁盘的 shell 脚本内容，见下），
+新增 18 个 `term_*` 键，资源 2356 → 2374 条（中英各 2374，100%）；布局 4 处 `android:text`
+（终端 / 清屏 / 粘贴 / 复制）资源化。
+
+### 静态数组锁定语言（同 v2.48 `TYPES` 的坑）
+`SCHEME_NAMES`（`{"经典黑","高对比","墨蓝","纸白"}`）是 `static final String[]`，类加载时定语言，
+切语言不生效。改为 `static final int[] SCHEME_NAME_IDS`（`R.string.term_scheme_*`），
+`chip.setText(SCHEME_NAME_IDS[i])` 由 `TextView.setText(int)` 直接解析。
+
+### 刻意保留：脚本数据不翻
+`setupTermHome()` 写入 `.profile` 与 `bin/hex` 助手的 shell 脚本正文（含 `alias`、`export`、
+`echo` 中文提示）中英合计 12 行**不翻译**——那是落盘脚本的语义内容，翻译会破坏 shell 语法
+与既有用户配置（同 `SmaliDocs` 文档数据、`Java2SmaliActivity.SAMPLE` 示例源码的处理口径）。
+
+### UI 层要点
+- 页签名：`term_tab_n`（`终端 %1$d`）、结束态 `term_tab_ended`（`%1$s（已结束）`）整句拼，不做 `+` 串接。
+- 标题：无标题时 `term_title`，有标题 `term_title_with`（`终端 — %1$s`，em dash 保留）。
+- `onTitleChanged` / `onSessionFinished` 两个 `runOnUiThread` Runnable 内 4 处用
+  `TerminalActivity.this.getString(...)`。
+- 对话框复用 `HfDialogBuilder` 的 `setTitle(int)` / `setPositiveButton(int, listener)`。
+
+### 验证
+
+四门全过（空 catch 335 基线）、`jc.sh` rc=0。APK **13,406,928 B**（md5 `476092a0…`），
+badging 反证 versionCode 247 / 2.54.0；dex 反证 `term_scheme_classic`/`term_title_with`/
+`term_session_ended`/`SCHEME_NAME_IDS` 各=1。提交 `—`。
+
+---
+
 ## v2.53.0（versionCode 246）—— F-14/40：存储分析页 i18n（批量纯 UI 页第 6 页）
 
 `StorageAnalysisActivity` 中文字面量 **29 → 0**（纯代码构造 UI，无布局文件），

@@ -2482,4 +2482,23 @@
     <string name="sa_del_msg">%1$s\n%2$s\n\n确定删除？</string>
     <string name="sa_deleted">已删除</string>
     <string name="sa_del_fail">删除失败（可能无权限）</string>
+    <!-- v2.54.0 终端页 -->
+    <string name="term_title">终端</string>
+    <string name="term_title_with">终端 — %1$s</string>
+    <string name="term_tab_n">终端 %1$d</string>
+    <string name="term_tab_ended">%1$s（已结束）</string>
+    <string name="term_clear">清屏</string>
+    <string name="term_paste">粘贴</string>
+    <string name="term_copy">复制</string>
+    <string name="term_copied">已复制选中文本</string>
+    <string name="term_copy_hint">请先长按终端选择文本，再点复制</string>
+    <string name="term_session_ended">当前终端会话已结束（切换或新建）</string>
+    <string name="term_font_size">字号</string>
+    <string name="term_scheme">配色</string>
+    <string name="term_display_title">终端显示</string>
+    <string name="term_done">完成</string>
+    <string name="term_scheme_classic">经典黑</string>
+    <string name="term_scheme_contrast">高对比</string>
+    <string name="term_scheme_ink">墨蓝</string>
+    <string name="term_scheme_paper">纸白</string>
 </resources>

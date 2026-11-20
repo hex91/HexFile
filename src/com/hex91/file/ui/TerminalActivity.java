@@ -82,7 +82,11 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
             {0xFF002B36, 0xFFEEE8D5, 0xFFEEE8D5}, // 2 墨蓝
             {0xFFF7F3E8, 0xFF333333, 0xFF333333}, // 3 纸白
     };
-    private static final String[] SCHEME_NAMES = {"经典黑", "高对比", "墨蓝", "纸白"};
+    /** 配色方案显示名（按资源取，避免静态数组锁定语言） */
+    private static final int[] SCHEME_NAME_IDS = {
+            R.string.term_scheme_classic, R.string.term_scheme_contrast,
+            R.string.term_scheme_ink, R.string.term_scheme_paper
+    };
 
     private int mScheme = 0;
     private TextView[] mSchemeChips;
@@ -175,7 +179,7 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
         mSessions.add(s);
         mCurrentIndex = mSessions.size() - 1;
         mSession = s;
-        mSessionTitle.put(s, "终端 " + mSessions.size());
+        mSessionTitle.put(s, getString(R.string.term_tab_n, mSessions.size()));
         mView.attachSession(s);
         refreshTabs();
     }
@@ -221,8 +225,8 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
             final int idx = i;
             TerminalSession s = mSessions.get(i);
             String name = mSessionTitle.get(s);
-            if (name == null) name = "终端 " + (i + 1);
-            if (s != null && !s.isRunning()) name = name + "（已结束）";
+            if (name == null) name = getString(R.string.term_tab_n, i + 1);
+            if (s != null && !s.isRunning()) name = getString(R.string.term_tab_ended, name);
 
             LinearLayout chip = new LinearLayout(this);
             chip.setOrientation(LinearLayout.HORIZONTAL);
@@ -290,9 +294,9 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
         String sel = (mView != null) ? mView.getSelectedText() : null;
         if (sel != null && !sel.isEmpty()) {
             ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            if (cm != null) { cm.setText(sel); toast("已复制选中文本"); }
+            if (cm != null) { cm.setText(sel); toast(getString(R.string.term_copied)); }
         } else {
-            toast("请先长按终端选择文本，再点复制");
+            toast(getString(R.string.term_copy_hint));
         }
     }
 
@@ -348,7 +352,7 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
 
         // —— 字号行 ——
         TextView sizeLabel = new TextView(this);
-        sizeLabel.setText("字号");
+        sizeLabel.setText(R.string.term_font_size);
         sizeLabel.setTextSize(15);
         sizeLabel.setTextColor(ThemeManager.text(this));
         box.addView(sizeLabel);
@@ -380,7 +384,7 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
 
         // —— 配色行 ——
         TextView schemeLabel = new TextView(this);
-        schemeLabel.setText("配色");
+        schemeLabel.setText(R.string.term_scheme);
         schemeLabel.setTextSize(15);
         schemeLabel.setTextColor(ThemeManager.text(this));
         box.addView(schemeLabel);
@@ -392,7 +396,7 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
         for (int i = 0; i < SCHEMES.length; i++) {
             final int idx = i;
             TextView chip = new TextView(this);
-            chip.setText(SCHEME_NAMES[i]);
+            chip.setText(SCHEME_NAME_IDS[i]);
             chip.setTextSize(14);
             chip.setPadding(dp(14), dp(8), dp(14), dp(8));
             chip.setTextColor(ThemeManager.text(this));
@@ -407,9 +411,9 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
         box.addView(schemeRow);
 
         new HfDialogBuilder(this)
-                .setTitle("终端显示")
+                .setTitle(R.string.term_display_title)
                 .setView(box)
-                .setPositiveButton("完成", null)
+                .setPositiveButton(R.string.term_done, null)
                 .show();
     }
 
@@ -622,7 +626,9 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
         final String disp = (t == null || t.isEmpty()) ? null : t;
         runOnUiThread(new Runnable() {
             @Override public void run() {
-                if (isCurrent && mTitle != null) mTitle.setText((disp == null) ? "终端" : "终端 — " + disp);
+                if (isCurrent && mTitle != null) mTitle.setText(disp == null
+                        ? TerminalActivity.this.getString(R.string.term_title)
+                        : TerminalActivity.this.getString(R.string.term_title_with, disp));
                 refreshTabs();
             }
         });
@@ -635,7 +641,7 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
                 refreshTabs();
                 if (finishedSession == mSession) {
                     Toast.makeText(TerminalActivity.this,
-                            "当前终端会话已结束（切换或新建）", Toast.LENGTH_SHORT).show();
+                            R.string.term_session_ended, Toast.LENGTH_SHORT).show();
                 }
             }
         });

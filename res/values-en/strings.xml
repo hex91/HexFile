@@ -2474,4 +2474,23 @@
     <string name="sa_del_msg">%1$s\n%2$s\n\nDelete this file?</string>
     <string name="sa_deleted">Deleted</string>
     <string name="sa_del_fail">Delete failed (permission denied?)</string>
+    <!-- v2.54.0 terminal -->
+    <string name="term_title">Terminal</string>
+    <string name="term_title_with">Terminal — %1$s</string>
+    <string name="term_tab_n">Terminal %1$d</string>
+    <string name="term_tab_ended">%1$s (ended)</string>
+    <string name="term_clear">Clear</string>
+    <string name="term_paste">Paste</string>
+    <string name="term_copy">Copy</string>
+    <string name="term_copied">Copied selection</string>
+    <string name="term_copy_hint">Long-press the terminal to select text first, then tap Copy</string>
+    <string name="term_session_ended">The current terminal session has ended (switch or create a new one)</string>
+    <string name="term_font_size">Font size</string>
+    <string name="term_scheme">Color scheme</string>
+    <string name="term_display_title">Terminal display</string>
+    <string name="term_done">Done</string>
+    <string name="term_scheme_classic">Classic black</string>
+    <string name="term_scheme_contrast">High contrast</string>
+    <string name="term_scheme_ink">Ink blue</string>
+    <string name="term_scheme_paper">Paper white</string>
 </resources>

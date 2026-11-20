@@ -21,7 +21,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="终端"
+            android:text="@string/term_title"
             android:textSize="17sp"
             android:textColor="?attr/hfTopBarText"
             android:singleLine="true"
@@ -53,7 +53,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:padding="8dp"
-            android:text="清屏"
+            android:text="@string/term_clear"
             android:textSize="14sp"
             android:textColor="?attr/hfTopBarText"
             android:background="?android:attr/selectableItemBackground"/>
@@ -63,7 +63,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:padding="8dp"
-            android:text="粘贴"
+            android:text="@string/term_paste"
             android:textSize="14sp"
             android:textColor="?attr/hfTopBarText"
             android:background="?android:attr/selectableItemBackground"/>
@@ -73,7 +73,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:padding="8dp"
-            android:text="复制"
+            android:text="@string/term_copy"
             android:textSize="14sp"
             android:textColor="?attr/hfTopBarText"
             android:background="?android:attr/selectableItemBackground"/>
