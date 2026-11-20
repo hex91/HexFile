@@ -3063,4 +3063,12 @@
     <string name="kc_err_empty_pass">The password cannot be empty</string>
     <string name="kc_err_create_failed">Cannot create the keystore</string>
     <string name="kc_err_no_private_key">The generated keystore yields no private key (%1$s entries)</string>
+    <!-- v2.91.0 decompilation failures -->
+    <string name="dcp_err_not_loaded">The decompiler plugin is not loaded (initialise the engine first)</string>
+    <string name="dcp_err_cfr_empty">CFR produced no source (the class may have no method body or be unsupported)</string>
+    <string name="dcp_err_cfr_empty_why">CFR produced no source: %1$s</string>
+    <string name="dcp_err_bad_name_len">Unexpected dex2jar output: invalid entry name length (%1$s)</string>
+    <string name="dcp_err_bad_data_len">Unexpected dex2jar output: invalid entry length (%1$s)</string>
+    <string name="dcp_err_no_classes">dex2jar produced no classes</string>
+    <string name="dcp_err_unknown">Decompilation failed</string>
 </resources>

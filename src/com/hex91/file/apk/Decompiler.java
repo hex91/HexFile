@@ -42,6 +42,25 @@ public final class Decompiler {
 
     private Decompiler() {}
 
+    /** 反编译失败码：文案由 UI 层决定（v2.91.0 F-14/78） */
+    public static final int E_NOT_LOADED = 1;
+    public static final int E_CFR_EMPTY = 2;
+    public static final int E_BAD_NAME_LEN = 3;
+    public static final int E_BAD_DATA_LEN = 4;
+    public static final int E_NO_CLASSES = 5;
+
+    /** 引擎失败：{@link #code} 决定文案，{@link #args} 是长度/CFR 报错等技术细节 */
+    public static class DecompileException extends Exception {
+        public final int code;
+        public final String[] args;
+
+        public DecompileException(int code, String... args) {
+            super("Decompile error " + code);
+            this.code = code;
+            this.args = args == null ? new String[0] : args;
+        }
+    }
+
     /** 释放并加载插件。成功返回 null，失败返回错误信息。 */
     public static synchronized String ensure(Context ctx) {
         if (sCl != null) return null;
@@ -70,9 +89,9 @@ public final class Decompiler {
     }
 
     /** dex → jar（内含 .class）。成功返回 null。 */
-    public static String dexToJar(File dex, File outJar) {
+    public static String dexToJar(File dex, File outJar) throws DecompileException {
+        if (sCl == null) throw new DecompileException(E_NOT_LOADED);
         try {
-            if (sCl == null) return "反编译插件未加载（应先调用 ensure）";
             byte[] dexBytes = readAll(dex);
             Class<?> c = sCl.loadClass("com.googlecode.d2j.dex.Dex2jar");
             Object inst = c.getMethod("from", byte[].class).invoke(null, dexBytes);
@@ -85,6 +104,8 @@ public final class Decompiler {
             c.getMethod("doTranslate", ByteArrayOutputStream.class).invoke(inst, baos);
             writeJar(baos.toByteArray(), outJar);
             return null;
+        } catch (DecompileException e) {
+            throw e;
         } catch (Throwable t) {
             return err(t);
         }
@@ -103,7 +124,7 @@ public final class Decompiler {
      * @param extra     追加选项（key/value 成对，名字不带 --）
      */
     public static String decompileSource(File in, File classpath, String... extra) throws Exception {
-        if (sCl == null) throw new Exception("反编译插件未加载（应先调用 ensure）");
+        if (sCl == null) throw new DecompileException(E_NOT_LOADED);
         final ClassLoader cl = sCl;
         final Class<?> sinkFactoryCls = cl.loadClass("org.benf.cfr.reader.api.OutputSinkFactory");
         final Class<?> sinkCls = cl.loadClass("org.benf.cfr.reader.api.OutputSinkFactory$Sink");
@@ -182,8 +203,7 @@ public final class Decompiler {
         driverCls.getMethod("analyse", java.util.List.class).invoke(driver, inputs);
 
         if (srcBuf.length() == 0) {
-            throw new Exception("CFR 未产出源码"
-                    + (errs.length() > 0 ? "：" + errs : "（该类可能无方法体或不受支持）"));
+            throw new DecompileException(E_CFR_EMPTY, errs.length() > 0 ? errs.toString() : "");
         }
         return srcBuf.toString();
     }
@@ -201,12 +221,14 @@ public final class Decompiler {
             int n = 0;
             while (din.available() > 0) {
                 int nl = din.readInt();
-                if (nl < 0 || nl > 65536) throw new java.io.IOException("异常的条目名长度: " + nl);
+                if (nl < 0 || nl > 65536)
+                    throw new DecompileException(E_BAD_NAME_LEN, String.valueOf(nl));
                 byte[] nb = new byte[nl];
                 din.readFully(nb);
                 String name = new String(nb, "UTF-8");
                 int dl = din.readInt();
-                if (dl < 0 || dl > 64 * 1024 * 1024) throw new java.io.IOException("异常的条目长度: " + dl);
+                if (dl < 0 || dl > 64 * 1024 * 1024)
+                    throw new DecompileException(E_BAD_DATA_LEN, String.valueOf(dl));
                 byte[] data = new byte[dl];
                 din.readFully(data);
                 zos.putNextEntry(new ZipEntry(name.endsWith(".class") ? name : name + ".class"));
@@ -214,7 +236,7 @@ public final class Decompiler {
                 zos.closeEntry();
                 n++;
             }
-            if (n == 0) throw new java.io.IOException("dex2jar 未产出任何类");
+            if (n == 0) throw new DecompileException(E_NO_CLASSES);
         } finally {
             try { zos.finish(); } catch (Throwable ignore) {}
             zos.close();
@@ -241,7 +263,7 @@ public final class Decompiler {
         } finally {
             is.close();
         }
-        if (!out.exists() || out.length() == 0) throw new java.io.IOException("插件释放失败: " + asset);
+        if (!out.exists() || out.length() == 0) throw new java.io.IOException("unpack failed: " + asset);
     }
 
     public static byte[] readAll(File f) throws Exception {
@@ -261,7 +283,7 @@ public final class Decompiler {
         Throwable c = t;
         int d = 0;
         while (c != null && d++ < 6) {
-            if (sb.length() > 0) sb.append("\n  因: ");
+            if (sb.length() > 0) sb.append("\n  cause: ");
             sb.append(c.getClass().getSimpleName());
             if (c.getMessage() != null) sb.append(": ").append(c.getMessage());
             Throwable nx = c.getCause();

@@ -365,7 +365,9 @@ public class DecompileActivity extends BaseActivity {
                         }
                     });
                 } catch (Throwable t) {
-                    res[1] = Decompiler.err(t);
+                    res[1] = (t instanceof Decompiler.DecompileException)
+                            ? DecompileText.errorText(DecompileActivity.this, t)
+                            : Decompiler.err(t);
                 }
                 ui.post(new Runnable() {
                     public void run() {
@@ -416,7 +418,12 @@ public class DecompileActivity extends BaseActivity {
         // 2) dex → jar
         p.onProgress(getString(R.string.dcp_dex2jar));
         File jar = new File(tmp, "cls.jar");
-        e = Decompiler.dexToJar(dex, jar);
+        try {
+            e = Decompiler.dexToJar(dex, jar);
+        } catch (Decompiler.DecompileException ex) {
+            throw new Exception(getString(R.string.dcp_dex2jar_fail,
+                    DecompileText.errorText(this, ex)));
+        }
         if (e != null) throw new Exception(getString(R.string.dcp_dex2jar_fail, e));
 
         // 3) 工程级类型库（缓存一次，供 CFR 解析跨类签名）
@@ -427,7 +434,12 @@ public class DecompileActivity extends BaseActivity {
             cpJar = new File(cache, new File(dexPath).getName() + ".jar");
             if (!cpJar.exists() || cpJar.length() == 0) {
                 p.onProgress(getString(R.string.dcp_prep_types));
-                String e2 = Decompiler.dexToJar(new File(dexPath), cpJar);
+                String e2 = null;
+                try {
+                    e2 = Decompiler.dexToJar(new File(dexPath), cpJar);
+                } catch (Decompiler.DecompileException ex) {
+                    e2 = DecompileText.errorText(this, ex);
+                }
                 if (e2 != null) {
                     cpJar.delete();
                     cpJar = null; // 类型库失败不致命，降级继续

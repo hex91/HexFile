@@ -3071,4 +3071,12 @@
     <string name="kc_err_empty_pass">密码不能为空</string>
     <string name="kc_err_create_failed">无法创建 keystore</string>
     <string name="kc_err_no_private_key">生成的 keystore 无法取出私钥（%1$s 个条目）</string>
+    <!-- v2.91.0 反编译失败（Decompiler 只给码） -->
+    <string name="dcp_err_not_loaded">反编译插件未加载（应先初始化引擎）</string>
+    <string name="dcp_err_cfr_empty">CFR 未产出源码（该类可能无方法体或不受支持）</string>
+    <string name="dcp_err_cfr_empty_why">CFR 未产出源码：%1$s</string>
+    <string name="dcp_err_bad_name_len">dex2jar 输出异常：条目名长度非法（%1$s）</string>
+    <string name="dcp_err_bad_data_len">dex2jar 输出异常：条目长度非法（%1$s）</string>
+    <string name="dcp_err_no_classes">dex2jar 未产出任何类</string>
+    <string name="dcp_err_unknown">反编译失败</string>
 </resources>
