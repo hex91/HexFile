@@ -1785,6 +1785,34 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.60.0（versionCode 253）—— F-14/47：图片查看页 i18n（批量纯 UI 页第 13 页）
+
+`ImageViewerActivity` 中文字面量 **16 → 0**（纯代码构造 UI，无布局文件），新增 15 个 `ivw_*` 键，
+复用 `common_close`，资源 2468 → 2483 条（中英各 2483，100%）。补 `import com.hex91.file.R;`。
+
+### 发现并修正一处统计口径缺陷
+前面所有页的中文扫描正则一直用 `[\u4e00-\u9fff]`，**不含全角标点**（`U+FF00–FFEF`：
+`（）`、`，`、`：`、`、`）——凡是"只有全角标点、没有汉字"的拼接串都会被漏检。本页
+`title.setText(name + "（" + kind + "，" + dimText + "，" + size + "）")` 就是这种形态，
+换成宽口径 `[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]` 才扫出来。**后续页面一律用宽口径复查。**
+
+### UI 层要点
+- 标题栏整句化 `ivw_title_bar`（`%1$s（%2$s，%3$s，%4$s）`，四个参数：
+  文件名、类型、尺寸采样、体积），彻底消除分片拼接。
+- 采样提示 `ivw_sample`（`（显示采样 1/%1$d）`）、类型二选一 `ivw_kind_gif`/`ivw_kind_image`。
+- 保存链路：`ivw_no_rotation` / `ivw_saving` / `ivw_redecode_fail`（`throw new Exception` 在
+  保存线程内，同类捕获后只展示）/ `ivw_saved`（`已保存（旋转 %1$d°）`）/ `ivw_save_fail`。
+- 解码失败 `ivw_decode_fail` 两处（首轮 bounds 失败、二轮 decode 失败），
+  均在 `post(new Runnable(){...})` 内，`getString` 由内部类解析到外层 Activity。
+
+### 验证
+
+四门全过（空 catch 335 基线）、`jc.sh` rc=0。APK **13,406,928 B**（md5 `9a91c914…`），
+badging 反证 versionCode 253 / 2.60.0；dex 反证 `ivw_title_bar`/`ivw_sample`/`ivw_saved` 各=1。
+提交 `—`。
+
+---
+
 ## v2.59.0（versionCode 252）—— F-14/46：Smali 语法查询页 i18n（批量纯 UI 页第 12 页）
 
 `SmaliDocActivity` 中文字面量 **19 → 0**（纯代码构造 UI，无布局文件），新增 19 个 `smd_*` 键，

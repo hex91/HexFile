@@ -2593,4 +2593,20 @@
     <string name="smd_fav_added">Added to favorites</string>
     <string name="smd_fav_removed">Removed from favorites</string>
     <string name="smd_copied">Copied: %1$s</string>
+    <!-- v2.60.0 image viewer -->
+    <string name="ivw_file_missing">File not found</string>
+    <string name="ivw_rotate">Rotate</string>
+    <string name="ivw_save">Save</string>
+    <string name="ivw_info">Info</string>
+    <string name="ivw_decode_fail">Cannot decode this image</string>
+    <string name="ivw_sample">(shown at 1/%1$d scale)</string>
+    <string name="ivw_load_fail">Load failed: %1$s</string>
+    <string name="ivw_kind_gif">GIF animation</string>
+    <string name="ivw_kind_image">Image</string>
+    <string name="ivw_title_bar">%1$s (%2$s, %3$s, %4$s)</string>
+    <string name="ivw_no_rotation">Nothing to save</string>
+    <string name="ivw_saving">Saving…</string>
+    <string name="ivw_redecode_fail">Re-decode failed</string>
+    <string name="ivw_saved">Saved (rotated %1$d°)</string>
+    <string name="ivw_save_fail">Save failed: %1$s</string>
 </resources>

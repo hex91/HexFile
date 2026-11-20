@@ -2601,4 +2601,20 @@
     <string name="smd_fav_added">已收藏</string>
     <string name="smd_fav_removed">已取消收藏</string>
     <string name="smd_copied">已复制：%1$s</string>
+    <!-- v2.60.0 图片查看页 -->
+    <string name="ivw_file_missing">文件不存在</string>
+    <string name="ivw_rotate">旋转</string>
+    <string name="ivw_save">保存</string>
+    <string name="ivw_info">信息</string>
+    <string name="ivw_decode_fail">无法解码该图片</string>
+    <string name="ivw_sample">（显示采样 1/%1$d）</string>
+    <string name="ivw_load_fail">加载失败: %1$s</string>
+    <string name="ivw_kind_gif">GIF 动图</string>
+    <string name="ivw_kind_image">图片</string>
+    <string name="ivw_title_bar">%1$s（%2$s，%3$s，%4$s）</string>
+    <string name="ivw_no_rotation">没有旋转需要保存</string>
+    <string name="ivw_saving">保存中…</string>
+    <string name="ivw_redecode_fail">重新解码失败</string>
+    <string name="ivw_saved">已保存（旋转 %1$d°）</string>
+    <string name="ivw_save_fail">保存失败: %1$s</string>
 </resources>

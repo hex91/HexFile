@@ -1,5 +1,6 @@
 package com.hex91.file.ui;
 
+import com.hex91.file.R;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.fs.RootIO;
 import com.hex91.file.fs.RootUtil;
@@ -50,7 +51,7 @@ public class ImageViewerActivity extends BaseActivity {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         String path = getIntent().getStringExtra(EXTRA_FILE);
         file = path != null ? new File(path) : null;
-        if (file == null || !file.isFile()) { toast("文件不存在"); finish(); return; }
+        if (file == null || !file.isFile()) { toast(getString(R.string.ivw_file_missing)); finish(); return; }
         lower = file.getName().toLowerCase();
 
         boolean gif = lower.endsWith(".gif");
@@ -75,17 +76,17 @@ public class ImageViewerActivity extends BaseActivity {
             bar.setOrientation(LinearLayout.HORIZONTAL);
             LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
                     0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-            Button bRot = mkBtn(bar, blp, "旋转");
+            Button bRot = mkBtn(bar, blp, getString(R.string.ivw_rotate));
             bRot.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) { zoom.rotate90(); }
             });
-            Button bSave = mkBtn(bar, blp, "保存");
+            Button bSave = mkBtn(bar, blp, getString(R.string.ivw_save));
             bSave.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) { zoom.saveRotated(); }
             });
             // v2.12.0（F-09）：这一页最常见的下一句追问就是「哪台机器拍的 / 在哪拍的」，
             // 入口放这里比让用户退出再长按文件找菜单少两步
-            Button bInfo = mkBtn(bar, blp, "信息");
+            Button bInfo = mkBtn(bar, blp, getString(R.string.ivw_info));
             bInfo.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) {
                     startActivity(new android.content.Intent(ImageViewerActivity.this,
@@ -93,7 +94,7 @@ public class ImageViewerActivity extends BaseActivity {
                             .putExtra(ImageInfoActivity.EXTRA_FILE, file.getAbsolutePath()));
                 }
             });
-            Button bClose = mkBtn(bar, blp, "关闭");
+            Button bClose = mkBtn(bar, blp, getString(R.string.common_close));
             bClose.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) { finish(); }
             });
@@ -215,7 +216,7 @@ public class ImageViewerActivity extends BaseActivity {
                     }
                     if (o.outWidth <= 0) {
                         post(new Runnable() {
-                            public void run() { toast("无法解码该图片"); finish(); }
+                            public void run() { toast(getString(R.string.ivw_decode_fail)); finish(); }
                         });
                         return;
                     }
@@ -234,12 +235,12 @@ public class ImageViewerActivity extends BaseActivity {
                     final Bitmap b = bRaw;
                     post(new Runnable() {
                         public void run() {
-                            if (b == null) { toast("无法解码该图片"); finish(); return; }
+                            if (b == null) { toast(getString(R.string.ivw_decode_fail)); finish(); return; }
                             bmp = b;
                             contentW = b.getWidth();
                             contentH = b.getHeight();
                             dimText = o.outWidth + "×" + o.outHeight
-                                    + (sampleF > 1 ? "（显示采样 1/" + sampleF + "）" : "");
+                                    + (sampleF > 1 ? getString(R.string.ivw_sample, sampleF) : "");
                             fitInit();
                             invalidate();
                         }
@@ -250,15 +251,15 @@ public class ImageViewerActivity extends BaseActivity {
                 });
             } catch (Throwable t) {
                 post(new Runnable() {
-                    public void run() { toast("加载失败: " + t.getMessage()); finish(); }
+                    public void run() { toast(getString(R.string.ivw_load_fail, t.getMessage())); finish(); }
                 });
             }
         }
 
         void updateTitle() {
-            String kind = gif ? "GIF 动图" : "图片";
-            title.setText(file.getName() + "（" + kind + "，" + dimText + "，"
-                    + FileOps.formatSize(file.length()) + "）");
+            String kind = gif ? getString(R.string.ivw_kind_gif) : getString(R.string.ivw_kind_image);
+            title.setText(getString(R.string.ivw_title_bar, file.getName(), kind, dimText,
+                    FileOps.formatSize(file.length())));
         }
 
         float getFitScale() {
@@ -315,15 +316,15 @@ public class ImageViewerActivity extends BaseActivity {
 
         /** 全分辨率重解码 → 应用累计旋转 → 按扩展名重编码写回 */
         void saveRotated() {
-            if (bmp == null || rotationTurns == 0) { toast("没有旋转需要保存"); return; }
+            if (bmp == null || rotationTurns == 0) { toast(getString(R.string.ivw_no_rotation)); return; }
             final int turns = rotationTurns;
-            toast("保存中…");
+            toast(getString(R.string.ivw_saving));
             new Thread(new Runnable() {
                 public void run() {
                     String err = null;
                     try {
                         Bitmap full = BitmapFactory.decodeFile(file.getAbsolutePath());
-                        if (full == null) throw new Exception("重新解码失败");
+                        if (full == null) throw new Exception(getString(R.string.ivw_redecode_fail));
                         Matrix r = new Matrix();
                         r.postRotate(turns * 90f);
                         Bitmap out = Bitmap.createBitmap(full, 0, 0,
@@ -345,9 +346,9 @@ public class ImageViewerActivity extends BaseActivity {
                         public void run() {
                             if (ferr == null) {
                                 rotationTurns = 0;
-                                toast("已保存（旋转 " + turns * 90 + "°）");
+                                toast(getString(R.string.ivw_saved, turns * 90));
                             } else {
-                                toast("保存失败: " + ferr);
+                                toast(getString(R.string.ivw_save_fail, ferr));
                             }
                         }
                     });
