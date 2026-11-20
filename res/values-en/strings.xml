@@ -2980,4 +2980,23 @@
     <string name="sign_err_leftover_attr">Not replaced: %1$s</string>
     <string name="sign_err_unknown">Signing failed</string>
     <string name="dex_sign_after_write_fail">Written back, but signing failed: %1$s</string>
+    <!-- v2.86.0 archive failures -->
+    <string name="arch_err_7z_open">Cannot open the 7z archive (possibly encrypted): %1$s</string>
+    <string name="arch_err_7z_entry_encrypted">The 7z content is encrypted: %1$s</string>
+    <string name="arch_err_open">Cannot open %1$s (encrypted, or wrong password): %2$s</string>
+    <string name="arch_err_pw_verify">Wrong password for %1$s (decryption check: %2$s)</string>
+    <string name="arch_err_pw_decrypt">Wrong password or cannot decrypt %1$s: %2$s</string>
+    <string name="arch_err_entry_pw">Wrong password for %1$s (entry: %2$s)</string>
+    <string name="arch_err_extract_fail">%1$s: cannot extract %2$s → %3$s</string>
+    <string name="arch_err_extract_decrypt">%1$s: decryption failed (wrong or missing password, entry: %2$s)</string>
+    <string name="arch_err_zip_open">Cannot open the ZIP: %1$s</string>
+    <string name="arch_err_zip_read">Cannot read the ZIP: %1$s</string>
+    <string name="arch_err_zip_encrypted">The ZIP is encrypted and needs a password</string>
+    <string name="arch_err_zip_pw">Wrong ZIP password: %1$s</string>
+    <string name="arch_err_zip_decrypt">ZIP decryption failed (wrong or missing password): %1$s</string>
+    <string name="arch_err_zip_extract">ZIP extraction failed: %1$s</string>
+    <string name="arch_err_zip_entry_missing">Entry not found in the ZIP: %1$s</string>
+    <string name="arch_err_entry_name">Invalid entry name: %1$s</string>
+    <string name="arch_err_with_root">%1$s: %2$s</string>
+    <string name="arch_err_unknown">Archive operation failed</string>
 </resources>

@@ -37,18 +37,45 @@ import java.util.zip.GZIPInputStream;
  *   .tar/.tar.gz/.tgz    -> TAR（含 gzip 解包）
  *   .rar                 -> RAR（7-Zip native 引擎 lib7-Zip-JBinding.so，支持 RAR4 + RAR5 + 密码）
  * 密码：打开加密归档抛 NeedsPasswordException，由 UI 弹密码框后带密码重开（ArchivePasswords 会话存储）。
- * 提取阶段的密码类失败抛 NEED_PASSWORD 标记消息，UI 据此弹框。
+ * 提取阶段的密码类失败抛 NeedsPasswordException（带码），UI 据此弹框。
  * 浏览/解压/进入子目录的 UI 只需面向 Archive 接口，无需关心底层格式。
  */
 public class ArchiveUtil {
 
-    /** 加密归档需要密码（打开时已知）——UI 捕获后弹密码框重开 */
-    public static class NeedsPasswordException extends IOException {
-        public NeedsPasswordException(String msg) { super(msg); }
+    /** 归档失败码：文案由 UI 层决定（v2.86.0 F-14/73） */
+    public static final int E_7Z_OPEN = 1;
+    public static final int E_7Z_ENTRY_ENCRYPTED = 2;
+    public static final int E_OPEN = 3;
+    public static final int E_PW_VERIFY = 4;
+    public static final int E_PW_DECRYPT = 5;
+    public static final int E_ENTRY_PW = 6;
+    public static final int E_EXTRACT_FAIL = 7;
+    public static final int E_EXTRACT_DECRYPT = 8;
+    public static final int E_ZIP_OPEN = 9;
+    public static final int E_ZIP_READ = 10;
+    public static final int E_ZIP_ENCRYPTED = 11;
+    public static final int E_ZIP_PW = 12;
+    public static final int E_ZIP_DECRYPT = 13;
+    public static final int E_ZIP_EXTRACT = 14;
+    public static final int E_ZIP_ENTRY_MISSING = 15;
+    public static final int E_ENTRY_NAME = 16;
+
+    /** 归档操作失败：{@link #code} 决定文案，{@link #args} 是格式名/条目名/底层消息 */
+    public static class ArchiveException extends IOException {
+        public final int code;
+        public final String[] args;
+
+        public ArchiveException(int code, String... args) {
+            super("Archive error " + code);
+            this.code = code;
+            this.args = args == null ? new String[0] : args;
+        }
     }
 
-    /** 提取阶段密码类失败的标记前缀（消息以它开头时 UI 弹密码框） */
-    public static final String NEED_PASSWORD = "NEED_PASSWORD:";
+    /** 加密归档需要密码 / 密码错误——UI 捕获后弹密码框重开 */
+    public static class NeedsPasswordException extends ArchiveException {
+        public NeedsPasswordException(int code, String... args) { super(code, args); }
+    }
 
     /** 归档内部条目（用于浏览界面） */
     public static class Entry {
@@ -107,7 +134,7 @@ public class ArchiveUtil {
                 return new SevenZArchive(f);
             } catch (Throwable t) {
                 // 头加密 7z 在 open 阶段就抛错；其余错误也可能是加密导致 → 都引导输密码重试
-                throw new NeedsPasswordException("7z 打开失败(可能已加密): " + brief(t));
+                throw new NeedsPasswordException(E_7Z_OPEN, brief(t));
             }
         }
         if (n.endsWith(".rar")) return new JBindingArchive(f, password);
@@ -135,17 +162,27 @@ public class ArchiveUtil {
     /** 异常是否与密码/加密相关（用于提取失败时决定弹密码框） */
     public static boolean cryptoError(Throwable t) {
         while (t != null) {
-            String cls = t.getClass().getSimpleName().toLowerCase();
-            String m = t.getMessage() == null ? "" : t.getMessage().toLowerCase();
-            if (m.startsWith(needPrefixLower()) || m.contains("password") || m.contains("密码")
-                    || m.contains("crypto") || m.contains("encrypted") || m.contains("encrypt")
-                    || cls.contains("crypto")) return true;
+            if (t instanceof ArchiveException) {
+                if (isPasswordCode(((ArchiveException) t).code)) return true;
+            } else {
+                // 第三方库（Zip4j / 7-Zip-JBinding / JDK）的消息是英文，只能按 ASCII 关键字判断
+                String cls = t.getClass().getSimpleName().toLowerCase();
+                String m = t.getMessage() == null ? "" : t.getMessage().toLowerCase();
+                if (m.contains("password") || m.contains("crypto") || m.contains("encrypted")
+                        || m.contains("encrypt") || cls.contains("crypto")) return true;
+            }
             t = t.getCause();
         }
         return false;
     }
 
-    private static String needPrefixLower() { return NEED_PASSWORD.toLowerCase(); }
+    /** 这些码属于「要密码」类失败，UI 弹密码框（v2.86.0 F-14/73） */
+    public static boolean isPasswordCode(int code) {
+        return code == E_7Z_OPEN || code == E_7Z_ENTRY_ENCRYPTED || code == E_OPEN
+                || code == E_PW_VERIFY || code == E_PW_DECRYPT || code == E_ENTRY_PW
+                || code == E_EXTRACT_DECRYPT || code == E_ZIP_ENCRYPTED || code == E_ZIP_PW
+                || code == E_ZIP_DECRYPT;
+    }
 
     // ===================== 共享逻辑 =====================
 
@@ -320,8 +357,7 @@ public class ArchiveUtil {
                         in.close();
                     } catch (Throwable t) {
                         fos.close();
-                        if (cryptoError(t)) throw new IOException(NEED_PASSWORD
-                                + "7z 内容已加密: " + n);
+                        if (cryptoError(t)) throw new NeedsPasswordException(E_7Z_ENTRY_ENCRYPTED, n);
                         throw t instanceof IOException ? (IOException) t : new IOException(t);
                     }
                     fos.close();
@@ -362,7 +398,7 @@ public class ArchiveUtil {
                 }
             } catch (Throwable t) {
                 try { raf.close(); } catch (Throwable t2) { /* ignore */ }
-                throw new NeedsPasswordException(label + " 打开失败(可能已加密或密码错误): " + brief(t));
+                throw new NeedsPasswordException(E_OPEN, label, brief(t));
             }
             this.archive = a;
             int n = archive.getNumberOfItems();
@@ -425,14 +461,14 @@ public class ArchiveUtil {
                         ? archive.extractSlow(idx, new NullSink(), password)
                         : archive.extractSlow(idx, new NullSink());
                 if (r != ExtractOperationResult.OK) {
-                    throw new NeedsPasswordException(label + " 密码错误（解密验证: " + r + "）");
+                    throw new NeedsPasswordException(E_PW_VERIFY, label, String.valueOf(r));
                 }
             } catch (NeedsPasswordException npe) {
                 throw npe;
             } catch (SevenZipException se) {
-                throw new NeedsPasswordException(label + " 密码错误或无法解密: " + brief(se));
+                throw new NeedsPasswordException(E_PW_DECRYPT, label, brief(se));
             } catch (RuntimeException re) {
-                throw new NeedsPasswordException(label + " 密码错误或无法解密: " + brief(re));
+                throw new NeedsPasswordException(E_PW_DECRYPT, label, brief(re));
             }
         }
 
@@ -493,15 +529,14 @@ public class ArchiveUtil {
                         });
                     }
                     if (r == ExtractOperationResult.WRONG_PASSWORD) {
-                        throw new IOException(NEED_PASSWORD + label + " 密码错误（条目: " + n + "）");
+                        throw new NeedsPasswordException(E_ENTRY_PW, label, n);
                     }
                     if (r != ExtractOperationResult.OK) {
-                        throw new IOException(label + " 提取失败: " + n + " -> " + r);
+                        throw new ArchiveException(E_EXTRACT_FAIL, label, n, String.valueOf(r));
                     }
                 } catch (SevenZipException se) {
                     fos.close();
-                    if (cryptoError(se)) throw new IOException(NEED_PASSWORD
-                            + label + " 解密失败（密码错误或未提供，加密条目: " + n + "）");
+                    if (cryptoError(se)) throw new NeedsPasswordException(E_EXTRACT_DECRYPT, label, n);
                     throw se instanceof IOException ? (IOException) se : new IOException(se);
                 } finally {
                     try { fos.close(); } catch (Throwable ignored) { }
@@ -534,7 +569,7 @@ public class ArchiveUtil {
             try {
                 z = new net.lingala.zip4j.ZipFile(f);
             } catch (Exception e) {
-                throw new IOException("ZIP 打开失败: " + brief(e));
+                throw new ArchiveException(E_ZIP_OPEN, brief(e));
             }
             this.zip = z;
             List<Raw> rs = new ArrayList<Raw>();
@@ -548,14 +583,14 @@ public class ArchiveUtil {
                 }
             } catch (net.lingala.zip4j.exception.ZipException e) {
                 try { z.close(); } catch (Throwable ig) { }
-                throw new IOException("ZIP 读取失败: " + brief(e));
+                throw new ArchiveException(E_ZIP_READ, brief(e));
             }
             this.raws = rs;
             this.encrypted = enc;
             // 已加密但未提供密码 → 打开即要求密码（MT 行为：弹密码框）
             if (enc && this.password == null) {
                 try { z.close(); } catch (Throwable ig) { }
-                throw new NeedsPasswordException("ZIP 已加密，需要密码");
+                throw new NeedsPasswordException(E_ZIP_ENCRYPTED);
             }
             // 已加密且提供了密码（可能错误）→ 立即校验，避免"看到文件列表、解压时才报密码错"。
             // Zip4j 在 AES / ZipCrypto 错密码时于读取流时立即抛 Wrong Password，借此把校验提前到打开阶段。
@@ -601,7 +636,7 @@ public class ArchiveUtil {
                     try { in.close(); } catch (Throwable ig) { }
                 }
             } catch (net.lingala.zip4j.exception.ZipException e) {
-                throw new NeedsPasswordException("ZIP 密码错误: " + brief(e));
+                throw new NeedsPasswordException(E_ZIP_PW, brief(e));
             }
         }
 
@@ -621,8 +656,8 @@ public class ArchiveUtil {
             } catch (net.lingala.zip4j.exception.ZipException e) {
                 // 加密归档解密失败（密码错/未提供）→ 引导输密码重试
                 if (password == null || encrypted)
-                    throw new IOException(NEED_PASSWORD + "ZIP 解密失败（密码错误或未提供）: " + brief(e));
-                throw new IOException("ZIP 解压失败: " + brief(e));
+                    throw new NeedsPasswordException(E_ZIP_DECRYPT, brief(e));
+                throw new ArchiveException(E_ZIP_EXTRACT, brief(e));
             }
         }
 
@@ -645,7 +680,7 @@ public class ArchiveUtil {
                     }
                 }
                 if (sel.isEmpty()) {
-                    throw new IOException("ZIP 内找不到条目: " + entryName);
+                    throw new ArchiveException(E_ZIP_ENTRY_MISSING, entryName);
                 }
                 // 若选中的是纯目录条目，展开其下全部子项一并解压
                 if (isDirEntry && sel.size() == 1) {
@@ -660,8 +695,8 @@ public class ArchiveUtil {
                 }
             } catch (net.lingala.zip4j.exception.ZipException e) {
                 if (password == null || encrypted)
-                    throw new IOException(NEED_PASSWORD + "ZIP 解密失败（密码错误或未提供）: " + brief(e));
-                throw new IOException("ZIP 解压失败: " + brief(e));
+                    throw new NeedsPasswordException(E_ZIP_DECRYPT, brief(e));
+                throw new ArchiveException(E_ZIP_EXTRACT, brief(e));
             }
         }
 
@@ -774,7 +809,7 @@ public class ArchiveUtil {
         public void extractEntry(String entryName, File outDir) throws IOException {
             outDir.mkdirs();
             File target = safeTarget(outDir, entryName != null ? entryName : entryName());
-            if (target == null) throw new IOException("条目名非法: " + entryName);
+            if (target == null) throw new ArchiveException(E_ENTRY_NAME, entryName == null ? "" : entryName);
             FileOutputStream fos = new FileOutputStream(target);
             try { copy(frame(), fos); } finally { fos.close(); }
         }

@@ -2988,4 +2988,23 @@
     <string name="sign_err_leftover_attr">残留未替换：%1$s</string>
     <string name="sign_err_unknown">签名失败</string>
     <string name="dex_sign_after_write_fail">已写回，但签名失败：%1$s</string>
+    <!-- v2.86.0 归档失败（ArchiveUtil 只给码，文案在 ArchiveText） -->
+    <string name="arch_err_7z_open">7z 打开失败（可能已加密）：%1$s</string>
+    <string name="arch_err_7z_entry_encrypted">7z 内容已加密：%1$s</string>
+    <string name="arch_err_open">%1$s 打开失败（可能已加密或密码错误）：%2$s</string>
+    <string name="arch_err_pw_verify">%1$s 密码错误（解密验证：%2$s）</string>
+    <string name="arch_err_pw_decrypt">%1$s 密码错误或无法解密：%2$s</string>
+    <string name="arch_err_entry_pw">%1$s 密码错误（条目：%2$s）</string>
+    <string name="arch_err_extract_fail">%1$s 提取失败：%2$s → %3$s</string>
+    <string name="arch_err_extract_decrypt">%1$s 解密失败（密码错误或未提供，加密条目：%2$s）</string>
+    <string name="arch_err_zip_open">ZIP 打开失败：%1$s</string>
+    <string name="arch_err_zip_read">ZIP 读取失败：%1$s</string>
+    <string name="arch_err_zip_encrypted">ZIP 已加密，需要密码</string>
+    <string name="arch_err_zip_pw">ZIP 密码错误：%1$s</string>
+    <string name="arch_err_zip_decrypt">ZIP 解密失败（密码错误或未提供）：%1$s</string>
+    <string name="arch_err_zip_extract">ZIP 解压失败：%1$s</string>
+    <string name="arch_err_zip_entry_missing">ZIP 内找不到条目：%1$s</string>
+    <string name="arch_err_entry_name">条目名非法：%1$s</string>
+    <string name="arch_err_with_root">%1$s：%2$s</string>
+    <string name="arch_err_unknown">归档操作失败</string>
 </resources>

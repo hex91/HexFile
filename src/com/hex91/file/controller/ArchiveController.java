@@ -7,6 +7,7 @@ import com.hex91.file.fs.FileKind;
 import com.hex91.file.utils.GridAction;
 import com.hex91.file.R;
 import com.hex91.file.MainActivity;
+import com.hex91.file.ui.ArchiveText;
 import com.hex91.file.ui.ArscEditorActivity;
 import com.hex91.file.ui.ArscPlusActivity;
 import com.hex91.file.ui.DexEditorActivity;
@@ -216,7 +217,7 @@ public final class ArchiveController {
                 List<ArchiveUtil.Entry> entries = null;
                 String err = null;
                 try { entries = a.listChildren(prefix); }
-                catch (Throwable t) { err = t.getMessage(); }
+                catch (Throwable t) { err = ArchiveText.errorText(host.ctx(), t); }
                 final List<ArchiveUtil.Entry> fe = entries;
                 final String ferr = err;
                 host.ui(new Runnable() {
@@ -411,7 +412,7 @@ public final class ArchiveController {
                     p.archive.extractEntry(it.archPath(), tmpDir);
                 } catch (Throwable t) {
                     if (archPwError(p, t)) return;
-                    err = t.getMessage();
+                    err = ArchiveText.errorText(host.ctx(), t);
                 }
                 final File tmpFile = new File(tmpDir, it.archPath());
                 // v1.66.0：会话中有该条目未落地修改则取最新内容
@@ -456,7 +457,7 @@ public final class ArchiveController {
                 try { p.archive.extractEntry(entryName, dst.dir); }
                 catch (Throwable t) {
                     if (archPwError(p, t)) return;      // 密码问题 → 弹框重开，用户重试
-                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    err = ArchiveText.errorText(host.ctx(), t);
                 }
                 final String ferr = err;
                 host.ui(new Runnable() {
@@ -482,7 +483,7 @@ public final class ArchiveController {
                 try { p.archive.extractAll(outDir); }
                 catch (Throwable t) {
                     if (archPwError(p, t)) return;   // 密码问题 → 弹框重开，用户重试
-                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    err = ArchiveText.errorText(host.ctx(), t);
                 }
                 final String ferr = err;
                 host.ui(new Runnable() {
@@ -512,7 +513,7 @@ public final class ArchiveController {
                     p.archive.extractEntry(it.archPath(), tmpDir);
                 } catch (Throwable t) {
                     if (archPwError(p, t)) return;
-                    err = t.getMessage();
+                    err = ArchiveText.errorText(host.ctx(), t);
                 }
                 final File tmpFile = new File(tmpDir, it.archPath());
                 // v1.66.0：会话中有该条目未落地修改则取最新内容
@@ -678,7 +679,7 @@ public final class ArchiveController {
                     File tmpDex = new File(cacheTmp, it.archPath());
                     err = SmaliTool.decompile(tmpDex, outRoot, 4);
                 } catch (Throwable t) {
-                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    err = ArchiveText.errorText(host.ctx(), t);
                 }
                 FileOps.deleteRecursive(cacheTmp);
                 final String ferr = err;
@@ -710,7 +711,7 @@ public final class ArchiveController {
                         throw new IllegalStateException(s(R.string.arch_extract_fail_detail, it.archPath()));
                     info = SmaliTool.dexProps(new File(tmpDir, it.archPath()));
                 } catch (Throwable t) {
-                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    err = ArchiveText.errorText(host.ctx(), t);
                 }
                 FileOps.deleteRecursive(tmpDir);
                 final String fInfo = info, fErr = err;
@@ -755,7 +756,7 @@ public final class ArchiveController {
                                         ApkEditSession.flushRegen(host.ctx(), apk);
                                     }
                                 } catch (Throwable t) {
-                                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                                    err = ArchiveText.errorText(host.ctx(), t);
                                 }
                                 FileOps.deleteRecursive(tmpDir);
                                 final String msg = err != null
@@ -789,7 +790,7 @@ public final class ArchiveController {
                     p.archive.extractEntry(it.archPath(), tmpDir);
                 } catch (Throwable t) {
                     if (archPwError(p, t)) return;
-                    err = t.getMessage();
+                    err = ArchiveText.errorText(host.ctx(), t);
                 }
                 final File tmpFile = new File(tmpDir, it.archPath());
                 // v1.66.0：会话中有该条目未落地修改则取最新内容
@@ -821,7 +822,7 @@ public final class ArchiveController {
                     p.archive.extractEntry(it.archPath(), tmpDir);
                 } catch (Throwable t) {
                     if (archPwError(p, t)) return;
-                    err = t.getMessage();
+                    err = ArchiveText.errorText(host.ctx(), t);
                 }
                 final File tmpFile = new File(tmpDir, it.archPath());
                 // v1.66.0：会话中有该条目未落地修改则取最新内容
@@ -966,7 +967,7 @@ public final class ArchiveController {
                     }
                 } catch (Throwable t) {
                     if (archPwError(src, t)) return;
-                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    err = ArchiveText.errorText(host.ctx(), t);
                 }
                 if (err == null) {
                     // 2) 逐文件写入目标归档（APK → 会话重打包写回原包；其他压缩包原地写）
@@ -1005,7 +1006,7 @@ public final class ArchiveController {
                         }
                     } catch (Throwable t) {
                         if (archPwError(dst, t)) return;
-                        err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                        err = ArchiveText.errorText(host.ctx(), t);
                     }
                 }
                 FileOps.deleteRecursive(tmp);
@@ -1093,7 +1094,7 @@ public final class ArchiveController {
                         err = AtomicReplace.failMessage(s(R.string.arch_rename_fail));
                     }
                 } catch (Throwable t) {
-                    err = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
+                    err = ArchiveText.errorText(host.ctx(), t);
                 }
                 final String ferr = err;
                 host.ui(new Runnable() {
@@ -1171,7 +1172,7 @@ public final class ArchiveController {
                         err = AtomicReplace.failMessage(s(R.string.arch_create_fail));
                     }
                 } catch (Throwable t) {
-                    err = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
+                    err = ArchiveText.errorText(host.ctx(), t);
                 }
                 final String ferr = err;
                 host.ui(new Runnable() {
@@ -1209,7 +1210,7 @@ public final class ArchiveController {
                                 err = AtomicReplace.failMessage(s(R.string.arch_del_fail));
                             }
                         } catch (Throwable t) {
-                            err = t.getMessage();
+                            err = ArchiveText.errorText(host.ctx(), t);
                         }
                         final String ferr = err;
                         host.ui(new Runnable() {

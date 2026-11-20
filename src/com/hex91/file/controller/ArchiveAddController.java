@@ -7,6 +7,7 @@ import com.hex91.file.core.AtomicReplace;
 import com.hex91.file.fs.LinkUtil;
 import com.hex91.file.fs.TreeOps;
 import com.hex91.file.fs.ZipUtil;
+import com.hex91.file.ui.ArchiveText;
 import com.hex91.file.ui.HfDialogBuilder;
 import com.hex91.file.ui.ThemeManager;
 
@@ -104,7 +105,7 @@ public final class ArchiveAddController {
                             }
                         }
                     } catch (Throwable t) {
-                        err = root + ": " + t.getMessage();
+                        err = s(R.string.arch_err_with_root, root, ArchiveText.errorText(host.ctx(), t));
                         break;
                     }
                 }
@@ -112,7 +113,7 @@ public final class ArchiveAddController {
                     try {
                         ApkEditSession.flushRegen(host.ctx(), archPane.archiveFile);
                     } catch (Throwable t) {
-                        err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                        err = ArchiveText.errorText(host.ctx(), t);
                     }
                 }
                 final String ferr = err;

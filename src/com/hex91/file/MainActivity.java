@@ -19,6 +19,7 @@ import com.hex91.file.controller.Pane;
 import com.hex91.file.controller.PropsController;
 import com.hex91.file.controller.SignFlowController;
 import com.hex91.file.controller.TaskUiController;
+import com.hex91.file.ui.ArchiveText;
 import com.hex91.file.ui.ApkInfoActivity;
 import com.hex91.file.ui.ApkSignHelper;
 import com.hex91.file.ui.ArscEditorActivity;
@@ -1824,7 +1825,7 @@ public class MainActivity extends BaseActivity {
                         });
                     }
                     out.delete();
-                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    err = ArchiveText.errorText(MainActivity.this, t);
                 }
                 FileOps.deleteRecursive(tmp);
                 final String ferr = err;
