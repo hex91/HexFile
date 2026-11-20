@@ -365,7 +365,9 @@ public class ArscPlusActivity extends BaseActivity {
             String err = null;
             File out = null;
             try {
-                final String xml = ArscPlus.buildXml(arsc, n.type, n.cfg);
+                final String xml = ArscPlus.buildXml(arsc, n.type, n.cfg,
+                        getString(R.string.arp_xml_header, n.type),
+                        getString(R.string.arp_xml_bag_note));
                 File dir = new File(getCacheDir(), "arscpp_" + apkBase);
                 dir.mkdirs();
                 String safeCfg = n.cfg.isEmpty() ? "" : "_" + n.cfg.replaceAll("[^\\w]", "_");

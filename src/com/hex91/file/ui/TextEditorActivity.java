@@ -1681,8 +1681,7 @@ public class TextEditorActivity extends BaseActivity {
                                 archiveFile, arscppEntry, newArsc);
                     }
                 } catch (Exception e) {
-                    err = e.getMessage() != null ? e.getMessage()
-                            : e.getClass().getSimpleName();
+                    err = ArscPlusText.errorText(TextEditorActivity.this, e);
                 }
                 final String ferr = err;
                 final int fn = nEdits;

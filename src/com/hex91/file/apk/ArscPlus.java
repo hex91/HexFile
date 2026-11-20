@@ -26,6 +26,35 @@ public final class ArscPlus {
 
     private ArscPlus() {}
 
+    /** 解析/应用失败码：文案由 UI 层决定（v2.87.0 F-14/74） */
+    public static final int E_COMMENT_OPEN = 1;
+    public static final int E_PI_OPEN = 2;
+    public static final int E_TAG_OPEN = 3;
+    public static final int E_STRAY_END = 4;
+    public static final int E_TAG_MISMATCH = 5;
+    public static final int E_NESTED = 6;
+    public static final int E_NO_NAME = 7;
+    public static final int E_SELF_CLOSE = 8;
+    public static final int E_UNCLOSED_ENTRY = 9;
+    public static final int E_ADD_NEEDS_EDITOR = 10;
+    public static final int E_ADD_EXISTS = 11;
+    public static final int E_NOT_FOUND = 12;
+    public static final int E_DELETE_NEEDS_EDITOR = 13;
+    public static final int E_RENAME_NEEDS_EDITOR = 14;
+    public static final int E_BAD_VALUE = 15;
+
+    /** XML 应用失败：{@link #code} 决定文案，{@link #args} 是标签名/资源名/属性值 */
+    public static class ArscPlusException extends Exception {
+        public final int code;
+        public final String[] args;
+
+        public ArscPlusException(int code, String... args) {
+            super("ArscPlus error " + code);
+            this.code = code;
+            this.args = args == null ? new String[0] : args;
+        }
+    }
+
     /** 该类型 + 配置下的全部资源条目（cfg 为空串 = 默认配置）。 */
     public static List<ResourceEntry> entriesOf(ArscFile arsc, String type, String cfg) {
         List<ResourceEntry> out = new ArrayList<ResourceEntry>();
@@ -37,12 +66,17 @@ public final class ArscPlus {
         return out;
     }
 
-    /** 生成 values 风格 XML（UTF-8 文本）。头部带 rename/delete/add 用法提示。 */
-    public static String buildXml(ArscFile arsc, String type, String cfg) {
+    /**
+     * 生成 values 风格 XML（UTF-8 文本）。
+     *
+     * @param header   整段 XML 注释（含 {@code <!-- -->}），由 UI 层按语言生成
+     * @param bagNote  bag/复杂条目的行尾说明（已含分隔冒号）
+     */
+    public static String buildXml(ArscFile arsc, String type, String cfg,
+                                  String header, String bagNote) {
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n");
-        sb.append("<!-- ARSC++ 编辑: 改值=直接改文本; 改名=加 rename=\"新名字\"; 删除=加 delete=\"true\";\n")
-          .append("     新增=<").append(type).append(" name=\"新名字\" add=\"true\">值</").append(type).append(">  (bag 条目不支持) -->\n");
+        if (header != null && !header.isEmpty()) sb.append(header).append('\n');
         sb.append("<resources>\n");
         for (ResourceEntry e : entriesOf(arsc, type, cfg)) {
             String name = e.getKeyName() == null ? "?" : e.getKeyName();
@@ -53,7 +87,7 @@ public final class ArscPlus {
                         .append("</").append(type).append(">\n");
             } else {
                 sb.append("    <!-- ").append(type).append(" name=\"").append(esc(name))
-                        .append("\" : bag/复杂条目，请在「ARSC 编辑」中逐项修改 -->\n");
+                        .append('"').append(bagNote == null ? "" : bagNote).append(" -->\n");
             }
         }
         sb.append("</resources>\n");
@@ -100,25 +134,25 @@ public final class ArscPlus {
             if (openTag != null) text.append(xml, i, lt);
             if (xml.startsWith("<!--", lt)) {
                 int end = xml.indexOf("-->", lt + 4);
-                if (end < 0) throw new Exception("注释未闭合");
+                if (end < 0) throw new ArscPlusException(E_COMMENT_OPEN);
                 i = end + 3;
                 continue;
             }
             if (xml.startsWith("<?", lt)) {
                 int end = xml.indexOf("?>", lt + 2);
-                if (end < 0) throw new Exception("处理指令未闭合");
+                if (end < 0) throw new ArscPlusException(E_PI_OPEN);
                 i = end + 2;
                 continue;
             }
             if (xml.startsWith("</", lt)) {
                 int gt = xml.indexOf('>', lt);
-                if (gt < 0) throw new Exception("标签未闭合");
+                if (gt < 0) throw new ArscPlusException(E_TAG_OPEN);
                 String tag = xml.substring(lt + 2, gt).trim();
                 if ("resources".equals(tag)) { i = gt + 1; continue; }   // 容器闭合，直接放行
                 if (openTag == null)
-                    throw new Exception("多余的结束标签 </" + tag + ">");
+                    throw new ArscPlusException(E_STRAY_END, tag);
                 if (!tag.equals(openTag))
-                    throw new Exception("标签不匹配: <" + openTag + "> … </" + tag + ">");
+                    throw new ArscPlusException(E_TAG_MISMATCH, openTag, tag);
                 applyOne(arsc, map, edits, opsOut, type, cfg, openTag, openName, openAttrs,
                         unescape(text.toString()));
                 openTag = null;
@@ -128,19 +162,18 @@ public final class ArscPlus {
                 continue;
             }
             int gt = findTagEnd(xml, lt);
-            if (gt < 0) throw new Exception("标签未闭合");
+            if (gt < 0) throw new ArscPlusException(E_TAG_OPEN);
             String inner = xml.substring(lt + 1, gt).trim();
             boolean selfClose = inner.endsWith("/");
             if (selfClose) inner = inner.substring(0, inner.length() - 1).trim();
             String tagName = inner.split("\\s+", 2)[0];
             if (openTag != null && !"resources".equals(tagName))
-                throw new Exception("不支持嵌套元素: <" + tagName + ">（请保持一行一个资源）");
+                throw new ArscPlusException(E_NESTED, tagName);
             if (!"resources".equals(tagName)) {
                 String name = attrValue(inner, "name");
-                if (name == null) throw new Exception("<" + tagName + "> 缺少 name 属性");
+                if (name == null) throw new ArscPlusException(E_NO_NAME, tagName);
                 if (selfClose)
-                    throw new Exception("暂不支持自闭合标签 <" + tagName + " name=\"" + name
-                            + "\"/>，请写成 <…>值</…>");
+                    throw new ArscPlusException(E_SELF_CLOSE, tagName, name);
                 openTag = tagName;
                 openName = name;
                 openAttrs = inner;
@@ -149,7 +182,7 @@ public final class ArscPlus {
             i = gt + 1;
         }
         if (openTag != null)
-            throw new Exception("<" + openTag + " name=\"" + openName + "\"> 未闭合");
+            throw new ArscPlusException(E_UNCLOSED_ENTRY, openTag, openName);
         return edits;
     }
 
@@ -164,28 +197,27 @@ public final class ArscPlus {
 
         if (add) {
             if (ops == null)
-                throw new Exception("add=\"true\" 需要新版保存链路（ArscEditor）");
+                throw new ArscPlusException(E_ADD_NEEDS_EDITOR);
             if (map.containsKey(name))
-                throw new Exception("新增失败: " + name + " 已存在（如需修改请去掉 add=\"true\"）");
+                throw new ArscPlusException(E_ADD_EXISTS, name);
             ops.add(ArscEditor.Op.addString(type, cfg, name, val));
             return;
         }
 
         ResourceEntry e = map.get(name);
         if (e == null)
-            throw new Exception("找不到资源: <" + tag + " name=\"" + name + "\">"
-                    + "（资源名不能改，改名请加 rename=\"新名字\" 属性）");
+            throw new ArscPlusException(E_NOT_FOUND, tag, name);
 
         if (delete) {
             if (ops == null)
-                throw new Exception("delete=\"true\" 需要新版保存链路（ArscEditor）");
+                throw new ArscPlusException(E_DELETE_NEEDS_EDITOR);
             ops.add(ArscEditor.Op.delete(e));
             return;
         }
 
         if (rename != null && !rename.equals(name)) {
             if (ops == null)
-                throw new Exception("rename 属性需要新版保存链路（ArscEditor）");
+                throw new ArscPlusException(E_RENAME_NEEDS_EDITOR);
             edits.add(new ArscWriter.Edit(e, rename, true));
         }
 
@@ -198,7 +230,7 @@ public final class ArscPlus {
         } else {
             Integer raw = ArscValues.parseInput(v.getDataType(), val, arsc);
             if (raw == null)
-                throw new Exception("值格式错误: " + name + " = " + val);
+                throw new ArscPlusException(E_BAD_VALUE, name, val);
             edits.add(new ArscWriter.Edit(e, raw.intValue()));
         }
     }

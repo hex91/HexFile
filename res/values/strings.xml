@@ -3007,4 +3007,23 @@
     <string name="arch_err_entry_name">条目名非法：%1$s</string>
     <string name="arch_err_with_root">%1$s：%2$s</string>
     <string name="arch_err_unknown">归档操作失败</string>
+    <!-- v2.87.0 ARSC++ XML 头部与解析错误（ArscPlus 只给码） -->
+    <string name="arp_xml_header">"&lt;!-- ARSC++ 编辑：改值=直接改文本；改名=加 rename=\"新名字\"；删除=加 delete=\"true\"；\n     新增=&lt;%1$s name=\"新名字\" add=\"true\"&gt;值&lt;/%1$s&gt;  （bag 条目不支持） --&gt;"</string>
+    <string name="arp_xml_bag_note">：bag/复杂条目，请在「ARSC 编辑」中逐项修改</string>
+    <string name="arp_err_comment_open">注释未闭合</string>
+    <string name="arp_err_pi_open">处理指令未闭合</string>
+    <string name="arp_err_tag_open">标签未闭合</string>
+    <string name="arp_err_stray_end">多余的结束标签 &lt;/%1$s&gt;</string>
+    <string name="arp_err_tag_mismatch">标签不匹配：&lt;%1$s&gt; … &lt;/%2$s&gt;</string>
+    <string name="arp_err_nested">不支持嵌套元素：&lt;%1$s&gt;（请保持一行一个资源）</string>
+    <string name="arp_err_no_name">&lt;%1$s&gt; 缺少 name 属性</string>
+    <string name="arp_err_self_close">暂不支持自闭合标签 &lt;%1$s name=\"%2$s\"/&gt;，请写成 &lt;…&gt;值&lt;/…&gt;</string>
+    <string name="arp_err_unclosed_entry">&lt;%1$s name=\"%2$s\"&gt; 未闭合</string>
+    <string name="arp_err_add_needs_editor">add=\"true\" 需要新版保存链路（ArscEditor）</string>
+    <string name="arp_err_add_exists">新增失败：%1$s 已存在（如需修改请去掉 add=\"true\"）</string>
+    <string name="arp_err_not_found">找不到资源：&lt;%1$s name=\"%2$s\"&gt;（资源名不能改，改名请加 rename=\"新名字\" 属性）</string>
+    <string name="arp_err_delete_needs_editor">delete=\"true\" 需要新版保存链路（ArscEditor）</string>
+    <string name="arp_err_rename_needs_editor">rename 属性需要新版保存链路（ArscEditor）</string>
+    <string name="arp_err_bad_value">值格式错误：%1$s = %2$s</string>
+    <string name="arp_err_unknown">XML 解析失败</string>
 </resources>

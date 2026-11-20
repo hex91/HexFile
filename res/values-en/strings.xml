@@ -2999,4 +2999,23 @@
     <string name="arch_err_entry_name">Invalid entry name: %1$s</string>
     <string name="arch_err_with_root">%1$s: %2$s</string>
     <string name="arch_err_unknown">Archive operation failed</string>
+    <!-- v2.87.0 ARSC++ XML header and parse errors -->
+    <string name="arp_xml_header">"&lt;!-- ARSC++ editing: change a value = edit the text; rename = add rename=\"newName\"; delete = add delete=\"true\";\n     add = &lt;%1$s name=\"newName\" add=\"true\"&gt;value&lt;/%1$s&gt;  (bag entries are not supported) --&gt;"</string>
+    <string name="arp_xml_bag_note">: bag/complex entry — edit it item by item in ARSC Editor</string>
+    <string name="arp_err_comment_open">Unterminated comment</string>
+    <string name="arp_err_pi_open">Unterminated processing instruction</string>
+    <string name="arp_err_tag_open">Unterminated tag</string>
+    <string name="arp_err_stray_end">Unexpected closing tag &lt;/%1$s&gt;</string>
+    <string name="arp_err_tag_mismatch">Tag mismatch: &lt;%1$s&gt; … &lt;/%2$s&gt;</string>
+    <string name="arp_err_nested">Nested elements are not supported: &lt;%1$s&gt; (keep one resource per line)</string>
+    <string name="arp_err_no_name">&lt;%1$s&gt; is missing the name attribute</string>
+    <string name="arp_err_self_close">Self-closing tags are not supported: &lt;%1$s name=\"%2$s\"/&gt; — write &lt;…&gt;value&lt;/…&gt; instead</string>
+    <string name="arp_err_unclosed_entry">&lt;%1$s name=\"%2$s\"&gt; is never closed</string>
+    <string name="arp_err_add_needs_editor">add=\"true\" needs the newer save path (ArscEditor)</string>
+    <string name="arp_err_add_exists">Cannot add %1$s — it already exists (drop add=\"true\" to modify it)</string>
+    <string name="arp_err_not_found">Resource not found: &lt;%1$s name=\"%2$s\"&gt; (names cannot be changed; add rename=\"newName\" to rename)</string>
+    <string name="arp_err_delete_needs_editor">delete=\"true\" needs the newer save path (ArscEditor)</string>
+    <string name="arp_err_rename_needs_editor">The rename attribute needs the newer save path (ArscEditor)</string>
+    <string name="arp_err_bad_value">Bad value format: %1$s = %2$s</string>
+    <string name="arp_err_unknown">XML parsing failed</string>
 </resources>
