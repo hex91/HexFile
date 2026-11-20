@@ -19,6 +19,37 @@ public final class AxmlTextSync {
 	private AxmlTextSync() {
 	}
 
+	/** 同步失败码：文案由 UI 层决定（v2.88.0 F-14/75） */
+	public static final int E_COUNT = 1;
+	public static final int E_RENAME = 2;
+	public static final int E_DEL_ATTR = 3;
+	public static final int E_BAD_VALUE = 4;
+	public static final int E_ADD_ATTR = 5;
+	public static final int E_LINE_NO_ELEM = 6;
+	public static final int E_LINE_UNCLOSED = 7;
+	public static final int E_TAIL_UNCLOSED = 8;
+	public static final int E_LINE_NO_EQ = 9;
+	public static final int E_LINE_NO_QUOTE = 10;
+	public static final int E_LINE_NEWLINE = 11;
+
+	/** 同步/解析失败：{@link #code} 决定文案，{@link #dataType} 供 UI 换成本地化的类型名 */
+	public static class SyncException extends IllegalArgumentException {
+		public final int code;
+		public final int dataType;
+		public final String[] args;
+
+		public SyncException(int code, String... args) {
+			this(code, 0, args);
+		}
+
+		public SyncException(int code, int dataType, String... args) {
+			super("AxmlTextSync error " + code);
+			this.code = code;
+			this.dataType = dataType;
+			this.args = args == null ? new String[0] : args;
+		}
+	}
+
 	/** pretty 文本的一行解析结果（测试可见） */
 	public static final class ParsedElem {
 		public String name;
@@ -32,8 +63,8 @@ public final class AxmlTextSync {
 		List<ParsedElem> parsed = parse(editedPretty);
 		List<AxmlFile.XElem> orig = axml.elements;
 		if (parsed.size() != orig.size())
-			throw new IllegalArgumentException("不支持增删元素（原 " + orig.size()
-					+ " 个 / 现 " + parsed.size() + " 个），请用 Manifest 编辑器++ 修改");
+			throw new SyncException(E_COUNT,
+					String.valueOf(orig.size()), String.valueOf(parsed.size()));
 
 		List<AxmlWriter.Edit> edits = new ArrayList<AxmlWriter.Edit>();
 		for (int i = 0; i < orig.size(); i++) {
@@ -41,7 +72,7 @@ public final class AxmlTextSync {
 			ParsedElem pe = parsed.get(i);
 			// v1.65.0：元素名按 pretty 转义形式比较（加固包元素名可能含 <> 等）
 			if (!AxmlFile.escLine(oe.name).equals(pe.name))
-				throw new IllegalArgumentException("不支持改名元素: " + oe.name + " → " + pe.name);
+				throw new SyncException(E_RENAME, oe.name, pe.name);
 
 			// v1.65.0：贪心配对——加固包 manifest 存在重名垃圾属性，
 			// 按「名字相同优先、显示值也相同者优先」一一配对，避免错配成假编辑
@@ -59,23 +90,21 @@ public final class AxmlTextSync {
 				}
 				int j = pickSame >= 0 ? pickSame : pick;
 				if (j < 0)
-					throw new IllegalArgumentException("暂不支持删除属性 "
-							+ axml.attrDisplayName(oa) + " @" + oe.path);
+					throw new SyncException(E_DEL_ATTR, axml.attrDisplayName(oa), oe.path);
 				used[j] = true;
 				String paV = pe.attrs.get(j)[1];
 				if (!oldV.equals(paV)) {
 					if (oa.dataType != ArscDefs.TYPE_STRING
 							&& AxmlWriter.parseValue(axml, oa, paV) == null)
-						throw new IllegalArgumentException("属性 " + axml.attrDisplayName(oa)
-								+ " @" + oe.path + " 的值 [" + paV + "] 不是合法的 " + typeName(oa.dataType));
+						throw new SyncException(E_BAD_VALUE, oa.dataType,
+								axml.attrDisplayName(oa), oe.path, paV);
 					edits.add(new AxmlWriter.Edit(oa, paV));
 				}
 			}
 			// 未被消费的解析属性行 = 用户新增
 			for (int j = 0; j < pe.attrs.size(); j++) {
 				if (!used[j])
-					throw new IllegalArgumentException("暂不支持新增属性 " + pe.attrs.get(j)[0]
-							+ " @" + oe.path + "，请在 Manifest 编辑器++ 中操作");
+					throw new SyncException(E_ADD_ATTR, pe.attrs.get(j)[0], oe.path);
 			}
 		}
 		return AxmlWriter.write(axml, edits);
@@ -97,7 +126,7 @@ public final class AxmlTextSync {
 			if (!isElemLine) {
 				// 属性行：'ns:name="value"' 或最后一条 'ns:name="value" />'
 				if (cur == null)
-					throw new IllegalArgumentException("第 " + (li + 1) + " 行属性缺少所属元素");
+					throw new SyncException(E_LINE_NO_ELEM, String.valueOf(li + 1));
 				String t = line.trim();
 				boolean last = t.endsWith("/>");
 				String body = last ? t.substring(0, t.length() - 2).trim() : t;
@@ -108,7 +137,7 @@ public final class AxmlTextSync {
 			int depth = indent / 4;
 			String t = line.substring(indent).trim();
 			if (cur != null && !cur.closed)
-				throw new IllegalArgumentException("第 " + (li + 1) + " 行元素未闭合");
+				throw new SyncException(E_LINE_UNCLOSED, String.valueOf(li + 1));
 			ParsedElem e = new ParsedElem();
 			e.depth = depth;
 			if (t.endsWith("/>")) {
@@ -129,7 +158,7 @@ public final class AxmlTextSync {
 			cur = e.closed ? null : e;
 		}
 		if (cur != null && !cur.closed)
-			throw new IllegalArgumentException("末尾元素未闭合");
+			throw new SyncException(E_TAIL_UNCLOSED);
 		return out;
 	}
 
@@ -139,15 +168,15 @@ public final class AxmlTextSync {
 			while (i < n && Character.isWhitespace(s.charAt(i))) i++;
 			if (i >= n) break;
 			int eq = s.indexOf('=', i);
-			if (eq < 0) throw new IllegalArgumentException("第 " + lineNo + " 行属性缺少 = : " + s);
+			if (eq < 0) throw new SyncException(E_LINE_NO_EQ, String.valueOf(lineNo), s);
 			String name = s.substring(i, eq).trim();
 			int q1 = s.indexOf('"', eq);
 			int q2 = findCloseQuote(s, q1 + 1);
 			if (q1 < 0 || q2 < 0)
-				throw new IllegalArgumentException("第 " + lineNo + " 行属性值未用引号闭合: " + name);
+				throw new SyncException(E_LINE_NO_QUOTE, String.valueOf(lineNo), name);
 			String v = unescape(s.substring(q1 + 1, q2));
 			if (v.indexOf('\n') >= 0 || v.indexOf('\r') >= 0)
-				throw new IllegalArgumentException("第 " + lineNo + " 行属性值含换行，暂不支持");
+				throw new SyncException(E_LINE_NEWLINE, String.valueOf(lineNo));
 			e.attrs.add(new String[] { name, v });
 			i = q2 + 1;
 		}
@@ -168,14 +197,5 @@ public final class AxmlTextSync {
 				.replace("&gt;", ">").replace("&amp;", "&");
 	}
 
-	private static String typeName(int t) {
-		switch (t) {
-			case ArscDefs.TYPE_INT_DEC: return "十进制整数";
-			case ArscDefs.TYPE_INT_HEX: return "十六进制";
-			case ArscDefs.TYPE_INT_BOOLEAN: return "true/false";
-			case ArscDefs.TYPE_REFERENCE: return "@资源引用";
-			case ArscDefs.TYPE_FLOAT: return "浮点数";
-			default: return "对应类型的值";
-		}
-	}
+
 }

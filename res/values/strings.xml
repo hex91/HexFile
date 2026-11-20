@@ -3026,4 +3026,23 @@
     <string name="arp_err_rename_needs_editor">rename 属性需要新版保存链路（ArscEditor）</string>
     <string name="arp_err_bad_value">值格式错误：%1$s = %2$s</string>
     <string name="arp_err_unknown">XML 解析失败</string>
+    <!-- v2.88.0 Manifest 文本同步失败（AxmlTextSync 只给码） -->
+    <string name="axml_type_dec">十进制整数</string>
+    <string name="axml_type_hex">十六进制</string>
+    <string name="axml_type_bool">true/false</string>
+    <string name="axml_type_ref">@资源引用</string>
+    <string name="axml_type_float">浮点数</string>
+    <string name="axml_type_other">对应类型的值</string>
+    <string name="axsync_err_count">不支持增删元素（原 %1$s 个 / 现 %2$s 个），请用 Manifest 编辑器++ 修改</string>
+    <string name="axsync_err_rename">不支持改名元素：%1$s → %2$s</string>
+    <string name="axsync_err_del_attr">暂不支持删除属性 %1$s @%2$s</string>
+    <string name="axsync_err_bad_value">属性 %1$s @%2$s 的值 [%3$s] 不是合法的 %4$s</string>
+    <string name="axsync_err_add_attr">暂不支持新增属性 %1$s @%2$s，请在 Manifest 编辑器++ 中操作</string>
+    <string name="axsync_err_line_no_elem">第 %1$s 行属性缺少所属元素</string>
+    <string name="axsync_err_line_unclosed">第 %1$s 行元素未闭合</string>
+    <string name="axsync_err_tail_unclosed">末尾元素未闭合</string>
+    <string name="axsync_err_line_no_eq">第 %1$s 行属性缺少 =：%2$s</string>
+    <string name="axsync_err_line_no_quote">第 %1$s 行属性值未用引号闭合：%2$s</string>
+    <string name="axsync_err_line_newline">第 %1$s 行属性值含换行，暂不支持</string>
+    <string name="axsync_err_unknown">Manifest 文本同步失败</string>
 </resources>

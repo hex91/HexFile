@@ -1543,7 +1543,7 @@ public class TextEditorActivity extends BaseActivity {
                     outApk = ApkEditSession.putEdit(TextEditorActivity.this,
                             rtApkFile, "AndroidManifest.xml", newAxml);
                 } catch (IllegalArgumentException e) {
-                    err = e.getMessage();
+                    err = AxmlSyncText.errorText(TextEditorActivity.this, e);
                     userError = true;
                 } catch (Throwable t) {
                     err = t.getClass().getSimpleName() + ": " + t.getMessage();

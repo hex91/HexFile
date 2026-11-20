@@ -3018,4 +3018,23 @@
     <string name="arp_err_rename_needs_editor">The rename attribute needs the newer save path (ArscEditor)</string>
     <string name="arp_err_bad_value">Bad value format: %1$s = %2$s</string>
     <string name="arp_err_unknown">XML parsing failed</string>
+    <!-- v2.88.0 manifest text sync failures -->
+    <string name="axml_type_dec">decimal integer</string>
+    <string name="axml_type_hex">hexadecimal integer</string>
+    <string name="axml_type_bool">true/false</string>
+    <string name="axml_type_ref">@resource reference</string>
+    <string name="axml_type_float">float</string>
+    <string name="axml_type_other">value of that type</string>
+    <string name="axsync_err_count">Adding or removing elements is not supported (was %1$s, now %2$s) — use Manifest Editor++</string>
+    <string name="axsync_err_rename">Renaming elements is not supported: %1$s → %2$s</string>
+    <string name="axsync_err_del_attr">Removing attributes is not supported yet: %1$s @%2$s</string>
+    <string name="axsync_err_bad_value">Value [%3$s] of attribute %1$s @%2$s is not a valid %4$s</string>
+    <string name="axsync_err_add_attr">Adding attributes is not supported yet: %1$s @%2$s — use Manifest Editor++</string>
+    <string name="axsync_err_line_no_elem">Line %1$s: the attribute has no owning element</string>
+    <string name="axsync_err_line_unclosed">Line %1$s: the element is not closed</string>
+    <string name="axsync_err_tail_unclosed">The last element is not closed</string>
+    <string name="axsync_err_line_no_eq">Line %1$s: the attribute is missing =: %2$s</string>
+    <string name="axsync_err_line_no_quote">Line %1$s: the attribute value has no closing quote: %2$s</string>
+    <string name="axsync_err_line_newline">Line %1$s: line breaks in attribute values are not supported yet</string>
+    <string name="axsync_err_unknown">Manifest text sync failed</string>
 </resources>
