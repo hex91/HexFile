@@ -1981,7 +1981,8 @@ badging 反证 versionCode 248 / 2.55.0；dex 反证 `df_group_head`/`df_remaini
 
 ## v2.54.0（versionCode 247）—— F-14/41：终端页 i18n（批量纯 UI 页第 7 页）
 
-`TerminalActivity` 中文字面量 **约 19 → 0**（另有 12 行是写入磁盘的 shell 脚本内容，见下），
+`TerminalActivity` 中文字面量 **约 19 → 0**（另有 11 个字符串是写入磁盘的 shell 脚本正文，
+以及 2 个全角加号 `＋` 作视觉记号，均在下方说明，不翻译），
 新增 18 个 `term_*` 键，资源 2356 → 2374 条（中英各 2374，100%）；布局 4 处 `android:text`
 （终端 / 清屏 / 粘贴 / 复制）资源化。
 
