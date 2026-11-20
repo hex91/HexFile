@@ -2327,4 +2327,42 @@
     <string name="sr_hint_days_min">距今≥天</string>
     <string name="sr_hint_days_max">距今≤天</string>
     <string name="sr_hint_status">输入关键词后点搜索；「筛选」可设类型/大小/时间</string>
+
+    <!-- v2.49.0 云同步页 i18n（sy_*） -->
+    <string name="sy_cancelling">正在取消，等当前文件传完…</string>
+    <string name="sy_row_server">"服务器    "</string>
+    <string name="sy_row_local">"本地目录    "</string>
+    <string name="sy_row_mode">"同步方向    "</string>
+    <string name="sy_server_unselected">未选择（先到「网络存储」添加）</string>
+    <string name="sy_unselected">未选择</string>
+    <string name="sy_mode_up">上传（本地 → 远端）</string>
+    <string name="sy_mode_down">下载（远端 → 本地）</string>
+    <string name="sy_mode_both">双向（按修改时间较新的一方）</string>
+    <string name="sy_mode_both_short">双向</string>
+    <string name="sy_no_server">还没有服务器，请先到「网络存储」添加一个 WebDAV</string>
+    <string name="sy_pick_server">选择服务器</string>
+    <string name="sy_direction">同步方向</string>
+    <string name="sy_busy">正在执行，请稍候</string>
+    <string name="sy_comparing">正在比对目录…</string>
+    <string name="sy_no_diff">两边已一致，无需传输。\n</string>
+    <string name="sy_no_sync">无需同步</string>
+    <string name="sy_preview_fail">预览失败：%1$s</string>
+    <string name="sy_need_preview">请先点「预览差异」看清要做什么</string>
+    <string name="sy_no_files">没有需要传输的文件</string>
+    <string name="sy_starting">开始同步，共 %1$d 项</string>
+    <string name="sy_progress">"%1$d / %2$d  %3$s"</string>
+    <string name="sy_fail_detail">失败明细：\n</string>
+    <string name="sy_bullet">"· "</string>
+    <string name="sy_sync_fail">同步失败：%1$s</string>
+    <string name="sy_start">开始同步</string>
+    <string name="sy_pick_server_first">请先选择服务器</string>
+    <string name="sy_pick_local">请选择存在的本地目录</string>
+    <string name="sy_remote_dotdot">远端路径不能包含 ..</string>
+    <string name="sy_title">云同步</string>
+    <string name="sy_desc">把本地目录与 WebDAV 上的目录对齐。不会自动删除任何一边的文件；两边都改过的文件会把本地版本另存为 .conflict-时间戳。</string>
+    <string name="sy_server">服务器</string>
+    <string name="sy_remote">远端目录</string>
+    <string name="sy_hint_remote">远端路径，例如 /backup/photo</string>
+    <string name="sy_local">本地目录</string>
+    <string name="sy_preview">预览差异</string>
 </resources>

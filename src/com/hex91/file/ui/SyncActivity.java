@@ -97,7 +97,7 @@ public class SyncActivity extends BaseActivity {
             public void onClick(View v) {
                 if (busy) {
                     cancel.set(true);
-                    tvStatus.setText("正在取消，等当前文件传完…");
+                    tvStatus.setText(s(R.string.sy_cancelling));
                 } else {
                     startSync();
                 }
@@ -127,28 +127,28 @@ public class SyncActivity extends BaseActivity {
     }
 
     private void render() {
-        rowServer.setText("服务器    " + (idx < 0 ? "未选择（先到「网络存储」添加）"
+        rowServer.setText(s(R.string.sy_row_server) + (idx < 0 ? s(R.string.sy_server_unselected)
                 : NetFsFactory.describe(servers.get(idx))));
-        rowLocal.setText("本地目录    " + (localDir == null ? "未选择"
+        rowLocal.setText(s(R.string.sy_row_local) + (localDir == null ? s(R.string.sy_unselected)
                 : localDir.getAbsolutePath()));
-        rowMode.setText("同步方向    " + modeName());
+        rowMode.setText(s(R.string.sy_row_mode) + modeName());
     }
 
     private String modeName() {
-        if (mode == SyncPlan.MODE_UP) return "上传（本地 → 远端）";
-        if (mode == SyncPlan.MODE_DOWN) return "下载（远端 → 本地）";
-        return "双向（按修改时间较新的一方）";
+        if (mode == SyncPlan.MODE_UP) return s(R.string.sy_mode_up);
+        if (mode == SyncPlan.MODE_DOWN) return s(R.string.sy_mode_down);
+        return s(R.string.sy_mode_both);
     }
 
     private void pickServer() {
         if (servers.isEmpty()) {
-            toast("还没有服务器，请先到「网络存储」添加一个 WebDAV");
+            toast(s(R.string.sy_no_server));
             return;
         }
         final String[] items = new String[servers.size()];
         for (int i = 0; i < servers.size(); i++) items[i] = NetFsFactory.describe(servers.get(i));
         new HfDialogBuilder(this)
-                .setTitle("选择服务器")
+                .setTitle(s(R.string.sy_pick_server))
                 .setItems(items, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int which) {
                         idx = which;
@@ -157,7 +157,7 @@ public class SyncActivity extends BaseActivity {
                         render();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(s(R.string.common_cancel), null)
                 .show();
     }
 
@@ -174,9 +174,9 @@ public class SyncActivity extends BaseActivity {
     }
 
     private void pickMode() {
-        final String[] items = {"上传（本地 → 远端）", "下载（远端 → 本地）", "双向"};
+        final String[] items = {s(R.string.sy_mode_up), s(R.string.sy_mode_down), s(R.string.sy_mode_both_short)};
         new HfDialogBuilder(this)
-                .setTitle("同步方向")
+                .setTitle(s(R.string.sy_direction))
                 .setItems(items, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int which) {
                         mode = which == 0 ? SyncPlan.MODE_UP
@@ -186,7 +186,7 @@ public class SyncActivity extends BaseActivity {
                         render();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(s(R.string.common_cancel), null)
                 .show();
     }
 
@@ -198,10 +198,10 @@ public class SyncActivity extends BaseActivity {
     // ------------------------------------------------------------------ 预览
 
     private void preview() {
-        if (busy) { toast("正在执行，请稍候"); return; }
+        if (busy) { toast(s(R.string.sy_busy)); return; }
         if (!checkReady()) return;
         final JSONObject cfg = servers.get(idx);
-        setBusy(true, "正在比对目录…");
+        setBusy(true, s(R.string.sy_comparing));
         new Thread(new Runnable() {
             public void run() {
                 NetFs fs = null;
@@ -212,16 +212,16 @@ public class SyncActivity extends BaseActivity {
                         public void run() {
                             plan = p;
                             tvPlan.setText(p.work() == 0
-                                    ? "两边已一致，无需传输。\n" + p.summary()
+                                    ? s(R.string.sy_no_diff) + p.summary()
                                     : p.summary());
-                            if (p.work() == 0) tvStatus.setText("无需同步");
+                            if (p.work() == 0) tvStatus.setText(s(R.string.sy_no_sync));
                         }
                     });
                 } catch (final Throwable e) {
                     ui.post(new Runnable() {
                         public void run() {
                             plan = null;
-                            tvPlan.setText("预览失败：" + msg(e));
+                            tvPlan.setText(s(R.string.sy_preview_fail, msg(e)));
                         }
                     });
                 } finally {
@@ -239,18 +239,18 @@ public class SyncActivity extends BaseActivity {
     private void startSync() {
         if (!checkReady()) return;
         final SyncPlan.Plan p = plan;
-        if (p == null) { toast("请先点「预览差异」看清要做什么"); return; }
-        if (p.work() == 0) { toast("没有需要传输的文件"); return; }
+        if (p == null) { toast(s(R.string.sy_need_preview)); return; }
+        if (p.work() == 0) { toast(s(R.string.sy_no_files)); return; }
 
         final JSONObject cfg = servers.get(idx);
         cancel.set(false);
         busy = true;
-        btnStart.setText("取消");
+        btnStart.setText(s(R.string.common_cancel));
         btnPreview.setEnabled(false);
         progress.setVisibility(View.VISIBLE);
         progress.setProgress(0);
         tvLog.setText("");
-        tvStatus.setText("开始同步，共 " + p.work() + " 项");
+        tvStatus.setText(s(R.string.sy_starting, p.work()));
 
         new Thread(new Runnable() {
             public void run() {
@@ -266,7 +266,7 @@ public class SyncActivity extends BaseActivity {
                             ui.post(new Runnable() {
                                 public void run() {
                                     if (total > 0) progress.setProgress(done * 100 / total);
-                                    tvStatus.setText(done + " / " + total + "  " + path);
+                                    tvStatus.setText(SyncActivity.this.s(R.string.sy_progress, done, total, path));
                                 }
                             });
                         }
@@ -287,9 +287,9 @@ public class SyncActivity extends BaseActivity {
                                     tvStatus.setText(r.summary());
                                     progress.setProgress(100);
                                     if (!r.errors.isEmpty()) {
-                                        StringBuilder sb = new StringBuilder("失败明细：\n");
+                                        StringBuilder sb = new StringBuilder(SyncActivity.this.s(R.string.sy_fail_detail));
                                         for (int i = 0; i < Math.min(8, r.errors.size()); i++) {
-                                            sb.append("· ").append(r.errors.get(i)).append('\n');
+                                            sb.append(SyncActivity.this.s(R.string.sy_bullet)).append(r.errors.get(i)).append('\n');
                                         }
                                         tvLog.setText(tvLog.getText().toString() + sb.toString());
                                     }
@@ -301,14 +301,14 @@ public class SyncActivity extends BaseActivity {
                     }, cancel);
                 } catch (final Throwable e) {
                     ui.post(new Runnable() {
-                        public void run() { tvStatus.setText("同步失败：" + msg(e)); }
+                        public void run() { tvStatus.setText(SyncActivity.this.s(R.string.sy_sync_fail, msg(e))); }
                     });
                 } finally {
                     if (fs != null) fs.close();
                     ui.post(new Runnable() {
                         public void run() {
                             busy = false;
-                            btnStart.setText("开始同步");
+                            btnStart.setText(SyncActivity.this.s(R.string.sy_start));
                             btnPreview.setEnabled(true);
                         }
                     });
@@ -320,10 +320,10 @@ public class SyncActivity extends BaseActivity {
     // ------------------------------------------------------------------ 杂项
 
     private boolean checkReady() {
-        if (idx < 0 || idx >= servers.size()) { toast("请先选择服务器"); return false; }
-        if (localDir == null || !localDir.isDirectory()) { toast("请选择存在的本地目录"); return false; }
+        if (idx < 0 || idx >= servers.size()) { toast(s(R.string.sy_pick_server_first)); return false; }
+        if (localDir == null || !localDir.isDirectory()) { toast(s(R.string.sy_pick_local)); return false; }
         String r = remote();
-        if (r.contains("..")) { toast("远端路径不能包含 .."); return false; }
+        if (r.contains("..")) { toast(s(R.string.sy_remote_dotdot)); return false; }
         return true;
     }
 
@@ -343,4 +343,7 @@ public class SyncActivity extends BaseActivity {
     private void toast(String s) {
         Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
     }
+
+    private String s(int id) { return getString(id); }
+    private String s(int id, Object... args) { return getString(id, args); }
 }

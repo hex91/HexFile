@@ -2319,4 +2319,42 @@
     <string name="sr_hint_days_min">Days ≥</string>
     <string name="sr_hint_days_max">Days ≤</string>
     <string name="sr_hint_status">Enter a keyword and search; use Filter for type/size/time</string>
+
+    <!-- v2.49.0 Sync page i18n (sy_*) -->
+    <string name="sy_cancelling">Cancelling, waiting for the current file…</string>
+    <string name="sy_row_server">"Server    "</string>
+    <string name="sy_row_local">"Local dir    "</string>
+    <string name="sy_row_mode">"Direction    "</string>
+    <string name="sy_server_unselected">Not selected (add one in Network Storage first)</string>
+    <string name="sy_unselected">Not selected</string>
+    <string name="sy_mode_up">Upload (local → remote)</string>
+    <string name="sy_mode_down">Download (remote → local)</string>
+    <string name="sy_mode_both">Two-way (newer side wins)</string>
+    <string name="sy_mode_both_short">Two-way</string>
+    <string name="sy_no_server">No server yet; add a WebDAV in Network Storage first</string>
+    <string name="sy_pick_server">Select server</string>
+    <string name="sy_direction">Sync direction</string>
+    <string name="sy_busy">Busy, please wait</string>
+    <string name="sy_comparing">Comparing directories…</string>
+    <string name="sy_no_diff">Both sides are identical, nothing to transfer.\n</string>
+    <string name="sy_no_sync">Nothing to sync</string>
+    <string name="sy_preview_fail">Preview failed: %1$s</string>
+    <string name="sy_need_preview">Tap Preview first to see what will happen</string>
+    <string name="sy_no_files">No files to transfer</string>
+    <string name="sy_starting">Starting sync, %1$d items</string>
+    <string name="sy_progress">"%1$d / %2$d  %3$s"</string>
+    <string name="sy_fail_detail">Failures:\n</string>
+    <string name="sy_bullet">"· "</string>
+    <string name="sy_sync_fail">Sync failed: %1$s</string>
+    <string name="sy_start">Start sync</string>
+    <string name="sy_pick_server_first">Select a server first</string>
+    <string name="sy_pick_local">Select an existing local directory</string>
+    <string name="sy_remote_dotdot">Remote path cannot contain ..</string>
+    <string name="sy_title">Cloud Sync</string>
+    <string name="sy_desc">Align a local directory with one on WebDAV. Nothing is deleted automatically; files changed on both sides are saved locally as .conflict-timestamp.</string>
+    <string name="sy_server">Server</string>
+    <string name="sy_remote">Remote dir</string>
+    <string name="sy_hint_remote">Remote path, e.g. /backup/photo</string>
+    <string name="sy_local">Local dir</string>
+    <string name="sy_preview">Preview</string>
 </resources>

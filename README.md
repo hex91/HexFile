@@ -1785,6 +1785,31 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.49.0（versionCode 242）—— F-14/36：云同步页 i18n（批量纯 UI 页第 2 页）
+
+`SyncActivity` 中文字面量 **约 30 → 0**，新增 34 个 `sy_*` 键（代码 26 + 布局 8，复用
+`common_cancel`），资源 2208 → 2242 条（中英各 2242，100%）。布局 8 处 `android:text/hint`
+一并资源化。
+
+### 边界：逻辑层报告文本透传（本页不动）
+`tvPlan`/`tvStatus` 里的 `p.summary()`（SyncPlan）/`r.summary()`（SyncRunner）是逻辑层产中文，
+且 `SyncPlanTest` 用 `contains("跳过 1")` 等中文断言——属「需 Code+Fail 改造」范畴，
+本批纯 UI 页不碰。本页只把包裹它们的 UI 文案（`"两边已一致，无需传输。\n"`、`"预览失败："`、
+`"失败明细：\n"`）资源化。这两处 `summary()` 记为后续逻辑层债。
+
+### UI 层要点
+- 4 空格对齐标签 `sy_row_server/local/mode` 整值加引号；`sy_no_diff`/`sy_fail_detail` 的
+  尾随 `\n`、`sy_bullet`=`"· "` 前导空格，均加引号保护。
+- `modeName()` 与 `pickMode()` 的数组共用 `sy_mode_up/down`，第三态别名 `sy_mode_both_short`
+  （下拉里短标签「双向」，渲染里长标签带括号说明）。
+- 匿名 Runnable 内的状态/日志文本共 5 处用 `SyncActivity.this.s()`。
+
+### 验证
+四门全过（空 catch 335 基线）、`jc.sh` rc=0。APK **13,374,160 B**（md5 `b878b879…`），
+badging 反证 versionCode 242 / 2.49.0；dex 反证 `sy_no_diff`/`sy_progress` 各=1。提交 `—`。
+
+---
+
 ## v2.48.0（versionCode 241）—— F-14/35：高级搜索页 i18n（批量纯 UI 页第 1 页）
 
 `SearchActivity` 中文字面量 **约 30 → 0**，新增 43 个 `sr_*` 键（代码 20 + 布局 13 + 类型标签 8），

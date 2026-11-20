@@ -34,7 +34,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:paddingLeft="2dp"
-            android:text="云同步"
+            android:text="@string/sy_title"
             android:textColor="?attr/hfTopBarText"
             android:textSize="16sp"
             android:textStyle="bold"/>
@@ -58,7 +58,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="把本地目录与 WebDAV 上的目录对齐。不会自动删除任何一边的文件；两边都改过的文件会把本地版本另存为 .conflict-时间戳。"
+                android:text="@string/sy_desc"
                 android:textSize="11.5sp"
                 android:textColor="?attr/hfTextSub"
                 android:paddingBottom="6dp"/>
@@ -72,12 +72,12 @@
                 android:textSize="14sp"
                 android:textColor="?attr/hfText"
                 android:background="?android:attr/selectableItemBackground"
-                android:text="服务器"/>
+                android:text="@string/sy_server"/>
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="远端目录"
+                android:text="@string/sy_remote"
                 android:textSize="11.5sp"
                 android:textColor="?attr/hfTextSub"/>
 
@@ -86,7 +86,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="/"
-                android:hint="远端路径，例如 /backup/photo"
+                android:hint="@string/sy_hint_remote"
                 android:singleLine="true"
                 android:textSize="14sp"
                 android:inputType="text"/>
@@ -100,7 +100,7 @@
                 android:textSize="14sp"
                 android:textColor="?attr/hfText"
                 android:background="?android:attr/selectableItemBackground"
-                android:text="本地目录"/>
+                android:text="@string/sy_local"/>
 
             <TextView
                 android:id="@+id/row_mode"
@@ -111,14 +111,14 @@
                 android:textSize="14sp"
                 android:textColor="?attr/hfText"
                 android:background="?android:attr/selectableItemBackground"
-                android:text="同步方向"/>
+                android:text="@string/sy_direction"/>
 
             <Button
                 android:id="@+id/btn_preview"
                 android:layout_width="match_parent"
                 android:layout_height="42dp"
                 android:layout_marginTop="8dp"
-                android:text="预览差异"/>
+                android:text="@string/sy_preview"/>
 
             <TextView
                 android:id="@+id/tv_plan"
@@ -173,6 +173,6 @@
             android:layout_width="match_parent"
             android:layout_height="44dp"
             android:layout_marginTop="6dp"
-            android:text="开始同步"/>
+            android:text="@string/sy_start"/>
     </LinearLayout>
 </LinearLayout>
