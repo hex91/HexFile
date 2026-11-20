@@ -1,5 +1,6 @@
 package com.hex91.file.ui;
 
+import com.hex91.file.R;
 import com.hex91.file.apk.ApkEditSession;
 import com.hex91.file.apk.ApkSignerTool;
 import android.app.Activity;
@@ -70,7 +71,7 @@ public class SignPromptActivity extends Activity {
         apk = new File(getIntent().getStringExtra("apk"));
 
         if (!apk.isFile()) {
-            Toast.makeText(this, "修改版不存在（可能已被删除）", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, R.string.sp_apk_missing, Toast.LENGTH_LONG).show();
             finish();
             return;
         }
@@ -105,14 +106,14 @@ public class SignPromptActivity extends Activity {
         card.removeAllViews();
 
         TextView title = new TextView(this);
-        title.setText("APK 签名");
+        title.setText(R.string.sp_title);
         title.setTextSize(18);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setTextColor(ThemeManager.text(this));
         card.addView(title);
 
         TextView sub = new TextView(this);
-        sub.setText("修改版尚未签名。未签名的 APK 可能无法安装，建议先签名。");
+        sub.setText(R.string.sp_sub);
         sub.setTextSize(13);
         sub.setTextColor(ThemeManager.textSub(this));
         sub.setPadding(0, dp(4), 0, dp(12));
@@ -130,7 +131,7 @@ public class SignPromptActivity extends Activity {
         card.addView(filePill, matchWrap(dp(0), dp(12)));
 
         // 主选项：内置签名（accent 实底）
-        TextView btn1 = optionButton("内置签名文件签名（v1+v2+v3）",
+        TextView btn1 = optionButton(getString(R.string.sp_btn_builtin),
                 ThemeManager.accent(this), ThemeManager.onAccent(this), true);
         btn1.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { signBuiltin(); }
@@ -138,7 +139,7 @@ public class SignPromptActivity extends Activity {
         card.addView(btn1, matchWrap(dp(0), dp(14)));
 
         // 次选项：自有签名文件（surfaceAlt 底）
-        TextView btn2 = optionButton("使用自有签名文件签名",
+        TextView btn2 = optionButton(getString(R.string.sp_btn_custom),
                 ThemeManager.surfaceAlt(this), ThemeManager.text(this), false);
         btn2.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { pickKeystore(); }
@@ -147,7 +148,7 @@ public class SignPromptActivity extends Activity {
 
         // 文字选项：暂不签名
         TextView btn3 = new TextView(this);
-        btn3.setText("暂不签名（未签名 APK 可能无法安装）");
+        btn3.setText(R.string.sp_skip);
         btn3.setTextSize(14);
         btn3.setGravity(Gravity.CENTER);
         btn3.setTextColor(ThemeManager.textSub(this));
@@ -164,7 +165,7 @@ public class SignPromptActivity extends Activity {
         card.removeAllViews();
 
         TextView title = new TextView(this);
-        title.setText("自有签名文件签名");
+        title.setText(R.string.sp_custom_title);
         title.setTextSize(18);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setTextColor(ThemeManager.text(this));
@@ -172,8 +173,9 @@ public class SignPromptActivity extends Activity {
 
         TextView sub = new TextView(this);
         String ksName = ksUri.getLastPathSegment();
-        sub.setText("签名文件: " + (ksName != null ? ksName : "已选择")
-                + "\n目标: " + apk.getName());
+        sub.setText(getString(R.string.sp_ks_target,
+                ksName != null ? ksName : getString(R.string.sf_chosen),
+                apk.getName()));
         sub.setTextSize(13);
         sub.setTextColor(ThemeManager.textSub(this));
         sub.setPadding(0, dp(4), 0, dp(12));
@@ -182,7 +184,7 @@ public class SignPromptActivity extends Activity {
         final EditText pass = new EditText(this);
         pass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
                 | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        pass.setHint("keystore 密码");
+        pass.setHint(R.string.sp_pwd_hint);
         pass.setTextSize(14);
         pass.setTextColor(ThemeManager.text(this));
         pass.setHintTextColor(ThemeManager.textSub(this));
@@ -194,7 +196,7 @@ public class SignPromptActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
 
         TextView cancel = new TextView(this);
-        cancel.setText("取消");
+        cancel.setText(R.string.common_cancel);
         cancel.setTextSize(15);
         cancel.setGravity(Gravity.CENTER);
         cancel.setTextColor(ThemeManager.textSub(this));
@@ -204,14 +206,14 @@ public class SignPromptActivity extends Activity {
         });
         row.addView(cancel, rowWeight(1f));
 
-        TextView ok = optionButton("签名", ThemeManager.accent(this),
+        TextView ok = optionButton(getString(R.string.sf_sign), ThemeManager.accent(this),
                 ThemeManager.onAccent(this), true);
         ok.setPadding(0, 0, 0, 0);
         ok.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 String pwd = pass.getText().toString();
                 if (pwd.isEmpty()) {
-                    Toast.makeText(SignPromptActivity.this, "密码不能为空",
+                    Toast.makeText(SignPromptActivity.this, R.string.sp_pwd_empty,
                             Toast.LENGTH_SHORT).show();
                     return;
                 }
@@ -250,7 +252,8 @@ public class SignPromptActivity extends Activity {
 
     private void done(String err) {
         Toast.makeText(this,
-                err != null ? "签名失败: " + err : "已签名 → " + apk.getName(),
+                err != null ? getString(R.string.sf_sign_fail, err)
+                        : getString(R.string.sf_signed, apk.getName()),
                 Toast.LENGTH_LONG).show();
         finish();
     }
@@ -259,7 +262,7 @@ public class SignPromptActivity extends Activity {
 
     /** 内置 hexfile.p12 签名，v1+v2+v3，原地覆盖 _edit.apk */
     private void signBuiltin() {
-        showProgressCard("正在签名…");
+        showProgressCard(getString(R.string.sp_signing));
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -288,7 +291,7 @@ public class SignPromptActivity extends Activity {
 
     /** 自有 keystore 签名（自动选别名），原地覆盖 _edit.apk */
     private void signCustom(final Uri keystoreUri, final String pwd) {
-        showProgressCard("正在签名…");
+        showProgressCard(getString(R.string.sp_signing));
         new Thread(new Runnable() {
             public void run() {
                 String err = null;
@@ -345,10 +348,10 @@ public class SignPromptActivity extends Activity {
         i.addCategory(android.content.Intent.CATEGORY_OPENABLE);
         try {
             startActivityForResult(
-                    android.content.Intent.createChooser(i, "选择签名文件（.p12/.jks/.keystore）"),
+                    android.content.Intent.createChooser(i, getString(R.string.sp_pick_title)),
                     REQ_KEYSTORE);
         } catch (Exception e) {
-            Toast.makeText(this, "无法打开文件选择器: " + e.getMessage(),
+            Toast.makeText(this, getString(R.string.sf_pick_fail, e.getMessage()),
                     Toast.LENGTH_LONG).show();
         }
     }

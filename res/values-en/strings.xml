@@ -2623,4 +2623,17 @@
     <string name="ht_history_title">Recent requests</string>
     <string name="ht_history_cleared">History cleared</string>
     <string name="ht_truncated">"\n…(over 512KB, truncated)"</string>
+    <!-- v2.62.0 sign prompt -->
+    <string name="sp_apk_missing">The edited package is missing (it may have been deleted)</string>
+    <string name="sp_title">APK signing</string>
+    <string name="sp_sub">The edited package is not signed yet. An unsigned APK may fail to install, so signing it first is recommended.</string>
+    <string name="sp_btn_builtin">Sign with the built-in key (v1+v2+v3)</string>
+    <string name="sp_btn_custom">Sign with my own key file</string>
+    <string name="sp_skip">Not now (an unsigned APK may fail to install)</string>
+    <string name="sp_custom_title">Sign with my own key file</string>
+    <string name="sp_ks_target">"Key file: %1$s\nTarget: %2$s"</string>
+    <string name="sp_pwd_hint">keystore password</string>
+    <string name="sp_pwd_empty">The password cannot be empty</string>
+    <string name="sp_signing">Signing…</string>
+    <string name="sp_pick_title">Choose a key file (.p12/.jks/.keystore)</string>
 </resources>

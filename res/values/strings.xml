@@ -2631,4 +2631,17 @@
     <string name="ht_history_title">最近请求</string>
     <string name="ht_history_cleared">历史已清空</string>
     <string name="ht_truncated">"\n…（超过 512KB，已截断）"</string>
+    <!-- v2.62.0 统一签名弹窗 -->
+    <string name="sp_apk_missing">修改版不存在（可能已被删除）</string>
+    <string name="sp_title">APK 签名</string>
+    <string name="sp_sub">修改版尚未签名。未签名的 APK 可能无法安装，建议先签名。</string>
+    <string name="sp_btn_builtin">内置签名文件签名（v1+v2+v3）</string>
+    <string name="sp_btn_custom">使用自有签名文件签名</string>
+    <string name="sp_skip">暂不签名（未签名 APK 可能无法安装）</string>
+    <string name="sp_custom_title">自有签名文件签名</string>
+    <string name="sp_ks_target">"签名文件: %1$s\n目标: %2$s"</string>
+    <string name="sp_pwd_hint">keystore 密码</string>
+    <string name="sp_pwd_empty">密码不能为空</string>
+    <string name="sp_signing">正在签名…</string>
+    <string name="sp_pick_title">选择签名文件（.p12/.jks/.keystore）</string>
 </resources>

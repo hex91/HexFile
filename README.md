@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2099 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2509 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,38 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.62.0（versionCode 255）—— F-14/49：统一签名弹窗 i18n（批量纯 UI 页第 15 页）
+
+`SignPromptActivity` 中文字面量 **20 → 0**（纯代码构造 UI，无布局文件），新增 **12 个** `sp_*` 键，
+另**复用 6 个**既有键（`sf_sign` / `sf_signed` / `sf_sign_fail` / `sf_pick_fail` / `sf_chosen` /
+`common_cancel`），资源 2497 → 2509 条（中英各 2509，100%）。补 `import com.hex91.file.R;`。
+
+### 复用优先：不造第三份相同文案
+`SignFlowController` 那条签名流程（`sf_*`）早已翻过"签名""已签名 → %1$s""签名失败: %1$s"
+"无法打开文件选择器: %1$s""已选择"这几句；本页原本各留一份中文，照搬成 `sp_*` 就是同一句文案的
+第三份副本（`main_signed` 已经是第二份）。所以这 5 条连同"取消"（`common_cancel`）直接复用，
+`sp_*` 只留本页独有的 12 条：页头/副标题、两个签名入口按钮、"暂不签名"、密码卡片标题、
+信息行整句、密码框提示、空密码提示、签名中提示、选择器标题、APK 缺失提示。
+
+### UI 层要点
+- 两张卡片（主卡片 / 密码卡片）各有标题与副标题：`sp_title` / `sp_sub` / `sp_custom_title`。
+- 密码卡片信息行原来是 `+ "\n"` 拼三段，改为整句 `sp_ks_target`
+  （`"签名文件: %1$s\n目标: %2$s"`，整值加引号）；文件名取不到时的兜底"已选择"作第二参数传 `sf_chosen`。
+- 三处 Toast 走资源 id 重载 `Toast.makeText(ctx, int, dur)`；`done()` 里的二选一
+  （成功/失败）走 `getString(sf_sign_fail, err)` / `getString(sf_signed, name)`。
+- `showProgressCard("正在签名…")` 两处（内置签名 / 自有签名）统一 `sp_signing`。
+
+### 验证
+四门全过（依赖方向、空 catch 335 基线、文案 2509/2509 100%、动作码 55）。
+APK **13,423,312 B**（md5 `1f87df6f…`），badging 反证 versionCode 255 / 2.62.0；
+dex 反证 `sp_btn_builtin` / `sp_ks_target` / `sp_skip` 各 = 1，`resources.arsc` 内"修改版尚未签名" = 1。
+
+### 附：资源条数口径更正
+v2.58.0~v2.61.0 各段的资源条数是逐版递推出来的，比实测少 1 条（v2.61.0 出包日志实测 2497 条，
+文中写 2496）。本段起改用出包日志的实测值，往回不再改旧段落数字，仅在此留痕。
 
 ---
 
