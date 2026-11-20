@@ -238,9 +238,10 @@ public final class FileTaskEngine {
         if (srcs == null || srcs.isEmpty() || dstDir == null) return null;
         FileTask t;
         synchronized (lock) {
-            t = new FileTask(seq++, kind,
-                    (kind == FileTask.MOVE ? "移动 " : "复制 ") + srcs.size() + " 项",
-                    dstDir.getPath());
+                    t = new FileTask(seq++, kind,
+                            (kind == FileTask.MOVE ? FileTask.TITLE_MOVE : FileTask.TITLE_COPY)
+                                    + ":" + srcs.size(),
+                            dstDir.getPath());
             t.srcs = new ArrayList<File>(srcs);      // R-07：留一份给「重试」与账本
             t.dstDir = dstDir;
             // v2.15.0（F-19）：记下已拷完的文件路径，续传据此跳过；任务结束即置空

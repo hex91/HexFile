@@ -116,7 +116,7 @@ public class DirReaderTest {
         // ---------- 7) 计数与 adapter 的 loading 占位行互不干扰 ----------
         FileItem loading = FileItem.loading();
         ok(loading.loadingRow, "占位行标记生效");
-        eqs("读取中…", loading.name(), "占位行文案");
+        eqs(FileItem.CODE_LOADING, loading.name(), "占位行稳定码");
         ok(!loading.isDir(), "占位行不是目录（避免被当成 DIR 统计）");
 
         // ---------- 7) readSafe：失败也要有结果（O-02） ----------

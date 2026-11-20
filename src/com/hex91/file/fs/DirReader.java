@@ -22,6 +22,9 @@ import java.util.Set;
  */
 public final class DirReader {
 
+    /** Result.error 的未知错误码，文案由 ui/FsText 映射 */
+    public static final String ERROR_UNKNOWN = "UNKNOWN";
+
     private DirReader() {}
 
     /** 读取结果：条目（可能含顶部 ".."）+ 目录/文件计数（不含 ".."） */
@@ -75,7 +78,7 @@ public final class DirReader {
     }
 
     private static Result failed(Throwable t) {
-        String m = t == null ? "未知错误"
+        String m = t == null ? ERROR_UNKNOWN
                 : (t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName());
         return new Result(new ArrayList<FileItem>(), 0, 0, m);
     }

@@ -3203,4 +3203,24 @@
     <string name="radix_err_illegal_char">Illegal character: %1$s</string>
     <string name="radix_err_char_base">Character %1$s is not valid in base %2$d</string>
     <string name="radix_err_unknown">Conversion failed</string>
+    <!-- v2.103.0 fs status codes (FileClipboard / FileTask / FileItem / DiskScanUtil / DirReader) -->
+    <string name="fs_clip_empty">Clipboard empty</string>
+    <string name="fs_clip_copy">Copy %1$d item(s)</string>
+    <string name="fs_clip_move">Cut %1$d item(s)</string>
+    <string name="fs_task_copy">Copy %1$d item(s)</string>
+    <string name="fs_task_move">Move %1$d item(s)</string>
+    <string name="fs_state_queued">Queued</string>
+    <string name="fs_state_done">Done</string>
+    <string name="fs_state_partial">Partial failure</string>
+    <string name="fs_state_failed">Failed</string>
+    <string name="fs_state_cancelled">Cancelled</string>
+    <string name="fs_state_paused">Paused</string>
+    <string name="fs_item_loading">Loading…</string>
+    <string name="fs_item_up">Parent folder</string>
+    <string name="fs_item_dir">Folder</string>
+    <string name="fs_link_broken">(broken)</string>
+    <string name="fs_stage_collect">Collecting files…</string>
+    <string name="fs_stage_fingerprint">Quick fingerprint…</string>
+    <string name="fs_stage_verify">Full verification…</string>
+    <string name="fs_read_unknown">Unknown error</string>
 </resources>

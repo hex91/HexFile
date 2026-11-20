@@ -88,9 +88,14 @@ public final class FileClipboard {
         }
     }
 
-    /** 「复制 3 项」/「剪切 1 项」，按钮与提示共用 */
+    /** 稳定码：按钮与提示共用，资源文案由 ui/FsText 映射 */
+    public static final String LABEL_EMPTY = "EMPTY";
+    public static final String LABEL_COPY = "COPY";
+    public static final String LABEL_MOVE = "MOVE";
+
+    /** "COPY:3" / "MOVE:1" / "EMPTY"，逻辑层不产文案 */
     public synchronized String label() {
-        if (paths.isEmpty()) return "剪贴板为空";
-        return (move ? "剪切 " : "复制 ") + paths.size() + " 项";
+        if (paths.isEmpty()) return LABEL_EMPTY;
+        return (move ? LABEL_MOVE : LABEL_COPY) + ":" + paths.size();
     }
 }

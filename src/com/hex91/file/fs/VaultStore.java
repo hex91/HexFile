@@ -286,7 +286,7 @@ public final class VaultStore {
      * 放行 {@code ../} 就等于让一条索引记录把文件写到目录外去。</p>
      */
     public static String safeName(String name) {
-        if (name == null) return "未命名";
+        if (name == null) return "Untitled";
         StringBuilder sb = new StringBuilder(name.length());
         for (int i = 0; i < name.length(); i++) {
             char c = name.charAt(i);
@@ -295,7 +295,7 @@ public final class VaultStore {
             else sb.append(c);
         }
         String s = sb.toString().trim();
-        if (s.isEmpty() || s.equals(".") || s.equals("..")) return "未命名";
+        if (s.isEmpty() || s.equals(".") || s.equals("..")) return "Untitled";
         if (s.length() > 120) {
             s = s.substring(0, 120);
             if (Character.isHighSurrogate(s.charAt(s.length() - 1))) {

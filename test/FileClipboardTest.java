@@ -45,7 +45,7 @@ public class FileClipboardTest {
         ok(cb.isEmpty(), "初始：剪贴板为空");
         eq(0, cb.size(), "初始：size 为 0");
         ok(!cb.isMove(), "初始：不是剪切");
-        ok("剪贴板为空".equals(cb.label()), "初始：label 为「剪贴板为空」");
+        ok(FileClipboard.LABEL_EMPTY.equals(cb.label()), "初始：label 为 EMPTY 码");
 
         // ---------------------------------------------------------- 复制
         File a = file(new File(ROOT, "a.txt"), "aaa");
@@ -56,7 +56,7 @@ public class FileClipboardTest {
         cb.put(two, false);
         eq(2, cb.size(), "复制：size 为 2");
         ok(!cb.isMove(), "复制：不是剪切");
-        ok("复制 2 项".equals(cb.label()), "复制：label 为「复制 2 项」");
+        ok("COPY:2".equals(cb.label()), "复制：label 为 COPY:2 码");
         ok(cb.stamp() > 0, "复制：记录了时间戳");
 
         // 复制后可以连粘：clearIfMove 不该动它
@@ -70,7 +70,7 @@ public class FileClipboardTest {
         // ---------------------------------------------------------- 剪切
         cb.put(two, true);
         ok(cb.isMove(), "剪切：isMove 为 true");
-        ok("剪切 2 项".equals(cb.label()), "剪切：label 为「剪切 2 项」");
+        ok("MOVE:2".equals(cb.label()), "剪切：label 为 MOVE:2 码");
         cb.clearIfMove();
         ok(cb.isEmpty(), "剪切：粘贴后 clearIfMove 清空（一次性）");
         ok(!cb.isMove(), "剪切：清空后 move 标记复位");
@@ -95,7 +95,7 @@ public class FileClipboardTest {
         // ---------------------------------------------------------- prune 清掉过期项
         cb.prune();
         eq(1, cb.size(), "prune：过期项被剔除，数量同步");
-        ok("复制 1 项".equals(cb.label()), "prune：label 也随之更新");
+        ok("COPY:1".equals(cb.label()), "prune：label 数量同步更新");
 
         b.delete();
         a.delete();

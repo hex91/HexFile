@@ -71,7 +71,7 @@ public class TaskPauseTest {
         waitDone(fake, 20000);
         ok(t.state == FileTask.DONE, "状态：正常复制到 DONE");
         ok(!t.pausable() && !t.resumable() && !t.cancelable(), "状态：DONE 不可暂停/继续/取消");
-        ok("已完成".equals(t.stateText()), "状态：DONE 文案是「已完成」");
+        ok(FileTask.STATE_DONE.equals(t.stateText()), "状态：DONE 稳定码");
         // 「已暂停」这条状态只能靠真跑出来，下面几个用例覆盖；这里验常量不与既有取值冲突
         ok(FileTask.PAUSED != FileTask.DONE && FileTask.PAUSED != FileTask.CANCELLED
                         && FileTask.PAUSED != FileTask.RUNNING,

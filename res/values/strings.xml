@@ -3211,4 +3211,24 @@
     <string name="radix_err_illegal_char">非法字符：%1$s</string>
     <string name="radix_err_char_base">字符 %1$s 不属于 %2$d 进制</string>
     <string name="radix_err_unknown">转换失败</string>
+    <!-- v2.103.0 fs 状态码化（FileClipboard / FileTask / FileItem / DiskScanUtil / DirReader） -->
+    <string name="fs_clip_empty">剪贴板为空</string>
+    <string name="fs_clip_copy">复制 %1$d 项</string>
+    <string name="fs_clip_move">剪切 %1$d 项</string>
+    <string name="fs_task_copy">复制 %1$d 项</string>
+    <string name="fs_task_move">移动 %1$d 项</string>
+    <string name="fs_state_queued">排队中</string>
+    <string name="fs_state_done">已完成</string>
+    <string name="fs_state_partial">部分失败</string>
+    <string name="fs_state_failed">失败</string>
+    <string name="fs_state_cancelled">已取消</string>
+    <string name="fs_state_paused">已暂停</string>
+    <string name="fs_item_loading">读取中…</string>
+    <string name="fs_item_up">返回上级</string>
+    <string name="fs_item_dir">文件夹</string>
+    <string name="fs_link_broken">（失效）</string>
+    <string name="fs_stage_collect">收集文件…</string>
+    <string name="fs_stage_fingerprint">快速指纹…</string>
+    <string name="fs_stage_verify">全量校验…</string>
+    <string name="fs_read_unknown">未知错误</string>
 </resources>

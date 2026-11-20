@@ -120,7 +120,7 @@ public class FileGridAdapter extends BaseAdapter {
             icon.setTextColor(ThemeManager.textSub(ctx));
             icon.setBackground(roundBg(ThemeManager.surfaceAlt(ctx), 10f));
             frame.setBackground(null);
-            name.setText("读取中\u2026");
+            name.setText(FsText.itemName(ctx, it));
             name.setTextColor(ThemeManager.textSub(ctx));
             return v;
         }
@@ -197,9 +197,10 @@ public class FileGridAdapter extends BaseAdapter {
             name.setTextColor(ThemeManager.text(ctx));
         }
         // v1.81.0：符号链接在格子里加 → 尾巴（目标全文放列表模式看）
-        String linkSfx = it.linkSuffix();
+        String linkSfx = FsText.linkSuffix(ctx, it);
         if (linkSfx != null) {
-            android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(it.name());
+            android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(
+                    FsText.itemName(ctx, it));
             int st = sb.length();
             sb.append(it.linkBroken ? "  ⚠" : "  →");
             sb.setSpan(new android.text.style.ForegroundColorSpan(
@@ -207,7 +208,7 @@ public class FileGridAdapter extends BaseAdapter {
                     st, sb.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             name.setText(sb);
         } else {
-            name.setText(it.name());
+            name.setText(FsText.itemName(ctx, it));
         }
         return v;
     }

@@ -25,6 +25,18 @@ public final class FileTask {
     /** v2.15.0（F-19）：用户主动暂停，字节级续传点已记在任务里，等「继续」 */
     public static final int PAUSED = 6;
 
+    /** 任务标题稳定码（"COPY:3" / "MOVE:1"），文案由 ui/FsText 映射 */
+    public static final String TITLE_COPY = "COPY";
+    public static final String TITLE_MOVE = "MOVE";
+
+    /** 状态稳定码；RUNNING 特殊，直接给 "NN%"，无需资源 */
+    public static final String STATE_QUEUED = "QUEUED";
+    public static final String STATE_DONE = "DONE";
+    public static final String STATE_PARTIAL = "PARTIAL";
+    public static final String STATE_FAILED = "FAILED";
+    public static final String STATE_CANCELLED = "CANCELLED";
+    public static final String STATE_PAUSED = "PAUSED";
+
     public final int id;
     public final int kind;
     /** 显示用标题，如「复制 3 项」 */
@@ -155,13 +167,13 @@ public final class FileTask {
 
     public String stateText() {
         switch (state) {
-            case QUEUED: return "排队中";
+            case QUEUED: return STATE_QUEUED;
             case RUNNING: return percent() + "%";
-            case DONE: return "已完成";
-            case PARTIAL: return "部分失败";
-            case FAILED: return "失败";
-            case CANCELLED: return "已取消";
-            case PAUSED: return "已暂停";
+            case DONE: return STATE_DONE;
+            case PARTIAL: return STATE_PARTIAL;
+            case FAILED: return STATE_FAILED;
+            case CANCELLED: return STATE_CANCELLED;
+            case PAUSED: return STATE_PAUSED;
             default: return "";
         }
     }

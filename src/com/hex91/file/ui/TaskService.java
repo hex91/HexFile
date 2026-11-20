@@ -247,8 +247,9 @@ public class TaskService extends Service {
             }
             if (queued > 0) text.append(getResources()
                     .getQuantityString(R.plurals.task_noti_queued, queued, queued));
-            b.setContentTitle(run.title + "  " + pct + "%");
-            b.setContentText(text.length() == 0 ? run.title : text.toString());
+            String title = FsText.taskTitle(this, run);
+            b.setContentTitle(title + "  " + pct + "%");
+            b.setContentText(text.length() == 0 ? title : text.toString());
             // totalBytes 为 0（全是空文件/空目录）时用不确定进度，避免卡在 0%
             b.setProgress(100, pct, run.totalBytes <= 0 && run.totalFiles <= 0);
         } else {

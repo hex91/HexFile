@@ -1,5 +1,6 @@
 package com.hex91.file.controller;
 
+import com.hex91.file.ui.FsText;
 import com.hex91.file.utils.Bg;
 import com.hex91.file.fs.DirReader;
 import com.hex91.file.fs.FileItem;
@@ -168,7 +169,7 @@ public final class DirectoryController {
             p.dirCount = 0;
             p.fileCount = 0;
             host.updateHeader();
-            host.toast("读取失败: " + (r == null ? "未知错误" : r.error));
+            host.toast("读取失败: " + FsText.readError(host.ctx(), r == null ? null : r.error));
             return;
         }
         p.adapter.setResult(r);

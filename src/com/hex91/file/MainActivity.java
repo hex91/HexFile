@@ -77,6 +77,7 @@ import com.hex91.file.apk.SmaliTool;
 import com.hex91.file.apk.SplitInstaller;
 import com.hex91.file.apk.SplitPackage;
 import com.hex91.file.R;
+import com.hex91.file.ui.FsText;
 import com.hex91.file.fs.DiskScanUtil;
 import com.hex91.file.fs.FileClipboard;
 import com.hex91.file.fs.FileCrypt;
@@ -707,7 +708,7 @@ public class MainActivity extends BaseActivity {
         // v1.78.0：剪贴板非空时把粘贴放到显眼位置，并带上「复制 3 项」这样的摘要
         menu.add(Menu.NONE, 9, 0, FileClipboard.get().isEmpty()
                 ? s(R.string.main_paste_empty)
-                : s(R.string.main_paste_label, FileClipboard.get().label()));
+                : s(R.string.main_paste_label, FsText.clipboardLabel(this, FileClipboard.get())));
         menu.add(Menu.NONE, 8, 8, s(R.string.main_recent));
         // v1.87.0：云同步（WebDAV 双向）
         menu.add(Menu.NONE, 13, 9, s(R.string.main_cloud_sync));

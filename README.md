@@ -1785,6 +1785,31 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.103.0（versionCode 296）—— F-14/90：fs 状态与显示码化
+
+fs 是纯 Java 层，不碰 `Context/R`。本版把「会显示在界面上、但原来写在 fs 里的短文案」
+全部改成稳定码，新增 `ui/FsText` 统一映射到资源：
+
+- **剪贴板**：`FileClipboard.label()` → `EMPTY` / `COPY:3` / `MOVE:1`；主界面粘贴菜单走
+  `FsText.clipboardLabel()`。
+- **任务中心**：`FileTask.title` → `COPY:3` / `MOVE:3`，`stateText()` → `QUEUED / DONE /
+  PARTIAL / FAILED / CANCELLED / PAUSED`（RUNNING 仍是 `NN%`）。`TaskRows`、`TaskUiController`、
+  `TaskService` 统一走 `FsText.taskTitle()/stateText()`，不再直接显示码串。
+- **文件列表**：`FileItem.name()/detail()/linkSuffix()` 的加载行、返回上级、文件夹、悬空链接标记
+  改为 `LOADING / UP / DIR / [BROKEN]`；`FileAdapter`、`FileGridAdapter` 走 `FsText`。
+  格子页原来写死中文的加载占位也一并改资源。
+- **读目录 / 重复查找**：`DirReader.ERROR_UNKNOWN` 与 `DiskScanUtil.STAGE_COLLECT /
+  STAGE_FINGERPRINT / STAGE_VERIFY` 改为 ASCII 码；`DirectoryController` 走 `FsText.readError()`。
+- **保险库默认名**：`VaultStore.safeName()` 的空名字回落改为数据值 `Untitled`（与英文数据口径一致），
+  测试断言同步。
+
+剩余 fs 中文均在异常串里（FileSplit / FileTaskEngine / TreeOps / ZstdUtil 等），下一版统一码化。
+
+新增 FsText + 19 个 `fs_*` 键，资源 3010 → 3029（100%）。四门全过、全量 97/0/4；
+APK 13,505,232 B（md5 `1f257d33…`），badging 296/2.103.0。
+
+---
+
 ## v2.102.0（versionCode 295）—— F-14/89：core 层异常去中文（第一批）
 
 core 是依赖最底层，不能引用 R。按「异常一律不含用户文案」纪律清理：

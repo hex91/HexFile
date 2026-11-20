@@ -45,7 +45,7 @@ final class TaskRows {
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
         TextView name = new TextView(c);
-        name.setText(t.title);
+        name.setText(FsText.taskTitle(c, t));
         name.setTextSize(13f);
         name.setTextColor(ThemeManager.text(c));
         name.setSingleLine(true);
@@ -53,7 +53,7 @@ final class TaskRows {
         top.addView(name, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         TextView state = new TextView(c);
-        state.setText(t.stateText());
+        state.setText(FsText.stateText(c, t));
         state.setTextSize(11.5f);
         boolean bad = t.finished() && t.state != FileTask.DONE;
         state.setTextColor(bad ? ThemeManager.err(c) : ThemeManager.accent(c));

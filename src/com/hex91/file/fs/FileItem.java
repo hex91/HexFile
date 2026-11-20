@@ -29,6 +29,12 @@ public class FileItem implements Serializable {
      */
     public boolean loadingRow;
 
+    /** 稳定码：占位行文件名 / 详情标签 / 链接坏标，文案由 ui/FsText 映射 */
+    public static final String CODE_LOADING = "LOADING";
+    public static final String DETAIL_UP = "UP";
+    public static final String DETAIL_DIR = "DIR";
+    public static final String LINK_BROKEN = "[BROKEN]";
+
     /** 是否符号链接 */
     public boolean isLink() { return linkTarget != null; }
 
@@ -36,7 +42,7 @@ public class FileItem implements Serializable {
     public String linkSuffix() {
         if (linkTarget == null || upEntry || isArchEntry()) return null;
         if (linkTarget.isEmpty()) return " → ?";
-        return " → " + linkTarget + (linkBroken ? "  (失效)" : "");
+        return " → " + linkTarget + (linkBroken ? "  " + LINK_BROKEN : "");
     }
 
     // ---------- 压缩包条目模式（archFull 非空时生效，v1.14） ----------
@@ -82,7 +88,7 @@ public class FileItem implements Serializable {
     }
 
     public String name() {
-        if (loadingRow) return "读取中…";
+        if (loadingRow) return CODE_LOADING;
         if (upEntry) return "..";
         if (isArchEntry()) return archShort;
         return file.getName().isEmpty() ? file.getPath() : file.getName();
@@ -201,9 +207,9 @@ public class FileItem implements Serializable {
 
     /** 副行：MT 式「yy-MM-dd HH:mm  大小」（文件夹只有时间） */
     public String detail() {
-        if (upEntry) return "返回上级";
-        if (isArchUp()) return "返回上级";
-        if (isArchEntry()) return archDir ? "文件夹" : FileOps.formatSize(archSize);
+        if (upEntry) return DETAIL_UP;
+        if (isArchUp()) return DETAIL_UP;
+        if (isArchEntry()) return archDir ? DETAIL_DIR : FileOps.formatSize(archSize);
         // v1.44.1：root 区 File API 拿不到 mtime/length（全 0）→ 用 su stat 缓存值
         if (file.lastModified() <= 0) {
             FileAttrs.Attr a = FileAttrs.get(file);

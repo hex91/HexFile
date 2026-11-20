@@ -360,13 +360,13 @@ public class FileAdapter extends BaseAdapter {
      * 链接后缀用小一号的次要色，悬空链接用错误色，和文件名区分开但又不抢主信息。
      */
     private CharSequence styledName(FileItem it, boolean sel) {
-        String suffix = it.linkSuffix();
-        if (suffix == null) return (sel ? "✓ " : "") + it.name();
+        String suffix = FsText.linkSuffix(ctx, it);
+        if (suffix == null) return (sel ? "✓ " : "") + FsText.itemName(ctx, it);
         // 超长目标截断，避免把文件名挤出屏幕（TextView 是单行尾部省略）
         if (suffix.length() > 48) suffix = suffix.substring(0, 46) + "…";
         android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder();
         if (sel) sb.append("✓ ");
-        sb.append(it.name());
+        sb.append(FsText.itemName(ctx, it));
         int st = sb.length();
         sb.append(suffix);
         int color = it.linkBroken ? ThemeManager.err(ctx) : ThemeManager.textSub(ctx);
@@ -420,7 +420,7 @@ public class FileAdapter extends BaseAdapter {
 
     /** v1.43.0：详情行 = 权限串（rw-r--r--，如有）+ 原详情；未缓存则异步取后整表刷新 */
     private String detailWithPerm(FileItem it) {
-        String base = it.detail();
+        String base = FsText.itemDetail(ctx, it);
         if (it.isArchEntry() || it.upEntry || it.file == null) return base;
         FileAttrs.Attr a = FileAttrs.get(it.file);
         if (a != null) return a.perm + "  " + base;

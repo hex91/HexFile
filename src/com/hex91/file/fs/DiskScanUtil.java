@@ -267,7 +267,12 @@ public final class DiskScanUtil {
         public final List<File> files = new ArrayList<File>();
     }
 
-    public interface Progress { void onStage(String stage); void onFile(int done, int total); }
+    /** 重复文件查找的阶段码，回调给 UI 由 ui/FsText 映射文案 */
+    public static final int STAGE_COLLECT = 1;
+    public static final int STAGE_FINGERPRINT = 2;
+    public static final int STAGE_VERIFY = 3;
+
+    public interface Progress { void onStage(int stage); void onFile(int done, int total); }
 
     /**
      * 在 root 下递归找重复文件。minSize 以下跳过（哈希开销不划算）。
@@ -276,7 +281,7 @@ public final class DiskScanUtil {
     public static List<DupGroup> findDuplicates(File root, long minSize, Progress cb)
             throws IOException {
         // 阶段 1：按大小分组
-        if (cb != null) cb.onStage("收集文件…");
+        if (cb != null) cb.onStage(STAGE_COLLECT);
         List<File> all = new ArrayList<File>();
         collectFiles(root, all);
         Map<Long, List<File>> bySize = new HashMap<Long, List<File>>();
@@ -288,7 +293,7 @@ public final class DiskScanUtil {
             g.add(f);
         }
         // 阶段 2：同大小的取头 4KB 哈希再分
-        if (cb != null) cb.onStage("快速指纹…");
+        if (cb != null) cb.onStage(STAGE_FINGERPRINT);
         List<File> candidates = new ArrayList<File>();
         for (List<File> g : bySize.values()) if (g.size() > 1) candidates.addAll(g);
         Map<Long, List<File>> cand = new HashMap<Long, List<File>>();
@@ -315,7 +320,7 @@ public final class DiskScanUtil {
             }
         }
         // 阶段 3：候选组全量 MD5 确认
-        if (cb != null) cb.onStage("全量校验…");
+        if (cb != null) cb.onStage(STAGE_VERIFY);
         List<DupGroup> out = new ArrayList<DupGroup>();
         int total2 = 0;
         for (List<File> g : headMap.values()) total2 += g.size();

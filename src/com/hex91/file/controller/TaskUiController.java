@@ -3,6 +3,7 @@ package com.hex91.file.controller;
 import com.hex91.file.utils.TaskJournal;
 import com.hex91.file.utils.TaskStore;
 import com.hex91.file.R;
+import com.hex91.file.ui.FsText;
 import com.hex91.file.ui.HfDialogBuilder;
 import com.hex91.file.ui.TaskService;
 import com.hex91.file.ui.UiDecor;
@@ -194,8 +195,10 @@ public final class TaskUiController {
             taskProgress.setProgress(pct);
             int more = active - 1;
             taskText.setText(more > 0
-                    ? host.ctx().getString(R.string.task_bar_paused_more, paused.title, pct, more)
-                    : host.ctx().getString(R.string.task_bar_paused, paused.title, pct));
+                    ? host.ctx().getString(R.string.task_bar_paused_more,
+                            FsText.taskTitle(host.ctx(), paused), pct, more)
+                    : host.ctx().getString(R.string.task_bar_paused,
+                            FsText.taskTitle(host.ctx(), paused), pct));
             taskAction.setText(host.ctx().getString(R.string.task_resume));
             taskAction.setEnabled(true);
             taskAction.setAlpha(1f);
@@ -207,12 +210,13 @@ public final class TaskUiController {
             if (running.cancelRequested) {
                 // 取消标志每 128KB 才检查一次，写大块数据时还会晚几百毫秒；
                 // 这段时间必须给出反馈，否则按钮看起来「点了没反应」，用户会连点。
-                taskText.setText("正在取消 " + running.title + "…");
+                taskText.setText("正在取消 " + FsText.taskTitle(host.ctx(), running) + "…");
                 taskAction.setText("取消中");
                 taskAction.setEnabled(false);
                 taskAction.setAlpha(0.45f);
             } else {
-                StringBuilder sb = new StringBuilder("正在").append(running.title)
+                StringBuilder sb = new StringBuilder("正在")
+                        .append(FsText.taskTitle(host.ctx(), running))
                         .append(" · ").append(pct).append('%');
                 long sp = running.speed(System.currentTimeMillis());
                 if (sp > 0) sb.append(" · ").append(FileOps.formatSize(sp)).append("/s");
@@ -243,17 +247,18 @@ public final class TaskUiController {
     }
 
     private String resultLine(FileTask t) {
+        String title = FsText.taskTitle(host.ctx(), t);
         switch (t.state) {
             case FileTask.DONE:
-                return "✓ " + t.title + "完成 · " + FileOps.formatSize(t.totalBytes);
+                return "✓ " + title + "完成 · " + FileOps.formatSize(t.totalBytes);
             case FileTask.PARTIAL:
-                return "⚠ " + t.title + "，失败 " + t.failedFiles + " 项";
+                return "⚠ " + title + "，失败 " + t.failedFiles + " 项";
             case FileTask.FAILED:
-                return "✗ " + t.title + "失败";
+                return "✗ " + title + "失败";
             case FileTask.CANCELLED:
-                return "已取消 " + t.title;
+                return "已取消 " + title;
             default:
-                return t.title;
+                return title;
         }
     }
 

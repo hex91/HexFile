@@ -371,8 +371,8 @@ public class VaultTest {
             // safeName
             eq(".._.._etc_passwd", VaultStore.safeName("../../etc/passwd"),
                     "存储: 名字里的路径分隔符被替换");
-            eq("未命名", VaultStore.safeName(".."), "存储: \"..\" 视作空名字");
-            eq("未命名", VaultStore.safeName("   "), "存储: 纯空白视作空名字");
+            eq("Untitled", VaultStore.safeName(".."), "存储: \"..\" 视作空名字");
+            eq("Untitled", VaultStore.safeName("   "), "存储: 纯空白视作空名字");
             eq("ab", VaultStore.safeName("a\u0001b"), "存储: 控制字符被剔掉");
 
             // 游离密文：手工塞一个索引里没有的 id
