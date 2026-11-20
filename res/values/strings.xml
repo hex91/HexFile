@@ -2210,4 +2210,49 @@
     <string name="sm_struct_head_fail">读取头部失败: %1$s</string>
     <string name="sm_struct_head_incomplete">头部读取不完整</string>
     <string name="sm_struct_map_fail">读取 map_list 失败: %1$s</string>
+
+    <!-- v2.46.0 回收站页 i18n（trash_*）：Title/清空/空状态/策略/条目操作/报告 -->
+    <string name="trash_title">回收站（可恢复）</string>
+    <string name="trash_policy_btn">⚙ 保留策略</string>
+    <string name="trash_clear_ok">清空</string>
+    <string name="trash_empty">回收站为空</string>
+    <string name="trash_toast_empty">回收站已为空</string>
+    <string name="trash_clear_title">清空回收站</string>
+    <string name="trash_clear_msg">将彻底删除全部 %1$d 项，无法恢复！</string>
+    <string name="trash_cleared">已清空</string>
+    <string name="trash_clear_fail">清空失败</string>
+    <string name="trash_title_count">回收站 · %1$d 项</string>
+    <string name="trash_title_size">回收站 · %1$d 项 · %2$s</string>
+    <string name="trash_policy_off">自动清理：关闭（点右上角「⚙ 保留策略」设置）</string>
+    <string name="trash_policy_on">自动清理：开启</string>
+    <string name="trash_policy_days">" · 保留 %1$d 天"</string>
+    <string name="trash_policy_no_days">" · 不限天数"</string>
+    <string name="trash_policy_limit">" · 上限 %1$d MB"</string>
+    <string name="trash_policy_no_limit">" · 不限容量"</string>
+    <string name="trash_policy_hint">\n（点右上角「⚙ 保留策略」修改）</string>
+    <string name="trash_info_path">原路径: %1$s</string>
+    <string name="trash_info_time">\n删除时间: %1$s</string>
+    <string name="trash_info_type">\n类型: %1$s</string>
+    <string name="trash_folder">文件夹</string>
+    <string name="trash_file">文件</string>
+    <string name="trash_restore">恢复</string>
+    <string name="trash_restored">已恢复到原路径</string>
+    <string name="trash_restore_fail">恢复失败</string>
+    <string name="trash_purge">彻底删除</string>
+    <string name="trash_purged">已彻底删除</string>
+    <string name="trash_purge_fail">删除失败</string>
+    <string name="trash_folder_tag">[文件夹]</string>
+    <string name="trash_dir">目录</string>
+    <string name="trash_detail">"%1$s  ·  %2$s  ·  %3$s"</string>
+    <string name="trash_enable">启用自动清理</string>
+    <string name="trash_enable_hint">超过保留天数或容量上限时，自动彻底删除最旧的条目。目录占用按递归计算。</string>
+    <string name="trash_days_hint">保留天数（0 = 不限）</string>
+    <string name="trash_limit_hint">容量上限 MB（0 = 不限）</string>
+    <string name="trash_policy_title">回收站保留策略</string>
+    <string name="trash_save_apply">保存并清理</string>
+    <string name="trash_save_fail">策略保存失败</string>
+    <string name="trash_summary_off">自动清理已关闭</string>
+    <string name="trash_summary_on">已开启</string>
+    <string name="trash_clean_none">无需清理</string>
+    <string name="trash_cleaned">已清理 %1$d 项，释放 %2$s</string>
 </resources>

@@ -31,16 +31,26 @@ public final class TrashPolicy {
     public int maxDays = DEFAULT_DAYS;
     public long maxBytes = DEFAULT_BYTES;
 
-    /** 一次清理的结果 */
+    /**
+     * 一次清理的结果。
+     *
+     * <p>summary() 返回稳定 ASCII 码（不是文案），由 ui/TrashReport 翻译成界面文本；
+     * 逻辑层不产文案，桌面单测也不依赖具体语言。三态：
+     * {@code SKIPPED}（策略关闭）/ {@code NONE}（无需清理）/ {@code CLEANED:<removed>:<freedBytes>}。</p>
+     */
     public static class Report {
+        public static final String CODE_SKIPPED = "SKIPPED";
+        public static final String CODE_NONE = "NONE";
+        public static final String CODE_CLEANED = "CLEANED";
+
         public int removed;
         public long freed;
         public boolean skipped;
 
         public String summary() {
-            if (skipped) return "自动清理已关闭";
-            if (removed == 0) return "无需清理";
-            return "已清理 " + removed + " 项，释放 " + FileOps.formatSize(freed);
+            if (skipped) return CODE_SKIPPED;
+            if (removed == 0) return CODE_NONE;
+            return CODE_CLEANED + ":" + removed + ":" + freed;
         }
     }
 

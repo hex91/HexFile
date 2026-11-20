@@ -1,8 +1,10 @@
 package com.hex91.file.ui;
 
+import com.hex91.file.R;
 import com.hex91.file.fs.Trash;
 import com.hex91.file.fs.TrashPolicy;
 import android.app.Activity;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.widget.CheckBox;
 import android.widget.EditText;
@@ -33,20 +35,20 @@ final class TrashPolicyDialog {
         box.setPadding(pad, 8, pad, 0);
 
         final CheckBox cb = new CheckBox(a);
-        cb.setText("启用自动清理");
+        cb.setText(a.getString(R.string.trash_enable));
         cb.setTextSize(14);
         cb.setChecked(p.enabled);
         box.addView(cb);
 
         TextView hint = new TextView(a);
-        hint.setText("超过保留天数或容量上限时，自动彻底删除最旧的条目。目录占用按递归计算。");
+        hint.setText(a.getString(R.string.trash_enable_hint));
         hint.setTextSize(11);
         hint.setTextColor(ThemeManager.textSub(a));
         hint.setPadding(0, 2, 0, 8);
         box.addView(hint);
 
         final EditText etDays = new EditText(a);
-        etDays.setHint("保留天数（0 = 不限）");
+        etDays.setHint(a.getString(R.string.trash_days_hint));
         etDays.setTextSize(14);
         etDays.setSingleLine(true);
         etDays.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
@@ -54,7 +56,7 @@ final class TrashPolicyDialog {
         box.addView(etDays);
 
         final EditText etMb = new EditText(a);
-        etMb.setHint("容量上限 MB（0 = 不限）");
+        etMb.setHint(a.getString(R.string.trash_limit_hint));
         etMb.setTextSize(14);
         etMb.setSingleLine(true);
         etMb.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
@@ -62,9 +64,9 @@ final class TrashPolicyDialog {
         box.addView(etMb);
 
         new HfDialogBuilder(a)
-                .setTitle("回收站保留策略")
+                .setTitle(a.getString(R.string.trash_policy_title))
                 .setView(box)
-                .setPositiveButton("保存并清理", new DialogInterface.OnClickListener() {
+                .setPositiveButton(a.getString(R.string.trash_save_apply), new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int w) {
                         p.enabled = cb.isChecked();
                         p.maxDays = parseInt(etDays.getText().toString(), TrashPolicy.DEFAULT_DAYS);
@@ -72,27 +74,27 @@ final class TrashPolicyDialog {
                                 (int) (TrashPolicy.DEFAULT_BYTES / (1024 * 1024)));
                         p.maxBytes = mb <= 0 ? 0 : mb * 1024L * 1024L;
                         if (!p.save(Trash.dir())) {
-                            Toast.makeText(a, "策略保存失败", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(a, a.getString(R.string.trash_save_fail), Toast.LENGTH_SHORT).show();
                             return;
                         }
                         TrashPolicy.Report rep = p.apply(Trash.dir(), System.currentTimeMillis());
-                        Toast.makeText(a, rep.summary(), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(a, TrashReport.clean(a, rep), Toast.LENGTH_SHORT).show();
                         if (onChanged != null) onChanged.run();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(a.getString(R.string.common_cancel), null)
                 .show();
     }
 
     /** 策略的当前规则，一行摘要（设置页副标题用） */
-    static String summary() {
+    static String summary(Context c) {
         TrashPolicy p = TrashPolicy.load(Trash.dir());
-        if (!p.enabled) return "自动清理已关闭";
-        StringBuilder sb = new StringBuilder("已开启");
-        sb.append(p.maxDays > 0 ? " · 保留 " + p.maxDays + " 天" : " · 不限天数");
+        if (!p.enabled) return c.getString(R.string.trash_summary_off);
+        StringBuilder sb = new StringBuilder(c.getString(R.string.trash_summary_on));
+        sb.append(p.maxDays > 0 ? c.getString(R.string.trash_policy_days, p.maxDays) : c.getString(R.string.trash_policy_no_days));
         sb.append(p.maxBytes > 0
-                ? " · 上限 " + (p.maxBytes / (1024 * 1024)) + " MB"
-                : " · 不限容量");
+                ? c.getString(R.string.trash_policy_limit, p.maxBytes / (1024 * 1024))
+                : c.getString(R.string.trash_policy_no_limit));
         return sb.toString();
     }
 

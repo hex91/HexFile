@@ -2202,4 +2202,49 @@
     <string name="sm_struct_head_fail">Failed to read header: %1$s</string>
     <string name="sm_struct_head_incomplete">Header read incomplete</string>
     <string name="sm_struct_map_fail">Failed to read map_list: %1$s</string>
+
+    <!-- v2.46.0 Trash page i18n (trash_*) -->
+    <string name="trash_title">Recycle Bin (Recoverable)</string>
+    <string name="trash_policy_btn">⚙ Retention Policy</string>
+    <string name="trash_clear_ok">Empty</string>
+    <string name="trash_empty">Recycle bin is empty</string>
+    <string name="trash_toast_empty">Recycle bin is already empty</string>
+    <string name="trash_clear_title">Empty Recycle Bin</string>
+    <string name="trash_clear_msg">This will permanently delete all %1$d items. This cannot be undone!</string>
+    <string name="trash_cleared">Emptied</string>
+    <string name="trash_clear_fail">Failed to empty</string>
+    <string name="trash_title_count">Recycle Bin · %1$d items</string>
+    <string name="trash_title_size">Recycle Bin · %1$d items · %2$s</string>
+    <string name="trash_policy_off">Auto-clean: off (tap ⚙ Retention Policy at top right to set up)</string>
+    <string name="trash_policy_on">Auto-clean: on</string>
+    <string name="trash_policy_days">" · keep %1$d days"</string>
+    <string name="trash_policy_no_days">" · no day limit"</string>
+    <string name="trash_policy_limit">" · max %1$d MB"</string>
+    <string name="trash_policy_no_limit">" · no size limit"</string>
+    <string name="trash_policy_hint">\n(tap ⚙ Retention Policy at top right to change)</string>
+    <string name="trash_info_path">Original path: %1$s</string>
+    <string name="trash_info_time">\nDeleted at: %1$s</string>
+    <string name="trash_info_type">\nType: %1$s</string>
+    <string name="trash_folder">Folder</string>
+    <string name="trash_file">File</string>
+    <string name="trash_restore">Restore</string>
+    <string name="trash_restored">Restored to original path</string>
+    <string name="trash_restore_fail">Restore failed</string>
+    <string name="trash_purge">Delete permanently</string>
+    <string name="trash_purged">Permanently deleted</string>
+    <string name="trash_purge_fail">Delete failed</string>
+    <string name="trash_folder_tag">[Folder]</string>
+    <string name="trash_dir">Folder</string>
+    <string name="trash_detail">"%1$s  ·  %2$s  ·  %3$s"</string>
+    <string name="trash_enable">Enable auto-clean</string>
+    <string name="trash_enable_hint">When the day or size limit is exceeded, the oldest items are permanently deleted. Folder sizes are calculated recursively.</string>
+    <string name="trash_days_hint">Retention days (0 = unlimited)</string>
+    <string name="trash_limit_hint">Size limit MB (0 = unlimited)</string>
+    <string name="trash_policy_title">Recycle Bin Retention Policy</string>
+    <string name="trash_save_apply">Save and clean</string>
+    <string name="trash_save_fail">Failed to save policy</string>
+    <string name="trash_summary_off">Auto-clean is off</string>
+    <string name="trash_summary_on">On</string>
+    <string name="trash_clean_none">Nothing to clean</string>
+    <string name="trash_cleaned">Cleaned %1$d items, freed %2$s</string>
 </resources>

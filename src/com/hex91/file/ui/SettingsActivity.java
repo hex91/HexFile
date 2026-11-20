@@ -247,7 +247,7 @@ public class SettingsActivity extends BaseActivity {
 
         // ---- 回收站 ----
         LinearLayout trash = section(getString(R.string.settings_section_trash));
-        row(trash, getString(R.string.settings_trash_policy), TrashPolicyDialog.summary(), "", new View.OnClickListener() {
+        row(trash, getString(R.string.settings_trash_policy), TrashPolicyDialog.summary(this), "", new View.OnClickListener() {
             public void onClick(View v) {
                 TrashPolicyDialog.show(SettingsActivity.this, new Runnable() {
                     public void run() { build(); }

@@ -1785,6 +1785,44 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.46.0（versionCode 239）—— F-14/33：回收站页 i18n（保留策略报告码化）
+
+回收站管理 + 保留策略弹窗：`TrashActivity` 中文字面量 **33 → 0**、
+`TrashPolicyDialog` **12 → 0**，外加 `TrashPolicy.Report.summary()` 逻辑层产中文一并码化，
+布局 `activity_trash.xml` 4 处 `android:text` 改 `@string`。新增 `ui/TrashReport` 文本层
+共 43 个 `trash_*` 键，资源 2099 → 2142 条（中英各 2142，100% 对齐）。
+
+### 逻辑层报告码化（同 v2.45 SmaliTool 套路）
+- `TrashPolicy.Report.summary()` 三态改稳定 ASCII 码：`SKIPPED`（策略关闭）/
+  `NONE`（无需清理）/ `CLEANED:<removed>:<freedBytes>`。移走 `FileOps.formatSize` 调用——
+  逻辑层不产文案、不碰界面格式化；`TrashPolicyTest` 只断言 `removed/freed/skipped` 字段，
+  **测试一行未改**。
+- 新增 `ui/TrashReport.clean(Context, Report)`：`CLEANED` 码拆三段、`formatSize` 翻译，
+  未识别串原样透传。两个消费点接上：策略弹窗保存 Toast（`TrashPolicyDialog`）、
+  后台自动清理日志（`TrashJanitor` 打的是码串，开发者日志无需汉化）。
+- 注意 `TrashJanitor`/`MainActivity`/`SyncActivity` 里的其它 `r.summary()` 是
+  `IntentImport.Result` / `SyncPlan` 等**别的类**，不在本页范围。
+
+### UI 层资源化要点
+- `TrashActivity` 加私有 `s(id)` / `s(id, args)` 包一层 `getString`；全部在实例方法或
+  匿名内部类里调用，直接解析到外部类实例（无需 `Activity.this`，与 v2.45 的 Runnable 陷阱不同）。
+- `TrashPolicyDialog` 未继承 Activity：文案用 `a.getString(...)`；`summary()` 加 `Context`
+  参数，调用点 `SettingsActivity` 传 `this`。共用本页的 `trash_policy_days/limit` 等片段键
+  （空状态与设置页副标题两种前缀文案各留一键）。
+- **前导/连续空格**键整值加引号：`trash_policy_days` = `" · 保留 %1$d 天"`、
+  `trash_detail` = `"%1$s  ·  %2$s  ·  %3$s"`；`\n` 用转义；英文无裸单引号。
+
+### 复用键
+`common_cancel`（取消）。`trash_purge`「彻底删除」与 `common_delete`「删除」语义不同，单列。
+
+### 验证
+四门全过（空 catch 保持 335 基线：首轮 `TrashReport` 的空 catch 补 `return code;` 回落），
+全量测试 **97 通过 / 0 失败 / 4 跳过**，编译干净（`jc.sh` rc=0）。APK
+**13,374,160 B**（md5 `cdd82a38…`），badging 反证 versionCode 239 / 2.46.0；
+dex 反证 `TrashReport`=2、`CODE_CLEANED`=1、`trash_cleaned`=1。提交 `—`。
+
+---
+
 ## v2.45.0（versionCode 238）—— F-14/32：Dex/smali 工具 i18n（返回码行 + UI 翻译）
 
 `SmaliTool` 41 处中文字面量清零（**41 → 0**）。这一页是四页里性质最特殊的：它是纯 apk

@@ -55,17 +55,17 @@ public class TrashActivity extends BaseActivity {
         UiDecor.barButtonOnBar((android.widget.Button) findViewById(R.id.btn_clear),
                 this, UiDecor.KIND_DANGER, 11.5f);
         findViewById(R.id.btn_clear).setOnClickListener(new View.OnClickListener() {            public void onClick(View v) {
-                if (data.isEmpty()) { toast("回收站已为空"); return; }
+                if (data.isEmpty()) { toast(s(R.string.trash_toast_empty)); return; }
                 new HfDialogBuilder(TrashActivity.this)
-                        .setTitle("清空回收站")
-                        .setMessage("将彻底删除全部 " + data.size() + " 项，无法恢复！")
-                        .setPositiveButton("清空", new android.content.DialogInterface.OnClickListener() {
+                        .setTitle(s(R.string.trash_clear_title))
+                        .setMessage(s(R.string.trash_clear_msg, data.size()))
+                        .setPositiveButton(s(R.string.trash_clear_ok), new android.content.DialogInterface.OnClickListener() {
                             public void onClick(android.content.DialogInterface d, int w) {
-                                toast(Trash.clearAll() ? "已清空" : "清空失败");
+                                toast(s(Trash.clearAll() ? R.string.trash_cleared : R.string.trash_clear_fail));
                                 reload();
                             }
                         })
-                        .setNegativeButton("取消", null)
+                        .setNegativeButton(s(R.string.common_cancel), null)
                         .show();
             }
         });
@@ -78,21 +78,21 @@ public class TrashActivity extends BaseActivity {
         data.addAll(Trash.list());
         adapter.notifyDataSetChanged();
         empty.setVisibility(data.isEmpty() ? View.VISIBLE : View.GONE);
-        if (data.isEmpty()) empty.setText("回收站为空\n\n" + policyLine());
-        title.setText("回收站 · " + data.size() + " 项");
+        if (data.isEmpty()) empty.setText(s(R.string.trash_empty) + "\n\n" + policyLine());
+        title.setText(s(R.string.trash_title_count, data.size()));
         updateTotalSize();
     }
 
     /** v1.82.1：空状态直接摊开当前规则，避免「功能做了但找不到」 */
     private String policyLine() {
         TrashPolicy p = TrashPolicy.load(Trash.dir());
-        if (!p.enabled) return "自动清理：关闭（点右上角「⚙ 保留策略」设置）";
-        StringBuilder sb = new StringBuilder("自动清理：开启");
-        sb.append(p.maxDays > 0 ? " · 保留 " + p.maxDays + " 天" : " · 不限天数");
+        if (!p.enabled) return s(R.string.trash_policy_off);
+        StringBuilder sb = new StringBuilder(s(R.string.trash_policy_on));
+        sb.append(p.maxDays > 0 ? s(R.string.trash_policy_days, p.maxDays) : s(R.string.trash_policy_no_days));
         sb.append(p.maxBytes > 0
-                ? " · 上限 " + (p.maxBytes / (1024 * 1024)) + " MB"
-                : " · 不限容量");
-        return sb.append("\n（点右上角「⚙ 保留策略」修改）").toString();
+                ? s(R.string.trash_policy_limit, p.maxBytes / (1024 * 1024))
+                : s(R.string.trash_policy_no_limit));
+        return sb.append(s(R.string.trash_policy_hint)).toString();
     }
 
     /** 目录条目的占用要递归算，放后台，避免回收站里有个大文件夹时进页面卡一下 */
@@ -102,7 +102,7 @@ public class TrashActivity extends BaseActivity {
             public void run() {
                 long total = 0;
                 for (Trash.Entry e : snap) total += Trash.sizeOf(e.store);
-                final String text = "回收站 · " + snap.size() + " 项 · " + FileOps.formatSize(total);
+                final String text = s(R.string.trash_title_size, snap.size(), FileOps.formatSize(total));
                 runOnUiThread(new Runnable() {
                     public void run() { title.setText(text); }
                 });
@@ -118,31 +118,34 @@ public class TrashActivity extends BaseActivity {
     }
 
     private void showEntryOps(final Trash.Entry e) {
-        String msg = "原路径: " + e.origPath
-                + "\n删除时间: " + FileOps.formatTime(e.time)
-                + "\n类型: " + (e.isDir ? "文件夹" : "文件");
+        String msg = s(R.string.trash_info_path, e.origPath)
+                + s(R.string.trash_info_time, FileOps.formatTime(e.time))
+                + s(R.string.trash_info_type, s(e.isDir ? R.string.trash_folder : R.string.trash_file));
         new HfDialogBuilder(this)
                 .setTitle(e.name)
                 .setMessage(msg)
-                .setPositiveButton("恢复", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(s(R.string.trash_restore), new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
-                        toast(Trash.restore(e) ? "已恢复到原路径" : "恢复失败");
+                        toast(s(Trash.restore(e) ? R.string.trash_restored : R.string.trash_restore_fail));
                         reload();
                     }
                 })
-                .setNeutralButton("彻底删除", new android.content.DialogInterface.OnClickListener() {
+                .setNeutralButton(s(R.string.trash_purge), new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
-                        toast(Trash.purge(e) ? "已彻底删除" : "删除失败");
+                        toast(s(Trash.purge(e) ? R.string.trash_purged : R.string.trash_purge_fail));
                         reload();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(s(R.string.common_cancel), null)
                 .show();
     }
 
     private void toast(String s) {
         Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
     }
+
+    private String s(int id) { return getString(id); }
+    private String s(int id, Object... args) { return getString(id, args); }
 
     private class TrashAdapter extends BaseAdapter {
 
@@ -158,13 +161,14 @@ public class TrashActivity extends BaseActivity {
             Trash.Entry e = data.get(i);
             TextView name = (TextView) convert.findViewById(R.id.name);
             TextView detail = (TextView) convert.findViewById(R.id.detail);
-            name.setText((e.isDir ? "[文件夹] " : "") + e.name);
+            name.setText((e.isDir ? s(R.string.trash_folder_tag) + " " : "") + e.name);
             File store = e.store;
             long size = 0;
             if (store != null && store.isFile()) size = store.length();
-            detail.setText(FileOps.formatTime(e.time) + "  ·  "
-                    + (e.isDir ? "目录" : FileOps.formatSize(size))
-                    + "  ·  " + e.origPath);
+            detail.setText(s(R.string.trash_detail,
+                    FileOps.formatTime(e.time),
+                    e.isDir ? s(R.string.trash_dir) : FileOps.formatSize(size),
+                    e.origPath));
             return convert;
         }
     }
