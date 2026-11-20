@@ -56,7 +56,7 @@ public final class FtpFs implements NetFs {
         int code = fs.send("USER " + u);
         if (code == 331) code = fs.send("PASS " + p);
         if (code != 230 && code != 202)
-            throw new IOException("FTP 登录失败: " + fs.lastReply + "（检查用户名/密码，或服务器是否允许该用户）");
+            throw NetFsError.protoFail(NetFsError.PROTO_FTP, "LOGIN", fs.lastReply, NetFsError.HINT_FTP_LOGIN);
         return fs;
     }
 
@@ -74,17 +74,17 @@ public final class FtpFs implements NetFs {
         rin = new BufferedReader(new InputStreamReader(ctrl.getInputStream(), java.nio.charset.StandardCharsets.UTF_8));
         rout = ctrl.getOutputStream();
         int code = readReply();
-        if (code != 220) throw new IOException("FTP 服务器欢迎异常: " + lastReply);
+        if (code != 220) throw NetFsError.badGreeting(lastReply);
     }
 
     /** 读一条完整回复（多行 1xx/2xx 直到「同 code + 空格」的终止行），返回状态码。 */
     private int readReply() throws IOException {
         String line = rin.readLine();
-        if (line == null) throw new IOException("FTP 连接已断开");
+        if (line == null) throw NetFsError.disconnected(NetFsError.PROTO_FTP);
         // 多行回复形如 "220-..."，后续行以 "220 " 结束
         while (line.length() >= 4 && line.charAt(3) == '-') {
             line = rin.readLine();
-            if (line == null) throw new IOException("FTP 连接已断开（回复中断）");
+            if (line == null) throw NetFsError.disconnected(NetFsError.PROTO_FTP);
         }
         lastReply = line;
         int code = 0;
@@ -93,7 +93,7 @@ public final class FtpFs implements NetFs {
         } catch (Exception e) {
             // 服务器回了非标准状态行（有些嵌入式 FTP 会多打几行横幅）。往下走会当未知码处理，
             // 但排查「连上了却列不出目录」时，只有这条日志能看出是回复格式的问题
-            Log.w(TAG, "状态行无法解析: " + (line.length() > 40 ? line.substring(0, 40) : line), e);
+            Log.w(TAG, "Unparsable status line: " + (line.length() > 40 ? line.substring(0, 40) : line), e);
         }
         return code;
     }
@@ -108,7 +108,7 @@ public final class FtpFs implements NetFs {
     /** 发命令并要求 2xx 成功，否则抛错。 */
     private void cmd(String cmd) throws IOException {
         int code = send(cmd);
-        if (code < 200 || code >= 300) throw new IOException("FTP " + cmd.split(" ")[0] + " 失败: " + lastReply);
+        if (code < 200 || code >= 300) throw NetFsError.protoFail(NetFsError.PROTO_FTP, cmd.split(" ")[0], lastReply, NetFsError.HINT_NONE);
     }
 
     // ----------------------------------------------------------------
@@ -118,17 +118,17 @@ public final class FtpFs implements NetFs {
     /** PASV → 建立数据连接（IP 用控制连接的 host，兼容服务器返回内网地址的场景）。 */
     private Socket dataSocket() throws IOException {
         int code = send("PASV");
-        if (code != 227) throw new IOException("FTP PASV 失败: " + lastReply + "（服务器可能不支持被动模式）");
+        if (code != 227) throw NetFsError.pasvFail(NetFsError.PROTO_FTP, lastReply, NetFsError.HINT_FTP_PASV);
         int s = lastReply.indexOf('('), e = lastReply.indexOf(')');
-        if (s < 0 || e < 0) throw new IOException("FTP PASV 响应无法解析: " + lastReply);
+        if (s < 0 || e < 0) throw NetFsError.replyParse(NetFsError.PROTO_FTP, lastReply);
         String[] parts = lastReply.substring(s + 1, e).split(",");
-        if (parts.length != 6) throw new IOException("FTP PASV 响应无法解析: " + lastReply);
+        if (parts.length != 6) throw NetFsError.replyParse(NetFsError.PROTO_FTP, lastReply);
         int p1, p2;
         try {
             p1 = Integer.parseInt(parts[4].trim());
             p2 = Integer.parseInt(parts[5].trim());
         } catch (NumberFormatException nfe) {
-            throw new IOException("FTP PASV 端口无法解析: " + lastReply);
+            throw NetFsError.replyParse(NetFsError.PROTO_FTP, lastReply);
         }
         Socket d = new Socket();
         d.connect(new InetSocketAddress(host, p1 * 256 + p2), 10000); // host 而非服务器返回的 IP
@@ -149,7 +149,7 @@ public final class FtpFs implements NetFs {
         int code;
         try {
             code = send("LIST " + target);
-            if (code != 150 && code != 125) throw new IOException("FTP LIST 失败: " + lastReply);
+            if (code != 150 && code != 125) throw NetFsError.protoFail(NetFsError.PROTO_FTP, "LIST", lastReply, NetFsError.HINT_NONE);
             List<NetEntry> dirs = new ArrayList<>(), files = new ArrayList<>();
             String line;
             while ((line = din.readLine()) != null) {
@@ -158,7 +158,7 @@ public final class FtpFs implements NetFs {
             }
             int done = readReply(); // 数据传完后的 226（不读会错位到下一条命令的回复）
             if (done != 226 && done != 250)
-                throw new IOException("FTP 列目录未完成: " + lastReply);
+                throw NetFsError.transferIncomplete(NetFsError.PROTO_FTP, "LIST", lastReply);
             sortByName(dirs);
             sortByName(files);
             List<NetEntry> out = new ArrayList<>(dirs.size() + files.size());
@@ -288,13 +288,13 @@ public final class FtpFs implements NetFs {
             int r = send("REST " + offset);
             if (r != 350) {
                 try { d.close(); } catch (IOException ignore) {}
-                throw new IOException("FTP 续传失败: 服务器不接受 REST（" + lastReply + "）");
+                throw NetFsError.protoFail(NetFsError.PROTO_FTP, "REST", lastReply, NetFsError.HINT_NONE);
             }
         }
         int code = send("RETR " + path);
         if (code != 150 && code != 125) {
             try { d.close(); } catch (IOException ignore) {}
-            throw new IOException("FTP 读取失败: " + lastReply + "（文件不存在或无权限）");
+            throw NetFsError.protoFail(NetFsError.PROTO_FTP, "RETR", lastReply, NetFsError.HINT_FTP_NO_PERM);
         }
         return new DataIn(d);
     }
@@ -318,7 +318,7 @@ public final class FtpFs implements NetFs {
             try { sock.close(); } catch (IOException ignore) {}
             int code = readReply(); // 226 = 传输完成
             if (code != 226 && code != 250)
-                throw new IOException("FTP 下载未完成: " + lastReply);
+                throw NetFsError.transferIncomplete(NetFsError.PROTO_FTP, "RETR", lastReply);
         }
     }
 
@@ -339,7 +339,7 @@ public final class FtpFs implements NetFs {
         int code = send((append ? "APPE " : "STOR ") + path);
         if (code != 150 && code != 125) {
             try { d.close(); } catch (IOException ignore) {}
-            throw new IOException("FTP 写入失败: " + lastReply + "（父目录不存在或无权限）");
+            throw NetFsError.protoFail(NetFsError.PROTO_FTP, "STOR", lastReply, NetFsError.HINT_FTP_NO_PERM);
         }
         return new DataOut(d);
     }
@@ -364,7 +364,7 @@ public final class FtpFs implements NetFs {
             sock.close();
             int code = readReply();
             if (code != 226 && code != 250)
-                throw new IOException("FTP 上传未完成: " + lastReply);
+                throw NetFsError.transferIncomplete(NetFsError.PROTO_FTP, "STOR", lastReply);
         }
     }
 
@@ -377,7 +377,7 @@ public final class FtpFs implements NetFs {
         int code = send("MKD " + path);
         if (code == 550 && lastReply.contains("exist")) return; // 已存在，容忍（与 WebDavFs 405 语义一致）
         if (code < 200 || code >= 300)
-            throw new IOException("FTP 创建目录失败: " + lastReply);
+            throw NetFsError.protoFail(NetFsError.PROTO_FTP, "MKD", lastReply, NetFsError.HINT_NONE);
     }
 
     @Override
@@ -393,7 +393,7 @@ public final class FtpFs implements NetFs {
     @Override
     public void rename(String path, String newName) throws IOException {
         int code = send("RNFR " + path);
-        if (code != 350) throw new IOException("FTP 重命名失败: " + lastReply);
+        if (code != 350) throw NetFsError.protoFail(NetFsError.PROTO_FTP, "RNFR", lastReply, NetFsError.HINT_NONE);
         cmd("RNTO " + NetFs.join(NetFs.parentOf(path), newName));
     }
 

@@ -1785,6 +1785,24 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.96.0（versionCode 289）—— F-14/83：传统协议四件套（FTP/SFTP/WebDAV/SMB）去中文
+
+沿 NetFsError+NetText 架构清掉四个文件协议的中文异常（FtpFs 19 / SftpFs 13 / WebDavFs 16 / SmbFs 2 行 → 0）：
+
+- **通用码**：`PROTO_FAIL`（协议名+命令+服务器回复+hint）、`CONNECT_FAIL`、`DISCONNECTED`、
+  `BAD_GREETING`、`PASV_FAIL`、`REPLY_PARSE`、`TRANSFER_INCOMPLETE`、`OP_FAIL_REASON`、
+  `RANGE_MISMATCH`、`UPLOAD_FAIL`、`STREAM_CLOSED`、`MKDIR_FAIL`；协议名走 `PROTO_*` 资源（专有名词）。
+- 服务器回复（lastReply / error.message / HTTP message）作为数据参数透传，句子整句带参。
+- FTP 唯一 `Log.w`（状态行解析失败）改 ASCII（开发者日志，不含凭据）。
+- 状态码 hint（FTP 登录/PASV、SFTP 连接/路径/权限、WebDAV 401/403/404/405）全部码化。
+
+NetFsError 扩至 55 码，新增 25 个 `netfs_*` 键，资源 2969 → 2994（100%）。
+构建期修两处：`MKDIR_FAIL` 枚举漏闭合 `}`、SmbFs `getStatusCode()` long→int 强转。
+四门全过（空 catch 335、文案 2994/2994、动作码 55）、全量 97/0/4（FtpFsTest PASS）；
+APK 13,488,848 B（md5 `3cb0c028…`），badging 289/2.96.0。
+
+---
+
 ## v2.95.0（versionCode 288）—— F-14/82：云盘三件套（CloudPath / 阿里云盘 / OneDrive）去中文
 
 承接 v2.94.0 的 NetFsError+NetText 架构，清掉两个 OAuth 云盘与共享路径工具的全部中文异常。

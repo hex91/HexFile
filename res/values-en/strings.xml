@@ -3157,4 +3157,30 @@
     <string name="netfs_hint_ali_busy">" (too many requests; try again later)"</string>
     <string name="netfs_hint_ali_file_type">" (this file type cannot be uploaded)"</string>
     <string name="netfs_hint_ali_name">" (invalid name or name already exists)"</string>
+    <!-- v2.96.0 legacy protocols (FTP / SFTP / WebDAV / SMB) -->
+    <string name="netfs_proto_ftp">FTP</string>
+    <string name="netfs_proto_sftp">SFTP</string>
+    <string name="netfs_proto_webdav">WebDAV</string>
+    <string name="netfs_proto_smb">SMB</string>
+    <string name="netfs_err_proto_fail">%1$s %2$s failed%3$s%4$s</string>
+    <string name="netfs_err_connect_fail">%1$s connection failed%2$s%3$s</string>
+    <string name="netfs_err_disconnected">%1$s connection was closed</string>
+    <string name="netfs_err_bad_greeting">Unexpected server greeting%1$s</string>
+    <string name="netfs_err_pasv_fail">%1$s passive mode failed%2$s%3$s</string>
+    <string name="netfs_err_reply_parse">Cannot parse %1$s server reply%2$s</string>
+    <string name="netfs_err_transfer_incomplete">%1$s %2$s did not complete%3$s</string>
+    <string name="netfs_err_range_mismatch">Server returned an unexpected range: %1$s</string>
+    <string name="netfs_err_upload_fail">Upload failed%1$s</string>
+    <string name="netfs_err_stream_closed">Stream is closed</string>
+    <string name="netfs_err_mkdir_fail">Failed to create directory: %1$s (%2$d)</string>
+    <string name="netfs_hint_ftp_login">" (check username/password, or whether the server allows this user)"</string>
+    <string name="netfs_hint_ftp_pasv">" (the server may not support passive mode)"</string>
+    <string name="netfs_hint_ftp_no_perm">" (file does not exist or permission denied)"</string>
+    <string name="netfs_hint_sftp_connect">" (check address/port 22, username/password, and whether the SSH service is running)"</string>
+    <string name="netfs_hint_sftp_not_found">" (path not found)"</string>
+    <string name="netfs_hint_sftp_no_perm">" (permission denied)"</string>
+    <string name="netfs_hint_sftp_disconnected">" (connection closed)"</string>
+    <string name="netfs_hint_webdav_auth">" (authentication failed: wrong username or password)"</string>
+    <string name="netfs_hint_webdav_forbidden">" (server denied: permission denied)"</string>
+    <string name="netfs_hint_cloud_no_method">" (server does not support this operation)"</string>
 </resources>

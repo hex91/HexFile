@@ -48,19 +48,18 @@ public final class SftpFs implements NetFs {
             return fs;
         } catch (Exception e) {
             fs.close();
-            throw new IOException("SFTP 连接失败: " + e.getMessage()
-                    + "（检查地址/端口 22、用户名密码，以及服务器 SSH 服务是否开启）", e);
+            throw NetFsError.connectFail(NetFsError.PROTO_SFTP, e.getMessage(), NetFsError.HINT_SFTP_CONNECT, e);
         }
     }
 
-    /** SftpException → IOException（附常用错误提示）。 */
-    private static IOException err(String op, SftpException e) {
-        String hint;
-        if (e.id == ChannelSftp.SSH_FX_NO_SUCH_FILE) hint = "（路径不存在）";
-        else if (e.id == ChannelSftp.SSH_FX_PERMISSION_DENIED) hint = "（无权限）";
-        else if (e.id == 11) hint = "（连接已断开）";
-        else hint = "";
-        return new IOException("SFTP " + op + " 失败: " + e.getMessage() + hint, e);
+    /** SftpException → NetFsError（附常用错误提示）。 */
+    private static NetFsError err(int op, String path, SftpException e) {
+        int hint = NetFsError.HINT_NONE;
+        if (e.id == ChannelSftp.SSH_FX_NO_SUCH_FILE) hint = NetFsError.HINT_SFTP_NOT_FOUND;
+        else if (e.id == ChannelSftp.SSH_FX_PERMISSION_DENIED) hint = NetFsError.HINT_SFTP_NO_PERM;
+        else if (e.id == 11) hint = NetFsError.HINT_SFTP_DISCONNECTED;
+        return NetFsError.opFailReason(NetFsError.PROTO_SFTP, op,
+                path, e.getMessage(), hint, e);
     }
 
     @Override
@@ -76,7 +75,7 @@ public final class SftpFs implements NetFs {
                 (a.isDir() ? dirs : files).add(new NetEntry(name, a.isDir(), a.getSize(), a.getMTime() * 1000L));
             }
         } catch (SftpException se) {
-            throw err("列目录 " + target, se);
+            throw err(NetFsError.OP_LIST, target, se);
         }
         sortByName(dirs);
         sortByName(files);
@@ -117,7 +116,7 @@ public final class SftpFs implements NetFs {
         try {
             return offset > 0 ? ch.get(path, null, offset) : ch.get(path);
         } catch (SftpException e) {
-            throw err("读取 " + path, e);
+            throw err(NetFsError.OP_READ, path, e);
         }
     }
 
@@ -143,7 +142,7 @@ public final class SftpFs implements NetFs {
             ensureParents(path);
             return ch.put(path, null, mode, 0L); // close 时由 JSch 完成传输确认
         } catch (SftpException e) {
-            throw err("写入 " + path, e);
+            throw err(NetFsError.OP_UPLOAD, path, e);
         }
     }
 
@@ -160,7 +159,7 @@ public final class SftpFs implements NetFs {
                 ch.stat(cur);
             } catch (SftpException e) {
                 try { ch.mkdir(cur); } catch (SftpException me) {
-                    if (me.id != ChannelSftp.SSH_FX_FAILURE) throw err("创建目录 " + cur, me);
+                    if (me.id != ChannelSftp.SSH_FX_FAILURE) throw err(NetFsError.OP_MKDIR, cur, me);
                 }
             }
         }
@@ -173,7 +172,7 @@ public final class SftpFs implements NetFs {
         } catch (SftpException e) {
             // 已存在则容忍（与 WebDavFs 405 语义一致）
             if (isExistsErr(e)) return;
-            throw err("创建目录 " + path, e);
+            throw err(NetFsError.OP_MKDIR, path, e);
         }
     }
 
@@ -193,7 +192,7 @@ public final class SftpFs implements NetFs {
                 ch.rm(path);
             }
         } catch (SftpException e) {
-            throw err("删除 " + path, e);
+            throw err(NetFsError.OP_DELETE, path, e);
         }
     }
 
@@ -208,7 +207,7 @@ public final class SftpFs implements NetFs {
                 ch.rename(path, target);
             }
         } catch (SftpException e) {
-            throw err("重命名 " + path, e);
+            throw err(NetFsError.OP_RENAME, path, e);
         }
     }
 

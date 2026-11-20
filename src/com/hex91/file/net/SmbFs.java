@@ -158,7 +158,7 @@ public final class SmbFs implements NetFs {
 
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
-            if (closed) throw new IOException("流已关闭");
+            if (closed) throw NetFsError.streamClosed();
             if (len == 0) return 0;
             int n = f.read(b, pos, off, len);
             if (n <= 0) return -1;
@@ -212,7 +212,7 @@ public final class SmbFs implements NetFs {
             try {
                 if (!share.folderExists(cur)) share.mkdir(cur);
             } catch (com.hierynomus.mssmb2.SMBApiException e) {
-                throw new IOException("创建目录失败: " + cur + " (" + e.getStatusCode() + ")", e);
+                throw NetFsError.mkdirFail(cur, (int) e.getStatusCode(), e);
             }
         }
     }

@@ -93,7 +93,33 @@ public class NetFsError extends IOException {
         /** 上传路径为空 */
         EMPTY_UPLOAD_PATH,
         /** 取不到条目 id（参数：路径） */
-        NO_ITEM_ID
+        NO_ITEM_ID,
+
+        // ---- v2.96.0 传统协议（FTP / SFTP / WebDAV / SMB）通用码 ----
+        /** 协议命令失败（参数：协议名、操作、服务器回复、hintCode） */
+        PROTO_FAIL,
+        /** 连接失败（参数：协议名、底层原因、hintCode） */
+        CONNECT_FAIL,
+        /** 连接已断开（参数：协议名） */
+        DISCONNECTED,
+        /** 服务器欢迎语异常（参数：回复） */
+        BAD_GREETING,
+        /** 被动模式失败（参数：协议名、回复） */
+        PASV_FAIL,
+        /** 服务器回复解析失败（参数：协议名、回复） */
+        REPLY_PARSE,
+        /** 传输未完成（参数：协议名、操作、回复） */
+        TRANSFER_INCOMPLETE,
+        /** 操作失败带原因（参数：协议名、操作、底层原因、hintCode） */
+        OP_FAIL_REASON,
+        /** WebDAV 返回区间不符（参数：区间） */
+        RANGE_MISMATCH,
+        /** WebDAV 上传失败（参数：底层原因，可能为空） */
+        UPLOAD_FAIL,
+        /** 流已关闭 */
+        STREAM_CLOSED,
+        /** 创建目录失败（参数：路径、状态码） */
+        MKDIR_FAIL
     }
 
     /** OP_FAIL 的第 0 个参数：操作码 */
@@ -109,7 +135,19 @@ public class NetFsError extends IOException {
             HINT_CLOUD_413 = 14,
             // 阿里云盘 hint
             HINT_ALI_NOT_FOUND = 20, HINT_ALI_QUOTA = 21, HINT_ALI_BUSY = 22,
-            HINT_ALI_FILE_TYPE = 23, HINT_ALI_NAME = 24;
+            HINT_ALI_FILE_TYPE = 23, HINT_ALI_NAME = 24,
+            // FTP 专属 hint
+            HINT_FTP_LOGIN = 30, HINT_FTP_PASV = 31, HINT_FTP_NO_PERM = 32,
+            // SFTP 专属 hint
+            HINT_SFTP_CONNECT = 33, HINT_SFTP_NOT_FOUND = 34, HINT_SFTP_NO_PERM = 35,
+            HINT_SFTP_DISCONNECTED = 36,
+            // WebDAV hint
+            HINT_WEBDAV_AUTH = 37, HINT_WEBDAV_FORBIDDEN = 38,
+            HINT_WEBDAV_NOT_FOUND = 39, HINT_WEBDAV_NO_METHOD = 40;
+
+    /** 协议名（PROTO_FAIL / CONNECT_FAIL 等参数） */
+    public static final String PROTO_FTP = "ftp", PROTO_SFTP = "sftp",
+            PROTO_WEBDAV = "webdav", PROTO_SMB = "smb";
 
     /** 云盘名（NOT_AUTHED / AUTH_LOST / AUTH_EXPIRED 的参数） */
     public static final int CLOUD_ALIYUN = 1, CLOUD_ONEDRIVE = 2;
@@ -205,6 +243,36 @@ public class NetFsError extends IOException {
     }
     public static NetFsError emptyUploadPath()               { return new NetFsError(Code.EMPTY_UPLOAD_PATH); }
     public static NetFsError noItemId(String path)           { return new NetFsError(Code.NO_ITEM_ID, path); }
+
+    // ---- 传统协议工厂 ----
+    public static NetFsError protoFail(String proto, String op, String reply, int hint) {
+        return new NetFsError(Code.PROTO_FAIL, proto, op, reply, hint);
+    }
+    public static NetFsError connectFail(String proto, String reason, int hint, Throwable e) {
+        return new NetFsError(Code.CONNECT_FAIL, e, proto, reason, hint);
+    }
+    public static NetFsError disconnected(String proto)      { return new NetFsError(Code.DISCONNECTED, proto); }
+    public static NetFsError badGreeting(String reply)       { return new NetFsError(Code.BAD_GREETING, reply); }
+    public static NetFsError pasvFail(String proto, String reply, int hint) {
+        return new NetFsError(Code.PASV_FAIL, proto, reply, hint);
+    }
+    public static NetFsError replyParse(String proto, String reply) {
+        return new NetFsError(Code.REPLY_PARSE, proto, reply);
+    }
+    public static NetFsError transferIncomplete(String proto, String op, String reply) {
+        return new NetFsError(Code.TRANSFER_INCOMPLETE, proto, op, reply);
+    }
+    public static NetFsError opFailReason(String proto, int op, String path, String reason, int hint, Throwable e) {
+        return new NetFsError(Code.OP_FAIL_REASON, e, proto, op, path, reason, hint);
+    }
+    public static NetFsError rangeMismatch(String range)     { return new NetFsError(Code.RANGE_MISMATCH, range); }
+    public static NetFsError uploadFail(String reason, Throwable e) {
+        return new NetFsError(Code.UPLOAD_FAIL, e, reason);
+    }
+    public static NetFsError streamClosed()                  { return new NetFsError(Code.STREAM_CLOSED); }
+    public static NetFsError mkdirFail(String path, int status, Throwable e) {
+        return new NetFsError(Code.MKDIR_FAIL, e, path, status);
+    }
 
     /** 诊断串：{@code NETFS CODE: arg1 arg2}，全 ASCII，只给日志和单测 */
     private static String diagnose(Code code, Object[] args) {

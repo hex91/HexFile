@@ -105,6 +105,38 @@ public final class NetText {
             case NO_ITEM_ID:
                 return c.getString(R.string.netfs_err_no_item_id, e.str(0));
 
+            // ---- 传统协议码 ----
+            case PROTO_FAIL:
+                return c.getString(R.string.netfs_err_proto_fail, proto(c, e.str(0)),
+                        e.str(1), detail(c, e.str(2)), hint(c, e.num(3)));
+            case CONNECT_FAIL:
+                return c.getString(R.string.netfs_err_connect_fail, proto(c, e.str(0)),
+                        detail(c, e.str(1)), hint(c, e.num(2)));
+            case DISCONNECTED:
+                return c.getString(R.string.netfs_err_disconnected, proto(c, e.str(0)));
+            case BAD_GREETING:
+                return c.getString(R.string.netfs_err_bad_greeting, detail(c, e.str(0)));
+            case PASV_FAIL:
+                return c.getString(R.string.netfs_err_pasv_fail, proto(c, e.str(0)),
+                        detail(c, e.str(1)), hint(c, e.num(2)));
+            case REPLY_PARSE:
+                return c.getString(R.string.netfs_err_reply_parse, proto(c, e.str(0)),
+                        detail(c, e.str(1)));
+            case TRANSFER_INCOMPLETE:
+                return c.getString(R.string.netfs_err_transfer_incomplete, proto(c, e.str(0)),
+                        e.str(1), detail(c, e.str(2)));
+            case OP_FAIL_REASON:
+                return c.getString(R.string.netfs_err_proto_fail, proto(c, e.str(0)),
+                        op(c, e.num(1)), detail(c, e.str(3)), hint(c, e.num(4)));
+            case RANGE_MISMATCH:
+                return c.getString(R.string.netfs_err_range_mismatch, e.str(0));
+            case UPLOAD_FAIL:
+                return c.getString(R.string.netfs_err_upload_fail, detail(c, e.str(0)));
+            case STREAM_CLOSED:
+                return c.getString(R.string.netfs_err_stream_closed);
+            case MKDIR_FAIL:
+                return c.getString(R.string.netfs_err_mkdir_fail, e.str(0), e.num(1));
+
             default:
                 return c.getString(R.string.netfs_err_unknown);
         }
@@ -140,8 +172,28 @@ public final class NetText {
             case NetFsError.HINT_ALI_BUSY:       return c.getString(R.string.netfs_hint_ali_busy);
             case NetFsError.HINT_ALI_FILE_TYPE:  return c.getString(R.string.netfs_hint_ali_file_type);
             case NetFsError.HINT_ALI_NAME:       return c.getString(R.string.netfs_hint_ali_name);
+            case NetFsError.HINT_WEBDAV_NOT_FOUND:   return c.getString(R.string.netfs_hint_cloud_not_found);
+            case NetFsError.HINT_WEBDAV_NO_METHOD:   return c.getString(R.string.netfs_hint_cloud_no_method);
+            case NetFsError.HINT_FTP_LOGIN:   return c.getString(R.string.netfs_hint_ftp_login);
+            case NetFsError.HINT_FTP_PASV:   return c.getString(R.string.netfs_hint_ftp_pasv);
+            case NetFsError.HINT_FTP_NO_PERM: return c.getString(R.string.netfs_hint_ftp_no_perm);
+            case NetFsError.HINT_SFTP_CONNECT: return c.getString(R.string.netfs_hint_sftp_connect);
+            case NetFsError.HINT_SFTP_NOT_FOUND: return c.getString(R.string.netfs_hint_sftp_not_found);
+            case NetFsError.HINT_SFTP_NO_PERM: return c.getString(R.string.netfs_hint_sftp_no_perm);
+            case NetFsError.HINT_SFTP_DISCONNECTED: return c.getString(R.string.netfs_hint_sftp_disconnected);
+            case NetFsError.HINT_WEBDAV_AUTH:       return c.getString(R.string.netfs_hint_webdav_auth);
+            case NetFsError.HINT_WEBDAV_FORBIDDEN:  return c.getString(R.string.netfs_hint_webdav_forbidden);
             default:                          return "";
         }
+    }
+
+    /** 协议名（ASCII 常量 → 展示名，专有名词中英同形，仍走资源便于统一）。 */
+    private static String proto(Context c, String code) {
+        if (NetFsError.PROTO_FTP.equals(code))    return c.getString(R.string.netfs_proto_ftp);
+        if (NetFsError.PROTO_SFTP.equals(code))   return c.getString(R.string.netfs_proto_sftp);
+        if (NetFsError.PROTO_WEBDAV.equals(code)) return c.getString(R.string.netfs_proto_webdav);
+        if (NetFsError.PROTO_SMB.equals(code))    return c.getString(R.string.netfs_proto_smb);
+        return code;
     }
 
     /** 云盘名（码 → 资源），给「尚未授权 / 授权失效」整句当参数。 */

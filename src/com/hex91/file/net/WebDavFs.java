@@ -80,19 +80,19 @@ public final class WebDavFs implements NetFs {
         c.disconnect();
     }
 
-    private static IOException httpErr(String op, HttpURLConnection c) throws IOException {
+    private static NetFsError httpErr(int op, String path, HttpURLConnection c) throws IOException {
         int code = c.getResponseCode();
         String msg = c.getResponseMessage();
-        return new IOException(op + " 失败: HTTP " + code + (msg == null ? "" : " " + msg)
-                + hintOf(code));
+        return NetFsError.httpDetailFail(path, code, hintCode(op, code), msg == null ? "" : msg);
     }
 
-    private static String hintOf(int code) {
-        if (code == 401) return "（认证失败：用户名或密码错误）";
-        if (code == 403) return "（服务器拒绝：无权限）";
-        if (code == 404) return "（路径不存在：检查服务器地址）";
-        if (code == 405) return "（服务器不支持该操作）";
-        return "";
+    /** 状态码提示码：401/403/404 全局，405 与上传共用「不支持该操作」 */
+    private static int hintCode(int op, int code) {
+        if (code == 401) return NetFsError.HINT_WEBDAV_AUTH;
+        if (code == 403) return NetFsError.HINT_WEBDAV_FORBIDDEN;
+        if (code == 404) return NetFsError.HINT_WEBDAV_NOT_FOUND;
+        if (code == 405) return NetFsError.HINT_WEBDAV_NO_METHOD;
+        return NetFsError.HINT_NONE;
     }
 
     // ----------------------------------------------------------------
@@ -112,7 +112,7 @@ public final class WebDavFs implements NetFs {
         int code = c.getResponseCode();
         if (code != 207 && code != 200) {
             consume(c);
-            throw httpErr("列目录 " + path, c);
+            throw httpErr(NetFsError.OP_LIST, path, c);
         }
 
         List<NetEntry> dirs = new ArrayList<>(), files = new ArrayList<>();
@@ -160,7 +160,7 @@ public final class WebDavFs implements NetFs {
                 ev = p.next();
             }
         } catch (org.xmlpull.v1.XmlPullParserException xpe) {
-            throw new IOException("响应解析失败（非 WebDAV 服务？）: " + xpe.getMessage(), xpe);
+            throw NetFsError.respParse(xpe.getMessage(), xpe);
         } finally {
             try { in.close(); } catch (IOException ignore) {}
             c.disconnect();
@@ -252,17 +252,17 @@ public final class WebDavFs implements NetFs {
         if (offset > 0) {
             if (code == 200) {
                 consume(c);
-                throw new IOException("WebDAV 服务器忽略了 Range（回 200），无法续传");
+                throw NetFsError.rangeIgnored();
             }
-            if (code != 206) { consume(c); throw httpErr("续传 " + path, c); }
+            if (code != 206) { consume(c); throw httpErr(NetFsError.OP_RESUME, path, c); }
             String cr = c.getHeaderField("Content-Range");
             if (cr != null && !cr.startsWith("bytes " + offset + "-")) {
                 consume(c);
-                throw new IOException("WebDAV 返回的区间不符: " + cr);
+                throw NetFsError.rangeMismatch(cr);
             }
             return c.getInputStream();
         }
-        if (code != 200) { consume(c); throw httpErr("读取 " + path, c); }
+        if (code != 200) { consume(c); throw httpErr(NetFsError.OP_READ, path, c); }
         return c.getInputStream(); // close 时断开连接
     }
 
@@ -295,9 +295,9 @@ public final class WebDavFs implements NetFs {
             closed = true;
             try { out.close(); } catch (IOException ignore) {}
             int code;
-            try { code = c.getResponseCode(); } catch (IOException e) { throw new IOException("上传失败: " + e.getMessage(), e); }
+            try { code = c.getResponseCode(); } catch (IOException e) { throw NetFsError.uploadFail(e.getMessage(), e); }
             consume(c);
-            if (code < 200 || code >= 300) throw new IOException("上传失败: HTTP " + code + hintOf(code));
+            if (code < 200 || code >= 300) throw NetFsError.httpFail("upload", code, NetFsError.HINT_WEBDAV_NO_METHOD);
         }
     }
 
@@ -333,7 +333,7 @@ public final class WebDavFs implements NetFs {
         int code;
         try { code = c.getResponseCode(); } catch (IOException e) { c.disconnect(); throw e; }
         consume(c);
-        if (code != 201 && code != 405) throw httpErr("创建目录 " + path, c); // 405 = 已存在
+        if (code != 201 && code != 405) throw httpErr(NetFsError.OP_MKDIR, path, c); // 405 = 已存在
     }
 
     @Override
@@ -342,7 +342,7 @@ public final class WebDavFs implements NetFs {
         int code;
         try { code = c.getResponseCode(); } catch (IOException e) { c.disconnect(); throw e; }
         consume(c);
-        if (code != 204 && code != 200) throw httpErr("删除 " + path, c);
+        if (code != 204 && code != 200) throw httpErr(NetFsError.OP_DELETE, path, c);
     }
 
     @Override
@@ -354,7 +354,7 @@ public final class WebDavFs implements NetFs {
         int code;
         try { code = c.getResponseCode(); } catch (IOException e) { c.disconnect(); throw e; }
         consume(c);
-        if (code != 201 && code != 204 && code != 200) throw httpErr("重命名 " + path, c);
+        if (code != 201 && code != 204 && code != 200) throw httpErr(NetFsError.OP_RENAME, path, c);
     }
 
     @Override

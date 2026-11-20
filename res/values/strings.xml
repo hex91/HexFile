@@ -3165,4 +3165,30 @@
     <string name="netfs_hint_ali_busy">"（请求过于频繁，稍后再试）"</string>
     <string name="netfs_hint_ali_file_type">"（该文件类型不允许上传）"</string>
     <string name="netfs_hint_ali_name">"（名称不合法或重名）"</string>
+    <!-- v2.96.0 传统协议（FTP / SFTP / WebDAV / SMB）-->
+    <string name="netfs_proto_ftp">FTP</string>
+    <string name="netfs_proto_sftp">SFTP</string>
+    <string name="netfs_proto_webdav">WebDAV</string>
+    <string name="netfs_proto_smb">SMB</string>
+    <string name="netfs_err_proto_fail">%1$s %2$s 失败%3$s%4$s</string>
+    <string name="netfs_err_connect_fail">%1$s 连接失败%2$s%3$s</string>
+    <string name="netfs_err_disconnected">%1$s 连接已断开</string>
+    <string name="netfs_err_bad_greeting">服务器欢迎语异常%1$s</string>
+    <string name="netfs_err_pasv_fail">%1$s 被动模式失败%2$s%3$s</string>
+    <string name="netfs_err_reply_parse">%1$s 服务器回复无法解析%2$s</string>
+    <string name="netfs_err_transfer_incomplete">%1$s %2$s 未完成%3$s</string>
+    <string name="netfs_err_range_mismatch">服务器返回的区间不符: %1$s</string>
+    <string name="netfs_err_upload_fail">上传失败%1$s</string>
+    <string name="netfs_err_stream_closed">流已关闭</string>
+    <string name="netfs_err_mkdir_fail">创建目录失败: %1$s（%2$d）</string>
+    <string name="netfs_hint_ftp_login">"（检查用户名/密码，或服务器是否允许该用户）"</string>
+    <string name="netfs_hint_ftp_pasv">"（服务器可能不支持被动模式）"</string>
+    <string name="netfs_hint_ftp_no_perm">"（文件不存在或无权限）"</string>
+    <string name="netfs_hint_sftp_connect">"（检查地址/端口 22、用户名密码，以及服务器 SSH 服务是否开启）"</string>
+    <string name="netfs_hint_sftp_not_found">"（路径不存在）"</string>
+    <string name="netfs_hint_sftp_no_perm">"（无权限）"</string>
+    <string name="netfs_hint_sftp_disconnected">"（连接已断开）"</string>
+    <string name="netfs_hint_webdav_auth">"（认证失败：用户名或密码错误）"</string>
+    <string name="netfs_hint_webdav_forbidden">"（服务器拒绝：无权限）"</string>
+    <string name="netfs_hint_cloud_no_method">"（服务器不支持该操作）"</string>
 </resources>
