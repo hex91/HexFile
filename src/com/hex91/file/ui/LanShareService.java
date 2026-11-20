@@ -38,7 +38,8 @@ public class LanShareService extends Service {
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= 26 && nm != null) {
             if (nm.getNotificationChannel(CHANNEL) == null) {
-                NotificationChannel ch = new NotificationChannel(CHANNEL, "局域网快传",
+                NotificationChannel ch = new NotificationChannel(CHANNEL,
+                        getString(R.string.ls_channel),
                         NotificationManager.IMPORTANCE_LOW);
                 ch.setShowBadge(false);
                 nm.createNotificationChannel(ch);
@@ -51,10 +52,10 @@ public class LanShareService extends Service {
                 : PendingIntent.FLAG_UPDATE_CURRENT;
         PendingIntent pi = PendingIntent.getActivity(this, 0, open, piFlags);
 
-        String title = ok ? "局域网快传已开启" : "局域网快传未能启动";
+        String title = getString(ok ? R.string.ls_on : R.string.ls_off);
         String text = ok
-                ? node.selfName() + " · 点击查看设备 / 停止接收"
-                : "发现端口被占用，请关闭其他快传类应用后重试";
+                ? getString(R.string.ls_text_on, node.selfName())
+                : getString(R.string.ls_text_off);
 
         Notification.Builder b = Build.VERSION.SDK_INT >= 26
                 ? new Notification.Builder(this, CHANNEL)

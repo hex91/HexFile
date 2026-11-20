@@ -2772,4 +2772,16 @@
     <string name="te_sym_newline">换行</string>
     <string name="te_sync_check_fail">回读校验失败：元素数不一致</string>
     <string name="te_zip_entry_missing">压缩包内找不到 %1$s</string>
+    <!-- v2.76.0 小尾巴清扫：通用词 / 局域网快传 / 括号拼接 / codec 标签 -->
+    <string name="common_folder">文件夹</string>
+    <string name="ls_channel">局域网快传</string>
+    <string name="ls_on">局域网快传已开启</string>
+    <string name="ls_off">局域网快传未能启动</string>
+    <string name="ls_text_on">%1$s · 点击查看设备 / 停止接收</string>
+    <string name="ls_text_off">发现端口被占用，请关闭其他快传类应用后重试</string>
+    <string name="crash_title_count">%1$s（%2$s）</string>
+    <string name="settings_ver_pair">%1$s（%2$s）</string>
+    <string name="vp_info_codecs">codecs：%1$s</string>
+    <string name="fa_selected">"已选中 · "</string>
+    <string name="skm_broken_no_save">密码已损坏（可能换机或清除过数据），请删除该条目后重新导入签名文件</string>
 </resources>

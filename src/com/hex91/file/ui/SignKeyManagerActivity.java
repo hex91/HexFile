@@ -81,7 +81,7 @@ public class SignKeyManagerActivity extends BaseActivity {
     static void saveEntry(android.content.Context ctx, KeyEntry e, byte[] ksBytes) throws Exception {
         // v1.67.3：密码损坏时绝不允许落盘——否则空串会把原密码不可逆覆盖掉
         if (e.broken()) throw new IllegalStateException(
-                "密码已损坏（可能换机或清除过数据），请删除该条目后重新导入签名文件");
+                ctx.getString(R.string.skm_broken_no_save));
         File dir = keyDir(ctx);
         FileOutputStream fo = new FileOutputStream(new File(dir, e.id + ".ks"));
         try { fo.write(ksBytes); } finally { fo.close(); }

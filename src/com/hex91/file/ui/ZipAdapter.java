@@ -61,7 +61,7 @@ public class ZipAdapter extends BaseAdapter {
         icon.setBackground(bg);
         String shown = showPath ? e.full : e.name;
         name.setText(shown + (e.dir && !shown.endsWith("/") ? "/" : ""));
-        detail.setText(e.dir ? "文件夹" : FileOps.formatSize(e.size));
+        detail.setText(e.dir ? ctx.getString(R.string.common_folder) : FileOps.formatSize(e.size));
         return cv;
     }
 }

@@ -2764,4 +2764,16 @@
     <string name="te_sym_newline">NL</string>
     <string name="te_sync_check_fail">Read-back check failed: the element count does not match</string>
     <string name="te_zip_entry_missing">%1$s was not found in the archive</string>
+    <!-- v2.76.0 odds and ends: shared words / LAN share / bracket join / codec label -->
+    <string name="common_folder">Folder</string>
+    <string name="ls_channel">LAN transfer</string>
+    <string name="ls_on">LAN transfer is on</string>
+    <string name="ls_off">LAN transfer could not start</string>
+    <string name="ls_text_on">%1$s · tap to see devices / stop receiving</string>
+    <string name="ls_text_off">The port is already in use — close other transfer apps and try again</string>
+    <string name="crash_title_count">%1$s (%2$s)</string>
+    <string name="settings_ver_pair">%1$s (%2$s)</string>
+    <string name="vp_info_codecs">"codecs: %1$s"</string>
+    <string name="fa_selected">"Selected · "</string>
+    <string name="skm_broken_no_save">The password is broken (after switching devices or clearing data). Delete this entry and import the key file again.</string>
 </resources>

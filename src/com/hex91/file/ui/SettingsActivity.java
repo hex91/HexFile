@@ -262,7 +262,8 @@ public class SettingsActivity extends BaseActivity {
 
         // ---- 关于（版本号固定在最下） ----
         LinearLayout about = section(getString(R.string.settings_section_about));
-        infoRow(about, getString(R.string.settings_version), versionName() + "（" + versionCode() + "）");
+        infoRow(about, getString(R.string.settings_version),
+                getString(R.string.settings_ver_pair, versionName(), versionCode()));
         infoRow(about, getString(R.string.settings_workdir), WorkDir.path());
 
         TextView foot = new TextView(this);

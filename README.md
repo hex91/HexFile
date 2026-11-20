@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2624 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2635 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,37 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.76.0（versionCode 269）—— F-14/63：散落小尾巴清扫（7 个文件一版清完）
+
+这一版不按页走，而是把上一轮扫出来的 **1~2 处碎片**一次收干净 —— 每个文件都只差一两句，
+各开一版太碎。合计中文字面量 **13 → 0**（另 4 处是注释，不是债），新增 11 个键，
+资源 2624 → 2635 条（中英各 2635，100%）。
+
+| 文件 | 处数 | 处理 |
+|---|---|---|
+| `LanShareService` | 5 | `ls_channel` 渠道名 + `ls_on`/`ls_off` 标题两态 + `ls_text_on`/`ls_text_off` 正文两态 |
+| `CrashReportActivity` | 2 | 标题拼全角括号 → `crash_title_count`（`%1$s（%2$s）`） |
+| `SettingsActivity` | 2 | 版本号拼全角括号 → `settings_ver_pair`（`%1$s（%2$s）`） |
+| `VideoPlayerActivity` | 1 | `"codec："` → `vp_info_codecs`（`codecs：%1$s`，与既有 `vp_info_codec` 区分） |
+| `FileAdapter` | 2 | "读取中…" 复用 `main_stat_loading`；"已选中 · " → `fa_selected`（尾随空格，整值加引号） |
+| `SignKeyManagerActivity` | 1 | `saveEntry` 的拒绝落盘异常 → `skm_broken_no_save` |
+| `ZipAdapter` | 1 | "文件夹" → 新增通用 `common_folder` |
+
+### 两个判断
+- **括号不是标点可以硬拼的**：`"（" + 计数 + "）"` 在中文是全角、英文是 `(12)` 且前面要空格。
+  两处都改成整句带参数，代码里不再出现括号字符。
+- **`codec：` 与既有 `vp_info_codec` 不合并**：前者是补充的 codecs 明细串，后者是 mimeType 那行，
+  合成一条会出现"编码"两次。新键 `vp_info_codecs` 用复数形式区分，英文 `codecs: %1$s`。
+- 注释里的 4 处（`VideoPlayerActivity` 的 `不再拿 "自动" 当哨兵`、`HlsDownloadActivity` 的旧写法回顾）
+  是历史说明，改了反而丢掉信息，保留。
+
+### 验证
+四门全过（依赖方向、空 catch 335 基线、文案 2635/2635 100%、动作码 55）。
+APK **13,423,312 B**（md5 `3d74ad97…`），badging 反证 versionCode 269 / 2.76.0；
+dex 反证 8 个新键各 = 1，"局域网快传已开启"在 dex 中 0 处、`resources.arsc` 中 1 处。
 
 ---
 

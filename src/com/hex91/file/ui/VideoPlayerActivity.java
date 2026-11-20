@@ -1045,7 +1045,9 @@ public class VideoPlayerActivity extends BaseActivity {
                 if (v.sampleMimeType != null) {
                     sb.append(s(R.string.vp_info_codec, v.sampleMimeType)).append('\n');
                 }
-                if (v.codecs != null && !v.codecs.isEmpty()) sb.append("codec：").append(v.codecs).append('\n');
+                if (v.codecs != null && !v.codecs.isEmpty()) {
+                    sb.append(s(R.string.vp_info_codecs, v.codecs)).append('\n');
+                }
             } else {
                 sb.append(s(R.string.vp_info_no_video_track)).append('\n');
             }

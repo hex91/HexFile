@@ -55,8 +55,11 @@ public class CrashReportActivity extends BaseActivity {
         top.setPadding((int) (16 * den), (int) (10 * den), (int) (16 * den), (int) (10 * den));
         TextView title = new TextView(this);
         List<File> all = CrashLog.list(this);
-        title.setText(getString(R.string.crash_title) + (all.size() > 1
-                ? "（" + getString(R.string.crash_count, all.size()) + "）" : ""));
+        // 标题带计数：全角括号与数字的顺序各语言不同，整句成键，不在代码里拼括号
+        title.setText(all.size() > 1
+                ? getString(R.string.crash_title_count, getString(R.string.crash_title),
+                        getString(R.string.crash_count, all.size()))
+                : getString(R.string.crash_title));
         title.setTextSize(15);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         title.setTextColor(ThemeManager.text(this));

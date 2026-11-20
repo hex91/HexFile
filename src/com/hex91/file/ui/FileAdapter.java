@@ -278,7 +278,7 @@ public class FileAdapter extends BaseAdapter {
             vh.thumb.setImageDrawable(null);
             vh.thumb.setVisibility(View.GONE);
             vh.badge.setVisibility(View.GONE);
-            vh.name.setText("读取中…");
+            vh.name.setText(R.string.main_stat_loading);
             vh.detail.setText("");
             convert.setBackgroundColor(0);
             return convert;
@@ -350,7 +350,7 @@ public class FileAdapter extends BaseAdapter {
 
         boolean sel = selectionMode && it.selected;
         vh.name.setText(styledName(it, sel));
-        vh.detail.setText((sel ? "已选中 · " : "") + detailWithPerm(it));
+        vh.detail.setText((sel ? ctx.getString(R.string.fa_selected) : "") + detailWithPerm(it));
         convert.setBackgroundColor(sel ? ThemeManager.selected(ctx) : 0x00000000);
         return convert;
     }
