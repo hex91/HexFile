@@ -132,7 +132,8 @@ public final class SplitInstaller {
         List<File> apks = new ArrayList<File>();
         try {
             if (!work.mkdirs() && !work.isDirectory()) {
-                finish(app, false, app.getString(R.string.split_fail, "无法创建临时目录"));
+                finish(app, false, app.getString(R.string.split_fail,
+                        app.getString(R.string.split_err_no_workdir)));
                 return;
             }
             SplitPackage.Contents c = SplitPackage.scan(pkg);
@@ -259,7 +260,7 @@ public final class SplitInstaller {
             if (sCancel) throw new Cancelled();
             s.commit(buildPendingIntent(app, token, template, pkgName).getIntentSender());
             progress(95);
-            startWatchdog(token);
+            startWatchdog(app, token);
         } catch (Throwable t) {
             abandonQuietly(s);
             if (t instanceof IOException) throw (IOException) t;
@@ -282,12 +283,12 @@ public final class SplitInstaller {
      * 提交后等结果。绝大多数情况广播一两秒内就到；这里只是防「广播丢了就一直忙」——
      * 不解除的话，下次安装会一直提示「正在安装另一个分包」，只能杀进程恢复。
      */
-    private static void startWatchdog(final String token) {
+    private static void startWatchdog(final Context app, final String token) {
         MAIN.postDelayed(new Runnable() {
             public void run() {
                 if (token.equals(sToken) && sBusy) {
                     LogRing.add(TAG, "install result broadcast timeout");
-                    watchdogFire("安装结果迟迟没有返回（可能已被系统拦下），请检查是否已安装");
+                    watchdogFire(app.getString(R.string.split_watchdog_timeout));
                 }
             }
         }, WATCHDOG_MS);
@@ -385,20 +386,22 @@ public final class SplitInstaller {
             case PackageInstaller.STATUS_FAILURE_BLOCKED:
                 return ctx.getString(R.string.split_blocked);
             case PackageInstaller.STATUS_FAILURE_CONFLICT:
-                return ctx.getString(R.string.split_err_conflict) + tail(msg);
+                return ctx.getString(R.string.split_err_conflict) + tail(ctx, msg);
             case PackageInstaller.STATUS_FAILURE_INVALID:
-                return ctx.getString(R.string.split_err_invalid) + tail(msg);
+                return ctx.getString(R.string.split_err_invalid) + tail(ctx, msg);
             case PackageInstaller.STATUS_FAILURE_STORAGE:
-                return ctx.getString(R.string.split_err_storage) + tail(msg);
+                return ctx.getString(R.string.split_err_storage) + tail(ctx, msg);
             case PackageInstaller.STATUS_FAILURE_INCOMPATIBLE:
-                return ctx.getString(R.string.split_err_incompatible) + tail(msg);
+                return ctx.getString(R.string.split_err_incompatible) + tail(ctx, msg);
             default:
                 return (msg == null || msg.isEmpty()) ? String.valueOf(status) : msg;
         }
     }
 
-    private static String tail(String msg) {
-        return (msg == null || msg.isEmpty()) ? "" : "（" + msg + "）";
+    /** 系统原文尾巴：括号样式交给资源（中文全角 / 英文半角） */
+    private static String tail(Context ctx, String msg) {
+        return (msg == null || msg.isEmpty()) ? ""
+                : ctx.getString(R.string.split_paren, msg);
     }
 
     /** 超时兜底：只解除忙标志、通知在场监听者，不发系统通知（进程还活着，通知是噪音） */

@@ -29,9 +29,37 @@ public final class ApkPackager {
 
     private ApkPackager() {}
 
+    /** 解包失败码：文案由 UI 层决定（v2.93.0 F-14/80） */
+    public static final int E_TARGET_OCCUPIED = 1;
+    public static final int E_DANGEROUS_PATH = 2;
+    public static final int E_NO_MANIFEST = 3;
+
+    /** 解包失败：{@link #code} 决定文案，{@link #args} 是条目名 */
+    public static class PackException extends IOException {
+        public final int code;
+        public final String[] args;
+
+        public PackException(int code, String... args) {
+            super("ApkPackager error " + code);
+            this.code = code;
+            this.args = args == null ? new String[0] : args;
+        }
+    }
+
+    /** 解包统计（数目与体积由 UI 拼成一句话） */
+    public static final class Stats {
+        public final int files;
+        public final long bytes;
+
+        Stats(int files, long bytes) {
+            this.files = files;
+            this.bytes = bytes;
+        }
+    }
+
     /** 解包 APK 到目录；返回统计描述 */
-    public static String unpack(File apk, File outDir) throws IOException {
-        if (outDir.exists() && !outDir.isDirectory()) throw new IOException("目标被文件占用");
+    public static Stats unpack(File apk, File outDir) throws IOException {
+        if (outDir.exists() && !outDir.isDirectory()) throw new PackException(E_TARGET_OCCUPIED);
         outDir.mkdirs();
         int files = 0;
         long bytes = 0;
@@ -48,7 +76,7 @@ public final class ApkPackager {
                 File out = new File(outDir, name);
                 // 防路径穿越
                 if (!out.getCanonicalPath().startsWith(outDir.getCanonicalPath() + File.separator))
-                    throw new IOException("危险条目路径: " + name);
+                    throw new PackException(E_DANGEROUS_PATH, name);
                 File parent = out.getParentFile();
                 if (parent != null) parent.mkdirs();
                 InputStream in = new BufferedInputStream(zf.getInputStream(ze), 131072);
@@ -74,13 +102,13 @@ public final class ApkPackager {
                 fo.close();
             } catch (Throwable ignored) { /* 可读化失败不影响解包 */ }
         }
-        return files + " 个文件（" + ApkInfoUtil.fmtSize(bytes) + "）";
+        return new Stats(files, bytes);
     }
 
     /** 打包目录为未签名 APK（含 AndroidManifest.xml 的目录才合法） */
     public static void pack(File dir, File outApk) throws IOException {
         if (!new File(dir, "AndroidManifest.xml").isFile())
-            throw new IOException("目录中无 AndroidManifest.xml，不是解包产物");
+            throw new PackException(E_NO_MANIFEST);
         RelFile[] all = collect(dir, "");
         CountingOutputStream cos = new CountingOutputStream(new FileOutputStream(outApk));
         ZipOutputStream zo = new ZipOutputStream(cos);

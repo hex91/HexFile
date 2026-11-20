@@ -20,6 +20,7 @@ import com.hex91.file.controller.PropsController;
 import com.hex91.file.controller.SignFlowController;
 import com.hex91.file.controller.TaskUiController;
 import com.hex91.file.ui.ArchiveText;
+import com.hex91.file.ui.PackText;
 import com.hex91.file.ui.ApkInfoActivity;
 import com.hex91.file.ui.ApkSignHelper;
 import com.hex91.file.ui.ArscEditorActivity;
@@ -2264,19 +2265,25 @@ public class MainActivity extends BaseActivity {
                 s(R.string.mops_apk_unpack), apk.getName(), true, false);
         new Thread(new Runnable() {
             public void run() {
-                String err = null, ok = null;
+                String err = null;
+                ApkPackager.Stats st = null;
                 try {
-                    ok = ApkPackager.unpack(apk, out);
+                    st = ApkPackager.unpack(apk, out);
                 } catch (Throwable t) {
-                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    err = t instanceof ApkPackager.PackException
+                            ? PackText.errorText(MainActivity.this, t)
+                            : t.getClass().getSimpleName() + ": " + t.getMessage();
                 }
-                final String ferr = err, fok = ok;
+                final String ferr = err;
+                final ApkPackager.Stats fst = st;
                 runOnUiThread(new Runnable() {
                     public void run() {
                         pd.dismiss();
                         if (ferr != null) toast(s(R.string.main_unpack_fail, ferr));
                         else {
-                            toast(s(R.string.main_unpack_done, out.getName(), fok));
+                            toast(s(R.string.main_unpack_done, out.getName(),
+                                    s(R.string.pack_stats, fst.files,
+                                            FileOps.formatSize(fst.bytes))));
                             refreshAll();
                         }
                     }
@@ -2327,7 +2334,9 @@ public class MainActivity extends BaseActivity {
                 try {
                     ApkPackager.pack(dir, out);
                 } catch (Throwable t) {
-                    err = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    err = t instanceof ApkPackager.PackException
+                            ? PackText.errorText(MainActivity.this, t)
+                            : t.getClass().getSimpleName() + ": " + t.getMessage();
                 }
                 final String ferr = err;
                 runOnUiThread(new Runnable() {

@@ -245,7 +245,7 @@ public final class ApkEditSession {
         File bak = new File(parent, base + "_bak.apk");
         if (!bak.exists()) copy(apk, bak);
         if (!bak.exists() || bak.length() <= 0)
-            throw new IOException("原包备份失败，已取消写入: " + bak.getName());
+            throw new IOException("backup failed, write cancelled: " + bak.getName());
 
         // 2) 重打包 → 临时文件 → 原子覆盖原 APK
         File tmpOut = new File(cacheRoot(ctx, apk), "out.apk");

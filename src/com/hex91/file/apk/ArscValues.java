@@ -107,7 +107,7 @@ public final class ArscValues {
 			sb.append("parent=").append(resIdStr(e.getParentRef())).append(' ');
 		}
 		List<RawNamedValue> nvs = e.getNamedValues();
-		sb.append(nvs.size()).append(" 项)");
+		sb.append('\u00d7').append(nvs.size()).append(')');
 		int shown = 0;
 		for (int i = 0; i < nvs.size(); i++) {
 			if (shown >= 4) {

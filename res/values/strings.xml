@@ -3086,4 +3086,13 @@
     <string name="axml_fmt_chunk_range">chunk 越界（type=0x%1$s at %2$s）</string>
     <string name="axml_fmt_pool_count">字符串池数量异常：%1$s</string>
     <string name="axml_fmt_unknown">AXML 格式错误</string>
+    <!-- v2.93.0 解包/打包与分包安装的收尾文案 -->
+    <string name="pack_stats">%1$d 个文件 · %2$s</string>
+    <string name="pack_err_target_occupied">目标被文件占用</string>
+    <string name="pack_err_dangerous_path">危险条目路径：%1$s</string>
+    <string name="pack_err_no_manifest">目录中无 AndroidManifest.xml，不是解包产物</string>
+    <string name="pack_err_unknown">解包/打包失败</string>
+    <string name="split_err_no_workdir">无法创建临时目录</string>
+    <string name="split_watchdog_timeout">安装结果迟迟没有返回（可能已被系统拦下），请检查是否已安装</string>
+    <string name="split_paren">（%1$s）</string>
 </resources>

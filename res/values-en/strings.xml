@@ -3078,4 +3078,13 @@
     <string name="axml_fmt_chunk_range">Chunk out of range (type=0x%1$s at %2$s)</string>
     <string name="axml_fmt_pool_count">Invalid string pool count: %1$s</string>
     <string name="axml_fmt_unknown">Invalid AXML format</string>
+    <!-- v2.93.0 pack/unpack and split-install leftovers -->
+    <string name="pack_stats">%1$d files · %2$s</string>
+    <string name="pack_err_target_occupied">The target is occupied by a file</string>
+    <string name="pack_err_dangerous_path">Dangerous entry path: %1$s</string>
+    <string name="pack_err_no_manifest">No AndroidManifest.xml in the directory — not an unpacked APK</string>
+    <string name="pack_err_unknown">Unpack/pack failed</string>
+    <string name="split_err_no_workdir">Cannot create the temporary directory</string>
+    <string name="split_watchdog_timeout">The install result never came back (it may have been blocked by the system) — check whether the app is installed</string>
+    <string name="split_paren">(%1$s)</string>
 </resources>
