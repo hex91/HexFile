@@ -1785,6 +1785,29 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.50.0（versionCode 243）—— F-14/37：Java→Smali 页 i18n（批量纯 UI 页第 3 页）
+
+`Java2SmaliActivity` 中文字面量 **约 29 → 0**（纯代码构造 UI，无布局文件），新增 27 个
+`j2s_*` 键，资源 2242 → 2269 条（中英各 2269，100%）。
+
+### 两处刻意保留
+- `SAMPLE` 是默认示例 Java 源码（两行中文注释），属**数据内容**不是界面文案——保留，
+  同 `SmaliDocs` 语法文档不翻。
+- `describe()` 的 `": "`/`"    at "`/`"  Caused by: "` 是异常链诊断格式（ASCII），保留。
+
+### UI 层要点
+- 全页错误走 `doConvert()` 返回的 String → toast/状态栏，全部在 Activity 内直接 `s()` 翻译，
+  无需码化（有 Context）。`j2s_javac_fail`/`j2s_no_class_file`/`j2s_exception` 等带 `%1$d`/`%2$s`。
+- **局部变量遮蔽陷阱**：`showClass()`/`copyResult()` 里有局部变量 `String s`，会遮蔽 `s()` 辅助方法
+  ——这两处改用 `getString(...)` 直接调用；其余方法用 `s(...)`。javac 首轮会捕获此类错误。
+- `j2s_class_status` 把原 4 段拼接（含「个类」「当前」「行」）合成一个带 3 参整句键。
+
+### 验证
+四门全过（空 catch 335 基线）、`jc.sh` rc=0。APK **13,374,160 B**（md5 `a8f78462…`），
+badging 反证 versionCode 243 / 2.50.0；dex 反证 `j2s_class_status`/`j2s_javac_fail` 各=1。提交 `—`。
+
+---
+
 ## v2.49.0（versionCode 242）—— F-14/36：云同步页 i18n（批量纯 UI 页第 2 页）
 
 `SyncActivity` 中文字面量 **约 30 → 0**，新增 34 个 `sy_*` 键（代码 26 + 布局 8，复用

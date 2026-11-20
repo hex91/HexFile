@@ -2365,4 +2365,32 @@
     <string name="sy_hint_remote">远端路径，例如 /backup/photo</string>
     <string name="sy_local">本地目录</string>
     <string name="sy_preview">预览差异</string>
+
+    <!-- v2.50.0 Java→Smali 页 i18n（j2s_*） -->
+    <string name="j2s_ready">就绪：点击右上角「转换」开始（首次会释放编译器插件，稍慢）</string>
+    <string name="j2s_convert_btn">转换 ⚙</string>
+    <string name="j2s_java_label">Java 源码（public class 名决定输出的类）</string>
+    <string name="j2s_smali_label">Smali 输出（长按可选中复制，或点底部「复制」）</string>
+    <string name="j2s_load_sample">载入示例</string>
+    <string name="j2s_sample_loaded">已载入示例</string>
+    <string name="j2s_copy_result">复制结果</string>
+    <string name="j2s_clear">清空</string>
+    <string name="j2s_need_input">请先输入 Java 代码</string>
+    <string name="j2s_converting">转换中</string>
+    <string name="j2s_convert_progress">编译 Java → dex → smali…</string>
+    <string name="j2s_compile_fail_status">编译失败，见下方错误信息</string>
+    <string name="j2s_no_class">（未生成任何类）</string>
+    <string name="j2s_class_status">已生成 %1$d 个类 · 当前 %2$s（%3$d 行）</string>
+    <string name="j2s_api_low">Java→Smali 需要 Android 8.0（API 26）及以上，当前系统版本过低</string>
+    <string name="j2s_no_class_def">未在源码中找到 class / interface / enum 定义</string>
+    <string name="j2s_javac_fail">Java 编译失败（code=%1$d）：\n%2$s</string>
+    <string name="j2s_no_error_detail">（无详细错误）</string>
+    <string name="j2s_no_class_file">编译通过但未产出 class 文件：\n%1$s</string>
+    <string name="j2s_dx_fail">dx 打包 dex 失败（code=%1$d）</string>
+    <string name="j2s_dx_no_output">dx 未产出 dex 文件</string>
+    <string name="j2s_baksmali_fail">baksmali 反汇编失败：%1$s</string>
+    <string name="j2s_no_smali">反汇编完成但未找到 smali 文件</string>
+    <string name="j2s_exception">转换异常：\n%1$s</string>
+    <string name="j2s_nothing_copy">没有可复制的内容</string>
+    <string name="j2s_copied">已复制 %1$d 字符</string>
 </resources>

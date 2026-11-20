@@ -122,7 +122,7 @@ public class Java2SmaliActivity extends BaseActivity {
         root.addView(actionBar());
 
         mJava.setText(SAMPLE);
-        mStatus.setText("就绪：点击右上角「转换」开始（首次会释放编译器插件，稍慢）");
+        mStatus.setText(s(R.string.j2s_ready));
     }
 
     // ---------------- UI ----------------
@@ -162,7 +162,7 @@ public class Java2SmaliActivity extends BaseActivity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         TextView conv = new TextView(this);
-        conv.setText("转换 ⚙");
+        conv.setText(s(R.string.j2s_convert_btn));
         conv.setTextSize(15);
         conv.setTypeface(null, Typeface.BOLD);
         conv.setTextColor(topText);
@@ -189,7 +189,7 @@ public class Java2SmaliActivity extends BaseActivity {
         box.setPadding(dp(10), dp(8), dp(10), dp(4));
 
         TextView l = new TextView(this);
-        l.setText("Java 源码（public class 名决定输出的类）");
+        l.setText(s(R.string.j2s_java_label));
         l.setTextSize(12);
         l.setTextColor(mSub);
         box.addView(l);
@@ -231,7 +231,7 @@ public class Java2SmaliActivity extends BaseActivity {
         box.setPadding(dp(10), dp(4), dp(10), dp(4));
 
         TextView l = new TextView(this);
-        l.setText("Smali 输出（长按可选中复制，或点底部「复制」）");
+        l.setText(s(R.string.j2s_smali_label));
         l.setTextSize(12);
         l.setTextColor(mSub);
         box.addView(l);
@@ -257,13 +257,13 @@ public class Java2SmaliActivity extends BaseActivity {
         bar.setBackgroundColor(mCardBg);
         bar.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(48)));
-        bar.addView(btn("载入示例", new View.OnClickListener() {
-            public void onClick(View v) { mJava.setText(SAMPLE); mStatus.setText("已载入示例"); }
+        bar.addView(btn(s(R.string.j2s_load_sample), new View.OnClickListener() {
+            public void onClick(View v) { mJava.setText(SAMPLE); mStatus.setText(s(R.string.j2s_sample_loaded)); }
         }));
-        bar.addView(btn("复制结果", new View.OnClickListener() {
+        bar.addView(btn(s(R.string.j2s_copy_result), new View.OnClickListener() {
             public void onClick(View v) { copyResult(); }
         }));
-        bar.addView(btn("清空", new View.OnClickListener() {
+        bar.addView(btn(s(R.string.j2s_clear), new View.OnClickListener() {
             public void onClick(View v) { mJava.setText(""); mSmali.setText(""); mClasses.clear(); }
         }));
         return bar;
@@ -285,15 +285,15 @@ public class Java2SmaliActivity extends BaseActivity {
 
     private void convert() {
         final String src = mJava.getText().toString();
-        if (src.trim().isEmpty()) { toast("请先输入 Java 代码"); return; }
-        mProgress = ProgressDialog.show(this, "转换中", "编译 Java → dex → smali…", true, false);
+        if (src.trim().isEmpty()) { toast(s(R.string.j2s_need_input)); return; }
+        mProgress = ProgressDialog.show(this, s(R.string.j2s_converting), s(R.string.j2s_convert_progress), true, false);
         new Thread(new Runnable() {
             public void run() {
                 final String res = doConvert(src);
                 runOnUiThread(new Runnable() {
                     public void run() {
                         try { mProgress.dismiss(); } catch (Exception ignore) {}
-                        if (res != null) { mSmali.setText(res); mStatus.setText("编译失败，见下方错误信息"); }
+                        if (res != null) { mSmali.setText(res); mStatus.setText(s(R.string.j2s_compile_fail_status)); }
                         else showClasses();
                     }
                 });
@@ -303,7 +303,7 @@ public class Java2SmaliActivity extends BaseActivity {
 
     /** 展示转换结果（默认主类），并生成类切换按钮。 */
     private void showClasses() {
-        if (mClasses.isEmpty()) { mSmali.setText("（未生成任何类）"); return; }
+        if (mClasses.isEmpty()) { mSmali.setText(s(R.string.j2s_no_class)); return; }
         // 类切换按钮放在类切换条里（先移除旧的）
         for (int i = mClassBar.getChildCount() - 1; i >= 1; i--) mClassBar.removeViewAt(i);
         if (mClasses.size() > 1) {
@@ -334,8 +334,7 @@ public class Java2SmaliActivity extends BaseActivity {
         if (s == null) return;
         mCurClass = name;
         mSmali.setText(s);
-        mStatus.setText("已生成 " + mClasses.size() + " 个类 · 当前 " + name
-                + "（" + s.split("\n").length + " 行）");
+        mStatus.setText(getString(R.string.j2s_class_status, mClasses.size(), name, s.split("\n").length));
     }
 
     /**
@@ -346,7 +345,7 @@ public class Java2SmaliActivity extends BaseActivity {
         File base = null;
         try {
             if (android.os.Build.VERSION.SDK_INT < 26)
-                return "Java→Smali 需要 Android 8.0（API 26）及以上，当前系统版本过低";
+                return s(R.string.j2s_api_low);
             base = new File(getFilesDir(), DIR);
             File work = new File(base, "work");
             File srcDir = new File(work, "src");
@@ -358,7 +357,7 @@ public class Java2SmaliActivity extends BaseActivity {
 
             // 1) 主类名（优先 public class）
             String main = guessClassName(src);
-            if (main == null) return "未在源码中找到 class / interface / enum 定义";
+            if (main == null) return s(R.string.j2s_no_class_def);
             writeFile(new File(srcDir, main + ".java"), src);
 
             // 2) 释放插件 + 构建 ClassLoader
@@ -398,12 +397,12 @@ public class Java2SmaliActivity extends BaseActivity {
             Integer rc = (Integer) compile.invoke(null, jargs, new PrintWriter(errW));
             String errs = errW.toString().trim();
             if (rc == null || rc != 0) {
-                return "Java 编译失败（code=" + rc + "）：\n"
-                        + (errs.isEmpty() ? "（无详细错误）" : errs);
+                return s(R.string.j2s_javac_fail, rc,
+                        errs.isEmpty() ? s(R.string.j2s_no_error_detail) : errs);
             }
             if (!new File(clsDir, main + ".class").exists() && firstClassFile(clsDir) == null) {
                 // 类文件可能带包名路径
-                return "编译通过但未产出 class 文件：\n" + errs;
+                return s(R.string.j2s_no_class_file, errs);
             }
 
             // 4) dx：.class → dex
@@ -423,12 +422,12 @@ public class Java2SmaliActivity extends BaseActivity {
             if (fn.get(args) == null) fn.set(args, new String[]{clsDir.getAbsolutePath()});
             Method run = dxMain.getMethod("run", dxArgs);
             Integer dxRc = (Integer) run.invoke(null, args);
-            if (dxRc == null || dxRc != 0) return "dx 打包 dex 失败（code=" + dxRc + "）";
-            if (!dex.exists()) return "dx 未产出 dex 文件";
+            if (dxRc == null || dxRc != 0) return s(R.string.j2s_dx_fail, dxRc);
+            if (!dex.exists()) return s(R.string.j2s_dx_no_output);
 
             // 5) baksmali：dex → smali
             String err = SmaliTool.decompile(dex, smaliDir, 4);
-            if (err != null) return "baksmali 反汇编失败：" + SmaliReport.err(this, err);
+            if (err != null) return s(R.string.j2s_baksmali_fail, SmaliReport.err(this, err));
 
             // 6) 收集全部类（主类排最前）
             mClasses.clear();
@@ -447,14 +446,14 @@ public class Java2SmaliActivity extends BaseActivity {
                 if (tmp.containsKey(cn)) continue;
                 tmp.put(cn, compact(readFile(f)));
             }
-            if (tmp.isEmpty()) return "反汇编完成但未找到 smali 文件";
+            if (tmp.isEmpty()) return s(R.string.j2s_no_smali);
             mClasses.putAll(tmp);
             if (mCurClass == null) mCurClass = mClasses.keySet().iterator().next();
             return null;
         } catch (Throwable t) {
             String detail = describe(t);
             android.util.Log.e("J2S", detail, t);
-            return "转换异常：\n" + detail;
+            return s(R.string.j2s_exception, detail);
         }
     }
 
@@ -592,11 +591,11 @@ public class Java2SmaliActivity extends BaseActivity {
 
     private void copyResult() {
         String s = mSmali.getText().toString();
-        if (s.isEmpty()) { toast("没有可复制的内容"); return; }
+        if (s.isEmpty()) { toast(getString(R.string.j2s_nothing_copy)); return; }
         try {
             ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             cm.setPrimaryClip(ClipData.newPlainText("smali", s));
-            toast("已复制 " + s.length() + " 字符");
+            toast(getString(R.string.j2s_copied, s.length()));
         } catch (Exception ignore) {}
     }
 
@@ -632,6 +631,9 @@ public class Java2SmaliActivity extends BaseActivity {
     private void toast(String s) {
         Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
     }
+
+    private String s(int id) { return getString(id); }
+    private String s(int id, Object... args) { return getString(id, args); }
 
     private int attr(int attrId, int fallback) {
         android.util.TypedValue tv = new android.util.TypedValue();

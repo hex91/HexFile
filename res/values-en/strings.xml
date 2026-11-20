@@ -2357,4 +2357,32 @@
     <string name="sy_hint_remote">Remote path, e.g. /backup/photo</string>
     <string name="sy_local">Local dir</string>
     <string name="sy_preview">Preview</string>
+
+    <!-- v2.50.0 Java-to-Smali page i18n (j2s_*) -->
+    <string name="j2s_ready">Ready: tap Convert at top right to start (first run unpacks the compiler, a bit slower)</string>
+    <string name="j2s_convert_btn">Convert ⚙</string>
+    <string name="j2s_java_label">Java source (the public class name decides the output class)</string>
+    <string name="j2s_smali_label">Smali output (long-press to select/copy, or tap Copy below)</string>
+    <string name="j2s_load_sample">Load sample</string>
+    <string name="j2s_sample_loaded">Sample loaded</string>
+    <string name="j2s_copy_result">Copy result</string>
+    <string name="j2s_clear">Clear</string>
+    <string name="j2s_need_input">Enter some Java code first</string>
+    <string name="j2s_converting">Converting</string>
+    <string name="j2s_convert_progress">Compiling Java → dex → smali…</string>
+    <string name="j2s_compile_fail_status">Compilation failed, see error below</string>
+    <string name="j2s_no_class">(no classes generated)</string>
+    <string name="j2s_class_status">Generated %1$d classes · current %2$s (%3$d lines)</string>
+    <string name="j2s_api_low">Java→Smali requires Android 8.0 (API 26) or newer; this system is too old</string>
+    <string name="j2s_no_class_def">No class / interface / enum definition found in source</string>
+    <string name="j2s_javac_fail">Java compilation failed (code=%1$d):\n%2$s</string>
+    <string name="j2s_no_error_detail">(no detailed error)</string>
+    <string name="j2s_no_class_file">Compiled but no class file was produced:\n%1$s</string>
+    <string name="j2s_dx_fail">dx failed to package dex (code=%1$d)</string>
+    <string name="j2s_dx_no_output">dx produced no dex file</string>
+    <string name="j2s_baksmali_fail">baksmali disassembly failed: %1$s</string>
+    <string name="j2s_no_smali">Disassembly done but no smali files found</string>
+    <string name="j2s_exception">Conversion error:\n%1$s</string>
+    <string name="j2s_nothing_copy">Nothing to copy</string>
+    <string name="j2s_copied">Copied %1$d characters</string>
 </resources>
