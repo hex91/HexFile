@@ -119,7 +119,13 @@ public class NetFsError extends IOException {
         /** 流已关闭 */
         STREAM_CLOSED,
         /** 创建目录失败（参数：路径、状态码） */
-        MKDIR_FAIL
+        MKDIR_FAIL,
+
+        // ---- v2.99.0 OAuth 授权码 ----
+        /** 申请设备码失败（参数：服务端描述） */
+        OAUTH_DEVICE_CODE,
+        /** 授权服务器 HTTP 失败（参数：状态码、响应摘要） */
+        OAUTH_HTTP
     }
 
     /** OP_FAIL 的第 0 个参数：操作码 */
@@ -272,6 +278,12 @@ public class NetFsError extends IOException {
     public static NetFsError streamClosed()                  { return new NetFsError(Code.STREAM_CLOSED); }
     public static NetFsError mkdirFail(String path, int status, Throwable e) {
         return new NetFsError(Code.MKDIR_FAIL, e, path, status);
+    }
+    public static NetFsError oauthDeviceCode(String detail) {
+        return new NetFsError(Code.OAUTH_DEVICE_CODE, detail);
+    }
+    public static NetFsError oauthHttp(int code, String body) {
+        return new NetFsError(Code.OAUTH_HTTP, code, body);
     }
 
     /** 诊断串：{@code NETFS CODE: arg1 arg2}，全 ASCII，只给日志和单测 */

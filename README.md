@@ -1785,6 +1785,22 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.99.0（versionCode 292）—— F-14/86：OAuth 授权链路去中文
+
+- **OAuthClient**：`requestDeviceCode(Context, clientId)` 加 Context（调用点 CloudAuthDialog 传 act），
+  Client ID 空走 `oauth_client_id_required` 资源；`DeviceCode.instruction(Context)` 的「请在浏览器打开…」
+  兜底走 `oauth_open_browser`（服务端 message 优先，仍是数据透传）；设备码失败 / 授权 HTTP 失败
+  改 `NetFsError` 新码，CloudAuthDialog.friendly 接 NetText 映射。
+- **OAuthToken**：两处 IAE 中文前缀改 ASCII（`OAuth server returned non-JSON:` /
+  `OAuth response missing access_token:`），服务端原文仍拼在 message 里——
+  `OAuthTokenTest` 断言 `"等待用户"`/`"已失效"`/`"502"` 是服务端数据透传，非代码文案，口径不变。
+
+新增 4 个资源键（`oauth_*` + `netfs_err_oauth_*`），资源 2998 → 3002（100%）。
+构建期修 NetFsError 枚举漏闭合 `}`（第二次同类，已加 python 括号自检）。
+四门全过、全量 97/0/4（OAuthTokenTest PASS）；APK 13,488,848 B（md5 `eca4fbae…`），badging 292/2.99.0。
+
+---
+
 ## v2.98.0（versionCode 291）—— F-14/85：describe 回执 / 工厂配置去中文
 
 清理 net 层最后几处「逻辑层产文案并展示」的回执方法：

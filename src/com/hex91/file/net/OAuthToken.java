@@ -90,7 +90,7 @@ public final class OAuthToken {
     public static OAuthToken parse(String json, long nowMs) {
         Object root = Json.parseOrNull(json);
         if (!(root instanceof java.util.Map))
-            throw new IllegalArgumentException("授权服务器返回的不是 JSON："
+            throw new IllegalArgumentException("OAuth server returned non-JSON: "
                     + (json == null ? "null" : abbreviate(json)));
 
         // 先认 access_token：OAuth2 的错误响应不会同时带 access_token，
@@ -104,7 +104,7 @@ public final class OAuthToken {
                 if (desc.isEmpty()) desc = Json.str(root, "message");
                 throw new OAuthError(err, desc);
             }
-            throw new IllegalArgumentException("授权响应里没有 access_token："
+            throw new IllegalArgumentException("OAuth response missing access_token: "
                     + (json == null ? "null" : abbreviate(json)));
         }
 

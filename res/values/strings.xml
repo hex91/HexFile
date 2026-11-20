@@ -3196,4 +3196,9 @@
     <string name="th_source">"（来源 %1$s）"</string>
     <string name="th_account">"，账号 %1$s"</string>
     <string name="th_no_access">"；注意：没同时看到 access_token，若稍后连接失败请重新登录"</string>
+    <!-- v2.99.0 OAuth 授权文案 -->
+    <string name="oauth_open_browser">请在浏览器打开 %1$s 并输入代码 %2$s</string>
+    <string name="oauth_client_id_required">Client ID 不能为空（需先在 Azure 注册应用）</string>
+    <string name="netfs_err_oauth_device">申请设备码失败%1$s</string>
+    <string name="netfs_err_oauth_http">授权服务器 HTTP %1$d：%2$s</string>
 </resources>

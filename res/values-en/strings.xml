@@ -3188,4 +3188,9 @@
     <string name="th_source">" (source %1$s)"</string>
     <string name="th_account">", account %1$s"</string>
     <string name="th_no_access">" Note: no access_token was captured; if connecting fails later, please sign in again"</string>
+    <!-- v2.99.0 OAuth texts -->
+    <string name="oauth_open_browser">Open %1$s in your browser and enter code %2$s</string>
+    <string name="oauth_client_id_required">Client ID cannot be empty (register an app in Azure first)</string>
+    <string name="netfs_err_oauth_device">Failed to request a device code%1$s</string>
+    <string name="netfs_err_oauth_http">Authorization server HTTP %1$d: %2$s</string>
 </resources>

@@ -1,6 +1,8 @@
 package com.hex91.file.net;
 
 import com.hex91.file.core.Json;
+import android.content.Context;
+import com.hex91.file.R;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -66,23 +68,23 @@ public final class OAuthClient {
         }
 
         /** 给用户看的文案（服务端 message 已是本地化的，优先用它） */
-        public String instruction() {
+        public String instruction(Context c) {
             if (message != null && !message.trim().isEmpty()) return message.trim();
-            return "请在浏览器打开 " + verificationUri + " 并输入代码 " + userCode;
+            return c.getString(R.string.oauth_open_browser, verificationUri, userCode);
         }
     }
 
     // ---------------------------------------------------------------- 设备码
 
     /** 申请设备码（这一步不需要用户已登录） */
-    public static DeviceCode requestDeviceCode(String clientId) throws IOException {
-        if (isBlank(clientId)) throw new IOException("Client ID 不能为空（需先在 Azure 注册应用）");
+    public static DeviceCode requestDeviceCode(Context c, String clientId) throws IOException {
+        if (isBlank(clientId)) throw new IOException(c.getString(R.string.oauth_client_id_required));
         String body = "client_id=" + enc(clientId) + "&scope=" + enc(MS_SCOPE);
         Object root = Json.parseOrNull(post(MS_DEVICECODE, FORM, body));
         String dc = Json.str(root, "device_code");
         String uc = Json.str(root, "user_code");
         if (dc.isEmpty() || uc.isEmpty()) {
-            throw new IOException("申请设备码失败：" + errorText(root, body));
+            throw NetFsError.oauthDeviceCode(errorText(root, body));
         }
         return new DeviceCode(dc, uc, Json.str(root, "verification_uri"),
                 Json.str(root, "message"),
@@ -119,7 +121,7 @@ public final class OAuthClient {
      * 否则下次刷新失败（旧 token 用一次就废）。</p>
      */
     public static OAuthToken refreshAliyun(String refreshToken) throws IOException {
-        if (isBlank(refreshToken)) throw new IOException("refresh_token 不能为空");
+        if (isBlank(refreshToken)) throw NetFsError.fieldRequired("refresh_token");
         String body = "{\"grant_type\":\"refresh_token\",\"refresh_token\":"
                 + quote(refreshToken) + "}";
         return OAuthToken.parse(post(ALIYUN_TOKEN, JSON, body), System.currentTimeMillis());
@@ -160,7 +162,7 @@ public final class OAuthClient {
                     if (desc.isEmpty()) desc = Json.str(root, "message");
                     throw new OAuthToken.OAuthError(err, desc);
                 }
-                throw new IOException("授权服务器 HTTP " + code + "：" + abbreviate(resp));
+                throw NetFsError.oauthHttp(code, abbreviate(resp));
             }
             return resp;
         } finally {

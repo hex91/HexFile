@@ -103,7 +103,7 @@ final class CloudAuthDialog {
                 new Thread(new Runnable() {
                     public void run() {
                         try {
-                            final OAuthClient.DeviceCode dc = OAuthClient.requestDeviceCode(cid);
+                            final OAuthClient.DeviceCode dc = OAuthClient.requestDeviceCode(act, cid);
                             verifyUri[0] = dc.verificationUri;
                             ui(act, new Runnable() {
                                 public void run() {
@@ -345,6 +345,7 @@ final class CloudAuthDialog {
         if (e instanceof java.net.SocketTimeoutException) return act.getString(R.string.ca_err_timeout);
         if (e instanceof java.net.UnknownHostException) return act.getString(R.string.ca_err_dns);
         if (e instanceof javax.net.ssl.SSLException) return act.getString(R.string.ca_err_tls);
+        if (e instanceof com.hex91.file.net.NetFsError) return NetText.errorText(act, e);
         String m = e.getMessage();
         if (m == null || m.isEmpty()) return e.getClass().getSimpleName();
         return m;

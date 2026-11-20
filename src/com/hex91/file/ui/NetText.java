@@ -137,6 +137,12 @@ public final class NetText {
             case MKDIR_FAIL:
                 return c.getString(R.string.netfs_err_mkdir_fail, e.str(0), e.num(1));
 
+            // ---- OAuth 码 ----
+            case OAUTH_DEVICE_CODE:
+                return c.getString(R.string.netfs_err_oauth_device, detail(c, e.str(0)));
+            case OAUTH_HTTP:
+                return c.getString(R.string.netfs_err_oauth_http, e.num(0), e.str(1));
+
             default:
                 return c.getString(R.string.netfs_err_unknown);
         }
