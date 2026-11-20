@@ -1785,6 +1785,22 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.97.0（versionCode 290）—— F-14/84：net 边角（内部契约 / HLS 数据）去中文
+
+清理 net 包边角类的中文，区分「用户文案」与「内部契约 / 功能数据」两类口径：
+
+- **内部契约改 ASCII**：S3Signer 2（SHA-256/HmacSHA256 不可用）、NetFs 2（不支持续传的 UOE）、
+  HlsCrypto 3（密钥长度/解密失败——`hls_err_decrypt` 模板已带中文说明，`%2$s` 填技术串即可）。
+- **HLS 数据中性的符号**：M3u8Playlist「码率未知」→ `N/A`、「源」→ `SRC`（中英通用，同
+  v2.93 `bagDisplay` 的 `×N` 口径；测试断言的数字档 label 不受影响）。
+- **保留数据**：StreamUrl 5 处全角标点（【】《》""''，。、；！？）是 URL 剥离用的功能字符集，
+  翻译会破坏剥离逻辑（同 SmaliDocs / 字体样张口径），刻意保留。
+
+无新增资源键，资源维持 2994/2994。四门全过、全量 97/0/4（首轮 J4ReadTest 偶发 1 失败，
+单独重跑 + 全量复跑均 PASS，与本批无关）；APK 13,488,848 B（md5 `a941c0e5…`），badging 290/2.97.0。
+
+---
+
 ## v2.96.0（versionCode 289）—— F-14/83：传统协议四件套（FTP/SFTP/WebDAV/SMB）去中文
 
 沿 NetFsError+NetText 架构清掉四个文件协议的中文异常（FtpFs 19 / SftpFs 13 / WebDavFs 16 / SmbFs 2 行 → 0）：

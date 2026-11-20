@@ -57,7 +57,7 @@ public final class S3Signer {
         try {
             return hex(MessageDigest.getInstance("SHA-256").digest(data));
         } catch (Exception e) {
-            throw new IllegalStateException("SHA-256 不可用", e);
+            throw new IllegalStateException("SHA-256 unavailable", e);
         }
     }
 
@@ -67,7 +67,7 @@ public final class S3Signer {
             m.init(new SecretKeySpec(key, "HmacSHA256"));
             return m.doFinal(data);
         } catch (Exception e) {
-            throw new IllegalStateException("HmacSHA256 不可用", e);
+            throw new IllegalStateException("HmacSHA256 unavailable", e);
         }
     }
 

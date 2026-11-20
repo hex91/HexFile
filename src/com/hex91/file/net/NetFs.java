@@ -53,7 +53,7 @@ public interface NetFs {
      * 不支持续传的协议抛 {@link UnsupportedOperationException}。
      */
     default InputStream openReadFrom(String path, long offset) throws IOException {
-        throw new UnsupportedOperationException("该协议不支持断点续传");
+        throw new UnsupportedOperationException("This protocol does not support download resume");
     }
 
     /**
@@ -68,7 +68,7 @@ public interface NetFs {
 
     /** 从 {@code offset} 开始续写远程文件（通常等于远端已有长度）。 */
     default OutputStream openWriteFrom(String path, long offset) throws IOException {
-        throw new UnsupportedOperationException("该协议不支持上传续传");
+        throw new UnsupportedOperationException("This protocol does not support upload resume");
     }
 
     /** 目录项元数据。 */

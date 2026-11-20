@@ -73,7 +73,7 @@ public final class M3u8Playlist {
                 if (sb.length() > 0) sb.append(" · ");
                 sb.append(mbpsText(bandwidth));
             }
-            if (sb.length() == 0) sb.append("码率未知");
+            if (sb.length() == 0) sb.append("N/A");
             return sb.toString();
         }
 
@@ -206,7 +206,7 @@ public final class M3u8Playlist {
         String label = attrValue(attrLine, "NAME");
         if (label == null || label.isEmpty()) {
             int shortSide = (w > 0 && h > 0) ? Math.min(w, h) : 0;
-            label = shortSide > 0 ? shortSide + "p" : (bw > 0 ? mbpsText(bw) : "源");
+            label = shortSide > 0 ? shortSide + "p" : (bw > 0 ? mbpsText(bw) : "SRC");
         }
         return new Variant(url, w, h, bw, label, codecs == null ? "" : codecs);
     }
@@ -380,7 +380,7 @@ public final class M3u8Playlist {
 
     /** 码率人类可读：4200000 → "4.2 Mbps"，800000 → "800 Kbps" */
     public static String mbpsText(long bps) {
-        if (bps <= 0) return "码率未知";
+        if (bps <= 0) return "N/A";
         if (bps >= 1000000L) {
             double m = bps / 1000000.0;
             return trim1(m) + " Mbps";

@@ -36,8 +36,8 @@ public final class HlsCrypto {
      */
     public static byte[] decrypt(byte[] data, byte[] key, byte[] iv) throws GeneralSecurityException {
         if (data == null || data.length == 0) return data;
-        if (key == null || key.length != 16) throw new GeneralSecurityException("AES-128 密钥长度必须是 16 字节");
-        if (iv == null || iv.length != 16) throw new GeneralSecurityException("AES IV 长度必须是 16 字节");
+        if (key == null || key.length != 16) throw new GeneralSecurityException("AES-128 key must be 16 bytes");
+        if (iv == null || iv.length != 16) throw new GeneralSecurityException("AES IV must be 16 bytes");
 
         // 明文分片：不加密却带了 KEY 行，原样返回（否则一定解出乱码）。
         // fMP4 也要放行：styp/moof 开头的分片长度常常正好是 16 的倍数，
@@ -57,7 +57,7 @@ public final class HlsCrypto {
             // 否则用户拿到的是一个能生成、但播不了的文件，比直接报错难查得多。
             byte[] raw = cipher(data, key, iv, "AES/CBC/NoPadding");
             if (looksLikeMedia(raw)) return raw;
-            throw new GeneralSecurityException("分片解密失败：密钥或 IV 与清单不匹配");
+            throw new GeneralSecurityException("segment decrypt failed: key/IV mismatch");
         }
     }
 
