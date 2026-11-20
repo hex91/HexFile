@@ -1785,6 +1785,28 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.55.0（versionCode 248）—— F-14/42：重复文件查找页 i18n（批量纯 UI 页第 8 页）
+
+`DupFinderActivity` 中文字面量 **27 → 0**（纯代码构造 UI，无布局文件），新增 15 个 `df_*` 键，
+复用 `common_delete` / `common_cancel`，资源 2374 → 2389 条（中英各 2389，100%）。
+
+### UI 层要点
+- 两条汇总整句化：`df_result`（`%1$s\n重复组 %2$d 组 · 可释放约 %3$s · 耗时 %4$ds`，
+  耗时单位紧贴数字，无空格）、`df_remaining`（`%1$s\n剩余重复组 %2$d 组 · 可释放约 %3$s`）。
+- 组头 `df_group_head`（`组 %1$d · %2$d 个副本 · 单个 %3$s · 勾选 %4$d`）。
+- 删除结果二选一：`fail > 0 ? df_deleted_partial(ok, fail) : df_deleted(ok)`，
+  避免"已删除 N 个"+"，失败 M 个"分片拼接。
+- 扫描进度对话框标题/正文、删除确认框（`%1$d 个文件，约 %2$s\n\n确定删除？（不可恢复）`）均整句。
+- 扫描线程的 `runOnUiThread` Runnable 内 2 处 `DupFinderActivity.this.getString(...)`。
+
+### 验证
+
+四门全过（空 catch 335 基线）、`jc.sh` rc=0。APK **13,406,928 B**（md5 `592d10a3…`），
+badging 反证 versionCode 248 / 2.55.0；dex 反证 `df_group_head`/`df_remaining`/`df_deleted_partial` 各=1。
+提交 `—`。
+
+---
+
 ## v2.54.0（versionCode 247）—— F-14/41：终端页 i18n（批量纯 UI 页第 7 页）
 
 `TerminalActivity` 中文字面量 **约 19 → 0**（另有 12 行是写入磁盘的 shell 脚本内容，见下），

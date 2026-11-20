@@ -2501,4 +2501,20 @@
     <string name="term_scheme_contrast">高对比</string>
     <string name="term_scheme_ink">墨蓝</string>
     <string name="term_scheme_paper">纸白</string>
+    <!-- v2.55.0 重复文件查找页 -->
+    <string name="df_scope">扫描范围：%1$s</string>
+    <string name="df_del_checked">删除勾选项</string>
+    <string name="df_reset_checks">恢复默认勾选</string>
+    <string name="df_close">关闭</string>
+    <string name="df_scan_title">查找重复文件</string>
+    <string name="df_scan_msg">三阶段：大小分组 → 快速指纹 → 全量校验</string>
+    <string name="df_scan_fail">扫描失败: %1$s</string>
+    <string name="df_result">%1$s\n重复组 %2$d 组 · 可释放约 %3$s · 耗时 %4$ds</string>
+    <string name="df_no_dup">未发现重复文件（仅检查 ≥1MB 的文件）</string>
+    <string name="df_group_head">组 %1$d · %2$d 个副本 · 单个 %3$s · 勾选 %4$d</string>
+    <string name="df_none_checked">未勾选任何文件</string>
+    <string name="df_del_msg">共 %1$d 个文件，约 %2$s\n\n确定删除？（不可恢复）</string>
+    <string name="df_deleted">已删除 %1$d 个</string>
+    <string name="df_deleted_partial">已删除 %1$d 个，失败 %2$d 个</string>
+    <string name="df_remaining">%1$s\n剩余重复组 %2$d 组 · 可释放约 %3$s</string>
 </resources>

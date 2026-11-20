@@ -2493,4 +2493,20 @@
     <string name="term_scheme_contrast">High contrast</string>
     <string name="term_scheme_ink">Ink blue</string>
     <string name="term_scheme_paper">Paper white</string>
+    <!-- v2.55.0 duplicate finder -->
+    <string name="df_scope">Scan scope: %1$s</string>
+    <string name="df_del_checked">Delete checked</string>
+    <string name="df_reset_checks">Reset checks</string>
+    <string name="df_close">Close</string>
+    <string name="df_scan_title">Find duplicates</string>
+    <string name="df_scan_msg">Three stages: size groups → quick fingerprint → full checksum</string>
+    <string name="df_scan_fail">Scan failed: %1$s</string>
+    <string name="df_result">%1$s\n%2$d groups · ~%3$s reclaimable · took %4$ds</string>
+    <string name="df_no_dup">No duplicates found (only files ≥1MB are checked)</string>
+    <string name="df_group_head">Group %1$d · %2$d copies · %3$s each · %4$d checked</string>
+    <string name="df_none_checked">Nothing checked</string>
+    <string name="df_del_msg">%1$d files, about %2$s\n\nDelete them? (irreversible)</string>
+    <string name="df_deleted">Deleted %1$d</string>
+    <string name="df_deleted_partial">Deleted %1$d, failed %2$d</string>
+    <string name="df_remaining">%1$s\n%2$d groups left · ~%3$s reclaimable</string>
 </resources>

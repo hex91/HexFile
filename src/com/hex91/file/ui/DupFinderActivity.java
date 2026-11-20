@@ -1,5 +1,6 @@
 package com.hex91.file.ui;
 
+import com.hex91.file.R;
 import com.hex91.file.fs.DiskScanUtil;
 import com.hex91.file.fs.FileOps;
 import android.app.ProgressDialog;
@@ -52,7 +53,7 @@ public class DupFinderActivity extends BaseActivity {
         top.setGravity(Gravity.CENTER_VERTICAL);
         top.setPadding((int) (12 * den), (int) (8 * den), (int) (12 * den), (int) (8 * den));
         summary = new TextView(this);
-        summary.setText("扫描范围：" + root.getAbsolutePath());
+        summary.setText(getString(R.string.df_scope, root.getAbsolutePath()));
         summary.setTextSize(14);
         summary.setTextColor(ThemeManager.topBarText(this));
         top.addView(summary);
@@ -65,7 +66,7 @@ public class DupFinderActivity extends BaseActivity {
         bottom.setBackgroundColor(ThemeManager.surface(this));
         bottom.setPadding((int) (12 * den), (int) (6 * den), (int) (12 * den), (int) (6 * den));
         final Button del = new Button(this);
-        del.setText("删除勾选项");
+        del.setText(R.string.df_del_checked);
         UiDecor.barButton(del, this, UiDecor.KIND_DANGER, 12.5f);
         del.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { askDeleteChecked(); }
@@ -73,7 +74,7 @@ public class DupFinderActivity extends BaseActivity {
         bottom.addView(del, new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         final Button keepFirst = new Button(this);
-        keepFirst.setText("恢复默认勾选");
+        keepFirst.setText(R.string.df_reset_checks);
         UiDecor.barButton(keepFirst, this, UiDecor.KIND_SOFT, 12.5f);
         UiDecor.gap(keepFirst, this, 4f);
         keepFirst.setOnClickListener(new View.OnClickListener() {
@@ -82,7 +83,7 @@ public class DupFinderActivity extends BaseActivity {
         bottom.addView(keepFirst, new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         final Button close = new Button(this);
-        close.setText("关闭");
+        close.setText(R.string.df_close);
         UiDecor.barButton(close, this, UiDecor.KIND_SOFT, 12.5f);
         UiDecor.gap(close, this, 4f);
         close.setOnClickListener(new View.OnClickListener() {
@@ -107,8 +108,8 @@ public class DupFinderActivity extends BaseActivity {
     }
 
     private void startScan() {
-        final ProgressDialog pd = ProgressDialog.show(this, "查找重复文件",
-                "三阶段：大小分组 → 快速指纹 → 全量校验", true, false);
+        final ProgressDialog pd = ProgressDialog.show(this, getString(R.string.df_scan_title),
+                getString(R.string.df_scan_msg), true, false);
         final long t0 = System.currentTimeMillis();
         new Thread(new Runnable() {
             List<DiskScanUtil.DupGroup> r = null;
@@ -121,17 +122,18 @@ public class DupFinderActivity extends BaseActivity {
                     public void run() {
                         pd.dismiss();
                         if (err != null) {
-                            summary.setText("扫描失败: " + err);
+                            summary.setText(DupFinderActivity.this.getString(
+                                    R.string.df_scan_fail, err));
                             return;
                         }
                         groups = r != null ? r : groups;
                         long waste = 0;
                         for (DiskScanUtil.DupGroup g : groups)
                             waste += g.size * (g.files.size() - 1);
-                        summary.setText(root.getAbsolutePath() + "\n重复组 "
-                                + groups.size() + " 组 · 可释放约 "
-                                + FileOps.formatSize(waste) + " · 耗时 "
-                                + (System.currentTimeMillis() - t0) / 1000 + "s");
+                        summary.setText(DupFinderActivity.this.getString(R.string.df_result,
+                                root.getAbsolutePath(), groups.size(),
+                                FileOps.formatSize(waste),
+                                (System.currentTimeMillis() - t0) / 1000));
                         checked.clear();
                         for (int i = 0; i < groups.size(); i++)
                             checked.add(new HashSet<File>());
@@ -161,7 +163,7 @@ public class DupFinderActivity extends BaseActivity {
         float den = getResources().getDisplayMetrics().density;
         if (groups.isEmpty()) {
             TextView t = new TextView(this);
-            t.setText("未发现重复文件（仅检查 ≥1MB 的文件）");
+            t.setText(R.string.df_no_dup);
             t.setTextSize(14);
             t.setTextColor(ThemeManager.textSub(this));
             body.addView(t);
@@ -171,8 +173,8 @@ public class DupFinderActivity extends BaseActivity {
             final int g = gi;
             DiskScanUtil.DupGroup grp = groups.get(gi);
             TextView head = new TextView(this);
-            head.setText("组 " + (gi + 1) + " · " + grp.files.size() + " 个副本 · 单个 "
-                    + FileOps.formatSize(grp.size) + " · 勾选 " + checked.get(gi).size());
+            head.setText(getString(R.string.df_group_head, gi + 1, grp.files.size(),
+                    FileOps.formatSize(grp.size), checked.get(gi).size()));
             head.setTextSize(13);
             head.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
             head.setTextColor(ThemeManager.accent(this));
@@ -211,15 +213,14 @@ public class DupFinderActivity extends BaseActivity {
         long bytes = 0;
         for (int i = 0; i < groups.size(); i++)
             for (File f : checked.get(i)) { n++; bytes += f.length(); }
-        if (n == 0) { Toast.makeText(this, "未勾选任何文件", Toast.LENGTH_SHORT).show(); return; }
+        if (n == 0) { Toast.makeText(this, R.string.df_none_checked, Toast.LENGTH_SHORT).show(); return; }
         new HfDialogBuilder(this)
-                .setTitle("删除勾选项")
-                .setMessage("共 " + n + " 个文件，约 " + FileOps.formatSize(bytes)
-                        + "\n\n确定删除？（不可恢复）")
-                .setPositiveButton("删除", new android.content.DialogInterface.OnClickListener() {
+                .setTitle(R.string.df_del_checked)
+                .setMessage(getString(R.string.df_del_msg, n, FileOps.formatSize(bytes)))
+                .setPositiveButton(R.string.common_delete, new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) { doDeleteChecked(); }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -228,7 +229,9 @@ public class DupFinderActivity extends BaseActivity {
         for (int i = 0; i < groups.size(); i++)
             for (File f : checked.get(i))
                 if (f.delete()) ok++; else fail++;
-        Toast.makeText(this, "已删除 " + ok + " 个" + (fail > 0 ? "，失败 " + fail + " 个" : ""),
+        Toast.makeText(this, fail > 0
+                        ? getString(R.string.df_deleted_partial, ok, fail)
+                        : getString(R.string.df_deleted, ok),
                 Toast.LENGTH_LONG).show();
         // 从组里移除已删文件，组剩 ≤1 的丢弃
         for (int i = groups.size() - 1; i >= 0; i--) {
@@ -238,8 +241,8 @@ public class DupFinderActivity extends BaseActivity {
         }
         long waste = 0;
         for (DiskScanUtil.DupGroup g : groups) waste += g.size * (g.files.size() - 1);
-        summary.setText(root.getAbsolutePath() + "\n剩余重复组 " + groups.size()
-                + " 组 · 可释放约 " + FileOps.formatSize(waste));
+        summary.setText(getString(R.string.df_remaining, root.getAbsolutePath(),
+                groups.size(), FileOps.formatSize(waste)));
         render();
     }
 }
