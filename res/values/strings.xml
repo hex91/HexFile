@@ -2765,4 +2765,7 @@
     <string name="tr_retry">重试</string>
     <string name="tr_retry_fail">无法重试：原始来源已不可用</string>
     <string name="tr_resubmitted">已重新提交</string>
+    <!-- v2.74.0 工具页通用反馈 -->
+    <string name="tu_nothing">没有可复制的内容</string>
+    <string name="tu_copied">%1$s已复制（%2$d 字符）</string>
 </resources>

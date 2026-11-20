@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2619 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2621 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,31 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.74.0（versionCode 267）—— F-14/61：工具页通用复制回执 i18n（批量纯 UI 页第 27 页）
+
+`ToolUi` 中文字面量 **3 → 0**（两行，第 80 行含两个），新增 2 个 `tu_*` 键，
+资源 2619 → 2621 条（中英各 2621，100%）。补 `import com.hex91.file.R;`。
+
+### 为什么这个类值得单独一版
+`ToolUi.copy(Context, CharSequence, String what)` 是**全项目共用**的复制回执：进制转换、
+strings 提取、Hex 查看、编码工具……凡是"点一下复制"的地方都走它。之前这些页面各自把
+界面文案翻干净了，可复制完弹的那句 `XXX结果已复制（24 字符）` 仍是中文写死在这里，
+等于漏了一张大网。改这一处，前面二十几页的回执一起跟着语言走。
+
+### 接口语义写清楚
+`what` 是**调用方给的标签**（已经由调用方本地化，如"16 进制结果"），不在本类翻译；
+本类只负责把标签塞进整句模板。回执键 `tu_copied` = `%1$s已复制（%2$d 字符）` /
+`%1$s copied (%2$d characters)` —— 中文动词紧跟标签、英文要空格，
+这正是"不能拼接、只能整句 + 参数"的典型例子。
+
+### 验证
+四门全过（依赖方向、空 catch 335 基线、文案 2621/2621 100%、动作码 55）。
+APK **13,423,312 B**（md5 `3ea1bac9…`），badging 反证 versionCode 267 / 2.74.0；
+dex 反证 `tu_nothing` / `tu_copied` 各 = 1，"没有可复制"在 dex 中 0 处、
+`resources.arsc` 中 1 处。
 
 ---
 

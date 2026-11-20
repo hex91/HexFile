@@ -1,5 +1,6 @@
 package com.hex91.file.ui;
 
+import com.hex91.file.R;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -70,14 +71,21 @@ final class ToolUi {
         return a;
     }
 
+    /**
+     * 复制并回执。
+     *
+     * <p>{@code what} 是调用方给这段内容起的<b>名字</b>（如某个十六进制结果的标签），
+     * 由调用方自己本地化后传进来；回执整句是 {@code tu_copied} —— 中文里动词紧跟名字，
+     * 英文里动词前要有空格，拼接必然有一边读着别扭，所以只管把名字当参数塞进整句。</p>
+     */
     static void copy(Context c, CharSequence text, String what) {
         if (text == null || text.length() == 0) {
-            toast(c, "没有可复制的内容");
+            toast(c, c.getString(R.string.tu_nothing));
             return;
         }
         ClipboardManager cm = (ClipboardManager) c.getSystemService(Context.CLIPBOARD_SERVICE);
         cm.setPrimaryClip(ClipData.newPlainText("hexfile", text));
-        toast(c, what + "已复制（" + text.length() + " 字符）");
+        toast(c, c.getString(R.string.tu_copied, what, text.length()));
     }
 
     static void toast(Context c, String s) {
