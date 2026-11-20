@@ -2902,4 +2902,14 @@
     <string name="cph_err_3des_key">3DES keys are at most 24 bytes (currently %1$d)</string>
     <string name="cph_err_sm4_key">SM4 keys must be 16 bytes (currently %1$d)</string>
     <string name="cph_err_no_cipher">Enter the ciphertext</string>
+    <!-- v2.81.0 compress-to-ZIP dialog -->
+    <string name="arch_zip_pw_hint">Leave empty for a plain ZIP; enter a password to encrypt (AES or compatible ZipCrypto — see below)</string>
+    <string name="arch_zip_aes256">AES-256 (needs 7-Zip / ZArchiver, recommended)</string>
+    <string name="arch_zip_compat">Compatible ZipCrypto (unlocks on Windows/stock Android, weak)</string>
+    <string name="arch_zip_method">Encryption: %1$s</string>
+    <string name="arch_zip_method_title">Choose encryption</string>
+    <string name="arch_zip_msg">Pack %1$s into:\n%2$s</string>
+    <string name="arch_zip_go">Compress</string>
+    <string name="arch_zip_done">Compressed: %1$s</string>
+    <string name="arch_zip_fail">Compression failed (all symlinks / unreadable, or the target is not writable)</string>
 </resources>

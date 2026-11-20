@@ -1,5 +1,6 @@
 package com.hex91.file.controller;
 
+import com.hex91.file.R;
 import com.hex91.file.apk.ApkEditSession;
 import com.hex91.file.apk.ArchiveWrite;
 import com.hex91.file.core.AtomicReplace;
@@ -62,6 +63,15 @@ public final class ArchiveAddController {
         this.host = host;
     }
 
+    /** 资源文案：控制器没有 Context，统一从 host 取（与 {@link ArchiveController} 同款） */
+    private String s(int id) {
+        return host.ctx().getString(id);
+    }
+
+    private String s(int id, Object... args) {
+        return host.ctx().getString(id, args);
+    }
+
     /**
      * 写文件/目录进压缩包。
      *
@@ -71,7 +81,7 @@ public final class ArchiveAddController {
     public void addToArchive(final File[] sources, final Pane archPane,
                              final String nameOverride, final boolean move) {
         if (!host.ensureArchiveWritable(archPane.archiveFile)) return;
-        host.toast("写入压缩包…");
+        host.toast(s(R.string.arch_writing));
         final boolean apkMode = ApkEditSession.isApk(archPane.archiveFile);
         new Thread(new Runnable() {
             public void run() {
@@ -89,7 +99,7 @@ public final class ArchiveAddController {
                                     archPane.archiveFile, root, f);
                         } else {
                             if (!ArchiveWrite.writeEntry(archPane.archiveFile, root, f)) {
-                                err = AtomicReplace.failMessage("写入失败: " + root);
+                                err = AtomicReplace.failMessage(s(R.string.arch_write_fail, root));
                                 break;
                             }
                         }
@@ -109,14 +119,14 @@ public final class ArchiveAddController {
                 host.ui(new Runnable() {
                     public void run() {
                         if (ferr != null) {
-                            host.toast("失败: " + ferr);
+                            host.toast(s(R.string.arch_fail, ferr));
                             return;
                         }
                         if (apkMode) {
-                            host.toast((move ? "已移动进压缩包" : "已复制进压缩包")
-                                    + "（已写回原包，首次修改自动备份 _bak.apk）");
+                            host.toast((move ? s(R.string.arch_moved_in) : s(R.string.arch_copied_in))
+                                    + s(R.string.arch_written_back));
                         } else {
-                            host.toast(move ? "已移动进压缩包" : "已复制进压缩包");
+                            host.toast(move ? s(R.string.arch_moved_in) : s(R.string.arch_copied_in));
                         }
                         if (move) {
                             // R-09：必须走 TreeOps —— 它先判 isLink 再判 isDirectory，
@@ -150,7 +160,9 @@ public final class ArchiveAddController {
                 ApkEditSession.stageAdd(ctx, archive, entry, k);
             } else {
                 if (!ArchiveWrite.writeEntry(archive, entry, k)) {
-                    throw new RuntimeException(AtomicReplace.failMessage("写入失败: " + entry));
+                    // static 方法里没有 host，直接问传进来的 ctx 要文案
+                    throw new RuntimeException(AtomicReplace.failMessage(
+                            ctx.getString(R.string.arch_write_fail, entry)));
                 }
             }
         }
@@ -164,13 +176,12 @@ public final class ArchiveAddController {
         et.setText(src.getName());
         et.setInputType(InputType.TYPE_CLASS_TEXT);
         new HfDialogBuilder(ctx)
-                .setTitle((move ? "移动" : "复制") + "到压缩包: "
-                        + archPane.archiveFile.getName())
-                .setMessage(src.isDirectory()
-                        ? "将整目录写入，目标条目前缀（含后缀；可写 a/b 加入子目录）"
-                        : "目标条目名（含后缀；可写 a/b/c.txt 加入子目录）")
+                .setTitle(s(R.string.arch_xfer_title,
+                        move ? s(R.string.arch_word_move) : s(R.string.arch_word_copy),
+                        archPane.archiveFile.getName()))
+                .setMessage(s(R.string.arch_xfer_msg))
                 .setView(et)
-                .setPositiveButton(move ? "移动" : "复制",
+                .setPositiveButton(move ? s(R.string.arch_word_move) : s(R.string.arch_word_copy),
                         new android.content.DialogInterface.OnClickListener() {
                             public void onClick(android.content.DialogInterface d, int w) {
                                 String target = et.getText().toString().trim()
@@ -180,13 +191,13 @@ public final class ArchiveAddController {
                                     target = target.substring(0, target.length() - 1);
                                 }
                                 if (target.isEmpty()) {
-                                    host.toast("条目名不能为空");
+                                    host.toast(s(R.string.arch_name_empty));
                                     return;
                                 }
                                 addToArchive(new File[]{src}, archPane, target, move);
                             }
                         })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -199,30 +210,30 @@ public final class ArchiveAddController {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding((int) (24 * den), (int) (8 * den), (int) (24 * den), (int) (8 * den));
         final EditText pw = new EditText(ctx);
-        pw.setHint("留空=普通 ZIP；输入密码=加密 ZIP（AES 或 兼容 ZipCrypto，见下方选择）");
+        pw.setHint(s(R.string.arch_zip_pw_hint));
         pw.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         root.addView(pw);
         // 加密方式选择：AES（需 7-Zip/ZArchiver）或 兼容 ZipCrypto（系统可直接解）
         final String[] modes = {
-                "AES-256（需 7-Zip / ZArchiver，推荐）",
+                s(R.string.arch_zip_aes256),
                 "AES-192",
                 "AES-128",
-                "兼容 ZipCrypto（Windows/系统可直接解，弱加密）"};
+                s(R.string.arch_zip_compat)};
         final int[] sel = {0};
         final TextView stv = new TextView(ctx);
-        stv.setText("加密方式: " + modes[sel[0]]);
+        stv.setText(s(R.string.arch_zip_method, modes[sel[0]]));
         stv.setTextSize(15);
         stv.setTextColor(ThemeManager.text(ctx));
         stv.setPadding(0, (int) (10 * den), 0, (int) (4 * den));
         stv.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 new HfDialogBuilder(ctx)
-                        .setTitle("选择加密方式")
+                        .setTitle(s(R.string.arch_zip_method_title))
                         .setSingleChoiceItems(modes, sel[0],
                                 new android.content.DialogInterface.OnClickListener() {
                                     public void onClick(android.content.DialogInterface d, int which) {
                                         sel[0] = which;
-                                        stv.setText("加密方式: " + modes[which]);
+                                        stv.setText(s(R.string.arch_zip_method, modes[which]));
                                         d.dismiss();
                                     }
                                 })
@@ -231,10 +242,10 @@ public final class ArchiveAddController {
         });
         root.addView(stv);
         new HfDialogBuilder(ctx)
-                .setTitle("压缩为 ZIP")
-                .setMessage("将 " + f.getName() + " 打包为:\n" + out.getPath())
+                .setTitle(s(R.string.mops_zip))
+                .setMessage(s(R.string.arch_zip_msg, f.getName(), out.getPath()))
                 .setView(root)
-                .setPositiveButton("压缩", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(s(R.string.arch_zip_go), new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         java.util.List<File> src = new java.util.ArrayList<File>();
                         src.add(f);
@@ -248,16 +259,16 @@ public final class ArchiveAddController {
                             ok = ZipUtil.createZipEncrypted(out, src, p, 3 - sel[0]); // 0→256,1→192,2→128
                         }
                         if (ok) {
-                            host.toast("已压缩: " + out.getName());
+                            host.toast(s(R.string.arch_zip_done, out.getName()));
                         } else {
                             // 压缩是「新建文件」，不经过原子替换，所以这里没有 lastError 可用；
                             // 最常见的两种失败：源全是软链接（会被跳过，不写进包）、目标不可写
-                            host.toast("压缩失败（全是软链接/无法读取，或目标不可写）");
+                            host.toast(s(R.string.arch_zip_fail));
                         }
                         host.refreshAll();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 }

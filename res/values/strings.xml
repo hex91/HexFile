@@ -2910,4 +2910,14 @@
     <string name="cph_err_3des_key">3DES 密钥最长 24 字节（当前 %1$d）</string>
     <string name="cph_err_sm4_key">SM4 密钥必须 16 字节（当前 %1$d）</string>
     <string name="cph_err_no_cipher">请填写密文</string>
+    <!-- v2.81.0 压缩为 ZIP 对话框（ArchiveAddController） -->
+    <string name="arch_zip_pw_hint">留空=普通 ZIP；输入密码=加密 ZIP（AES 或 兼容 ZipCrypto，见下方选择）</string>
+    <string name="arch_zip_aes256">AES-256（需 7-Zip / ZArchiver，推荐）</string>
+    <string name="arch_zip_compat">兼容 ZipCrypto（Windows/系统可直接解，弱加密）</string>
+    <string name="arch_zip_method">加密方式：%1$s</string>
+    <string name="arch_zip_method_title">选择加密方式</string>
+    <string name="arch_zip_msg">将 %1$s 打包为：\n%2$s</string>
+    <string name="arch_zip_go">压缩</string>
+    <string name="arch_zip_done">已压缩：%1$s</string>
+    <string name="arch_zip_fail">压缩失败（全是软链接/无法读取，或目标不可写）</string>
 </resources>
