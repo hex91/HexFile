@@ -1819,7 +1819,7 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 四门全过（空 catch 保持 335 基线：首轮 `TrashReport` 的空 catch 补 `return code;` 回落），
 全量测试 **97 通过 / 0 失败 / 4 跳过**，编译干净（`jc.sh` rc=0）。APK
 **13,374,160 B**（md5 `cdd82a38…`），badging 反证 versionCode 239 / 2.46.0；
-dex 反证 `TrashReport`=2、`CODE_CLEANED`=1、`trash_cleaned`=1。提交 `—`。
+dex 反证 `TrashReport`=2、`CODE_CLEANED`=1、`trash_cleaned`=1。提交 `a854176`。
 
 ---
 
