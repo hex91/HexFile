@@ -221,7 +221,7 @@ public class SyncActivity extends BaseActivity {
                     ui.post(new Runnable() {
                         public void run() {
                             plan = null;
-                            tvPlan.setText(s(R.string.sy_preview_fail, msg(e)));
+                            tvPlan.setText(s(R.string.sy_preview_fail, msg(SyncActivity.this, e)));
                         }
                     });
                 } finally {
@@ -301,7 +301,7 @@ public class SyncActivity extends BaseActivity {
                     }, cancel);
                 } catch (final Throwable e) {
                     ui.post(new Runnable() {
-                        public void run() { tvStatus.setText(SyncActivity.this.s(R.string.sy_sync_fail, msg(e))); }
+                        public void run() { tvStatus.setText(SyncActivity.this.s(R.string.sy_sync_fail, msg(SyncActivity.this, e))); }
                     });
                 } finally {
                     if (fs != null) fs.close();
@@ -335,7 +335,8 @@ public class SyncActivity extends BaseActivity {
         if (!b) progress.setVisibility(View.GONE);
     }
 
-    private static String msg(Throwable e) {
+    private static String msg(android.content.Context c, Throwable e) {
+        if (e instanceof com.hex91.file.net.NetFsError) return NetText.errorText(c, e);
         String m = e.getMessage();
         return m == null ? e.getClass().getSimpleName() : m;
     }

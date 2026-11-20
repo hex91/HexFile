@@ -1785,6 +1785,25 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.94.0（versionCode 287）—— F-14/81：net 层结构化异常（S3Fs 先行）
+
+`net` 包去中文化开工。cloud/ftp 类大量 `throw new IOException("中文提示…")` 直接被 UI 展示，
+无法出海。沿用同包 `HlsError` 的成熟套路，新增 `net/NetFsError`（extends IOException，
+只给错误码 + 数据参数，getMessage 为全 ASCII 诊断串）+ `ui/NetText`（码 → 资源映射）。
+本版先把 S3Fs 的 18 处中文异常全部改码（24 行 → 0），新增 25 个 `netfs_*` 键，
+资源 2903 → 2928（中英各 2928，100%）。
+
+- **两处消费点接映射**：`NetStorageActivity.friendlyNetError` 优先识别 NetFsError；
+  `SyncActivity.msg` 从 static 加 Context 首参（两处调用点在匿名 Runnable 里传 `SyncActivity.this`）。
+- **整句带参**：`netfs_err_op_fail`=`%1$s %2$s 失败: HTTP %3$d%4$s%5$s`，操作码/状态码提示/
+  服务端 Message 都作为参数；提示与分隔符含前导空格或全角括号，整值加引号保护。
+- 后续同构云盘（AliyunDriveFs/OneDriveFs/FtpFs/SftpFs/WebDavFs/SmbFs）沿用 NetFsError 扩充码即可。
+
+四门全过（依赖方向、空 catch 335 基线、文案 2928/2928 100%、动作码 55）、全量 97/0/4；
+APK 13,472,464 B（md5 `387c8f1c…`），badging 287/2.94.0。
+
+---
+
 ## v2.77.0（versionCode 270）—— F-14/64：系统文件选择器（DocumentsProvider）i18n
 
 `HfDocumentsProvider` 中文字面量 **20 → 0**，新增 16 个 `dp_*` 键，复用 `common_folder`，

@@ -1418,8 +1418,11 @@ public final class NetStorageActivity extends BaseActivity {
                 .show();
     }
 
-    /** 网络错误信息人性化。 */
+    /** 网络错误信息人性化。NetFsError 只带码，交给 NetText 映射成文案。 */
     private String friendlyNetError(Throwable e) {
+        if (e instanceof com.hex91.file.net.NetFsError) {
+            return NetText.errorText(this, e);
+        }
         String m = e.getMessage() == null ? e.toString() : e.getMessage();
         if (m.contains("ECONNREFUSED")) return getString(R.string.nst_err_refused);
         if (m.contains("ENETUNREACH") || m.contains("EHOSTUNREACH")) {

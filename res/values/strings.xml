@@ -3095,4 +3095,30 @@
     <string name="split_err_no_workdir">无法创建临时目录</string>
     <string name="split_watchdog_timeout">安装结果迟迟没有返回（可能已被系统拦下），请检查是否已安装</string>
     <string name="split_paren">（%1$s）</string>
+    <!-- v2.94.0 net 层结构化异常（NetFsError / NetText），S3Fs 先行 -->
+    <string name="netfs_op_list">列目录</string>
+    <string name="netfs_op_read">读取</string>
+    <string name="netfs_op_resume">续传</string>
+    <string name="netfs_op_upload">上传</string>
+    <string name="netfs_op_mkdir">创建目录</string>
+    <string name="netfs_op_delete">删除</string>
+    <string name="netfs_op_rename">重命名</string>
+    <string name="netfs_hint_s3_region">"（桶不在该区域：检查 region 是否填对）"</string>
+    <string name="netfs_hint_s3_sign">"（签名或权限失败：检查 AccessKey、SecretKey、桶权限，以及手机时间是否准确）"</string>
+    <string name="netfs_hint_s3_notfound">"（桶或对象不存在：检查 bucket 名与 endpoint）"</string>
+    <string name="netfs_detail_sep">" · %1$s"</string>
+    <string name="netfs_err_op_fail">%1$s %2$s 失败: HTTP %3$d%4$s%5$s</string>
+    <string name="netfs_err_empty_endpoint">对象存储地址为空（例：https://oss-cn-hangzhou.aliyuncs.com）</string>
+    <string name="netfs_err_empty_bucket">存储桶（bucket）不能为空</string>
+    <string name="netfs_err_empty_ak">AccessKey 不能为空</string>
+    <string name="netfs_err_empty_sk">SecretKey 不能为空</string>
+    <string name="netfs_err_bad_endpoint">对象存储地址无法解析: %1$s</string>
+    <string name="netfs_err_range_ignored">服务端忽略了 Range，无法续传</string>
+    <string name="netfs_err_tmp_missing">缺少上传临时目录</string>
+    <string name="netfs_err_tmp_dir">无法创建上传临时目录: %1$s</string>
+    <string name="netfs_err_too_large">单文件超过 2GB，当前实现不支持</string>
+    <string name="netfs_err_rename_detail">重命名失败: %1$s</string>
+    <string name="netfs_err_resp_parse">响应解析失败（该端点不是 S3 兼容服务？）: %1$s</string>
+    <string name="netfs_err_sha_unavailable">SHA-256 不可用</string>
+    <string name="netfs_err_unknown">网络存储操作失败</string>
 </resources>

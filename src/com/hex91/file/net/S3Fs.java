@@ -73,12 +73,12 @@ public final class S3Fs implements NetFs {
     public static S3Fs connect(String endpointUrl, String bucket, String region,
                                String ak, String sk, File tempDir) throws IOException {
         String ep = endpointUrl == null ? "" : endpointUrl.trim();
-        if (ep.isEmpty()) throw new IOException("对象存储地址为空（例：https://oss-cn-hangzhou.aliyuncs.com）");
+        if (ep.isEmpty()) throw NetFsError.emptyEndpoint();
         if (!ep.startsWith("http://") && !ep.startsWith("https://")) ep = "https://" + ep;
         while (ep.endsWith("/")) ep = ep.substring(0, ep.length() - 1);
-        if (bucket == null || bucket.trim().isEmpty()) throw new IOException("存储桶（bucket）不能为空");
-        if (ak == null || ak.trim().isEmpty()) throw new IOException("AccessKey 不能为空");
-        if (sk == null || sk.trim().isEmpty()) throw new IOException("SecretKey 不能为空");
+        if (bucket == null || bucket.trim().isEmpty()) throw NetFsError.emptyBucket();
+        if (ak == null || ak.trim().isEmpty()) throw NetFsError.emptyAk();
+        if (sk == null || sk.trim().isEmpty()) throw NetFsError.emptySk();
         String rg = (region == null || region.trim().isEmpty()) ? "us-east-1" : region.trim();
 
         String host;
@@ -86,7 +86,7 @@ public final class S3Fs implements NetFs {
             URL u = new URL(ep);
             host = u.getPort() > 0 ? u.getHost() + ":" + u.getPort() : u.getHost();
         } catch (Exception e) {
-            throw new IOException("对象存储地址无法解析: " + ep, e);
+            throw NetFsError.badEndpoint(ep, e);
         }
 
         S3Fs fs = new S3Fs(ep, host, bucket.trim(), rg, ak.trim(), sk.trim(), tempDir);
@@ -132,11 +132,11 @@ public final class S3Fs implements NetFs {
         return c;
     }
 
-    private static String hintOf(int code) {
-        if (code == 301) return "（桶不在该区域：检查 region 是否填对）";
-        if (code == 403) return "（签名/权限失败：检查 AccessKey、SecretKey、桶权限，以及手机时间是否准确）";
-        if (code == 404) return "（桶或对象不存在：检查 bucket 名与 endpoint）";
-        return "";
+    private static int hintCode(int code) {
+        if (code == 301) return NetFsError.HINT_S3_REGION;
+        if (code == 403) return NetFsError.HINT_S3_SIGN;
+        if (code == 404) return NetFsError.HINT_S3_NOTFOUND;
+        return NetFsError.HINT_NONE;
     }
 
     /**
@@ -148,7 +148,7 @@ public final class S3Fs implements NetFs {
      * 用户只看到「HTTP 403」，看不到 SignatureDoesNotMatch / NoSuchBucket 这类真正的原因。
      * disconnect() 之后再 getResponseCode() 也不可靠，所以一并前置。</p>
      */
-    private static IOException httpErr(String op, HttpURLConnection c) {
+    private static NetFsError httpErr(int op, String path, HttpURLConnection c) {
         int code = -1;
         String body = "";
         try {
@@ -168,8 +168,7 @@ public final class S3Fs implements NetFs {
         }
         String msg = pick(body, "Message");
         if (msg.isEmpty()) msg = pick(body, "Code");
-        return new IOException(op + " 失败: HTTP " + code + hintOf(code)
-                + (msg.isEmpty() ? "" : " · " + msg));
+        return NetFsError.opFail(op, path, code, hintCode(code), msg);
     }
 
     /** 从 XML 里粗暴取一个标签的值（只用于拼错误提示，不做完整解析） */
@@ -214,7 +213,7 @@ public final class S3Fs implements NetFs {
 
             HttpURLConnection c = conn("GET", keyOf(path), q.toString(), S3Signer.EMPTY_SHA256, null);
             int code = c.getResponseCode();
-            if (code != 200) { throw httpErr("列目录 " + path, c); }
+            if (code != 200) { throw httpErr(NetFsError.OP_LIST, path, c); }
 
             String next = null;
             boolean truncated = false;
@@ -272,7 +271,7 @@ public final class S3Fs implements NetFs {
                     ev = p.next();
                 }
             } catch (org.xmlpull.v1.XmlPullParserException xe) {
-                throw new IOException("响应解析失败（该端点不是 S3 兼容服务？）: " + xe.getMessage(), xe);
+                throw NetFsError.respParse(xe.getMessage(), xe);
             } finally {
                 try { in.close(); } catch (IOException ignore) {}
                 c.disconnect();
@@ -319,11 +318,11 @@ public final class S3Fs implements NetFs {
         if (offset > 0) c.setRequestProperty("Range", "bytes=" + offset + "-");
         int code = c.getResponseCode();
         if (offset > 0) {
-            if (code == 200) { consume(c); throw new IOException("服务端忽略了 Range，无法续传"); }
-            if (code != 206) { throw httpErr("续传 " + path, c); }
+            if (code == 200) { consume(c); throw NetFsError.rangeIgnored(); }
+            if (code != 206) { throw httpErr(NetFsError.OP_RESUME, path, c); }
             return c.getInputStream();
         }
-        if (code != 200) { throw httpErr("读取 " + path, c); }
+        if (code != 200) { throw httpErr(NetFsError.OP_READ, path, c); }
         return c.getInputStream();
     }
 
@@ -336,9 +335,9 @@ public final class S3Fs implements NetFs {
     @Override
     public OutputStream openWrite(String path) throws IOException {
         File dir = tempDir;
-        if (dir == null) throw new IOException("缺少上传临时目录");
+        if (dir == null) throw NetFsError.tmpDirMissing();
         if (!dir.isDirectory() && !dir.mkdirs() && !dir.isDirectory())
-            throw new IOException("无法创建上传临时目录: " + dir.getAbsolutePath());
+            throw NetFsError.tmpDirFail(dir.getAbsolutePath());
         final File tmp = File.createTempFile("s3up", TempFiles.PART, dir);
         return new SpoolOut(tmp, path);
     }
@@ -368,7 +367,7 @@ public final class S3Fs implements NetFs {
             try {
                 String hash = fileSha256(tmp);
                 long len = tmp.length();
-                if (len > Integer.MAX_VALUE) throw new IOException("单文件超过 2GB，当前实现不支持");
+                if (len > Integer.MAX_VALUE) throw NetFsError.tooLarge();
                 HttpURLConnection c = conn("PUT", keyOf(path), "", hash, null);
                 c.setDoOutput(true);
                 c.setFixedLengthStreamingMode((int) len);
@@ -383,7 +382,7 @@ public final class S3Fs implements NetFs {
                     try { os.close(); } catch (IOException ignore) {}
                 }
                 int code = c.getResponseCode();
-                if (code < 200 || code >= 300) { throw httpErr("上传 " + path, c); }
+                if (code < 200 || code >= 300) { throw httpErr(NetFsError.OP_UPLOAD, path, c); }
                 consume(c);
             } finally {
                 if (!tmp.delete()) tmp.deleteOnExit();
@@ -404,7 +403,7 @@ public final class S3Fs implements NetFs {
             }
             return S3Signer.hex(md.digest());
         } catch (java.security.NoSuchAlgorithmException e) {
-            throw new IOException("SHA-256 不可用", e);
+            throw NetFsError.shaUnavailable(e);
         }
     }
 
@@ -422,7 +421,7 @@ public final class S3Fs implements NetFs {
         c.setFixedLengthStreamingMode(0);
         c.getOutputStream().close();
         int code = c.getResponseCode();
-        if (code < 200 || code >= 300) { throw httpErr("创建目录 " + path, c); }
+        if (code < 200 || code >= 300) { throw httpErr(NetFsError.OP_MKDIR, path, c); }
         consume(c);
     }
 
@@ -441,7 +440,7 @@ public final class S3Fs implements NetFs {
         HttpURLConnection c = conn("DELETE", key, "", S3Signer.EMPTY_SHA256, null);
         int code = c.getResponseCode();
         if (code == 404) { consume(c); return; }        // 占位对象可能本来就不存在
-        if (code != 204 && code != 200) { throw httpErr("删除 " + key, c); }
+        if (code != 204 && code != 200) { throw httpErr(NetFsError.OP_DELETE, key, c); }
         consume(c);
     }
 
@@ -469,9 +468,9 @@ public final class S3Fs implements NetFs {
             }
         } catch (Exception ignore) {}
         c.disconnect();
-        if (code < 200 || code >= 300) throw new IOException("重命名失败: HTTP " + code + hintOf(code));
+        if (code < 200 || code >= 300) throw NetFsError.opFail(NetFsError.OP_RENAME, path, code, hintCode(code), "");
         if (body.contains("<Error>"))
-            throw new IOException("重命名失败: " + pick(body, "Message"));
+            throw NetFsError.renameDetail(pick(body, "Message"));
         deleteKey(src);
     }
 

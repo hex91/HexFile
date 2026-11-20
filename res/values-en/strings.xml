@@ -3087,4 +3087,30 @@
     <string name="split_err_no_workdir">Cannot create the temporary directory</string>
     <string name="split_watchdog_timeout">The install result never came back (it may have been blocked by the system) — check whether the app is installed</string>
     <string name="split_paren">(%1$s)</string>
+    <!-- v2.94.0 net-layer structured errors (NetFsError / NetText), S3Fs first -->
+    <string name="netfs_op_list">List</string>
+    <string name="netfs_op_read">Read</string>
+    <string name="netfs_op_resume">Resume</string>
+    <string name="netfs_op_upload">Upload</string>
+    <string name="netfs_op_mkdir">Create directory</string>
+    <string name="netfs_op_delete">Delete</string>
+    <string name="netfs_op_rename">Rename</string>
+    <string name="netfs_hint_s3_region">" (bucket is not in this region: check region)"</string>
+    <string name="netfs_hint_s3_sign">" (signature/permission failed: check AccessKey, SecretKey, bucket permissions, and that the device clock is correct)"</string>
+    <string name="netfs_hint_s3_notfound">" (bucket or object does not exist: check bucket name and endpoint)"</string>
+    <string name="netfs_detail_sep">" · %1$s"</string>
+    <string name="netfs_err_op_fail">%1$s %2$s failed: HTTP %3$d%4$s%5$s</string>
+    <string name="netfs_err_empty_endpoint">Object storage endpoint is empty (e.g. https://oss-cn-hangzhou.aliyuncs.com)</string>
+    <string name="netfs_err_empty_bucket">Bucket cannot be empty</string>
+    <string name="netfs_err_empty_ak">AccessKey cannot be empty</string>
+    <string name="netfs_err_empty_sk">SecretKey cannot be empty</string>
+    <string name="netfs_err_bad_endpoint">Cannot parse object storage endpoint: %1$s</string>
+    <string name="netfs_err_range_ignored">Server ignored Range; cannot resume</string>
+    <string name="netfs_err_tmp_missing">Missing upload temporary directory</string>
+    <string name="netfs_err_tmp_dir">Cannot create upload temporary directory: %1$s</string>
+    <string name="netfs_err_too_large">Single file exceeds 2GB, not supported by this implementation</string>
+    <string name="netfs_err_rename_detail">Rename failed: %1$s</string>
+    <string name="netfs_err_resp_parse">Failed to parse response (is this endpoint S3-compatible?): %1$s</string>
+    <string name="netfs_err_sha_unavailable">SHA-256 unavailable</string>
+    <string name="netfs_err_unknown">Network storage operation failed</string>
 </resources>
