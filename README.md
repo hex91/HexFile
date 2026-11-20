@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2607 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2611 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,32 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.71.0（versionCode 264）—— F-14/58：字体预览页 i18n（批量纯 UI 页第 24 页）
+
+`FontPreviewActivity` 中文字面量 **6 → 1**（保留的那 1 处是中文样张，见下），新增 4 个 `fp_*` 键，
+资源 2607 → 2611 条（中英各 2611，100%）。补 `import com.hex91.file.R;`。
+
+### 刻意保留：中文样张不翻
+`sampleZh` 那行 `"永国信仰山流水\n汉仪字体预览样张\n春眠不觉晓，处处闻啼鸟。"` 是**字形样本**——
+它要展示的是笔画走向、字面率、字重，翻成英文（哪怕换成英文长句）就失去了样本意义。
+与 `SmaliDocs` 的语法数据、`Bank` 的枚举名同理，属"数据不是文案"。英文环境下同样该显示中文样张，
+因为用户拿它判断的正是这个字体能不能排中文。
+
+### UI 层要点
+- 顶栏"字号"标签 `fp_size`；字号滑条本身是数值控件，无文案。
+- 加载失败 `fp_load_fail`（`无法加载字体: %1$s`），`Toast` 里走 `getString(...)`。
+- 自定义预览区两个入口共用一键 `fp_custom_default`：输入框的**初始值**与下方`mkSample` 的样张
+  文本必须一致（否则一进页面两边就不一样），所以只留一份，一处 `setText(int)`、一处 `getString`。
+- 标签 `fp_custom_label`（"自定义预览文本："，全角冒号在值里）。
+
+### 验证
+四门全过（依赖方向、空 catch 335 基线、文案 2611/2611 100%、动作码 55）。
+APK **13,423,312 B**（md5 `629db49b…`），badging 反证 versionCode 264 / 2.71.0；
+dex 反证 `fp_load_fail` / `fp_custom_label` / `fp_size` 各 = 1，"自定义预览文本"在 dex 中 0 处、
+`resources.arsc` 中 1 处。
 
 ---
 

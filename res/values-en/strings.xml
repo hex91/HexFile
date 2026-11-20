@@ -2742,4 +2742,9 @@
     <string name="ash_pick_title">Choose a signing key</string>
     <string name="ash_broken_msg">The password of this key can no longer be decrypted (the Android Keystore key is lost after switching devices, a factory reset or clearing data). Delete it in Signing management and import it again.</string>
     <string name="ash_go_manage">Open signing management</string>
+    <!-- v2.71.0 font preview -->
+    <string name="fp_load_fail">Cannot load the font: %1$s</string>
+    <string name="fp_size">Size</string>
+    <string name="fp_custom_label">Custom preview text:</string>
+    <string name="fp_custom_default">Type anything here to preview the font</string>
 </resources>

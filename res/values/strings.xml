@@ -2750,4 +2750,9 @@
     <string name="ash_pick_title">选择签名密钥</string>
     <string name="ash_broken_msg">该签名的密码已无法解密（换机/恢复出厂/清除数据后 Android Keystore 密钥丢失）。请到「签名管理」删除后重新导入。</string>
     <string name="ash_go_manage">去签名管理</string>
+    <!-- v2.71.0 字体预览页 -->
+    <string name="fp_load_fail">无法加载字体: %1$s</string>
+    <string name="fp_size">字号</string>
+    <string name="fp_custom_label">自定义预览文本：</string>
+    <string name="fp_custom_default">在此输入任意文字预览字体效果</string>
 </resources>

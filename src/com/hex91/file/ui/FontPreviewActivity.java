@@ -1,5 +1,6 @@
 package com.hex91.file.ui;
 
+import com.hex91.file.R;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -33,7 +34,8 @@ public class FontPreviewActivity extends BaseActivity {
         try {
             typeface = Typeface.createFromFile(font);
         } catch (Throwable t) {
-            Toast.makeText(this, "无法加载字体: " + t.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, getString(R.string.fp_load_fail, t.getMessage()),
+                    Toast.LENGTH_LONG).show();
             finish();
             return;
         }
@@ -58,7 +60,7 @@ public class FontPreviewActivity extends BaseActivity {
         sizeRow.setOrientation(LinearLayout.HORIZONTAL);
         sizeRow.setGravity(Gravity.CENTER_VERTICAL);
         TextView szLabel = new TextView(this);
-        szLabel.setText("字号");
+        szLabel.setText(R.string.fp_size);
         szLabel.setTextSize(13);
         szLabel.setTextColor(ThemeManager.textSub(this));
         szLabel.setPadding(0, 0, (int) (10 * den), 0);
@@ -89,6 +91,8 @@ public class FontPreviewActivity extends BaseActivity {
 
         sampleEn = mkSample("AaBbCcDdEeFf GgHhIiJj\nThe quick brown fox\njumps over the lazy dog 0123456789");
         body.addView(sampleEn);
+        // 中文样张刻意留中文字面量：它要展示的是<b>字形</b>（笔画走向、字面率），
+        // 翻成英文就失去了样本意义，与 SmaliDocs 的语法数据同理，不是漏翻。
         sampleZh = mkSample("永国信仰山流水\n汉仪字体预览样张\n春眠不觉晓，处处闻啼鸟。");
         body.addView(sampleZh);
         sampleNum = mkSample("0123456789 !@#$%^&*()\n.,:;?/\\|[]{}()<>+-=~`'\"");
@@ -96,18 +100,18 @@ public class FontPreviewActivity extends BaseActivity {
 
         // 自定义文本
         TextView hint = new TextView(this);
-        hint.setText("自定义预览文本：");
+        hint.setText(R.string.fp_custom_label);
         hint.setTextSize(12);
         hint.setTextColor(ThemeManager.textSub(this));
         hint.setPadding(0, (int) (14 * den), 0, (int) (4 * den));
         body.addView(hint);
         customInput = new EditText(this);
-        customInput.setText("在此输入任意文字预览字体效果");
+        customInput.setText(R.string.fp_custom_default);
         customInput.setTextSize(13);
         customInput.setTextColor(ThemeManager.text(this));
         body.addView(customInput, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        sampleCustom = mkSample("在此输入任意文字预览字体效果");
+        sampleCustom = mkSample(getString(R.string.fp_custom_default));
         body.addView(sampleCustom);
         customInput.addTextChangedListener(new android.text.TextWatcher() {
             public void beforeTextChanged(CharSequence s, int a, int c, int d) {}
