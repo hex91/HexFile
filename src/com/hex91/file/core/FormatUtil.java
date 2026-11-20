@@ -14,8 +14,43 @@ package com.hex91.file.core;
  */
 public final class FormatUtil {
 
+    /** 错误码：逻辑层只给编号，哪句文案由 UI 层决定（v2.79.0 F-14/66） */
+    public static final int ERR_TAIL = 1;
+    public static final int ERR_EOF = 2;
+    public static final int ERR_EXPECT = 3;
+    public static final int ERR_BAD_CHAR = 4;
+    public static final int ERR_OBJ_SEP = 5;
+    public static final int ERR_ARR_SEP = 6;
+    public static final int ERR_STR_OPEN = 7;
+    public static final int ERR_ESC_OPEN = 8;
+    public static final int ERR_U_ESC = 9;
+    public static final int ERR_STR_NL = 10;
+    public static final int ERR_LITERAL = 11;
+    public static final int ERR_NUM_POS = 12;
+    public static final int ERR_NUM = 13;
+    public static final int ERR_UNKNOWN_MODE = 14;
+
+    /** 解析失败：{@link #code} 决定文案，{@link #pos} 是出错位置（-1 = 这条不带位置） */
     public static final class FormatException extends Exception {
-        public FormatException(String msg) { super(msg); }
+        public final int code;
+        public final int pos;
+        /** 附加参数：期望的字符 / 非法字符 / 数字串 */
+        public final String arg;
+
+        public FormatException(int code) {
+            this(code, -1, null);
+        }
+
+        public FormatException(int code, int pos) {
+            this(code, pos, null);
+        }
+
+        public FormatException(int code, int pos, String arg) {
+            super("FormatUtil error " + code + (pos >= 0 ? " @" + pos : ""));
+            this.code = code;
+            this.pos = pos;
+            this.arg = arg;
+        }
     }
 
     private FormatUtil() {}
@@ -28,7 +63,7 @@ public final class FormatUtil {
         StringBuilder sb = new StringBuilder();
         p.parseValue(sb, 0);
         p.skipWs();
-        if (!p.eof()) throw new FormatException("JSON 尾部有多余内容（位置 " + p.pos + "）");
+        if (!p.eof()) throw new FormatException(ERR_TAIL, p.pos);
         return sb.toString();
     }
 
@@ -38,7 +73,7 @@ public final class FormatUtil {
         StringBuilder sb = new StringBuilder();
         p.minifyValue(sb);
         p.skipWs();
-        if (!p.eof()) throw new FormatException("JSON 尾部有多余内容（位置 " + p.pos + "）");
+        if (!p.eof()) throw new FormatException(ERR_TAIL, p.pos);
         return sb.toString();
     }
 
@@ -59,13 +94,13 @@ public final class FormatUtil {
         }
 
         char peek() throws FormatException {
-            if (eof()) throw new FormatException("JSON 意外结束");
+            if (eof()) throw new FormatException(ERR_EOF);
             return s.charAt(pos);
         }
 
         void expect(char c) throws FormatException {
             if (eof() || s.charAt(pos) != c)
-                throw new FormatException("JSON 期望 '" + c + "'（位置 " + pos + "）");
+                throw new FormatException(ERR_EXPECT, pos, String.valueOf(c));
             pos++;
         }
 
@@ -77,7 +112,7 @@ public final class FormatUtil {
             else if (c == '"') out.append(readString());
             else if (c == 't' || c == 'f' || c == 'n') out.append(readLiteral());
             else if (c == '-' || (c >= '0' && c <= '9')) out.append(readNumber());
-            else throw new FormatException("JSON 非法字符 '" + c + "'（位置 " + pos + "）");
+            else throw new FormatException(ERR_BAD_CHAR, pos, String.valueOf(c));
         }
 
         void minifyValue(StringBuilder out) throws FormatException {
@@ -100,7 +135,7 @@ public final class FormatUtil {
                     char n = peek();
                     if (n == ',') { expect(','); out.append(','); continue; }
                     if (n == '}') { expect('}'); out.append('}'); return; }
-                    throw new FormatException("JSON 对象期望 ',' 或 '}'（位置 " + pos + "）");
+                    throw new FormatException(ERR_OBJ_SEP, pos);
                 }
             } else if (c == '[') {
                 expect('[');
@@ -113,7 +148,7 @@ public final class FormatUtil {
                     char n = peek();
                     if (n == ',') { expect(','); out.append(','); continue; }
                     if (n == ']') { expect(']'); out.append(']'); return; }
-                    throw new FormatException("JSON 数组期望 ',' 或 ']'（位置 " + pos + "）");
+                    throw new FormatException(ERR_ARR_SEP, pos);
                 }
             } else if (c == '"') {
                 out.append(readString());
@@ -122,7 +157,7 @@ public final class FormatUtil {
             } else if (c == '-' || (c >= '0' && c <= '9')) {
                 out.append(readNumber());
             } else {
-                throw new FormatException("JSON 非法字符 '" + c + "'（位置 " + pos + "）");
+                throw new FormatException(ERR_BAD_CHAR, pos, String.valueOf(c));
             }
         }
 
@@ -159,7 +194,7 @@ public final class FormatUtil {
                     continue;
                 }
                 if (n == '}') { expect('}'); break; }
-                throw new FormatException("JSON 对象期望 ',' 或 '}'（位置 " + pos + "）");
+                throw new FormatException(ERR_OBJ_SEP, pos);
             }
             out.append('\n');
             indent(out, depth);
@@ -191,7 +226,7 @@ public final class FormatUtil {
                     continue;
                 }
                 if (n == ']') { expect(']'); break; }
-                throw new FormatException("JSON 数组期望 ',' 或 ']'（位置 " + pos + "）");
+                throw new FormatException(ERR_ARR_SEP, pos);
             }
             out.append('\n');
             indent(out, depth);
@@ -207,22 +242,22 @@ public final class FormatUtil {
             expect('"');
             StringBuilder sb = new StringBuilder("\"");
             while (true) {
-                if (eof()) throw new FormatException("JSON 字符串未闭合");
+                if (eof()) throw new FormatException(ERR_STR_OPEN);
                 char c = s.charAt(pos++);
                 sb.append(c);
                 if (c == '\\') {
-                    if (eof()) throw new FormatException("JSON 字符串转义未闭合");
+                    if (eof()) throw new FormatException(ERR_ESC_OPEN);
                     char e = s.charAt(pos++);
                     sb.append(e);
                     if (e == 'u') {
-                        if (pos + 4 > s.length()) throw new FormatException("JSON \\u 转义非法");
+                        if (pos + 4 > s.length()) throw new FormatException(ERR_U_ESC);
                         sb.append(s, pos, pos + 4);
                         pos += 4;
                     }
                 } else if (c == '"') {
                     return sb.toString();
                 } else if (c == '\n' || c == '\r') {
-                    throw new FormatException("JSON 字符串含未转义换行");
+                    throw new FormatException(ERR_STR_NL);
                 }
             }
         }
@@ -231,7 +266,7 @@ public final class FormatUtil {
             for (String lit : new String[]{"true", "false", "null"}) {
                 if (s.startsWith(lit, pos)) { pos += lit.length(); return lit; }
             }
-            throw new FormatException("JSON 非法字面量（位置 " + pos + "）");
+            throw new FormatException(ERR_LITERAL, pos);
         }
 
         /** 读取数字 token，原样保留字面量文本 */
@@ -245,11 +280,11 @@ public final class FormatUtil {
                 else break;
             }
             String num = s.substring(start, pos);
-            if (num.isEmpty() || num.equals("-")) throw new FormatException("JSON 数字非法（位置 " + start + "）");
+            if (num.isEmpty() || num.equals("-")) throw new FormatException(ERR_NUM_POS, start);
             // 粗校验：不允许 "1-" / "1e" 之类明显残缺
             char last = num.charAt(num.length() - 1);
             if (last == '+' || last == '-' || last == 'e' || last == 'E' || last == '.')
-                throw new FormatException("JSON 数字格式非法: " + num);
+                throw new FormatException(ERR_NUM, -1, num);
             return num;
         }
     }
@@ -680,7 +715,7 @@ public final class FormatUtil {
             case FMT_JSON_MIN: return minifyJson(src);
             case FMT_XML: return formatXml(src);
             case FMT_CODE: return formatCode(src);
-            default: throw new FormatException("未知格式化类型");
+            default: throw new FormatException(ERR_UNKNOWN_MODE);
         }
     }
 }

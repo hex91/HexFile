@@ -2856,4 +2856,19 @@
         <item>周五</item>
         <item>周六</item>
     </string-array>
+    <!-- v2.79.0 格式化错误（FormatUtil 只给码，文案在这里） -->
+    <string name="fmt_err_tail">JSON 尾部有多余内容（位置 %1$d）</string>
+    <string name="fmt_err_eof">JSON 意外结束</string>
+    <string name="fmt_err_expect">JSON 期望 \'%1$s\'（位置 %2$d）</string>
+    <string name="fmt_err_bad_char">JSON 非法字符 \'%1$s\'（位置 %2$d）</string>
+    <string name="fmt_err_obj_sep">JSON 对象期望 \',\' 或 \'}\'（位置 %1$d）</string>
+    <string name="fmt_err_arr_sep">JSON 数组期望 \',\' 或 \']\'（位置 %1$d）</string>
+    <string name="fmt_err_str_open">JSON 字符串未闭合</string>
+    <string name="fmt_err_esc_open">JSON 字符串转义未闭合</string>
+    <string name="fmt_err_u_esc">JSON \\u 转义非法</string>
+    <string name="fmt_err_str_nl">JSON 字符串含未转义换行</string>
+    <string name="fmt_err_literal">JSON 非法字面量（位置 %1$d）</string>
+    <string name="fmt_err_num_pos">JSON 数字非法（位置 %1$d）</string>
+    <string name="fmt_err_num">JSON 数字格式非法：%1$s</string>
+    <string name="fmt_err_unknown_mode">未知格式化类型</string>
 </resources>

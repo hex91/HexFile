@@ -2848,4 +2848,19 @@
         <item>Fri</item>
         <item>Sat</item>
     </string-array>
+    <!-- v2.79.0 format errors -->
+    <string name="fmt_err_tail">Extra content after the JSON value (at %1$d)</string>
+    <string name="fmt_err_eof">Unexpected end of JSON</string>
+    <string name="fmt_err_expect">JSON expected \'%1$s\' (at %2$d)</string>
+    <string name="fmt_err_bad_char">Invalid character \'%1$s\' in JSON (at %2$d)</string>
+    <string name="fmt_err_obj_sep">JSON object expected \',\' or \'}\' (at %1$d)</string>
+    <string name="fmt_err_arr_sep">JSON array expected \',\' or \']\' (at %1$d)</string>
+    <string name="fmt_err_str_open">Unterminated JSON string</string>
+    <string name="fmt_err_esc_open">Unterminated escape sequence in JSON string</string>
+    <string name="fmt_err_u_esc">Invalid \\u escape in JSON</string>
+    <string name="fmt_err_str_nl">Unescaped line break in JSON string</string>
+    <string name="fmt_err_literal">Invalid literal in JSON (at %1$d)</string>
+    <string name="fmt_err_num_pos">Invalid number in JSON (at %1$d)</string>
+    <string name="fmt_err_num">Malformed number: %1$s</string>
+    <string name="fmt_err_unknown_mode">Unknown format type</string>
 </resources>

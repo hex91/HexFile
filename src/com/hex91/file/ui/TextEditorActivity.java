@@ -1277,7 +1277,44 @@ public class TextEditorActivity extends BaseActivity {
             setModified(true);
             toast(getString(R.string.te_fmt_done));
         } catch (FormatUtil.FormatException e) {
-            toast(getString(R.string.te_fmt_failed, e.getMessage()));
+            toast(getString(R.string.te_fmt_failed, formatErrorText(e)));
+        }
+    }
+
+    /**
+     * 把 {@link FormatUtil.FormatException} 的码翻成文案（v2.79.0 F-14/66）。
+     * 核心层只报「哪条错了 + 位置」，句子留在这里，改文案不用碰解析器。
+     */
+    private String formatErrorText(FormatUtil.FormatException e) {
+        switch (e.code) {
+            case FormatUtil.ERR_TAIL:
+                return getString(R.string.fmt_err_tail, e.pos);
+            case FormatUtil.ERR_EOF:
+                return getString(R.string.fmt_err_eof);
+            case FormatUtil.ERR_EXPECT:
+                return getString(R.string.fmt_err_expect, e.arg, e.pos);
+            case FormatUtil.ERR_BAD_CHAR:
+                return getString(R.string.fmt_err_bad_char, e.arg, e.pos);
+            case FormatUtil.ERR_OBJ_SEP:
+                return getString(R.string.fmt_err_obj_sep, e.pos);
+            case FormatUtil.ERR_ARR_SEP:
+                return getString(R.string.fmt_err_arr_sep, e.pos);
+            case FormatUtil.ERR_STR_OPEN:
+                return getString(R.string.fmt_err_str_open);
+            case FormatUtil.ERR_ESC_OPEN:
+                return getString(R.string.fmt_err_esc_open);
+            case FormatUtil.ERR_U_ESC:
+                return getString(R.string.fmt_err_u_esc);
+            case FormatUtil.ERR_STR_NL:
+                return getString(R.string.fmt_err_str_nl);
+            case FormatUtil.ERR_LITERAL:
+                return getString(R.string.fmt_err_literal, e.pos);
+            case FormatUtil.ERR_NUM_POS:
+                return getString(R.string.fmt_err_num_pos, e.pos);
+            case FormatUtil.ERR_NUM:
+                return getString(R.string.fmt_err_num, e.arg);
+            default:
+                return getString(R.string.fmt_err_unknown_mode);
         }
     }
 
