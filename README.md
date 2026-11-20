@@ -1785,6 +1785,30 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.48.0（versionCode 241）—— F-14/35：高级搜索页 i18n（批量纯 UI 页第 1 页）
+
+`SearchActivity` 中文字面量 **约 30 → 0**，新增 43 个 `sr_*` 键（代码 20 + 布局 13 + 类型标签 8），
+资源 2165 → 2208 条（中英各 2208，100%）。纯 UI 页，无逻辑层码化——但有两处隐藏陷阱。
+
+### 两个陷阱
+- **静态中文数组**：`private static final String[] TYPES` 在类加载时定语言 → 改实例方法
+  `typeLabels()` 按资源取；Spinner 数据源与 `filterSummary` 的标签都走它。
+- **长度当哨兵**：`filterSummary()` 原用 `sb.length() == 4` 判断「只有前缀没条件」
+  （`"筛选: "` 恰 4 字符）。英文前缀 `Filters: ` 是 9 字符，直接翻会崩 → 改布尔标志 `any`。
+  同时该方法从 static 改实例（要 `s()`），调用点 4 处不变。
+
+### 片段键与空格
+状态行拆成 `sr_result_stopped/done/count/max/scanned` 与 `sr_progress` 独立键，前导/尾随空格
+整值加引号（如 `sr_result_count`=`，共 %1$d 个结果` 前无空格、`sr_result_stopped`=`" → 已停止"`）；
+`sr_filter_*` 五键带尾随空格对齐，全部加引号。`\n`/箭头/省略号两侧一致。
+
+### 验证
+四门全过（空 catch 335 基线）、全量 **97 通过 / 0 失败 / 4 跳过**、`jc.sh` rc=0。
+APK **13,374,160 B**（md5 `163f8407…`），badging 反证 versionCode 241 / 2.48.0；
+dex 反证 `typeLabels`=1、`sr_filter_prefix`=1。提交 `—`。
+
+---
+
 ## v2.47.0（versionCode 240）—— F-14/34：压缩包浏览页 i18n（补齐半迁移页）
 
 `ZipBrowserActivity` 剩余中文字面量 **24 → 0**。这页之前做过一半（已有 17 个 `zip_*` 键、

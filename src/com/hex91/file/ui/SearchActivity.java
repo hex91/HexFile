@@ -43,10 +43,14 @@ public class SearchActivity extends BaseActivity {
     private static final int MAX = 1000;
     private static final int MAX_DEPTH = 12;
 
-    /** 类型过滤标签（与 TYPE_EXT 一一对应，下标 0 = 全部） */
-    private static final String[] TYPES = {
-            "全部", "文本", "图片", "视频", "音频", "APK", "压缩包", "文档"
-    };
+    /** 类型过滤标签（与 TYPE_EXT 一一对应，下标 0 = 全部）；按资源取，避免静态数组定语言 */
+    private String[] typeLabels() {
+        return new String[]{
+                s(R.string.sr_type_all), s(R.string.sr_type_text), s(R.string.sr_type_image),
+                s(R.string.sr_type_video), s(R.string.sr_type_audio), s(R.string.sr_type_apk),
+                s(R.string.sr_type_archive), s(R.string.sr_type_doc)
+        };
+    }
 
     /** 各类型的扩展名集合（小写，不含点） */
     private static final String[][] TYPE_EXT = {
@@ -121,10 +125,10 @@ public class SearchActivity extends BaseActivity {
         String start = getIntent().getStringExtra(EXTRA_START);
         startDir = start != null ? new File(start)
                 : android.os.Environment.getExternalStorageDirectory();
-        ((TextView) findViewById(R.id.tv_start)).setText("搜索范围: " + startDir.getPath());
+        ((TextView) findViewById(R.id.tv_start)).setText(s(R.string.sr_scope, startDir.getPath()));
 
         ArrayAdapter<String> sa = new ArrayAdapter<String>(this,
-                android.R.layout.simple_spinner_item, TYPES);
+                android.R.layout.simple_spinner_item, typeLabels());
         sa.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spType.setAdapter(sa);
 
@@ -153,7 +157,7 @@ public class SearchActivity extends BaseActivity {
             public boolean onItemLongClick(AdapterView<?> av, View v, int i, long id) {
                 File f = results.get(i);
                 if (!f.isDirectory() && !OpenWith.open(SearchActivity.this, f))
-                    toast("没有可打开该文件的应用");
+                    toast(s(R.string.sr_no_app));
                 return true;
             }
         });
@@ -163,7 +167,7 @@ public class SearchActivity extends BaseActivity {
             public void onClick(View v) {
                 if (searching) {          // 搜索中再点 = 停止
                     cancel = true;
-                    btnSearch.setText("停止中…");
+                    btnSearch.setText(s(R.string.sr_stopping));
                     return;
                 }
                 doSearch();
@@ -188,7 +192,7 @@ public class SearchActivity extends BaseActivity {
                     f.namePat = Pattern.compile(wildcardToRegex(kw), Pattern.CASE_INSENSITIVE);
                 }
             } catch (PatternSyntaxException e) {
-                toast("正则表达式错误: " + e.getDescription());
+                toast(s(R.string.sr_regex_err, e.getDescription()));
                 return null;
             }
         }
@@ -205,16 +209,16 @@ public class SearchActivity extends BaseActivity {
         if (f.sizeMin >= 0) f.sizeMin *= 1024L * 1024L;
         if (f.sizeMax >= 0) f.sizeMax *= 1024L * 1024L;
         if (f.sizeMax >= 0 && f.sizeMin >= 0 && f.sizeMin > f.sizeMax) {
-            toast("大小下限大于上限");
+            toast(s(R.string.sr_size_invalid));
             return null;
         }
         if (f.dayMax >= 0 && f.dayMin >= 0 && f.dayMin > f.dayMax) {
-            toast("天数下限大于上限");
+            toast(s(R.string.sr_days_invalid));
             return null;
         }
         boolean any = f.namePat != null || f.content != null || f.type != 0
                 || f.sizeMin >= 0 || f.sizeMax >= 0 || f.dayMin >= 0 || f.dayMax >= 0;
-        if (!any) { toast("请输入名称关键词、文件内容，或在筛选中设置条件"); return null; }
+        if (!any) { toast(s(R.string.sr_no_condition)); return null; }
         return f;
     }
 
@@ -230,14 +234,14 @@ public class SearchActivity extends BaseActivity {
     private void doSearch() {
         final Filter ft = buildFilter();
         if (ft == null) return;
-        if (searching) { toast("正在搜索中，请稍候..."); return; }
+        if (searching) { toast(s(R.string.sr_busy)); return; }
         results.clear();
         snippets.clear();
         cancel = false;
         scannedFiles = 0;
         adapter.notifyDataSetChanged();
         searching = true;
-        btnSearch.setText("停止");
+        btnSearch.setText(s(R.string.sr_stop));
         status.setText(filterSummary(ft));
         new Thread(new Runnable() {
             public void run() {
@@ -245,11 +249,13 @@ public class SearchActivity extends BaseActivity {
                 ui.post(new Runnable() {
                     public void run() {
                         searching = false;
-                        btnSearch.setText("搜索");
-                        status.setText(filterSummary(ft) + (cancel ? " → 已停止" : " → 完成")
-                                + "，共 " + results.size() + " 个结果"
-                                + (results.size() >= MAX ? "（已达上限）" : "")
-                                + (ft.content != null ? "，扫描 " + scannedFiles + " 个文件" : ""));
+                        btnSearch.setText(s(R.string.sr_search));
+                        String line = filterSummary(ft)
+                                + s(cancel ? R.string.sr_result_stopped : R.string.sr_result_done)
+                                + s(R.string.sr_result_count, results.size())
+                                + (results.size() >= MAX ? s(R.string.sr_result_max) : "")
+                                + (ft.content != null ? s(R.string.sr_result_scanned, scannedFiles) : "");
+                        status.setText(line);
                         adapter.notifyDataSetChanged();
                     }
                 });
@@ -262,20 +268,20 @@ public class SearchActivity extends BaseActivity {
         ui.post(new Runnable() {
             public void run() {
                 if (!searching) return;
-                status.setText(filterSummary(ft) + " · 已扫描 " + scannedFiles
-                        + " 个文件 · 命中 " + results.size());
+                status.setText(filterSummary(ft) + s(R.string.sr_progress, scannedFiles, results.size()));
             }
         });
     }
 
-    private static String filterSummary(Filter f) {
-        StringBuilder sb = new StringBuilder("筛选: ");
-        if (f.namePat != null) sb.append(f.regexFind ? "正则 " : "名称 ");
-        if (f.content != null) sb.append("内容 ");
-        if (f.type != 0) sb.append(TYPES[f.type]).append(' ');
-        if (f.sizeMin >= 0 || f.sizeMax >= 0) sb.append("大小 ");
-        if (f.dayMin >= 0 || f.dayMax >= 0) sb.append("时间 ");
-        if (sb.length() == 4) sb.append("无");
+    private String filterSummary(Filter f) {
+        StringBuilder sb = new StringBuilder(s(R.string.sr_filter_prefix));
+        boolean any = false;
+        if (f.namePat != null) { sb.append(s(f.regexFind ? R.string.sr_filter_regex : R.string.sr_filter_name)); any = true; }
+        if (f.content != null) { sb.append(s(R.string.sr_filter_content)); any = true; }
+        if (f.type != 0) { sb.append(typeLabels()[f.type]).append(' '); any = true; }
+        if (f.sizeMin >= 0 || f.sizeMax >= 0) { sb.append(s(R.string.sr_filter_size)); any = true; }
+        if (f.dayMin >= 0 || f.dayMax >= 0) { sb.append(s(R.string.sr_filter_time)); any = true; }
+        if (!any) sb.append(s(R.string.sr_filter_none));
         return sb.toString();
     }
 
@@ -377,6 +383,9 @@ public class SearchActivity extends BaseActivity {
         Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
     }
 
+    private String s(int id) { return getString(id); }
+    private String s(int id, Object... args) { return getString(id, args); }
+
     private class ResultAdapter extends BaseAdapter {
 
         private final List<File> data;
@@ -404,7 +413,7 @@ public class SearchActivity extends BaseActivity {
             } else {
                 detail.setEllipsize(android.text.TextUtils.TruncateAt.START);
                 String d = f.getParent()
-                        + "  ·  " + (f.isDirectory() ? "文件夹" : FileOps.formatSize(f.length()))
+                        + "  ·  " + (f.isDirectory() ? s(R.string.sr_folder) : FileOps.formatSize(f.length()))
                         + "  ·  " + FileOps.formatTime(f.lastModified());
                 detail.setText(d);
             }

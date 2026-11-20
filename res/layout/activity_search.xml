@@ -28,7 +28,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="40dp"
-            android:hint="关键词，支持 * ? 通配或正则"
+            android:hint="@string/sr_hint_kw"
             android:textSize="13sp"
             android:background="?attr/hfSurface"
             android:paddingLeft="8dp"
@@ -38,14 +38,14 @@
             android:id="@+id/btn_adv"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
-            android:text="筛选"
+            android:text="@string/sr_filter"
             android:textSize="13sp"/>
 
         <Button
             android:id="@+id/btn_search"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
-            android:text="搜索"
+            android:text="@string/sr_search"
             android:textSize="13sp"/>
     </LinearLayout>
 
@@ -64,7 +64,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="40dp"
-            android:hint="文件内容包含…（只扫文本，≤4MB）"
+            android:hint="@string/sr_hint_content"
             android:textSize="13sp"
             android:background="?attr/hfSurface"
             android:paddingLeft="8dp"
@@ -74,7 +74,7 @@
             android:id="@+id/cb_ignore"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="忽略大小写"
+            android:text="@string/sr_ignore_case"
             android:textSize="12sp"
             android:checked="true"/>
     </LinearLayout>
@@ -101,7 +101,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="类型"
+                android:text="@string/sr_type"
                 android:textSize="13sp"
                 android:textColor="?attr/hfText"/>
 
@@ -115,7 +115,7 @@
                 android:id="@+id/cb_regex"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="正则"
+                android:text="@string/sr_regex"
                 android:textSize="13sp"/>
         </LinearLayout>
 
@@ -128,7 +128,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="大小"
+                android:text="@string/sr_size"
                 android:textSize="13sp"
                 android:textColor="?attr/hfText"/>
 
@@ -137,7 +137,7 @@
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="36dp"
-                android:hint="最小MB"
+                android:hint="@string/sr_hint_size_min"
                 android:textSize="12sp"
                 android:inputType="numberDecimal"
                 android:background="?attr/hfBg"
@@ -154,7 +154,7 @@
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="36dp"
-                android:hint="最大MB"
+                android:hint="@string/sr_hint_size_max"
                 android:textSize="12sp"
                 android:inputType="numberDecimal"
                 android:background="?attr/hfBg"
@@ -170,7 +170,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="时间"
+                android:text="@string/sr_time"
                 android:textSize="13sp"
                 android:textColor="?attr/hfText"/>
 
@@ -179,7 +179,7 @@
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="36dp"
-                android:hint="距今≥天"
+                android:hint="@string/sr_hint_days_min"
                 android:textSize="12sp"
                 android:inputType="number"
                 android:background="?attr/hfBg"
@@ -196,7 +196,7 @@
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="36dp"
-                android:hint="距今≤天"
+                android:hint="@string/sr_hint_days_max"
                 android:textSize="12sp"
                 android:inputType="number"
                 android:background="?attr/hfBg"
@@ -213,7 +213,7 @@
         android:paddingBottom="4dp"
         android:textSize="12sp"
         android:textColor="?attr/hfTextSub"
-        android:text="输入关键词后点搜索；「筛选」可设类型/大小/时间"/>
+        android:text="@string/sr_hint_status"/>
 
     <ListView
         android:id="@+id/list_result"
