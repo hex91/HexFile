@@ -59,7 +59,7 @@ public final class TsRemuxer {
      */
     public static long remuxToMp4(File src, File dst, Progress prog) throws IOException {
         if (src == null || !src.isFile() || src.length() <= 0) {
-            throw new IOException("源文件不存在或为空");
+            throw new IOException("source file missing or empty");
         }
         MediaExtractor ex = new MediaExtractor();
         MediaMuxer mux = null;
@@ -89,7 +89,7 @@ public final class TsRemuxer {
                 }
             }
             if (vTrack < 0 && aTrack < 0) {
-                throw new IOException("文件里没有可识别的音视频轨道（可能不是 TS，或只有数据流）");
+                throw new IOException("no recognizable A/V track (not TS, or data-only)");
             }
             if (vTrack >= 0) ex.selectTrack(vTrack);
             if (aTrack >= 0) ex.selectTrack(aTrack);
@@ -104,7 +104,7 @@ public final class TsRemuxer {
                 try {
                     outV = mux.addTrack(vFmt);
                 } catch (Throwable t) {
-                    throw new IOException("视频轨道无法写入 MP4（" + mime(vFmt) + "）：" + t.getMessage());
+                    throw new IOException("cannot write video track to MP4 (" + mime(vFmt) + "): " + t.getMessage());
                 }
             }
             if (aFmt != null) {
@@ -115,7 +115,7 @@ public final class TsRemuxer {
                     outA = -1;
                 }
             }
-            if (outV < 0 && outA < 0) throw new IOException("没有可写入 MP4 的轨道");
+            if (outV < 0 && outA < 0) throw new IOException("no writable MP4 track");
             final boolean skipAudio = (outA < 0);
 
             mux.start();
@@ -171,8 +171,8 @@ public final class TsRemuxer {
                 } catch (Throwable t) {
                     boolean tail = totalUs > 0 && pts > totalUs * 9 / 10;
                     if (!tail) {
-                        throw new IOException("写入" + (isV ? "视频" : "音频")
-                                + "样本失败（文件可能不完整）：" + t.getMessage());
+                        throw new IOException("write " + (isV ? "video" : "audio")
+                                + " sample failed (file may be truncated): " + t.getMessage());
                     }
                     // 尾部残帧：丢掉了事，下面正常 stop 收尾
                 }
@@ -183,17 +183,17 @@ public final class TsRemuxer {
                 if (!ex.advance()) break;
             }
 
-            if (writtenSamples == 0) throw new IOException("没有写出任何样本（源文件可能已损坏）");
+            if (writtenSamples == 0) throw new IOException("no samples written (source may be corrupt)");
             mux.stop();
             mux.release();
             mux = null;
 
             if (dst.exists() && !dst.delete()) {
-                throw new IOException("目标文件被占用：" + dst.getName());
+                throw new IOException("target file in use: " + dst.getName());
             }
-            if (!tmp.renameTo(dst)) throw new IOException("重命名失败：" + dst.getName());
+            if (!tmp.renameTo(dst)) throw new IOException("rename failed: " + dst.getName());
             long size = dst.length();
-            if (size <= 0) throw new IOException("输出文件为空");
+            if (size <= 0) throw new IOException("output file is empty");
             if (prog != null) prog.onProgress(totalUs > 0 ? totalUs : vLast, totalUs);
             return size;
         } catch (IOException e) {
@@ -202,7 +202,7 @@ public final class TsRemuxer {
         } catch (Throwable t) {
             tmp.delete();
             String m = t.getMessage();
-            throw new IOException("转封装失败：" + (m == null ? t.getClass().getSimpleName() : m));
+            throw new IOException("remux failed: " + (m == null ? t.getClass().getSimpleName() : m));
         } finally {
             // 注销要最先做：无论成功、失败还是异常退出，注册表里都不能留这个路径
             com.hex91.file.fs.TempFiles.end(tmp);
@@ -254,7 +254,7 @@ public final class TsRemuxer {
      * 只是要保证 init 段在最前面。</p>
      */
     public static long concat(List<File> parts, File dst) throws IOException {
-        if (parts == null || parts.isEmpty()) throw new IOException("没有可合并的文件");
+        if (parts == null || parts.isEmpty()) throw new IOException("no files to merge");
         OutputStream os = new FileOutputStream(dst);
         long total = 0;
         try {
@@ -276,7 +276,7 @@ public final class TsRemuxer {
         } finally {
             try { os.close(); } catch (IOException ignore) {}
         }
-        if (total <= 0) throw new IOException("合并结果为空");
+        if (total <= 0) throw new IOException("merge result is empty");
         return total;
     }
 

@@ -151,13 +151,13 @@ public class LanReserveTest {
         try { o.write(new byte[]{1}); } finally { o.close(); }
         String m1 = null;
         try { LanProtocol.reserve(notDir, "a.txt"); } catch (IOException e) { m1 = e.getMessage(); }
-        ok(m1 != null && m1.contains("接收目录不可用"),
-                "普通文件当目录：报「接收目录不可用」（" + m1 + "）");
+        ok(m1 != null && m1.contains("Receive directory unavailable"),
+                "普通文件当目录：报 receive directory unavailable（" + m1 + "）");
 
         File gone = new File(base, "t5_gone");
         String m2 = null;
         try { LanProtocol.reserve(gone, "a.txt"); } catch (IOException e) { m2 = e.getMessage(); }
-        ok(m2 != null && m2.contains("接收目录不可用"), "目录不存在：同样报「接收目录不可用」");
+        ok(m2 != null && m2.contains("Receive directory unavailable"), "目录不存在：同样报 receive directory unavailable");
 
         // 只读目录：Windows 上 setWritable(false) 只改只读属性，不阻止在目录里建文件，
         // 拿不到「不可写」就明确 SKIP —— 让用例假绿比没有用例更糟。
@@ -167,7 +167,7 @@ public class LanReserveTest {
         if (!ro.canWrite()) {
             String m3 = null;
             try { LanProtocol.reserve(ro, "a.txt"); } catch (IOException e) { m3 = e.getMessage(); }
-            ok(m3 != null && m3.contains("不可写"), "只读目录：报「接收目录不可写」（" + m3 + "）");
+            ok(m3 != null && m3.contains("not writable"), "只读目录：报 receive directory not writable（" + m3 + "）");
         } else {
             System.out.println("SKIP  只读目录用例：本平台 setWritable(false) 不阻止创建子文件");
         }

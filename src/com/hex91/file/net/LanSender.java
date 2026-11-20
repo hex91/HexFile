@@ -71,7 +71,7 @@ public final class LanSender {
                 InputStream in = null;
                 try {
                     in = ctx.getContentResolver().openInputStream(uri);
-                    if (in == null) throw new IOException("无法读取所选文件");
+                    if (in == null) throw NetFsError.fieldRequired("selected file");
                     doSend(device, in, displayName, size, cb);
                 } catch (Throwable e) {
                     fail(cb, e);
@@ -86,8 +86,8 @@ public final class LanSender {
 
     private static void doSend(LanProtocol.Device device, InputStream in, String name,
                                long size, Cb cb) throws IOException {
-        if (device == null) throw new IOException("设备信息缺失");
-        if (size <= 0) throw new IOException("文件大小未知（请先复制到本机再发送）");
+        if (device == null) throw NetFsError.fieldRequired("device");
+        if (size <= 0) throw NetFsError.fieldRequired("file size (copy locally first)");
         String host = device.host == null ? "" : device.host;
         if (host.indexOf(':') >= 0) host = "[" + host + "]";   // IPv6 字面量
         String url = "http://" + host + ":" + device.port + "/lan/send?name="
@@ -120,14 +120,14 @@ public final class LanSender {
             }
             os.flush();
             os.close();
-            if (sent != size) throw new IOException("读取字节数不足：" + sent + "/" + size);
+            if (sent != size) throw NetFsError.opFail(NetFsError.OP_READ, "", -1, NetFsError.HINT_NONE, "short read " + sent + "/" + size);
 
             int code = conn.getResponseCode();
             if (code == HttpURLConnection.HTTP_OK) {
                 done(cb, readText(conn.getInputStream()));
             } else {
                 String body = readText(conn.getErrorStream());
-                fail(cb, new IOException("对方拒绝（HTTP " + code + "）" + body));
+                fail(cb, NetFsError.httpFail("peer", code, NetFsError.HINT_NONE));
             }
         } finally {
             if (conn != null) {
@@ -184,10 +184,10 @@ public final class LanSender {
      * 「对方没开服务」，所以单独挑出来说明。
      */
     static String friendly(Throwable e) {
-        if (e == null) return "未知错误";
+        if (e == null) return "Unknown error";
         String m = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
         if (m != null && m.contains("CLEARTEXT")) {
-            return "系统拦截了明文 HTTP（" + m + "）。请确认两台设备都是 1.74.1 及以上版本";
+            return "Cleartext HTTP blocked (" + m + "). Make sure both devices are v1.74.1 or newer";
         }
         return m;
     }

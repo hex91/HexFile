@@ -119,7 +119,7 @@ public final class LanProtocol {
         }
         if (port <= 0 || port > 65535) return null;
         String name = percentDecode(p[4]);
-        if (name.length() == 0) name = "未命名设备";
+        if (name.length() == 0) name = "Unnamed device";
         if (name.length() > 40) name = name.substring(0, 40);
         return new Device(id, name, host, port, now, kind);
     }
@@ -304,7 +304,7 @@ public final class LanProtocol {
      */
     public static File reserve(File dir, String rawName) throws IOException {
         if (dir == null || !dir.isDirectory()) {
-            throw new IOException("接收目录不可用: " + dir);
+            throw new IOException("Receive directory unavailable: " + dir);
         }
         boolean writable = dir.canWrite();
         String name = safeFileName(rawName);
@@ -327,11 +327,11 @@ public final class LanProtocol {
             // 不是重名却创建不出来：权限、只读挂载、目录被删。三次就认输，不空转一万次
             if (++denied >= 3) {
                 throw new IOException(writable
-                        ? "创建占位文件失败: " + part
-                        : "接收目录不可写: " + dir, last);
+                        ? "Cannot create placeholder: " + part
+                        : "Receive directory not writable: " + dir, last);
             }
         }
-        throw new IOException("无法分配唯一临时文件名: " + name);
+        throw NetFsError.opFail(NetFsError.OP_UPLOAD, String.valueOf(name), -1, NetFsError.HINT_NONE, "cannot allocate unique temp name");
     }
 
     /**

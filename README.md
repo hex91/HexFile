@@ -1785,6 +1785,24 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.101.0（versionCode 294）—— F-14/88：LAN 快传 + TS 转封装去中文（net 包收尾）
+
+清掉 net 包最后一批用户可见中文，至此 net 包仅剩 StreamUrl 5 处功能标点数据（保留）。
+
+- **LanNode**：notice（接收服务启动失败 / 端口占用）与 6 处 Log.w 改 ASCII 诊断串（网络诊断，
+  面向技术用户；日志不含凭据）。
+- **LanProtocol**：设备默认名「未命名设备」→ `Unnamed device`；reserve 的「接收目录不可用 /
+  不可写 / 占位失败 / 临时名分配失败」改 ASCII（语义串，保留 dir/path 参数）。
+  `LanReserveTest` 三处断言同步改为 ASCII 关键词（同 TimeCore 测试断言改码口径）。
+- **LanSender**：6 处 IOE + friendly 的「未知错误 / 明文 HTTP 被拦截」改 ASCII。
+- **TsRemuxer**：13 处转封装 IOException 改 ASCII（`main_remux_fail` / `hls_note_remux_fail`
+  模板已带中文前缀，`%s` 填技术串）。
+
+无新增资源键，资源维持 3005/3005。四门全过、全量 97/0/4（LanReserveTest PASS）；
+APK 13,488,848 B（md5 `f1c28282…`），badging 294/2.101.0。
+
+---
+
 ## v2.100.0（versionCode 293）—— F-14/87：同步执行器 SyncRunner 去中文
 
 清掉 v2.49 遗留的逻辑层债：`SyncRunner.Report.summary()` 原本直接产中文（上传/下载/冲突/失败/已取消），
