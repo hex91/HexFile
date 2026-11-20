@@ -261,7 +261,7 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
             mTabBar.addView(chip);
         }
         TextView add = new TextView(this);
-        add.setText("＋");
+        add.setText("+");
         add.setTextSize(18);
         add.setGravity(Gravity.CENTER);
         add.setPadding(dp(14), dp(2), dp(14), dp(2));
@@ -373,7 +373,7 @@ public final class TerminalActivity extends BaseActivity implements TerminalSess
         minus.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { applyFontSize(mTextSize - 1); }
         });
-        TextView plus = dialogKey("A＋");
+        TextView plus = dialogKey("A+");
         plus.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { applyFontSize(mTextSize + 1); }
         });

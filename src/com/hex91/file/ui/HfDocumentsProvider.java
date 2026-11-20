@@ -115,15 +115,28 @@ public class HfDocumentsProvider extends DocumentsProvider {
 
         File ext = Environment.getExternalStorageDirectory();
         if (ext != null) {
-            addRoot(c, ROOT_STORAGE, "内部存储", "手机内置存储", ext,
-                    R.mipmap.ic_launcher);
+            addRoot(c, ROOT_STORAGE, str(R.string.dp_root_storage),
+                    str(R.string.dp_root_storage_desc), ext, R.mipmap.ic_launcher);
         }
         File work = WorkDir.base();
         if (work != null && (work.exists() || work.mkdirs())) {
-            addRoot(c, ROOT_WORK, "HexFile 工作目录", WorkDir.path(), work,
+            addRoot(c, ROOT_WORK, str(R.string.dp_root_work), WorkDir.path(), work,
                     R.mipmap.ic_launcher);
         }
         return c;
+    }
+
+    /**
+     * 取串。本类是 {@link DocumentsProvider}（没有 Activity 的 {@code this}），
+     * 只有 {@link #getContext()}；这些文案会显示在<b>系统的文件选择器</b>里，
+     * 必须随界面语言走。
+     */
+    private String str(int id) {
+        return getContext().getString(id);
+    }
+
+    private String str(int id, Object... args) {
+        return getContext().getString(id, args);
     }
 
     private void addRoot(MatrixCursor c, String rootId, String title, String summary,
@@ -249,7 +262,7 @@ public class HfDocumentsProvider extends DocumentsProvider {
                 .add(Document.COLUMN_LAST_MODIFIED, f.lastModified());
         if (dir) {
             row.add(Document.COLUMN_SIZE, 0)
-                    .add(Document.COLUMN_SUMMARY, "文件夹");
+                    .add(Document.COLUMN_SUMMARY, str(R.string.common_folder));
         } else {
             long len = f.length();
             row.add(Document.COLUMN_SIZE, len)
@@ -372,7 +385,7 @@ public class HfDocumentsProvider extends DocumentsProvider {
         File parent = resolve(parentDocumentId);
         if (!parent.isDirectory()) throw new FileNotFoundException(parentDocumentId);
         String name = DocPath.sanitize(displayName);
-        if (name == null) throw new FileNotFoundException("非法文件名");
+        if (name == null) throw new FileNotFoundException(str(R.string.dp_bad_name));
 
         File target = new File(parent, uniqueName(parent, name));
         boolean ok;
@@ -385,7 +398,7 @@ public class HfDocumentsProvider extends DocumentsProvider {
                 ok = false;
             }
         }
-        if (!ok) throw new FileNotFoundException("创建失败：" + target.getAbsolutePath());
+        if (!ok) throw new FileNotFoundException(str(R.string.dp_create_fail, target.getAbsolutePath()));
         return target.getAbsolutePath();
     }
 
@@ -405,28 +418,28 @@ public class HfDocumentsProvider extends DocumentsProvider {
     @Override
     public void deleteDocument(String documentId) throws FileNotFoundException {
         File f = resolve(documentId);
-        if (isRootDoc(documentId)) throw new FileNotFoundException("不能删除根目录");
+        if (isRootDoc(documentId)) throw new FileNotFoundException(str(R.string.dp_no_delete_root));
         if (f.isDirectory()) {
             File[] kids = f.listFiles();
             if (kids != null && kids.length > 0) {
-                throw new FileNotFoundException("目录非空，请先清空");
+                throw new FileNotFoundException(str(R.string.dp_dir_not_empty));
             }
         }
-        if (!f.delete()) throw new FileNotFoundException("删除失败：" + documentId);
+        if (!f.delete()) throw new FileNotFoundException(str(R.string.dp_delete_fail, documentId));
     }
 
     @Override
     public String renameDocument(String documentId, String displayName)
             throws FileNotFoundException {
         File f = resolve(documentId);
-        if (isRootDoc(documentId)) throw new FileNotFoundException("不能重命名根目录");
+        if (isRootDoc(documentId)) throw new FileNotFoundException(str(R.string.dp_no_rename_root));
         String name = DocPath.sanitize(displayName);
-        if (name == null) throw new FileNotFoundException("非法文件名");
+        if (name == null) throw new FileNotFoundException(str(R.string.dp_bad_name));
         if (name.equals(f.getName())) return f.getAbsolutePath();
 
         File target = new File(f.getParentFile(), name);
-        if (target.exists()) throw new FileNotFoundException("同名文件已存在");
-        if (!f.renameTo(target)) throw new FileNotFoundException("重命名失败");
+        if (target.exists()) throw new FileNotFoundException(str(R.string.dp_exists));
+        if (!f.renameTo(target)) throw new FileNotFoundException(str(R.string.dp_rename_fail));
         return target.getAbsolutePath();
     }
 
@@ -437,7 +450,7 @@ public class HfDocumentsProvider extends DocumentsProvider {
         File parent = resolve(targetParentDocumentId);
         File target = new File(parent, uniqueName(parent, src.getName()));
         if (!copyRecursive(src, target)) {
-            throw new FileNotFoundException("复制失败：" + sourceDocumentId);
+            throw new FileNotFoundException(str(R.string.dp_copy_fail, sourceDocumentId));
         }
         return target.getAbsolutePath();
     }
@@ -448,11 +461,11 @@ public class HfDocumentsProvider extends DocumentsProvider {
         File src = resolve(sourceDocumentId);
         File parent = resolve(targetParentDocumentId);
         File target = new File(parent, src.getName());
-        if (target.exists()) throw new FileNotFoundException("目标已存在同名项");
+        if (target.exists()) throw new FileNotFoundException(str(R.string.dp_exists_target));
         if (src.renameTo(target)) return target.getAbsolutePath();
 
         // 跨分区 rename 会失败 → 复制后删除源
-        if (!copyRecursive(src, target)) throw new FileNotFoundException("移动失败");
+        if (!copyRecursive(src, target)) throw new FileNotFoundException(str(R.string.dp_move_fail));
         deleteRecursive(src);
         return target.getAbsolutePath();
     }
@@ -473,9 +486,9 @@ public class HfDocumentsProvider extends DocumentsProvider {
      */
     private File resolve(String documentId) throws FileNotFoundException {
         String p = DocPath.normalize(documentId);
-        if (p == null) throw new FileNotFoundException("非法路径：" + documentId);
+        if (p == null) throw new FileNotFoundException(str(R.string.dp_bad_path, documentId));
         if (!DocPath.withinAny(allowedRoots(), p)) {
-            throw new FileNotFoundException("超出允许范围：" + documentId);
+            throw new FileNotFoundException(str(R.string.dp_out_of_scope, documentId));
         }
         return new File(p);
     }
@@ -505,8 +518,9 @@ public class HfDocumentsProvider extends DocumentsProvider {
         String p = DocPath.normalize(documentId);
         if (p == null) return null;
         File ext = Environment.getExternalStorageDirectory();
-        if (ext != null && p.equals(DocPath.normalize(ext.getAbsolutePath()))) return "内部存储";
-        if (p.equals(DocPath.normalize(WorkDir.path()))) return "HexFile 工作目录";
+        if (ext != null && p.equals(DocPath.normalize(ext.getAbsolutePath())))
+            return str(R.string.dp_root_storage);
+        if (p.equals(DocPath.normalize(WorkDir.path()))) return str(R.string.dp_root_work);
         return null;
     }
 

@@ -2784,4 +2784,21 @@
     <string name="vp_info_codecs">codecs：%1$s</string>
     <string name="fa_selected">"已选中 · "</string>
     <string name="skm_broken_no_save">密码已损坏（可能换机或清除过数据），请删除该条目后重新导入签名文件</string>
+    <!-- v2.77.0 系统文件选择器（DocumentsProvider） -->
+    <string name="dp_root_storage">内部存储</string>
+    <string name="dp_root_storage_desc">手机内置存储</string>
+    <string name="dp_root_work">HexFile 工作目录</string>
+    <string name="dp_bad_name">非法文件名</string>
+    <string name="dp_create_fail">创建失败：%1$s</string>
+    <string name="dp_no_delete_root">不能删除根目录</string>
+    <string name="dp_dir_not_empty">目录非空，请先清空</string>
+    <string name="dp_delete_fail">删除失败：%1$s</string>
+    <string name="dp_no_rename_root">不能重命名根目录</string>
+    <string name="dp_exists">同名文件已存在</string>
+    <string name="dp_rename_fail">重命名失败</string>
+    <string name="dp_copy_fail">复制失败：%1$s</string>
+    <string name="dp_exists_target">目标已存在同名项</string>
+    <string name="dp_move_fail">移动失败</string>
+    <string name="dp_bad_path">非法路径：%1$s</string>
+    <string name="dp_out_of_scope">超出允许范围：%1$s</string>
 </resources>

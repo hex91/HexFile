@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2635 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2651 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,40 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.77.0（versionCode 270）—— F-14/64：系统文件选择器（DocumentsProvider）i18n
+
+`HfDocumentsProvider` 中文字面量 **20 → 0**，新增 16 个 `dp_*` 键，复用 `common_folder`，
+资源 2635 → 2651 条（中英各 2651，100%）。`TerminalActivity` 顺手把 `＋` / `A＋` 改成半角。
+
+### 这个类为什么容易被漏
+它没有界面 —— 文案出现在**系统的文件选择器 / SAF 面板**里（用户从别的 App「打开文件」时看到
+"内部存储""HexFile 工作目录""文件夹"）。按页面扫 UI 永远扫不到它，但它恰恰是纯中文重灾区：
+根节点名 3 处、14 条 `FileNotFoundException` 消息。
+
+### 实现要点
+- `DocumentsProvider` 没有 Activity 的 `this`，只有 `getContext()`：新增两个私有重载
+  `str(int)` / `str(int, Object...)` 统一取串，避免十几处都写 `getContext().getString(...)`。
+- **同一根名出现在两处**：`queryRoots` 里 addRoot 传入的标题，与 `rootTitleOf(documentId)`
+  回读的标题必须逐字一致（同一个根在两个入口显示的名不能不一样）。两处都改成
+  `str(R.string.dp_root_storage)` / `str(R.string.dp_root_work)`，不再各写一份中文。
+- 异常消息 13 条各自成键；带 id / 路径的两条用 `%1$s`（`dp_create_fail` / `dp_delete_fail` /
+  `dp_copy_fail` / `dp_bad_path` / `dp_out_of_scope`）。
+- `COLUMN_SUMMARY` 的"文件夹"复用上一版新建的通用 `common_folder`。
+
+### TerminalActivity：只做符号半角化，正文保留
+`＋` → `+`、`A＋` → `A+`（全角符号在等宽键位上宽度不一致）。剩下 11 处全是**写进
+`.profile` 与 `bin/hex` 的脚本正文**（`echo "  hex help   显示本帮助"` 之类）——
+那是落盘脚本的内容，一旦写入就不再随界面语言变，且用户可能自己编辑；
+与 v2.54.0 的判断一致，刻意保留。
+
+### 验证
+四门全过（依赖方向、空 catch 335 基线、文案 2651/2651 100%、动作码 55）。
+APK **13,423,312 B**（md5 `9bc9431e…`），badging 反证 versionCode 270 / 2.77.0；
+dex 反证 `dp_root_work` / `dp_dir_not_empty` / `dp_out_of_scope` 各 = 1
+（`dp_root_storage` 命中 2，正是上面说的两处入口），"手机内置存储"在 dex 中 0 处。
 
 ---
 

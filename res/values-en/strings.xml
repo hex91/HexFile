@@ -2776,4 +2776,21 @@
     <string name="vp_info_codecs">"codecs: %1$s"</string>
     <string name="fa_selected">"Selected · "</string>
     <string name="skm_broken_no_save">The password is broken (after switching devices or clearing data). Delete this entry and import the key file again.</string>
+    <!-- v2.77.0 system file picker (DocumentsProvider) -->
+    <string name="dp_root_storage">Internal storage</string>
+    <string name="dp_root_storage_desc">Built-in phone storage</string>
+    <string name="dp_root_work">HexFile workspace</string>
+    <string name="dp_bad_name">Invalid file name</string>
+    <string name="dp_create_fail">Create failed: %1$s</string>
+    <string name="dp_no_delete_root">The root folder cannot be deleted</string>
+    <string name="dp_dir_not_empty">The folder is not empty — clear it first</string>
+    <string name="dp_delete_fail">Delete failed: %1$s</string>
+    <string name="dp_no_rename_root">The root folder cannot be renamed</string>
+    <string name="dp_exists">A file with the same name already exists</string>
+    <string name="dp_rename_fail">Rename failed</string>
+    <string name="dp_copy_fail">Copy failed: %1$s</string>
+    <string name="dp_exists_target">An item with the same name already exists in the target</string>
+    <string name="dp_move_fail">Move failed</string>
+    <string name="dp_bad_path">Invalid path: %1$s</string>
+    <string name="dp_out_of_scope">Outside the allowed scope: %1$s</string>
 </resources>
