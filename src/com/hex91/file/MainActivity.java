@@ -78,6 +78,7 @@ import com.hex91.file.apk.SplitInstaller;
 import com.hex91.file.apk.SplitPackage;
 import com.hex91.file.R;
 import com.hex91.file.ui.FsText;
+import com.hex91.file.ui.UtilText;
 import com.hex91.file.fs.DiskScanUtil;
 import com.hex91.file.fs.FileClipboard;
 import com.hex91.file.fs.FileCrypt;
@@ -4365,7 +4366,7 @@ public class MainActivity extends BaseActivity {
                             // 记一行就够，不要用 toast 打扰已经离开的用户
                             LogRing.add("import", "pd.dismiss: " + t);
                         }
-                        String msg = r.summary();
+                        String msg = UtilText.importSummary(MainActivity.this, r);
                         if (r.errors.size() > 0) msg = msg + "\n" + r.errors.get(0);
                         toast(msg);
                         refreshAll();

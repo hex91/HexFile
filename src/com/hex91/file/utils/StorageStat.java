@@ -11,6 +11,11 @@ import android.os.Environment;
  */
 public final class StorageStat {
 
+    /** statFs/statFree 的稳定码，文案由 ui/UtilText 映射 */
+    public static final String CODE_UNAVAILABLE = "UNAVAILABLE";
+    public static final String CODE_FS = "UT_FS";
+    public static final String CODE_FREE = "UT_FREE";
+
     private StorageStat() {
     }
 
@@ -49,17 +54,17 @@ public final class StorageStat {
 
     public static String statFs(String path) {
         long[] u = usageOf(path);
-        if (u == null) return "容量不可用";
+        if (u == null) return CODE_UNAVAILABLE;
         long total = u[0], avail = u[1];
         long used = total > avail ? total - avail : 0;
         int pct = total > 0 ? (int) (used * 100 / total) : 0;
-        return FileOps.formatSize(used) + " 已用 / " + FileOps.formatSize(total)
-                + "（" + pct + "%）  可用 " + FileOps.formatSize(avail);
+        return CODE_FS + ":" + FileOps.formatSize(used) + ":" + FileOps.formatSize(total)
+                + ":" + pct + ":" + FileOps.formatSize(avail);
     }
 
     public static String statFree(String path) {
         long[] u = usageOf(path);
-        if (u == null) return "容量不可用";
-        return "可用 " + FileOps.formatSize(u[1]) + " / 共 " + FileOps.formatSize(u[0]);
+        if (u == null) return CODE_UNAVAILABLE;
+        return CODE_FREE + ":" + FileOps.formatSize(u[1]) + ":" + FileOps.formatSize(u[0]);
     }
 }

@@ -62,7 +62,7 @@ public final class CompareReport {
                         CompareUtil.fmtSize(it.sizeA), CompareUtil.fmtSize(it.sizeB));
             case CompareUtil.NOTE_HASH:
                 return c.getString(R.string.cmp_note_hash,
-                        nz(it.noteA), nz(it.noteB));
+                        nz(c, it.noteA), nz(c, it.noteB));
             case CompareUtil.NOTE_CRC:
                 return c.getString(R.string.cmp_note_crc, crc(it.crcA), crc(it.crcB));
             default:
@@ -199,5 +199,7 @@ public final class CompareReport {
 
     private static String crc(long v) { return String.format(java.util.Locale.US, "%08X", v); }
 
-    private static String nz(String s) { return s == null ? "?" : s; }
+    private static String nz(Context c, String s) {
+        return s == null ? "?" : UtilText.hashBrief(c, s);
+    }
 }

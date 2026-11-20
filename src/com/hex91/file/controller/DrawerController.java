@@ -17,6 +17,7 @@ import com.hex91.file.ui.TerminalActivity;
 import com.hex91.file.ui.ThemeActivity;
 import com.hex91.file.ui.ToolboxActivity;
 import com.hex91.file.ui.TrashActivity;
+import com.hex91.file.ui.UtilText;
 import com.hex91.file.ui.VaultActivity;
 import com.hex91.file.fs.RootUtil;
 import android.content.Intent;
@@ -237,8 +238,10 @@ public final class DrawerController {
                 final String sdStat = StorageStat.statFree(Environment.getExternalStorageDirectory().getPath());
                 host.ui(new Runnable() {
                     public void run() {
-                        ((TextView) host.find(R.id.drawer_root_usage)).setText(rootStat);
-                        ((TextView) host.find(R.id.drawer_sd_usage)).setText(sdStat);
+                        ((TextView) host.find(R.id.drawer_root_usage)).setText(
+                                UtilText.storageFs(host.ctx(), rootStat));
+                        ((TextView) host.find(R.id.drawer_sd_usage)).setText(
+                                UtilText.storageFree(host.ctx(), sdStat));
                     }
                 });
             }

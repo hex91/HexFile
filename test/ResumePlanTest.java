@@ -85,10 +85,10 @@ public class ResumePlanTest {
                 "自定义容差 1 秒：差 5 秒重传");
 
         // ---------------------------------------------------------- 文案
-        ok(p.describe().contains("续传"), "续传文案含「续传」");
-        ok(p.describe().contains("3.8 MB"), "续传文案含已下载大小: " + p.describe());
-        ok(ResumePlan.decide(false, 0, SIZE, SIZE, T0, T0).describe().contains("从头"),
-                "重传文案含「从头」");
+        ok(p.describe().startsWith("RESUME:4000000:"), "续传码含已下载偏移");
+        ok(p.describe().endsWith(ResumePlan.R_REMOTE_UNCHANGED), "续传码含原因");
+        ok(ResumePlan.decide(false, 0, SIZE, SIZE, T0, T0).describe().startsWith("FRESH:"),
+                "重传方案是 FRESH 码");
 
         // ---------------------------------------------------------- 路径
         File dest = new File("/sdcard/Download/movie.mp4");

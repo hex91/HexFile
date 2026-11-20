@@ -79,14 +79,8 @@ public final class SyncPlan {
         }
 
         public String summary() {
-            StringBuilder sb = new StringBuilder();
-            sb.append("上传 ").append(upload)
-              .append(" · 下载 ").append(download)
-              .append(" · 冲突 ").append(conflict)
-              .append(" · 跳过 ").append(skip);
-            if (localOnly > 0) sb.append("\n仅本地存在 ").append(localOnly).append(" 项（不会删除远端）");
-            if (remoteOnly > 0) sb.append("\n仅远端存在 ").append(remoteOnly).append(" 项（不会删除本地）");
-            return sb.toString();
+            return "SYNC:" + upload + ":" + download + ":" + conflict + ":" + skip
+                    + ":" + localOnly + ":" + remoteOnly;
         }
     }
 

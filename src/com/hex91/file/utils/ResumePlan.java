@@ -1,6 +1,5 @@
 package com.hex91.file.utils;
 
-import com.hex91.file.fs.FileOps;
 import java.io.File;
 
 /**
@@ -30,6 +29,16 @@ public final class ResumePlan {
     /** .part 已完整，只需改名成目标文件 */
     public static final int COMPLETE = 2;
 
+    /** 失败原因稳定码；文案由 ui/UtilText 映射 */
+    public static final String R_REMOTE_SIZE_UNKNOWN = "REMOTE_SIZE_UNKNOWN";
+    public static final String R_NO_PART = "NO_PART";
+    public static final String R_PART_TOO_BIG = "PART_TOO_BIG";
+    public static final String R_NO_META = "NO_META";
+    public static final String R_SIZE_CHANGED = "SIZE_CHANGED";
+    public static final String R_REMOTE_NEWER = "REMOTE_NEWER";
+    public static final String R_SIZE_MATCH = "SIZE_MATCH";
+    public static final String R_REMOTE_UNCHANGED = "REMOTE_UNCHANGED";
+
     /** 未完成文件后缀：{@code movie.mp4} → {@code movie.mp4.hpart} */
     public static final String PART_SUFFIX = ".hpart";
     /** 校验信息后缀：记录远端 size/mtime，决定能不能续 */
@@ -58,9 +67,9 @@ public final class ResumePlan {
         public boolean isComplete() { return mode == COMPLETE; }
 
         public String describe() {
-            if (mode == RESUME) return "续传（已有 " + FileOps.formatSize(offset) + "，" + reason + "）";
-            if (mode == COMPLETE) return "临时文件已完整，直接完成（" + reason + "）";
-            return "从头下载（" + reason + "）";
+            if (mode == RESUME) return "RESUME:" + offset + ":" + reason;
+            if (mode == COMPLETE) return "COMPLETE:" + reason;
+            return "FRESH:" + reason;
         }
     }
 
@@ -81,15 +90,15 @@ public final class ResumePlan {
 
     public static Plan decide(boolean partExists, long partLen, long remoteSize,
                               long metaSize, long metaMtime, long remoteMtime, long tol) {
-        if (remoteSize < 0) return new Plan(FRESH, 0, "远端大小未知");
-        if (!partExists || partLen <= 0) return new Plan(FRESH, 0, "没有未完成的临时文件");
-        if (partLen > remoteSize) return new Plan(FRESH, 0, "临时文件比远端大");
-        if (metaSize <= 0) return new Plan(FRESH, 0, "缺少上次的校验信息");
-        if (metaSize != remoteSize) return new Plan(FRESH, 0, "远端大小已变");
+        if (remoteSize < 0) return new Plan(FRESH, 0, R_REMOTE_SIZE_UNKNOWN);
+        if (!partExists || partLen <= 0) return new Plan(FRESH, 0, R_NO_PART);
+        if (partLen > remoteSize) return new Plan(FRESH, 0, R_PART_TOO_BIG);
+        if (metaSize <= 0) return new Plan(FRESH, 0, R_NO_META);
+        if (metaSize != remoteSize) return new Plan(FRESH, 0, R_SIZE_CHANGED);
         if (metaMtime > 0 && remoteMtime > 0 && Math.abs(metaMtime - remoteMtime) > tol)
-            return new Plan(FRESH, 0, "远端文件已更新");
-        if (partLen == remoteSize) return new Plan(COMPLETE, partLen, "大小一致");
-        return new Plan(RESUME, partLen, "远端未变");
+            return new Plan(FRESH, 0, R_REMOTE_NEWER);
+        if (partLen == remoteSize) return new Plan(COMPLETE, partLen, R_SIZE_MATCH);
+        return new Plan(RESUME, partLen, R_REMOTE_UNCHANGED);
     }
 
     // ----------------------------------------------------------------

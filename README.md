@@ -1785,6 +1785,31 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.105.0（versionCode 298）—— F-14/92：utils 状态与摘要码化
+
+沿用 fs 的「逻辑给码、UI 给文案」分层，新增 `ui/UtilText`：
+
+- **哈希 / 对比**：`HashUtil.brief()` 的失败值改 `HASH_FAIL`，`CompareReport` 走
+  `UtilText.hashBrief()`，不再把中文塞进差异说明。
+- **外部导入**：`IntentImport.Result.summary()` 改 `IMPORT:ok:skipped:failed:cancelled`；
+  主界面提示走 `UtilText.importSummary()` 读字段拼资源。
+- **续传**：`ResumePlan.Plan.reason/describe()` 改 8 个原因码 + `RESUME/COMPLETE/FRESH`
+  方案码；`UtilText.resumeReason()/resumePlan()` 负责翻译（当前 UI 只显示大小，测试钉码）。
+- **容量**：`StorageStat.statFs/statFree()` 返回 `UNAVAILABLE` / `UT_FS:...` / `UT_FREE:...`；
+  抽屉两行走 `UtilText`。小组件 `WidgetText.summary()` 同理改 `LEFT:...`。
+- **云同步 / 语言表**：`SyncPlan.Plan.summary()` 改 `SYNC:...` 码，SyncActivity 走
+  `UtilText.syncSummary()`；`SyntaxHighlight` 的纯文本标签改英文 `Plain text`
+  （与其余语言名同口径）。
+- `OpenWith` 默认 chooser 标题改 ASCII `Open <name>`，调用方仍可传本地化 title。
+
+剩余 utils 中文 16 处均为异常/Shizuku 状态，下一版码化。
+
+新增 UtilText + 24 个 `ut_*` 键，资源 3057 → 3081（100%）。四门全过、全量 97/0/4
+（JadxArscTest 首轮 exit=139 但日志 47/0，复跑通过，判定为环境偶发）；
+APK 13,505,232 B（md5 `bdcb4d28…`），badging 298/2.105.0。
+
+---
+
 ## v2.104.0（versionCode 297）—— F-14/91：fs 异常码化，fs 包中文清零
 
 新增 `fs/FsError extends IOException`（28 个码 + 数据参数，`getMessage()` 只给 ASCII

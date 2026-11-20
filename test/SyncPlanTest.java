@@ -153,9 +153,9 @@ public class SyncPlanTest {
         eq(0, mix.conflict, "混合：无冲突");
 
         // ---------------------------------------------------------- summary 文案
-        ok(p1.summary().contains("跳过 1"), "summary 含跳过数");
-        ok(rup.summary().contains("仅远端存在 1"), "summary 提示仅远端");
-        ok(down.summary().contains("仅本地存在 1"), "summary 提示仅本地");
+        ok("SYNC:0:0:0:1:0:0".equals(p1.summary()), "summary 码含跳过数");
+        ok("SYNC:0:0:0:0:0:1".equals(rup.summary()), "summary 码提示仅远端");
+        ok("SYNC:0:0:0:0:1:0".equals(down.summary()), "summary 码提示仅本地");
 
         // ---------------------------------------------------------- norm 路径
         eqs("a/b.txt", SyncPlan.norm("/a/b.txt"), "去掉前导斜杠");

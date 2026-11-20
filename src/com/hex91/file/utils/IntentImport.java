@@ -89,12 +89,7 @@ public final class IntentImport {
         public final List<String> errors = new ArrayList<String>();
 
         public String summary() {
-            StringBuilder sb = new StringBuilder();
-            sb.append("导入 ").append(ok).append(" 个");
-            if (skipped > 0) sb.append("，跳过 ").append(skipped).append(" 个");
-            if (failed > 0) sb.append("，失败 ").append(failed).append(" 个");
-            if (cancelled) sb.append("（已取消）");
-            return sb.toString();
+            return "IMPORT:" + ok + ":" + skipped + ":" + failed + ":" + (cancelled ? 1 : 0);
         }
     }
 

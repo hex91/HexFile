@@ -8,6 +8,10 @@ package com.hex91.file.utils;
  */
 public final class WidgetText {
 
+    /** summary() 稳定码，文案由 ui/UtilText 映射 */
+    public static final String CODE_UNAVAILABLE = "UNAVAILABLE";
+    public static final String CODE_LEFT = "LEFT";
+
     private WidgetText() {}
 
     /** 紧凑容量：980M / 12.3G / 128G（手机存储到不了 T 级，不实现 T 分支） */
@@ -33,8 +37,8 @@ public final class WidgetText {
 
     /** 顶行摘要：{@code 剩 12.3G / 128G} */
     public static String summary(long total, long avail) {
-        if (total <= 0) return "存储不可用";
-        return "剩 " + size(Math.max(0, avail)) + " / " + size(total);
+        if (total <= 0) return CODE_UNAVAILABLE;
+        return CODE_LEFT + ":" + size(Math.max(0, avail)) + ":" + size(total);
     }
 
     /** 已用百分比 0~100（总容量未知时返回 0，避免进度条瞎跳） */

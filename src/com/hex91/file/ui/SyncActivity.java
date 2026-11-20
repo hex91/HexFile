@@ -212,8 +212,8 @@ public class SyncActivity extends BaseActivity {
                         public void run() {
                             plan = p;
                             tvPlan.setText(p.work() == 0
-                                    ? s(R.string.sy_no_diff) + p.summary()
-                                    : p.summary());
+                                    ? s(R.string.sy_no_diff) + UtilText.syncSummary(SyncActivity.this, p)
+                                    : UtilText.syncSummary(SyncActivity.this, p));
                             if (p.work() == 0) tvStatus.setText(s(R.string.sy_no_sync));
                         }
                     });

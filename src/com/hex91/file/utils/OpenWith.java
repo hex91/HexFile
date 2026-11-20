@@ -71,7 +71,7 @@ public final class OpenWith {
         try {
             if (!canOpen(c, f)) return false;
             Intent chooser = Intent.createChooser(intentFor(f),
-                    title != null ? title : "打开 " + f.getName());
+                    title != null ? title : "Open " + f.getName());
             chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             chooser.setClipData(ClipData.newRawUri(f.getName(), uriOf(f)));
             if (!(c instanceof Activity)) chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

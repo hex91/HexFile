@@ -83,7 +83,7 @@ public class WidgetProvider extends AppWidgetProvider {
         } catch (Throwable ignored) {
             // StatFs 在极少数机型上会抛（挂载点异常）→ 显示「存储不可用」
         }
-        v.setTextViewText(R.id.widget_storage, WidgetText.summary(total, avail));
+        v.setTextViewText(R.id.widget_storage, UtilText.widgetSummary(c, WidgetText.summary(total, avail)));
         v.setProgressBar(R.id.widget_bar, 100, WidgetText.usedPercent(total, avail), false);
 
         // 整卡点击 → 打开主界面（沿用 MainActivity 已有的 "dir" extra 机制）

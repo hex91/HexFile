@@ -19,6 +19,8 @@ import java.util.zip.CRC32;
 public final class HashUtil {
 
     public static final String[] ALGS = {"MD5", "SHA-1", "SHA-256", "CRC32"};
+    /** brief() 的失败码，文案由 ui/UtilText 映射 */
+    public static final String BRIEF_FAIL = "HASH_FAIL";
 
     private HashUtil() {}
 
@@ -75,7 +77,7 @@ public final class HashUtil {
 
     /** 展示用短哈希（前 12 位 + …） */
     public static String brief(String h) {
-        if (h == null) return "(失败)";
+        if (h == null) return BRIEF_FAIL;
         return h.length() > 12 ? h.substring(0, 12) + "…" : h;
     }
 }

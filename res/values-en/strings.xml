@@ -3252,4 +3252,29 @@
     <string name="fs_err_no_input">Nothing to compress</string>
     <string name="fs_err_bad_magic">Not a zstd file (bad magic): %1$s</string>
     <string name="fs_err_outdir">Cannot create output directory: %1$s</string>
+    <!-- v2.105.0 utils status/summary codes (UtilText) -->
+    <string name="ut_hash_fail">Failed</string>
+    <string name="ut_import_summary">Imported %1$d item(s)</string>
+    <string name="ut_import_skipped">, skipped %1$d</string>
+    <string name="ut_import_failed">, failed %1$d</string>
+    <string name="ut_import_cancelled">(cancelled)</string>
+    <string name="ut_resume">Resume (%1$s done, %2$s)</string>
+    <string name="ut_resume_complete">Partial file is complete; finishing directly (%1$s)</string>
+    <string name="ut_resume_fresh">Download from start (%1$s)</string>
+    <string name="ut_resume_reason_remote_size_unknown">Remote size unknown</string>
+    <string name="ut_resume_reason_no_part">No unfinished partial file</string>
+    <string name="ut_resume_reason_part_too_big">Partial file is larger than remote</string>
+    <string name="ut_resume_reason_no_meta">Missing previous checksum metadata</string>
+    <string name="ut_resume_reason_size_changed">Remote size changed</string>
+    <string name="ut_resume_reason_remote_newer">Remote file was updated</string>
+    <string name="ut_resume_reason_size_match">Sizes match</string>
+    <string name="ut_resume_reason_remote_unchanged">Remote unchanged</string>
+    <string name="ut_storage_unavailable">Storage unavailable</string>
+    <string name="ut_storage_fs">%1$s used / %2$s (%3$d%%)  %4$s free</string>
+    <string name="ut_storage_free">%1$s free / %2$s total</string>
+    <string name="ut_sync_summary">Upload %1$d · Download %2$d · Conflicts %3$d · Skipped %4$d</string>
+    <string name="ut_sync_local_only">%1$d local-only item(s) (remote untouched)</string>
+    <string name="ut_sync_remote_only">%1$d remote-only item(s) (local untouched)</string>
+    <string name="ut_widget_unavailable">Storage unavailable</string>
+    <string name="ut_widget_summary">%1$s left / %2$s</string>
 </resources>

@@ -264,7 +264,7 @@ public final class SyntaxHighlight {
     }
 
     private static void buildText() {
-        lang("text", "纯文本", new String[]{"txt", "text", "log", "csv"});
+        lang("text", "Plain text", new String[]{"txt", "text", "log", "csv"});
     }
 
     // ============================================================ 公开 API

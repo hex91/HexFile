@@ -47,12 +47,12 @@ public class WidgetTextTest {
         eqs("128G", WidgetText.size(128L * G), "≥100G 取整，省宽度");
 
         // --------------------------------------------------------------- summary
-        eqs("存储不可用", WidgetText.summary(0, 0), "总容量未知");
-        eqs("剩 12.3G / 128G", WidgetText.summary(128L * G, (long) (12.3 * G)),
-                "正常摘要");
-        eqs("剩 0 / 128G", WidgetText.summary(128L * G, 0), "已满");
-        eqs("剩 128G / 128G", WidgetText.summary(128L * G, 128L * G), "全空");
-        eqs("剩 0 / 128G", WidgetText.summary(128L * G, -5), "负可用量归零");
+        eqs(WidgetText.CODE_UNAVAILABLE, WidgetText.summary(0, 0), "总容量未知");
+        eqs("LEFT:12.3G:128G", WidgetText.summary(128L * G, (long) (12.3 * G)),
+                "正常摘要码");
+        eqs("LEFT:0:128G", WidgetText.summary(128L * G, 0), "已满");
+        eqs("LEFT:128G:128G", WidgetText.summary(128L * G, 128L * G), "全空");
+        eqs("LEFT:0:128G", WidgetText.summary(128L * G, -5), "负可用量归零");
 
         // ------------------------------------------------------------ usedPercent
         eq(0, WidgetText.usedPercent(0, 0), "总容量 0 不显示进度");
