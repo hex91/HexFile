@@ -2393,4 +2393,38 @@
     <string name="j2s_exception">转换异常：\n%1$s</string>
     <string name="j2s_nothing_copy">没有可复制的内容</string>
     <string name="j2s_copied">已复制 %1$d 字符</string>
+
+    <!-- v2.51.0 工具箱页 i18n（tb_*） -->
+    <string name="tb_sec_codec_title">编码转换</string>
+    <string name="tb_sec_codec_desc">文本与各种编码之间任意互转</string>
+    <string name="tb_sec_crypt_title">加解密</string>
+    <string name="tb_sec_crypt_desc">对称加密、摘要、国密、Base64</string>
+    <string name="tb_sec_misc_title">换算与调试</string>
+    <string name="tb_sec_testdata_title">测试数据</string>
+    <string name="tb_sec_testdata_desc">分析样本时替代你的真实信息</string>
+    <string name="tb_text_title">文本 ⇄ HEX</string>
+    <string name="tb_url_title">URL 编解码</string>
+    <string name="tb_url_desc" formatted="false">%E4%B8%AD / 表单</string>
+    <string name="tb_unicode_title">Unicode</string>
+    <string name="tb_unicode_desc">\\u4E2D 转义</string>
+    <string name="tb_puny_title">中文域名</string>
+    <string name="tb_puny_desc">中文.com ⇄ xn--</string>
+    <string name="tb_bytes_title">字节数组</string>
+    <string name="tb_any_title">任意格式互转</string>
+    <string name="tb_any_desc">14 种格式任选</string>
+    <string name="tb_aes_title">AES 加解密</string>
+    <string name="tb_sm4_title">国密 SM4</string>
+    <string name="tb_sm4_desc">ECB / CBC · 128 位</string>
+    <string name="tb_hash_title">哈希 / 摘要</string>
+    <string name="tb_b64_title">Base64</string>
+    <string name="tb_b64_desc">编码 / 解码</string>
+    <string name="tb_radix_title">进制转换</string>
+    <string name="tb_time_title">时间戳</string>
+    <string name="tb_time_desc">秒 ↔ 日期时间</string>
+    <string name="tb_http_title">网络请求</string>
+    <string name="tb_http_desc">类 Postman 调试</string>
+    <string name="tb_id_title">身份证号</string>
+    <string name="tb_id_desc">出生地 / 生日 / 性别</string>
+    <string name="tb_bank_title">银行卡号</string>
+    <string name="tb_bank_desc">6 家银行 · Luhn 校验</string>
 </resources>

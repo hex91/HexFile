@@ -1785,6 +1785,29 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.51.0（versionCode 244）—— F-14/38：工具箱页 i18n（批量纯 UI 页第 4 页）
+
+`ToolboxActivity` 卡片首页中文字面量 **约 30 → 0**（纯代码构造 UI，无布局文件），新增 31 个
+`tb_*` 键，资源 2269 → 2304 条（中英各 2304，100%）。
+
+### 两处新坑
+- **`%` 当格式符**：`tb_url_desc` = `%E4%B8%AD / 表单`（URL 编码示例）被 aapt2 判
+  "multiple substitutions in non-positional format" → 加 `formatted="false"`；中文/英文侧都要加。
+  `lang_check` 按位置参数集合比较，两侧一致不误报，无需额外处理。
+- **`\u` 字面文本**：`tb_unicode_desc` 要在资源里写 `\\u4E2D 转义`，dump 反证落盘为单个
+  `\u4E2D`（同 v2.42 的坑）。
+
+### 内容边界
+emoji（🔤🔗…）是视觉记号保留；纯技术示例 desc（`E4 B8 AD / 0xE4…`、`0xE4,0xB8,0xAD`、
+`MD5 · SHA · SM3`、`2 / 8 / 10 / 16 / 36`、`ECB / CBC`）无中文，保留不翻；含中文的 title/desc
+（含 `⇄`/`·` 等记号部分一并照抄进资源）逐条资源化。section 描述空串保留。
+
+### 验证
+四门全过（空 catch 335 基线）、`jc.sh` rc=0。APK **13,374,160 B**（md5 `ce6b4bd7…`），
+badging 反证 versionCode 244 / 2.51.0；dex 反证 `tb_sec_codec_title`/`tb_unicode_desc` 各=1。提交 `—`。
+
+---
+
 ## v2.50.0（versionCode 243）—— F-14/37：Java→Smali 页 i18n（批量纯 UI 页第 3 页）
 
 `Java2SmaliActivity` 中文字面量 **约 29 → 0**（纯代码构造 UI，无布局文件），新增 27 个

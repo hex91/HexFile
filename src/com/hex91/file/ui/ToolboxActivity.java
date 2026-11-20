@@ -72,32 +72,32 @@ public class ToolboxActivity extends BaseActivity {
 
         LinearLayout box = (LinearLayout) findViewById(R.id.tb_box);
 
-        section(box, "编码转换", "文本与各种编码之间任意互转");
+        section(box, s(R.string.tb_sec_codec_title), s(R.string.tb_sec_codec_desc));
         grid(box,
-                codec("🔤", "文本 ⇄ HEX", "E4 B8 AD / 0xE4…", CodecCore.F_TEXT, CodecCore.F_HEX),
-                codec("🔗", "URL 编解码", "%E4%B8%AD / 表单", CodecCore.F_TEXT, CodecCore.F_URL),
-                codec("🧮", "Unicode", "\\u4E2D 转义", CodecCore.F_TEXT, CodecCore.F_UNICODE),
-                codec("🀄", "中文域名", "中文.com ⇄ xn--", CodecCore.F_TEXT, CodecCore.F_PUNYCODE),
-                codec("📦", "字节数组", "0xE4,0xB8,0xAD", CodecCore.F_TEXT, CodecCore.F_BYTES),
-                codec("🧰", "任意格式互转", "14 种格式任选", CodecCore.F_TEXT, CodecCore.F_HEX));
+                codec("🔤", s(R.string.tb_text_title), "E4 B8 AD / 0xE4…", CodecCore.F_TEXT, CodecCore.F_HEX),
+                codec("🔗", s(R.string.tb_url_title), s(R.string.tb_url_desc), CodecCore.F_TEXT, CodecCore.F_URL),
+                codec("🧮", s(R.string.tb_unicode_title), s(R.string.tb_unicode_desc), CodecCore.F_TEXT, CodecCore.F_UNICODE),
+                codec("🀄", s(R.string.tb_puny_title), s(R.string.tb_puny_desc), CodecCore.F_TEXT, CodecCore.F_PUNYCODE),
+                codec("📦", s(R.string.tb_bytes_title), "0xE4,0xB8,0xAD", CodecCore.F_TEXT, CodecCore.F_BYTES),
+                codec("🧰", s(R.string.tb_any_title), s(R.string.tb_any_desc), CodecCore.F_TEXT, CodecCore.F_HEX));
 
-        section(box, "加解密", "对称加密、摘要、国密、Base64");
+        section(box, s(R.string.tb_sec_crypt_title), s(R.string.tb_sec_crypt_desc));
         grid(box,
-                cipher("🔐", "AES 加解密", "ECB / CBC", CryptoCore.A_AES),
-                cipher("🛡️", "国密 SM4", "ECB / CBC · 128 位", CryptoCore.A_SM4),
-                cipher("🏷️", "哈希 / 摘要", "MD5 · SHA · SM3", CryptoCore.A_MD5),
-                cipher("🔑", "Base64", "编码 / 解码", CryptoCore.A_B64_ENC));
+                cipher("🔐", s(R.string.tb_aes_title), "ECB / CBC", CryptoCore.A_AES),
+                cipher("🛡️", s(R.string.tb_sm4_title), s(R.string.tb_sm4_desc), CryptoCore.A_SM4),
+                cipher("🏷️", s(R.string.tb_hash_title), "MD5 · SHA · SM3", CryptoCore.A_MD5),
+                cipher("🔑", s(R.string.tb_b64_title), s(R.string.tb_b64_desc), CryptoCore.A_B64_ENC));
 
-        section(box, "换算与调试", "");
+        section(box, s(R.string.tb_sec_misc_title), "");
         grid(box,
-                plain("🔢", "进制转换", "2 / 8 / 10 / 16 / 36", RadixActivity.class),
-                plain("🕐", "时间戳", "秒 ↔ 日期时间", TimeToolActivity.class),
-                plain("🌐", "网络请求", "类 Postman 调试", HttpToolActivity.class));
+                plain("🔢", s(R.string.tb_radix_title), "2 / 8 / 10 / 16 / 36", RadixActivity.class),
+                plain("🕐", s(R.string.tb_time_title), s(R.string.tb_time_desc), TimeToolActivity.class),
+                plain("🌐", s(R.string.tb_http_title), s(R.string.tb_http_desc), HttpToolActivity.class));
 
-        section(box, "测试数据", "分析样本时替代你的真实信息");
+        section(box, s(R.string.tb_sec_testdata_title), s(R.string.tb_sec_testdata_desc));
         grid(box,
-                testData("🪪", "身份证号", "出生地 / 生日 / 性别", 0),
-                testData("💳", "银行卡号", "6 家银行 · Luhn 校验", 1));
+                testData("🪪", s(R.string.tb_id_title), s(R.string.tb_id_desc), 0),
+                testData("💳", s(R.string.tb_bank_title), s(R.string.tb_bank_desc), 1));
     }
 
     // ============================================================ 视图构建
@@ -196,4 +196,6 @@ public class ToolboxActivity extends BaseActivity {
         });
         return v;
     }
+
+    private String s(int id) { return getString(id); }
 }

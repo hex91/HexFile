@@ -2385,4 +2385,38 @@
     <string name="j2s_exception">Conversion error:\n%1$s</string>
     <string name="j2s_nothing_copy">Nothing to copy</string>
     <string name="j2s_copied">Copied %1$d characters</string>
+
+    <!-- v2.51.0 Toolbox page i18n (tb_*) -->
+    <string name="tb_sec_codec_title">Encoding</string>
+    <string name="tb_sec_codec_desc">Convert freely between text and encodings</string>
+    <string name="tb_sec_crypt_title">Encryption</string>
+    <string name="tb_sec_crypt_desc">Symmetric ciphers, digests, SM crypto, Base64</string>
+    <string name="tb_sec_misc_title">Convert &amp; debug</string>
+    <string name="tb_sec_testdata_title">Test data</string>
+    <string name="tb_sec_testdata_desc">Sample data to replace your real information</string>
+    <string name="tb_text_title">Text ⇄ HEX</string>
+    <string name="tb_url_title">URL encode/decode</string>
+    <string name="tb_url_desc" formatted="false">%E4%B8%AD / form</string>
+    <string name="tb_unicode_title">Unicode</string>
+    <string name="tb_unicode_desc">\\u4E2D escape</string>
+    <string name="tb_puny_title">IDN domain</string>
+    <string name="tb_puny_desc">中文.com ⇄ xn--</string>
+    <string name="tb_bytes_title">Byte array</string>
+    <string name="tb_any_title">Any format</string>
+    <string name="tb_any_desc">Pick from 14 formats</string>
+    <string name="tb_aes_title">AES encryption</string>
+    <string name="tb_sm4_title">SM4 (Chinese crypto)</string>
+    <string name="tb_sm4_desc">ECB / CBC · 128-bit</string>
+    <string name="tb_hash_title">Hash / digest</string>
+    <string name="tb_b64_title">Base64</string>
+    <string name="tb_b64_desc">Encode / decode</string>
+    <string name="tb_radix_title">Radix convert</string>
+    <string name="tb_time_title">Timestamp</string>
+    <string name="tb_time_desc">Seconds ↔ date/time</string>
+    <string name="tb_http_title">Network request</string>
+    <string name="tb_http_desc">Postman-like debugger</string>
+    <string name="tb_id_title">ID card number</string>
+    <string name="tb_id_desc">Region / birthday / gender</string>
+    <string name="tb_bank_title">Bank card number</string>
+    <string name="tb_bank_desc">6 banks · Luhn check</string>
 </resources>
