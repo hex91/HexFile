@@ -70,13 +70,19 @@ echo "Building HexFile $VER ($VER_CODE)"
 GUARD_MODE="${VERSION_GUARD:-strict}"
 STAMP="$BUILD/last_build.txt"
 
-# 源码指纹：src/ + res/ + native/*.c + Manifest 的内容哈希（走管道一次 md5sum，几十毫秒）
+# 源码指纹：src/ + res/ + native/*.c + Manifest 的内容哈希（约 6 秒，几百个文件一批）
+#
+# v2.63.0 修：这里原本是 `xargs -d '\n' md5sum`，在 MSYS（Git Bash）下 xargs 一启动就
+# `assertion "bc_ctl.arg_max >= LINE_MAX" failed` 直接崩，输出为空 → 指纹恒等于空串的 md5
+# （d41d8cd98f00b204），于是"改了码没升版"这条规则在 Windows 上**从来没生效过**（版本号回退
+# 那一条仍在）。改成 `find -exec md5sum {} +`：由 find 自己批量攒参数，不经 xargs，
+# 单个文件 → 单次 md5sum 进程也够快（逐文件 while read 要 86 秒，别退回去）。
 SRC_FP="$( {
-    find "$ROOT/src" -type f -print
-    find "$ROOT/res" -type f -print
-    find "$ROOT/native" -type f -name '*.c' -print
-    printf '%s\n' "$ROOT/AndroidManifest.xml"
-} | LC_ALL=C sort | xargs -d '\n' md5sum 2>/dev/null | md5sum | cut -c1-16 )"
+    find "$ROOT/src" -type f -exec md5sum {} +
+    find "$ROOT/res" -type f -exec md5sum {} +
+    find "$ROOT/native" -type f -name '*.c' -exec md5sum {} +
+    md5sum "$ROOT/AndroidManifest.xml"
+} | LC_ALL=C sort | md5sum | cut -c1-16 )"
 
 guard_error() {
     echo "" >&2
