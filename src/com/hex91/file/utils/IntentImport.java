@@ -87,6 +87,10 @@ public final class IntentImport {
         /** 成功落地的目标文件（按导入顺序），VIEW 场景用它决定导入后打开哪个 */
         public final List<File> files = new ArrayList<File>();
         public final List<String> errors = new ArrayList<String>();
+        /** 与 errors 平行的结构化原因，UI 用它翻资源文案 */
+        public final List<Throwable> causes = new ArrayList<Throwable>();
+        /** 逐项失败的文件名（可空；顶层错误没有文件名） */
+        public final List<String> errorNames = new ArrayList<String>();
 
         public String summary() {
             return "IMPORT:" + ok + ":" + skipped + ":" + failed + ":" + (cancelled ? 1 : 0);
@@ -247,12 +251,18 @@ public final class IntentImport {
         if (items == null || items.isEmpty()) return r;
         if (dstDir == null) {
             r.failed = items.size();
-            r.errors.add("没有目标目录");
+            UtilError e = UtilError.of(UtilError.Code.IMPORT_NO_DEST);
+            r.errors.add(e.getMessage());
+            r.causes.add(e);
+            r.errorNames.add(null);
             return r;
         }
         if (!dstDir.isDirectory() && !dstDir.mkdirs()) {
             r.failed = items.size();
-            r.errors.add("无法创建目录: " + dstDir.getAbsolutePath());
+            UtilError e = UtilError.of(UtilError.Code.IMPORT_MKDIR_FAIL, dstDir.getAbsolutePath());
+            r.errors.add(e.getMessage());
+            r.causes.add(e);
+            r.errorNames.add(null);
             return r;
         }
 
@@ -269,7 +279,8 @@ public final class IntentImport {
             boolean done = false;
             try {
                 long got = pipe(c, it, tmp, watch);
-                if (!tmp.renameTo(target)) throw new IOException("改名失败: " + target.getName());
+                if (!tmp.renameTo(target))
+                    throw UtilError.of(UtilError.Code.IMPORT_RENAME_FAIL, target.getName());
                 done = true;
                 r.ok++;
                 r.bytes += got;
@@ -280,6 +291,8 @@ public final class IntentImport {
             } catch (Throwable t) {
                 r.failed++;
                 r.errors.add(it.name + ": " + t);
+                r.causes.add(t);
+                r.errorNames.add(it.name);
             } finally {
                 TempFiles.end(tmp);
                 if (!done && tmp.exists()) tmp.delete();   // 取消/失败不留半成品

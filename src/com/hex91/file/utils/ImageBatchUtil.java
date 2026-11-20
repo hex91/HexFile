@@ -34,19 +34,19 @@ public final class ImageBatchUtil {
 
     /** 处理单张图，写入 outDir；返回输出文件。失败抛异常。 */
     public static File process(File in, File outDir, Options o) throws Exception {
-        if (!in.isFile()) throw new IOException("文件不存在: " + in.getName());
+        if (!in.isFile()) throw UtilError.of(UtilError.Code.IMG_SRC_MISSING, in.getName());
         // 1. 采样解码（超 4096 边长先降采样）
         BitmapFactory.Options bo = new BitmapFactory.Options();
         bo.inJustDecodeBounds = true;
         BitmapFactory.decodeFile(in.getAbsolutePath(), bo);
-        if (bo.outWidth <= 0 || bo.outHeight <= 0) throw new IOException("无法解码图片");
+        if (bo.outWidth <= 0 || bo.outHeight <= 0) throw UtilError.of(UtilError.Code.IMG_BOUNDS_FAIL);
         int sample = 1;
         while (bo.outWidth / (sample * 2) >= 4096 || bo.outHeight / (sample * 2) >= 4096)
             sample *= 2;
         BitmapFactory.Options d = new BitmapFactory.Options();
         d.inSampleSize = sample;
         Bitmap src = BitmapFactory.decodeFile(in.getAbsolutePath(), d);
-        if (src == null) throw new IOException("解码失败（文件损坏或格式不支持）");
+        if (src == null) throw UtilError.of(UtilError.Code.IMG_DECODE_FAIL);
         try {
             // 2. 缩放
             Bitmap bmp = src;
@@ -84,7 +84,7 @@ public final class ImageBatchUtil {
             boolean ok = bmp.compress(fmt, o.quality, fo);
             fo.close();
             bmp.recycle();
-            if (!ok) { out.delete(); throw new IOException("编码失败"); }
+            if (!ok) { out.delete(); throw UtilError.of(UtilError.Code.IMG_ENCODE_FAIL); }
             return out;
         } finally {
             if (src != null && !src.isRecycled()) src.recycle();

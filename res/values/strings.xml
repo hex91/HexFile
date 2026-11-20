@@ -3285,4 +3285,20 @@
     <string name="ut_sync_remote_only">仅远端存在 %1$d 项（不会删除本地）</string>
     <string name="ut_widget_unavailable">存储不可用</string>
     <string name="ut_widget_summary">剩 %1$s / %2$s</string>
+    <!-- v2.106.0 utils 异常与 Shizuku 状态（UtilError / UtilText） -->
+    <string name="ut_err_img_src">文件不存在：%1$s</string>
+    <string name="ut_err_img_decode_bounds">无法解码图片</string>
+    <string name="ut_err_img_decode">解码失败（文件损坏或格式不支持）</string>
+    <string name="ut_err_img_encode">编码失败</string>
+    <string name="ut_err_no_dest">没有目标目录</string>
+    <string name="ut_err_mkdir">无法创建目录：%1$s</string>
+    <string name="ut_err_rename">改名失败：%1$s</string>
+    <string name="ut_shiz_unsupported">系统版本过低（需 Android 6.0+）</string>
+    <string name="ut_shiz_off">已关闭</string>
+    <string name="ut_shiz_not_found">未检测到 Shizuku（需先安装并启动 Shizuku）</string>
+    <string name="ut_shiz_unauthorized">Shizuku 已运行，尚未授权</string>
+    <string name="ut_shiz_connected">已连接 · 版本 %1$s（shell 权限）</string>
+    <string name="ut_shiz_request_unsupported">当前系统版本过低，Shizuku 需要 Android 6.0 以上</string>
+    <string name="ut_shiz_request_fail">无法请求授权：%1$s</string>
+    <string name="ut_shiz_not_ready">Shizuku 未就绪或未授权</string>
 </resources>

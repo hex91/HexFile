@@ -2127,7 +2127,7 @@ public class MainActivity extends BaseActivity {
                         ok++;
                     } catch (Throwable t) {
                         fail++;
-                        if (firstErr == null) firstErr = t.getMessage();
+                        if (firstErr == null) firstErr = UtilText.errorText(MainActivity.this, t);
                     }
                     pd.incrementProgressBy(1);
                 }
@@ -4367,7 +4367,8 @@ public class MainActivity extends BaseActivity {
                             LogRing.add("import", "pd.dismiss: " + t);
                         }
                         String msg = UtilText.importSummary(MainActivity.this, r);
-                        if (r.errors.size() > 0) msg = msg + "\n" + r.errors.get(0);
+                        if (r.errors.size() > 0)
+                            msg = msg + "\n" + UtilText.importError(MainActivity.this, r, 0);
                         toast(msg);
                         refreshAll();
                         // 「用 HexFile 打开」：导入后直接按类型打开；多选导入只落盘不抢焦点

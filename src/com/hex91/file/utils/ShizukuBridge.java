@@ -130,7 +130,7 @@ public final class ShizukuBridge {
     public static void request(Activity a) {
         if (!supported()) {
             if (a != null) android.widget.Toast.makeText(a,
-                    "当前系统版本过低，Shizuku 需要 Android 6.0 以上",
+                    "Shizuku requires Android 6.0 or newer",
                     android.widget.Toast.LENGTH_SHORT).show();
             return;
         }
@@ -138,7 +138,7 @@ public final class ShizukuBridge {
             rikka.shizuku.Shizuku.requestPermission(REQ_CODE);
         } catch (Throwable t) {
             if (a != null) android.widget.Toast.makeText(a,
-                    "无法请求授权：" + t.getClass().getSimpleName(),
+                    "Cannot request permission: " + t.getClass().getSimpleName(),
                     android.widget.Toast.LENGTH_SHORT).show();
         }
     }
@@ -150,17 +150,23 @@ public final class ShizukuBridge {
      * {@code IllegalStateException}。</p>
      */
     public static Process start(String shellCmd) throws Exception {
-        if (!usable()) throw new IllegalStateException("Shizuku 未就绪或未授权");
+        if (!usable()) throw new IllegalStateException("Shizuku is not ready or not authorized");
         return rikka.shizuku.Shizuku.newProcess(
                 new String[]{"sh", "-c", shellCmd}, null, null);
     }
 
-    /** 给设置页用的状态文案 */
-    public static String statusText(android.content.Context c) {
-        if (!supported()) return "系统版本过低（需 Android 6.0+）";
-        if (!isEnabled(c)) return "已关闭";
-        if (!alive()) return "未检测到 Shizuku（需先安装并启动 Shizuku）";
-        if (!granted()) return "Shizuku 已运行，尚未授权";
-        return "已连接 · 版本 " + version() + "（shell 权限）";
+    /** 给设置页用的状态码（文案由 ui/UtilText 映射）；CONNECTED 后带版本号 */
+    public static final String S_UNSUPPORTED = "UNSUPPORTED";
+    public static final String S_OFF = "OFF";
+    public static final String S_NOT_FOUND = "NOT_FOUND";
+    public static final String S_UNAUTHORIZED = "UNAUTHORIZED";
+    public static final String S_CONNECTED = "CONNECTED";
+
+    public static String statusCode(android.content.Context c) {
+        if (!supported()) return S_UNSUPPORTED;
+        if (!isEnabled(c)) return S_OFF;
+        if (!alive()) return S_NOT_FOUND;
+        if (!granted()) return S_UNAUTHORIZED;
+        return S_CONNECTED + ":" + version();
     }
 }

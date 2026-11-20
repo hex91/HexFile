@@ -1785,6 +1785,27 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.106.0（versionCode 299）—— F-14/93：utils 异常码化，utils 包中文清零
+
+新增 `utils/UtilError extends IOException`（7 码）+ `UtilText.errorText()`：
+
+- `ImageBatchUtil` 的源文件缺失 / 边界解码 / 解码 / 编码失败改码；主界面批处理失败提示走
+  `UtilText.errorText()`，英文环境不再出现中文异常串。
+- `IntentImport.Result` 增加 `causes/errorNames` 平行列表，`copyInto()` 的目标目录缺失、
+  建目录失败、改名失败与逐项失败全部结构化；提示走 `UtilText.importSummary()` /
+  `UtilText.importError()`，逐项失败保留「文件名: 原因」前缀。
+- `ShizukuBridge.statusText()` → `statusCode()`（5 态），设置页走 `UtilText.shizukuStatus()`；
+  授权失败与启动失败的异常串改 ASCII 诊断文案。
+
+至此 utils 包**代码字符串中文清零**。构建侧顺带修掉一个环境边界：268 个源码 + 35 个 jar
+的直接命令行已到 Windows `CreateProcess` 上限（多一个文件就 exit 126
+`Argument list too long`），javac 改用 `build/javac.args` 传参（`-J` 仍留命令行）。
+
+新增 UtilError + 15 个 `ut_*` 键，资源 3081 → 3096（100%）。四门全过、全量 97/0/4；
+APK 13,521,616 B（md5 `8bc469e2…`），badging 299/2.106.0。
+
+---
+
 ## v2.105.0（versionCode 298）—— F-14/92：utils 状态与摘要码化
 
 沿用 fs 的「逻辑给码、UI 给文案」分层，新增 `ui/UtilText`：

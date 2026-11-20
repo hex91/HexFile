@@ -207,20 +207,32 @@ APP_SRCS=()
 while IFS= read -r f; do APP_SRCS+=("$f"); done \
   < <(find "$ROOT/src/com/hex91/file" -type f -name '*.java' | sort)
 
-"$JAVAC" -J-Dfile.encoding=UTF-8 -source 8 -target 8 -encoding UTF-8 -nowarn \
-    -bootclasspath "$PLATFORM" \
-    -classpath "$LIBS_CP" \
-    -d "$BUILD/obj" \
-    "$BUILD/gen/com/hex91/file/R.java" \
-    "${APP_SRCS[@]}" \
-    "$ROOT"/src/jadx/jadx/core/xmlgen/*.java \
-    "$ROOT"/src/jadx/jadx/core/xmlgen/entry/*.java \
-    "$ROOT"/src/com/termux/terminal/*.java \
-    "$ROOT"/src/com/termux/view/*.java \
-    "$ROOT"/src/com/termux/view/support/*.java \
-    "$ROOT"/src/com/termux/view/textselection/*.java \
-    "$ROOT"/src/androidx/annotation/*.java \
-    "$ROOT"/src/io/nayuki/qrcodegen/*.java
+# v2.106.0（R-37 配套）：268 个源码 + 35 个 jar 的 classpath 直接展开已逼近 Windows
+# CreateProcess 的 32767 字符上限，多一个源文件就报 "Argument list too long"（exit 126）。
+# javac 的 @argfile 把参数从命令行搬到文件里；-J 不能进 argfile，仍留在命令行。
+ARGS_FILE="$BUILD/javac.args"
+{
+  printf '%s\n' '-source' '8' '-target' '8' '-encoding' 'UTF-8' '-nowarn' '-bootclasspath'
+  printf '"%s"\n' "$PLATFORM"
+  printf '%s\n' '-classpath'
+  printf '"%s"\n' "$LIBS_CP"
+  printf '%s\n' '-d'
+  printf '"%s"\n' "$BUILD/obj"
+  printf '"%s"\n' "$BUILD/gen/com/hex91/file/R.java"
+  for f in "${APP_SRCS[@]}"; do printf '"%s"\n' "$f"; done
+  for f in \
+      "$ROOT"/src/jadx/jadx/core/xmlgen/*.java \
+      "$ROOT"/src/jadx/jadx/core/xmlgen/entry/*.java \
+      "$ROOT"/src/com/termux/terminal/*.java \
+      "$ROOT"/src/com/termux/view/*.java \
+      "$ROOT"/src/com/termux/view/support/*.java \
+      "$ROOT"/src/com/termux/view/textselection/*.java \
+      "$ROOT"/src/androidx/annotation/*.java \
+      "$ROOT"/src/io/nayuki/qrcodegen/*.java; do
+    printf '"%s"\n' "$f"
+  done
+} > "$ARGS_FILE"
+"$JAVAC" -J-Dfile.encoding=UTF-8 "@$ARGS_FILE"
 
 echo "[5/7] d8 dex（分层：依赖 dex 指纹缓存 + 应用 dex 增量重建）..."
 # 为什么要分层：全量合并时 d8 每次都要重新解析 apksigner.jar + 20 个 libs（约 20MB），

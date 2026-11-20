@@ -3277,4 +3277,20 @@
     <string name="ut_sync_remote_only">%1$d remote-only item(s) (local untouched)</string>
     <string name="ut_widget_unavailable">Storage unavailable</string>
     <string name="ut_widget_summary">%1$s left / %2$s</string>
+    <!-- v2.106.0 utils errors and Shizuku status (UtilError / UtilText) -->
+    <string name="ut_err_img_src">File does not exist: %1$s</string>
+    <string name="ut_err_img_decode_bounds">Cannot decode image</string>
+    <string name="ut_err_img_decode">Decode failed (damaged file or unsupported format)</string>
+    <string name="ut_err_img_encode">Encoding failed</string>
+    <string name="ut_err_no_dest">No destination directory</string>
+    <string name="ut_err_mkdir">Cannot create directory: %1$s</string>
+    <string name="ut_err_rename">Rename failed: %1$s</string>
+    <string name="ut_shiz_unsupported">System version too old (Android 6.0+ required)</string>
+    <string name="ut_shiz_off">Disabled</string>
+    <string name="ut_shiz_not_found">Shizuku not detected (install and start Shizuku first)</string>
+    <string name="ut_shiz_unauthorized">Shizuku is running but permission has not been granted</string>
+    <string name="ut_shiz_connected">Connected · version %1$s (shell permission)</string>
+    <string name="ut_shiz_request_unsupported">System version too old; Shizuku requires Android 6.0 or newer</string>
+    <string name="ut_shiz_request_fail">Cannot request permission: %1$s</string>
+    <string name="ut_shiz_not_ready">Shizuku is not ready or not authorized</string>
 </resources>

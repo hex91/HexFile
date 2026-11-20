@@ -161,7 +161,8 @@ public class SettingsActivity extends BaseActivity {
                         toast(on ? getString(R.string.settings_shizuku_on_toast) : getString(R.string.settings_shizuku_off_toast));
                     }
                 });
-        infoRow(perm, getString(R.string.settings_shizuku_status), ShizukuBridge.statusText(this));
+        infoRow(perm, getString(R.string.settings_shizuku_status),
+                UtilText.shizukuStatus(this, ShizukuBridge.statusCode(this)));
         if (ShizukuBridge.supported() && ShizukuBridge.alive() && !ShizukuBridge.granted()) {
             row(perm, getString(R.string.settings_shizuku_request), getString(R.string.settings_shizuku_request_sub), "",
                     new View.OnClickListener() {

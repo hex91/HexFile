@@ -8,7 +8,9 @@ import com.hex91.file.utils.HashUtil;
 import com.hex91.file.utils.IntentImport;
 import com.hex91.file.utils.ResumePlan;
 import com.hex91.file.utils.StorageStat;
+import com.hex91.file.utils.ShizukuBridge;
 import com.hex91.file.utils.SyncPlan;
+import com.hex91.file.utils.UtilError;
 import com.hex91.file.utils.WidgetText;
 
 /**
@@ -120,6 +122,58 @@ public final class UtilText {
         if (WidgetText.CODE_LEFT.equals(part(code, 0))) {
             return c.getString(R.string.ut_widget_summary, part(code, 1), part(code, 2));
         }
+        return code == null ? "" : code;
+    }
+
+    /** 结构化 utils 异常 → 资源文案；非 UtilError 原样透出诊断串 */
+    public static String errorText(Context c, Throwable t) {
+        if (!(t instanceof UtilError)) {
+            String m = t == null ? null : t.getMessage();
+            if (m != null && !m.isEmpty()) return m;
+            return t == null ? "" : t.getClass().getSimpleName();
+        }
+        UtilError e = (UtilError) t;
+        switch (e.code) {
+            case IMG_SRC_MISSING:
+                return c.getString(R.string.ut_err_img_src, e.str(0));
+            case IMG_BOUNDS_FAIL:
+                return c.getString(R.string.ut_err_img_decode_bounds);
+            case IMG_DECODE_FAIL:
+                return c.getString(R.string.ut_err_img_decode);
+            case IMG_ENCODE_FAIL:
+                return c.getString(R.string.ut_err_img_encode);
+            case IMPORT_NO_DEST:
+                return c.getString(R.string.ut_err_no_dest);
+            case IMPORT_MKDIR_FAIL:
+                return c.getString(R.string.ut_err_mkdir, e.str(0));
+            case IMPORT_RENAME_FAIL:
+                return c.getString(R.string.ut_err_rename, e.str(0));
+            default:
+                return e.getMessage();
+        }
+    }
+
+    /** 导入结果里的第 i 条错误，保留文件名前缀 */
+    public static String importError(Context c, IntentImport.Result r, int i) {
+        if (r == null || i < 0 || i >= r.errors.size()) return "";
+        if (i >= r.causes.size()) return r.errors.get(i);
+        String text = errorText(c, r.causes.get(i));
+        String name = i < r.errorNames.size() ? r.errorNames.get(i) : null;
+        if (name != null && !name.isEmpty()) return name + ": " + text;
+        return text;
+    }
+
+    /** Shizuku 设置页状态码 */
+    public static String shizukuStatus(Context c, String code) {
+        String base = part(code, 0);
+        if (ShizukuBridge.S_UNSUPPORTED.equals(base))
+            return c.getString(R.string.ut_shiz_unsupported);
+        if (ShizukuBridge.S_OFF.equals(base)) return c.getString(R.string.ut_shiz_off);
+        if (ShizukuBridge.S_NOT_FOUND.equals(base)) return c.getString(R.string.ut_shiz_not_found);
+        if (ShizukuBridge.S_UNAUTHORIZED.equals(base))
+            return c.getString(R.string.ut_shiz_unauthorized);
+        if (ShizukuBridge.S_CONNECTED.equals(base))
+            return c.getString(R.string.ut_shiz_connected, part(code, 1));
         return code == null ? "" : code;
     }
 }
