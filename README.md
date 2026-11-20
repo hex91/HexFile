@@ -1785,6 +1785,35 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.61.0（versionCode 254）—— F-14/48：网络请求页 i18n（批量纯 UI 页第 14 页）
+
+`HttpToolActivity` 中文字面量 **17 → 0**（纯代码构造 UI，无布局文件），新增 13 个 `ht_*` 键，
+复用 `common_close`，资源 2483 → 2496 条（中英各 2496，100%）。用宽口径正则复查确认清零。
+
+### 结构性改动（两处编译约束）
+1. **`readAll()` 是 static**：截断标记 `ht_truncated` 需要 Context 才能取资源。该方法只有 1 个
+   调用点（`send()` 内），故给它加首参 `Context ctx`，把 `getString` 换成 `ctx.getString`；
+   顺带补 `import android.content.Context;`（原本没有）。
+2. **`ToolUi.toast(Context, String)` 只收 String**，不接受资源 id——一处改为显式
+   `getString(R.string.ht_history_cleared)`；`HfDialogBuilder.setTitle/setNegativeButton`
+   因继承 `AlertDialog.Builder` 则可用 int 重载。
+
+### UI 层要点
+- 长多行提示 `ht_reasons`（"常见原因：" + 4 条 `·` 项目，含 `→`）整段一键，不用 `+` 拼接。
+- 失败状态拆两层：`ht_fail`（`✗ 请求失败（%1$d ms）：%2$s`）+ 可选 `ht_fail_detail`
+  （`" - %1$s"`，前导空格整值加引号），拼出"异常类名 + 消息"。
+- 响应区标题 `ht_resp_headers` / `ht_resp_body`（含 `── … ──\n`，整值加引号）。
+- 历史记录：`ht_no_history` / `ht_clear_history`（`✕ 清空历史`）/ `ht_history_title` /
+  `ht_history_cleared`。
+
+### 验证
+
+四门全过（空 catch 335 基线）、`jc.sh` rc=0。APK **13,423,312 B**（md5 `a6fb8467…`），
+badging 反证 versionCode 254 / 2.61.0；dex 反证 `ht_reasons`/`ht_truncated`/`ht_fail_detail` 各=1。
+提交 `—`。
+
+---
+
 ## v2.60.0（versionCode 253）—— F-14/47：图片查看页 i18n（批量纯 UI 页第 13 页）
 
 `ImageViewerActivity` 中文字面量 **16 → 0**（纯代码构造 UI，无布局文件），新增 15 个 `ivw_*` 键，

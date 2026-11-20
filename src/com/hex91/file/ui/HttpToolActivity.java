@@ -1,6 +1,7 @@
 package com.hex91.file.ui;
 
 import com.hex91.file.R;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.os.Bundle;
@@ -88,7 +89,8 @@ public class HttpToolActivity extends BaseActivity {
         });
         findViewById(R.id.ht_copy).setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                ToolUi.copy(HttpToolActivity.this, outTv.getText(), "响应");
+                ToolUi.copy(HttpToolActivity.this, outTv.getText(),
+                HttpToolActivity.this.getString(R.string.ht_copy_label));
             }
         });
         findViewById(R.id.ht_history).setOnClickListener(new View.OnClickListener() {
@@ -127,7 +129,7 @@ public class HttpToolActivity extends BaseActivity {
         if (sending) return;
         final String u = urlEt.getText().toString().trim();
         if (u.length() == 0) {
-            ToolUi.toast(this, "请先填写 URL");
+            ToolUi.toast(this, getString(R.string.ht_need_url));
             return;
         }
         if (!u.startsWith("http://") && !u.startsWith("https://")) {
@@ -141,7 +143,7 @@ public class HttpToolActivity extends BaseActivity {
         sending = true;
         sendBtn.setAlpha(0.5f);
         statusTv.setTextColor(ThemeManager.textSub(this));
-        statusTv.setText("请求中… " + m + " " + u);
+        statusTv.setText(getString(R.string.ht_requesting, m, u));
         outTv.setText("");
 
         new Thread(new Runnable() {
@@ -197,7 +199,7 @@ public class HttpToolActivity extends BaseActivity {
             String msg = c.getResponseMessage();
             String ct = c.getContentType();
             InputStream is = code >= 400 ? c.getErrorStream() : c.getInputStream();
-            String body = readAll(is, charsetOf(ct));
+            String body = readAll(this, is, charsetOf(ct));
             long ms = System.currentTimeMillis() - t0;
 
             StringBuilder head = new StringBuilder();
@@ -212,8 +214,8 @@ public class HttpToolActivity extends BaseActivity {
             if (looksJson(ct, body)) pretty = prettyJson(body);
 
             final StringBuilder all = new StringBuilder();
-            all.append("── 响应头 ──\n").append(head);
-            all.append('\n').append("── 响应体 ──\n").append(pretty);
+            all.append(getString(R.string.ht_resp_headers)).append(head);
+            all.append('\n').append(getString(R.string.ht_resp_body)).append(pretty);
 
             final int fc = code;
             final String fm = msg;
@@ -239,13 +241,11 @@ public class HttpToolActivity extends BaseActivity {
                 public void run() {
                     if (isFinishing()) return;
                     statusTv.setTextColor(ThemeManager.err(HttpToolActivity.this));
-                    statusTv.setText("✗ 请求失败（" + ms + " ms）：" + e.getClass().getSimpleName()
-                            + (e.getMessage() == null ? "" : " - " + e.getMessage()));
-                    outTv.setText("常见原因：\n"
-                            + "· 域名解析失败 / 无网络 → 检查 URL 与网络\n"
-                            + "· 明文 HTTP 被拦 → 换 https，或检查系统代理\n"
-                            + "· 证书错误 → 该站点证书不被系统信任\n"
-                            + "· 超时 → 连接 15s / 读取 25s 上限");
+                    statusTv.setText(HttpToolActivity.this.getString(R.string.ht_fail, ms,
+                                    e.getClass().getSimpleName()
+                                    + (e.getMessage() == null ? ""
+                                       : HttpToolActivity.this.getString(R.string.ht_fail_detail, e.getMessage()))));
+                    outTv.setText(R.string.ht_reasons);
                     done();
                 }
             });
@@ -280,20 +280,21 @@ public class HttpToolActivity extends BaseActivity {
     private void showHistory() {
         final String raw = prefs().getString(KEY_HISTORY, "");
         if (raw.trim().length() == 0) {
-            ToolUi.toast(this, "还没有历史记录");
+            ToolUi.toast(this, getString(R.string.ht_no_history));
             return;
         }
         final String[] items = raw.split("\n");
         String[] shown = new String[items.length + 1];
         for (int i = 0; i < items.length; i++) shown[i] = items[i];
-        shown[items.length] = "✕ 清空历史";
+        shown[items.length] = getString(R.string.ht_clear_history);
         new HfDialogBuilder(this)
-                .setTitle("最近请求")
+                .setTitle(R.string.ht_history_title)
                 .setItems(shown, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int which) {
                         if (which == items.length) {
                             prefs().edit().remove(KEY_HISTORY).apply();
-                            ToolUi.toast(HttpToolActivity.this, "历史已清空");
+                            ToolUi.toast(HttpToolActivity.this,
+                                    HttpToolActivity.this.getString(R.string.ht_history_cleared));
                             return;
                         }
                         String it = items[which];
@@ -308,7 +309,7 @@ public class HttpToolActivity extends BaseActivity {
                         }
                     }
                 })
-                .setNegativeButton("关闭", null)
+                .setNegativeButton(R.string.common_close, null)
                 .show();
     }
 
@@ -334,7 +335,7 @@ public class HttpToolActivity extends BaseActivity {
         return "UTF-8";
     }
 
-    private static String readAll(InputStream is, String charset) throws Exception {
+    private static String readAll(Context ctx, InputStream is, String charset) throws Exception {
         if (is == null) return "";
         ByteArrayOutputStream bo = new ByteArrayOutputStream();
         byte[] buf = new byte[8192];
@@ -343,7 +344,7 @@ public class HttpToolActivity extends BaseActivity {
             total += n;
             if (total > MAX_BODY) {
                 bo.write(buf, 0, Math.max(0, n - (total - MAX_BODY)));
-                bo.write("\n…（超过 512KB，已截断）".getBytes("UTF-8"));
+                bo.write(ctx.getString(R.string.ht_truncated).getBytes("UTF-8"));
                 break;
             }
             bo.write(buf, 0, n);

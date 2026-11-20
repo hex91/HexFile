@@ -2617,4 +2617,18 @@
     <string name="ivw_redecode_fail">重新解码失败</string>
     <string name="ivw_saved">已保存（旋转 %1$d°）</string>
     <string name="ivw_save_fail">保存失败: %1$s</string>
+    <!-- v2.61.0 网络请求页 -->
+    <string name="ht_copy_label">响应</string>
+    <string name="ht_need_url">请先填写 URL</string>
+    <string name="ht_requesting">请求中… %1$s %2$s</string>
+    <string name="ht_resp_headers">"── 响应头 ──\n"</string>
+    <string name="ht_resp_body">"── 响应体 ──\n"</string>
+    <string name="ht_fail">✗ 请求失败（%1$d ms）：%2$s</string>
+    <string name="ht_fail_detail">" - %1$s"</string>
+    <string name="ht_reasons">"常见原因：\n· 域名解析失败 / 无网络 → 检查 URL 与网络\n· 明文 HTTP 被拦 → 换 https，或检查系统代理\n· 证书错误 → 该站点证书不被系统信任\n· 超时 → 连接 15s / 读取 25s 上限"</string>
+    <string name="ht_no_history">还没有历史记录</string>
+    <string name="ht_clear_history">✕ 清空历史</string>
+    <string name="ht_history_title">最近请求</string>
+    <string name="ht_history_cleared">历史已清空</string>
+    <string name="ht_truncated">"\n…（超过 512KB，已截断）"</string>
 </resources>

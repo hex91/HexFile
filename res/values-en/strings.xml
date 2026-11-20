@@ -2609,4 +2609,18 @@
     <string name="ivw_redecode_fail">Re-decode failed</string>
     <string name="ivw_saved">Saved (rotated %1$d°)</string>
     <string name="ivw_save_fail">Save failed: %1$s</string>
+    <!-- v2.61.0 HTTP tool -->
+    <string name="ht_copy_label">Response</string>
+    <string name="ht_need_url">Enter a URL first</string>
+    <string name="ht_requesting">Requesting… %1$s %2$s</string>
+    <string name="ht_resp_headers">"── Response headers ──\n"</string>
+    <string name="ht_resp_body">"── Response body ──\n"</string>
+    <string name="ht_fail">✗ Request failed (%1$d ms): %2$s</string>
+    <string name="ht_fail_detail">" - %1$s"</string>
+    <string name="ht_reasons">"Common causes:\n· DNS or network failure → check URL and connectivity\n· Cleartext HTTP blocked → use https, or check the system proxy\n· Certificate error → the site certificate is not trusted\n· Timeout → 15s connect / 25s read limit"</string>
+    <string name="ht_no_history">No history yet</string>
+    <string name="ht_clear_history">✕ Clear history</string>
+    <string name="ht_history_title">Recent requests</string>
+    <string name="ht_history_cleared">History cleared</string>
+    <string name="ht_truncated">"\n…(over 512KB, truncated)"</string>
 </resources>
