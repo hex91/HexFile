@@ -1,5 +1,6 @@
 package com.hex91.file.ui;
 
+import com.hex91.file.R;
 import com.hex91.file.fs.WorkDir;
 import android.graphics.Bitmap;
 import android.graphics.Color;
@@ -79,7 +80,7 @@ public class PdfPreviewActivity extends BaseActivity {
         bar.setBackgroundColor(ThemeManager.topBar(this));
         float den = getResources().getDisplayMetrics().density;
         bar.setPadding((int) (16 * den), (int) (6 * den), (int) (16 * den), (int) (6 * den));
-        TextView prev = navBtn("‹ 上一页", den);
+        TextView prev = navBtn(getString(R.string.pdf_prev), den);
         prev.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { if (page > 0) { page--; render(); } }
         });
@@ -90,7 +91,7 @@ public class PdfPreviewActivity extends BaseActivity {
         pageText.setGravity(Gravity.CENTER);
         bar.addView(pageText, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView next = navBtn("下一页 ›", den);
+        TextView next = navBtn(getString(R.string.pdf_next), den);
         next.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 if (renderer != null && page < renderer.getPageCount() - 1) { page++; render(); }
@@ -109,8 +110,8 @@ public class PdfPreviewActivity extends BaseActivity {
                             ParcelFileDescriptor.MODE_READ_ONLY));
                 } catch (Throwable t) {
                     err = t instanceof SecurityException
-                            ? "PDF 已加密，无法预览"
-                            : "打开失败: " + t.getMessage();
+                            ? getString(R.string.pdf_encrypted)
+                            : getString(R.string.pdf_open_fail, t.getMessage());
                 }
                 final String ferr = err;
                 runOnUiThread(new Runnable() {
@@ -165,7 +166,7 @@ public class PdfPreviewActivity extends BaseActivity {
                 final String ferr = err;
                 runOnUiThread(new Runnable() {
                     public void run() {
-                        if (ferr != null) { toast("渲染失败: " + ferr); return; }
+                        if (ferr != null) { toast(getString(R.string.pdf_render_fail, ferr)); return; }
                         if (fb == null) return;
                         if (current != null && !current.isRecycled()) current.recycle();
                         current = fb;
@@ -182,7 +183,7 @@ public class PdfPreviewActivity extends BaseActivity {
     /** 导出当前页为 PNG（用 FOR_PRINT 高质量重渲） */
     private void exportPng() {
         if (renderer == null || current == null) return;
-        Toast.makeText(this, "导出中…", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, R.string.pdf_exporting, Toast.LENGTH_SHORT).show();
         final int idx = page;
         new Thread(new Runnable() {
             public void run() {
@@ -215,8 +216,8 @@ public class PdfPreviewActivity extends BaseActivity {
                 final File fout = out;
                 runOnUiThread(new Runnable() {
                     public void run() {
-                        toast(ferr != null ? "导出失败: " + ferr
-                                : "已导出 → " + fout.getAbsolutePath());
+                        toast(ferr != null ? getString(R.string.pdf_export_fail, ferr)
+                                : getString(R.string.pdf_exported, fout.getAbsolutePath()));
                     }
                 });
             }

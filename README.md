@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2576 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：2584 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,26 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.68.0（versionCode 261）—— F-14/55：PDF 预览页 i18n（批量纯 UI 页第 21 页）
+
+`PdfPreviewActivity` 中文字面量 **9 → 1**（唯一保留的是导出目录名 `PDF导出`，落盘路径不翻），
+新增 8 个 `pdf_*` 键，资源 2576 → 2584 条（中英各 2584，100%）。补 `import com.hex91.file.R;`。
+
+### UI 层要点
+- 底栏翻页按钮 `‹ 上一页` / `下一页 ›` 各一键（箭头属于文案，跟语言走）。
+- 打开失败两态：`SecurityException` → `pdf_encrypted`（"PDF 已加密，无法预览"），
+  其余 → `pdf_open_fail`（`打开失败: %1$s`）；渲染失败 `pdf_render_fail`。
+- 导出三态：`pdf_exporting`（Toast，用资源 id 重载）/ `pdf_export_fail` / `pdf_exported`。
+- 刻意保留：`new File(WorkDir.base(), "PDF导出")` 是**落盘目录名**，与 `APK信息` 同理——
+  它出现在用户文件系统里，不该随界面语言变，否则同一份导出在不同语言下落到两个目录。
+
+### 验证
+四门全过（依赖方向、空 catch 335 基线、文案 2584/2584 100%、动作码 55）。
+APK **13,423,312 B**（md5 `df3fa8b5…`），badging 反证 versionCode 261 / 2.68.0；
+dex 反证 `pdf_encrypted` / `pdf_exported` / `pdf_prev` 各 = 1，"上一页"在 dex 中 0 处。
 
 ---
 
