@@ -2539,4 +2539,28 @@
     <string name="dcp_class_not_found">dex2jar 输出中找不到 %1$s.class</string>
     <string name="dcp_cfr">CFR 反编译…</string>
     <string name="dcp_cff_note">"/* CFF_SUSPECT ⚠ 检测到疑似控制流扁平化（while(true) + switch 状态分发）。\n * 状态变量的赋值已标注为「→ case N」，顺着编号读即可还原原始顺序。 */\n"</string>
+    <!-- v2.57.0 APK 信息页 -->
+    <string name="api_title">APK 信息</string>
+    <string name="api_export_txt">导出 txt</string>
+    <string name="api_parse_fail">解析失败: %1$s</string>
+    <string name="api_sec_basic">基本信息</string>
+    <string name="api_lbl_file">文件</string>
+    <string name="api_lbl_size">大小</string>
+    <string name="api_size_val">%1$s（%2$d 个条目）</string>
+    <string name="api_lbl_pkg">包名</string>
+    <string name="api_lbl_version">版本</string>
+    <string name="api_sdk_compile">" · 编译 %1$s"</string>
+    <string name="api_sec_sign">签名</string>
+    <string name="api_lbl_scheme">方案</string>
+    <string name="api_sec_native">Native 库</string>
+    <string name="api_lbl_abi">ABI</string>
+    <string name="api_none_lib">（无 lib 目录）</string>
+    <string name="api_lbl_dex">dex 文件</string>
+    <string name="api_lbl_dex_methods">classes.dex 方法数</string>
+    <string name="api_sec_count">%1$s（%2$d）</string>
+    <string name="api_sec_perms">权限（%1$d）</string>
+    <string name="api_none_perms">（未声明权限）</string>
+    <string name="api_none">（无）</string>
+    <string name="api_exported">已导出 → %1$s</string>
+    <string name="api_export_fail">导出失败: %1$s</string>
 </resources>

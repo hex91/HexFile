@@ -2531,4 +2531,28 @@
     <string name="dcp_class_not_found">%1$s.class not found in dex2jar output</string>
     <string name="dcp_cfr">CFR decompiling…</string>
     <string name="dcp_cff_note">"/* CFF_SUSPECT ⚠ Suspected control-flow flattening (while(true) + switch state dispatch).\n * State assignments are annotated as → case N; follow the numbers to recover the original order. */\n"</string>
+    <!-- v2.57.0 APK info -->
+    <string name="api_title">APK info</string>
+    <string name="api_export_txt">Export txt</string>
+    <string name="api_parse_fail">Parse failed: %1$s</string>
+    <string name="api_sec_basic">Basic info</string>
+    <string name="api_lbl_file">File</string>
+    <string name="api_lbl_size">Size</string>
+    <string name="api_size_val">%1$s (%2$d entries)</string>
+    <string name="api_lbl_pkg">Package</string>
+    <string name="api_lbl_version">Version</string>
+    <string name="api_sdk_compile">" · compiled %1$s"</string>
+    <string name="api_sec_sign">Signing</string>
+    <string name="api_lbl_scheme">Scheme</string>
+    <string name="api_sec_native">Native libs</string>
+    <string name="api_lbl_abi">ABI</string>
+    <string name="api_none_lib">(no lib directory)</string>
+    <string name="api_lbl_dex">dex files</string>
+    <string name="api_lbl_dex_methods">classes.dex method count</string>
+    <string name="api_sec_count">%1$s (%2$d)</string>
+    <string name="api_sec_perms">Permissions (%1$d)</string>
+    <string name="api_none_perms">(no permissions declared)</string>
+    <string name="api_none">(none)</string>
+    <string name="api_exported">Exported → %1$s</string>
+    <string name="api_export_fail">Export failed: %1$s</string>
 </resources>

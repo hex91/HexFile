@@ -1785,6 +1785,35 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.57.0（versionCode 250）—— F-14/44：APK 信息页 i18n（批量纯 UI 页第 10 页）
+
+`ApkInfoActivity` 中文字面量 **22 → 1**（纯代码构造 UI，无布局文件），新增 23 个 `api_*` 键，
+资源 2409 → 2432 条（中英各 2432，100%）。
+
+### 唯一保留项：导出目录名
+`exportTxt()` 里的 `new File(WorkDir.base(), "APK信息")` 是**落盘目录名**（用户可见路径、会持久存在）。
+翻译会让中英文用户落到不同目录、老用户找不到既有导出文件，故按数据保留（同 v2.43 `safeName`
+"未命名"、v2.46 fallback 区划码的处理口径）。
+
+### UI 层要点
+- 标签与分组标题全部资源化：`api_sec_basic` / `api_sec_sign` / `api_sec_native` /
+  `api_sec_perms`（`权限（%1$d）`），以及 `api_lbl_*` 系列（文件/大小/包名/版本/方案/ABI/dex 文件/
+  classes.dex 方法数）。
+- `comp()` 的分组标题 `sec(title + "（" + n + "）")` → `api_sec_count`（`%1$s（%2$d）`），
+  `title` 仍是 `Activity`/`Service` 等 ASCII 常量，只翻括号与计数。
+- 组合值 `api_size_val`（`%1$s（%2$d 个条目）`）；SDK 后缀 `api_sdk_compile`（`" · 编译 %1$s"`，
+  前导空格整值加引号）。
+- 纯 ASCII 项保留不建键：`sec("DEX")`、`"min … · target …"`、`comp("Activity"…)` 等。
+- `runOnUiThread` Runnable 内 1 处 `ApkInfoActivity.this.getString(...)`。
+
+### 验证
+
+四门全过（空 catch 335 基线）、`jc.sh` rc=0。APK **13,406,928 B**（md5 `8fdfee4e…`），
+badging 反证 versionCode 250 / 2.57.0；dex 反证 `api_sec_count`/`api_size_val`/`api_sdk_compile` 各=1。
+提交 `—`。
+
+---
+
 ## v2.56.0（versionCode 249）—— F-14/43：反编译查看页 i18n（批量纯 UI 页第 9 页）
 
 `DecompileActivity` 中文字面量 **25 → 0**（纯代码构造 UI，无布局文件），新增 20 个 `dcp_*` 键，

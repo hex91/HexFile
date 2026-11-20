@@ -1,5 +1,6 @@
 package com.hex91.file.ui;
 
+import com.hex91.file.R;
 import com.hex91.file.apk.ApkInfoUtil;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.fs.WorkDir;
@@ -41,14 +42,14 @@ public class ApkInfoActivity extends BaseActivity {
         top.setGravity(android.view.Gravity.CENTER_VERTICAL);
         top.setPadding((int) (12 * den), (int) (8 * den), (int) (12 * den), (int) (8 * den));
         TextView title = new TextView(this);
-        title.setText("APK 信息");
+        title.setText(R.string.api_title);
         title.setTextSize(17);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setTextColor(ThemeManager.text(this));
         top.addView(title, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         TextView export = new TextView(this);
-        export.setText("导出 txt");
+        export.setText(R.string.api_export_txt);
         export.setTextSize(14);
         export.setTextColor(ThemeManager.accent(this));
         export.setPadding((int) (14 * den), (int) (6 * den), (int) (14 * den), (int) (6 * den));
@@ -88,7 +89,8 @@ public class ApkInfoActivity extends BaseActivity {
                 runOnUiThread(new Runnable() {
                     public void run() {
                         if (ferr != null) {
-                            Toast.makeText(ApkInfoActivity.this, "解析失败: " + ferr,
+                            Toast.makeText(ApkInfoActivity.this,
+                                    ApkInfoActivity.this.getString(R.string.api_parse_fail, ferr),
                                     Toast.LENGTH_LONG).show();
                             finish();
                         } else {
@@ -104,28 +106,30 @@ public class ApkInfoActivity extends BaseActivity {
     private void render() {
         float den = getResources().getDisplayMetrics().density;
         body.removeAllViews();
-        sec("基本信息");
-        line("文件", apk.getName());
-        line("大小", FileOps.formatSize(info.fileSize) + "（" + info.entryCount + " 个条目）");
-        line("包名", info.pkg);
-        line("版本", info.versionName + " (" + info.versionCode + ")");
+        sec(getString(R.string.api_sec_basic));
+        line(getString(R.string.api_lbl_file), apk.getName());
+        line(getString(R.string.api_lbl_size), getString(R.string.api_size_val,
+                FileOps.formatSize(info.fileSize), info.entryCount));
+        line(getString(R.string.api_lbl_pkg), info.pkg);
+        line(getString(R.string.api_lbl_version), info.versionName + " (" + info.versionCode + ")");
         String sdk = "min " + info.minSdk + " · target " + info.targetSdk;
-        if (!info.compileSdk.isEmpty()) sdk += " · 编译 " + info.compileSdk;
+        if (!info.compileSdk.isEmpty()) sdk += getString(R.string.api_sdk_compile, info.compileSdk);
         line("SDK", sdk);
-        sec("签名");
-        line("方案", info.signSchemes);
-        sec("Native 库");
-        if (info.abis.isEmpty()) line("ABI", "（无 lib 目录）");
-        for (String abi : info.abis) line("ABI", abi);
+        sec(getString(R.string.api_sec_sign));
+        line(getString(R.string.api_lbl_scheme), info.signSchemes);
+        sec(getString(R.string.api_sec_native));
+        if (info.abis.isEmpty()) line(getString(R.string.api_lbl_abi), getString(R.string.api_none_lib));
+        for (String abi : info.abis) line(getString(R.string.api_lbl_abi), abi);
         sec("DEX");
-        line("dex 文件", String.valueOf(info.dexCount));
-        if (info.mainDexMethods >= 0) line("classes.dex 方法数", String.valueOf(info.mainDexMethods));
+        line(getString(R.string.api_lbl_dex), String.valueOf(info.dexCount));
+        if (info.mainDexMethods >= 0) line(getString(R.string.api_lbl_dex_methods),
+                String.valueOf(info.mainDexMethods));
         comp("Activity", info.activities);
         comp("Service", info.services);
         comp("Receiver", info.receivers);
         comp("Provider", info.providers);
-        sec("权限（" + info.permissions.size() + "）");
-        if (info.permissions.isEmpty()) line("", "（未声明权限）");
+        sec(getString(R.string.api_sec_perms, info.permissions.size()));
+        if (info.permissions.isEmpty()) line("", getString(R.string.api_none_perms));
         for (String p : info.permissions) line("", p);
     }
 
@@ -167,8 +171,8 @@ public class ApkInfoActivity extends BaseActivity {
     }
 
     private void comp(String title, java.util.List<String[]> list) {
-        sec(title + "（" + list.size() + "）");
-        if (list.isEmpty()) line("", "（无）");
+        sec(getString(R.string.api_sec_count, title, list.size()));
+        if (list.isEmpty()) line("", getString(R.string.api_none));
         for (String[] c : list) line("", c[0] + "\n" + c[1]);
     }
 
@@ -183,9 +187,11 @@ public class ApkInfoActivity extends BaseActivity {
             java.io.FileOutputStream fo = new java.io.FileOutputStream(out);
             fo.write(ApkInfoUtil.toText(info, apk).getBytes("UTF-8"));
             fo.close();
-            Toast.makeText(this, "已导出 → " + out.getAbsolutePath(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, getString(R.string.api_exported, out.getAbsolutePath()),
+                    Toast.LENGTH_LONG).show();
         } catch (Throwable t) {
-            Toast.makeText(this, "导出失败: " + t.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, getString(R.string.api_export_fail, t.getMessage()),
+                    Toast.LENGTH_LONG).show();
         }
     }
 }
