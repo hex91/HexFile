@@ -1808,7 +1808,7 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 ### 验证
 四门全过（空 catch 335 基线）、全量 **97 通过 / 0 失败 / 4 跳过**、`jc.sh` rc=0。
 APK **13,374,160 B**（md5 `233fb041…`），badging 反证 versionCode 240 / 2.47.0；
-dex 反证 `zip_progress`=1、`zip_decompile_fail`=1、`zip_op_dex_editor`=1。提交 `—`。
+dex 反证 `zip_progress`=1、`zip_decompile_fail`=1、`zip_op_dex_editor`=1。提交 `4b6a088`。
 
 ---
 
