@@ -314,7 +314,7 @@ public final class CloudLoginActivity extends Activity {
         if (hit == null || hit.refresh.isEmpty()) return;   // 还没写完整，继续轮询
 
         mDone = true;
-        if (mStatus != null) mStatus.setText(hit.describe());
+        if (mStatus != null) mStatus.setText(hit.describe(CloudLoginActivity.this));
         Intent out = new Intent();
         out.putExtra(EXTRA_REFRESH, hit.refresh);
         out.putExtra(EXTRA_USER, hit.userId);

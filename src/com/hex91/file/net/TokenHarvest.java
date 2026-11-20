@@ -1,6 +1,8 @@
 package com.hex91.file.net;
 
 import com.hex91.file.core.Json;
+import android.content.Context;
+import com.hex91.file.R;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -50,12 +52,20 @@ public final class TokenHarvest {
             return !refresh.isEmpty() && !access.isEmpty();
         }
 
-        /** 给用户看的说明，避免「成功了但不知道成功在哪」 */
+        /** 数据摘要（全 ASCII，给日志 / 纯 JVM 单测用；不输出 token 本身）。 */
         public String describe() {
-            StringBuilder sb = new StringBuilder("已获取登录凭证");
-            if (!key.isEmpty()) sb.append("（来源 ").append(key).append("）");
-            if (!userId.isEmpty()) sb.append("，账号 ").append(shorten(userId));
-            if (!complete()) sb.append("；注意：没同时看到 access_token，若稍后连接失败请重新登录");
+            StringBuilder sb = new StringBuilder("token source=").append(key);
+            if (!userId.isEmpty()) sb.append(" user=").append(shorten(userId));
+            if (!complete()) sb.append(" WARN:no-access-token");
+            return sb.toString();
+        }
+
+        /** 给用户看的说明（走资源），避免「成功了但不知道成功在哪」。 */
+        public String describe(Context c) {
+            StringBuilder sb = new StringBuilder(c.getString(R.string.th_got_cred));
+            if (!key.isEmpty()) sb.append(c.getString(R.string.th_source, key));
+            if (!userId.isEmpty()) sb.append(c.getString(R.string.th_account, shorten(userId)));
+            if (!complete()) sb.append(c.getString(R.string.th_no_access));
             return sb.toString();
         }
 

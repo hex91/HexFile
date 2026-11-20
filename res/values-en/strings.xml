@@ -3183,4 +3183,9 @@
     <string name="netfs_hint_webdav_auth">" (authentication failed: wrong username or password)"</string>
     <string name="netfs_hint_webdav_forbidden">" (server denied: permission denied)"</string>
     <string name="netfs_hint_cloud_no_method">" (server does not support this operation)"</string>
+    <!-- v2.98.0 web-login credential receipt (TokenHarvest.describe) -->
+    <string name="th_got_cred">Login credentials obtained</string>
+    <string name="th_source">" (source %1$s)"</string>
+    <string name="th_account">", account %1$s"</string>
+    <string name="th_no_access">" Note: no access_token was captured; if connecting fails later, please sign in again"</string>
 </resources>

@@ -3191,4 +3191,9 @@
     <string name="netfs_hint_webdav_auth">"（认证失败：用户名或密码错误）"</string>
     <string name="netfs_hint_webdav_forbidden">"（服务器拒绝：无权限）"</string>
     <string name="netfs_hint_cloud_no_method">"（服务器不支持该操作）"</string>
+    <!-- v2.98.0 云盘网页登录凭证回执（TokenHarvest.describe） -->
+    <string name="th_got_cred">已获取登录凭证</string>
+    <string name="th_source">"（来源 %1$s）"</string>
+    <string name="th_account">"，账号 %1$s"</string>
+    <string name="th_no_access">"；注意：没同时看到 access_token，若稍后连接失败请重新登录"</string>
 </resources>

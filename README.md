@@ -1785,6 +1785,22 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.98.0（versionCode 291）—— F-14/85：describe 回执 / 工厂配置去中文
+
+清理 net 层最后几处「逻辑层产文案并展示」的回执方法：
+
+- **NetFsFactory**：`open` 的空配置 IAE 改 `invalidConfig()`（NetFsError.fieldRequired）；
+  `describe(Context, JSONObject)` 加 Context 首参，「未选择」复用 `sy_server_unselected`、
+  云盘名复用 `netfs_cloud_*`，SyncActivity 两处调用传 this。
+- **TokenHarvest.Hit**：`describe()` 保留无参全 ASCII 版给日志 / 纯 JVM 单测（不断言中文），
+  新增 `describe(Context)` 走 4 个 `th_*` 资源给 CloudLoginActivity 状态栏。
+- **RemoteServer**：目录列表的「⬆️ ..（上级目录）」全角括号改半角（中英通用）。
+
+新增 4 个 `th_*` 键，资源 2994 → 2998（100%）。四门全过、全量 97/0/4（TokenHarvestTest/SyncPlanTest PASS）；
+APK 13,488,848 B（md5 `3f1e92e6…`），badging 291/2.98.0。
+
+---
+
 ## v2.97.0（versionCode 290）—— F-14/84：net 边角（内部契约 / HLS 数据）去中文
 
 清理 net 包边角类的中文，区分「用户文案」与「内部契约 / 功能数据」两类口径：

@@ -328,8 +328,8 @@ public final class RemoteServer extends NanoHTTPD {
         sb.append("<table>");
         if (!dir.equals(root)) {
             sb.append("<tr><td colspan='4'><a href='").append(base).append("/browse?path=")
-              .append(enc(relOf(dir.getParentFile()))).append("'>⬆️ ..（")
-              .append(ctx.getString(R.string.rmt_parent_dir)).append("）</a></td></tr>");
+              .append(enc(relOf(dir.getParentFile()))).append("'>⬆️ .. (")
+              .append(ctx.getString(R.string.rmt_parent_dir)).append(")</a></td></tr>");
         }
         SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm");
         for (File d : dirs) {

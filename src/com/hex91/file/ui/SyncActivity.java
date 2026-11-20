@@ -128,7 +128,7 @@ public class SyncActivity extends BaseActivity {
 
     private void render() {
         rowServer.setText(s(R.string.sy_row_server) + (idx < 0 ? s(R.string.sy_server_unselected)
-                : NetFsFactory.describe(servers.get(idx))));
+                : NetFsFactory.describe(SyncActivity.this, servers.get(idx))));
         rowLocal.setText(s(R.string.sy_row_local) + (localDir == null ? s(R.string.sy_unselected)
                 : localDir.getAbsolutePath()));
         rowMode.setText(s(R.string.sy_row_mode) + modeName());
@@ -146,7 +146,7 @@ public class SyncActivity extends BaseActivity {
             return;
         }
         final String[] items = new String[servers.size()];
-        for (int i = 0; i < servers.size(); i++) items[i] = NetFsFactory.describe(servers.get(i));
+        for (int i = 0; i < servers.size(); i++) items[i] = NetFsFactory.describe(SyncActivity.this, servers.get(i));
         new HfDialogBuilder(this)
                 .setTitle(s(R.string.sy_pick_server))
                 .setItems(items, new DialogInterface.OnClickListener() {

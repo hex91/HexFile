@@ -32,7 +32,7 @@ public final class NetFsFactory {
 
     /** 打开连接（调用方负责 close）；失败抛异常 */
     public static NetFs open(Context c, JSONObject s) throws Exception {
-        if (s == null) throw new IllegalArgumentException("服务器配置为空");
+        if (s == null) throw invalidConfig();
         CredentialVault.init(c);     // 幂等，保证密钥就绪
         String pw = CredentialVault.decrypt(s.optString("pass"));
         String t = s.optString("type");
@@ -103,9 +103,11 @@ public final class NetFsFactory {
         return a == null ? b == null : a.equals(b);
     }
 
-    /** 列表里显示的标题 */
-    public static String describe(JSONObject s) {
-        if (s == null) return "未选择";
+    public static NetFsError invalidConfig() { return NetFsError.fieldRequired("server"); }
+
+    /** 列表里显示的标题（Context 用于取「未选择」/云盘名等文案）。 */
+    public static String describe(Context c, JSONObject s) {
+        if (s == null) return c.getString(com.hex91.file.R.string.sy_server_unselected);
         String t = s.optString("type");
         String name = s.optString("name");
         String target;
@@ -114,7 +116,9 @@ public final class NetFsFactory {
         } else if (TYPE_SMB.equals(t) || TYPE_S3.equals(t)) {
             target = s.optString("host") + "/" + s.optString("share");
         } else if (TYPE_ONEDRIVE.equals(t) || TYPE_ALIYUN.equals(t)) {
-            target = TYPE_ONEDRIVE.equals(t) ? "OneDrive" : "阿里云盘";
+            target = TYPE_ONEDRIVE.equals(t)
+                    ? c.getString(com.hex91.file.R.string.netfs_cloud_onedrive)
+                    : c.getString(com.hex91.file.R.string.netfs_cloud_aliyun);
         } else {
             target = s.optString("host");
         }
