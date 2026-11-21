@@ -190,6 +190,7 @@ public class PdfPreviewActivity extends BaseActivity {
                 String err = null;
                 File out = null;
                 try {
+                    // 落盘目录名：同 APK信息，保持既有路径不变
                     File dir = new File(WorkDir.base(), "PDF导出");
                     dir.mkdirs();
                     String base = pdf.getName();

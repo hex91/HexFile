@@ -3336,4 +3336,8 @@
     <plurals name="ctrl_task_hold_more">
         <item quantity="other"> · %d 项暂停</item>
     </plurals>
+
+    <!-- v2.108.0（F-14/95）：ui 包剩余可翻文案 -->
+    <string name="lan_radar_searching">正在搜索设备…</string>
+    <string name="ht_need_http">URL 需要以 http:// 或 https:// 开头</string>
 </resources>

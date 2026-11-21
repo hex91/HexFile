@@ -1785,6 +1785,31 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.108.0（versionCode 301）—— F-14/95：ui 包可翻文案入资源
+
+ui 包剩下的中文字面量大多不是文案，这一版只清真正要跟着语言走的三处：
+
+- `RadarView` 空态「正在搜索设备…」原本写死在字段初始值里，XML 膨胀出来的雷达图
+  在英文环境仍显示中文；改为 `init()` 里 `getString(R.string.lan_radar_searching)`。
+- `HttpToolActivity` 的 scheme 校验提示改 `ht_need_http`。
+- `TaskService` 三条 `Log.w` 改 ASCII（通知刷新 / startForeground 失败 / 服务启动失败）。
+
+**刻意保留**（与既有口径一致，不是漏翻）：
+
+| 位置 | 内容 | 理由 |
+| --- | --- | --- |
+| `ApkInfoActivity` / `PdfPreviewActivity` | 落盘目录名 `APK信息` / `PDF导出` | 文件系统路径，改了老用户已导出的文件会「换地方」 |
+| `FontPreviewActivity` | 字体样张「永国信仰山流水…」 | 样张本身要展示汉字字形 |
+| `Java2SmaliActivity` | 内置示例代码的 javadoc | 示例源码内容，翻译反而失真 |
+| `TerminalActivity` | `.profile` 与 `hex` 助手脚本 | 落盘 shell 脚本模板，与其它脚本资产同类 |
+| `TestDataActivity` | 行政区划测试数据 | 数据，不是文案 |
+| `HexViewerActivity` | `A＋` | 字号按钮的字形标签（与 `A−` 成对） |
+
+资源 3124 → 3126（100%）。四门全过、全量 97/0/4；APK 13,521,616 B
+（md5 `a4a3f55d…`），badging 301/2.108.0。dex 反证：四条旧中文串均不存在。
+
+---
+
 ## v2.107.0（versionCode 300）—— F-14/94：controller 文案入资源，controller 包中文清零
 
 三个控制器都能从 `Host.ctx()` 拿到 Context，因此不需要额外的码表类，直接 `getString()`：

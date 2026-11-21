@@ -1,5 +1,6 @@
 package com.hex91.file.ui;
 
+import com.hex91.file.R;
 import com.hex91.file.net.LanProtocol;
 import android.animation.ValueAnimator;
 import android.content.Context;
@@ -57,7 +58,7 @@ public class RadarView extends View {
     private float angle;
     private float cx, cy, radius;
     private float shaderCx = -1, shaderCy = -1;
-    private String emptyText = "正在搜索设备…";
+    private String emptyText;
     private OnDeviceTap tapListener;
     private ValueAnimator animator;
     private final Matrix sweepMatrix = new Matrix();
@@ -73,6 +74,8 @@ public class RadarView extends View {
 
     private void init() {
         float den = getResources().getDisplayMetrics().density;
+        // 空态文案跟界面语言走：默认值原来写死中文，英文环境会露出中文
+        emptyText = getContext().getString(R.string.lan_radar_searching);
 
         bgPaint.setStyle(Paint.Style.FILL);
         ringPaint.setStyle(Paint.Style.STROKE);

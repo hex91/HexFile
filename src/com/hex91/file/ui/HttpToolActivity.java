@@ -133,7 +133,7 @@ public class HttpToolActivity extends BaseActivity {
             return;
         }
         if (!u.startsWith("http://") && !u.startsWith("https://")) {
-            ToolUi.toast(this, "URL 需要以 http:// 或 https:// 开头");
+            ToolUi.toast(this, getString(R.string.ht_need_http));
             return;
         }
         final String m = METHODS[methodSp.getSelectedItemPosition()];

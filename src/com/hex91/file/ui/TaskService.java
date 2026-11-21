@@ -91,7 +91,7 @@ public class TaskService extends Service {
                         (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
                 if (nm != null) nm.notify(NOTI_ID, build());
             } catch (Throwable t) {
-                Log.w(TAG, "任务通知刷新失败", t);
+                Log.w(TAG, "Notification refresh failed", t);
             }
         }
     };
@@ -111,7 +111,7 @@ public class TaskService extends Service {
             // startForegroundService 之后没落地前台状态，API 26+ 会在 5 秒后抛
             // ForegroundServiceDidNotStartInTimeException 把整个进程带走（任务也跟着死）；
             // 所以必须立刻退出这个服务：任务本身在引擎线程里跑，通知没有就没有。
-            Log.w(TAG, "startForeground 失败，本任务改在后台线程执行（无通知）", t);
+            Log.w(TAG, "startForeground failed; running task without notification", t);
             retryAfter = android.os.SystemClock.uptimeMillis() + 60_000L;
             stopSelf();
             return;             // 不订阅引擎、不置 running —— 这个实例已经没用了
@@ -183,7 +183,7 @@ public class TaskService extends Service {
             else app.startService(i);
         } catch (Throwable t) {
             retryAfter = android.os.SystemClock.uptimeMillis() + 60_000L;
-            Log.w(TAG, "任务通知服务启动失败（任务仍在后台执行）", t);
+            Log.w(TAG, "Failed to start task notification service; task keeps running", t);
         }
     }
 

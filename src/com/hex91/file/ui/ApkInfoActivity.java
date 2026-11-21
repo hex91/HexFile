@@ -209,6 +209,7 @@ public class ApkInfoActivity extends BaseActivity {
     private void exportTxt() {
         if (info == null) return;
         try {
+            // 落盘目录名：保持既有路径不变，老用户已导出的文件仍在原处
             File dir = new File(WorkDir.base(), "APK信息");
             dir.mkdirs();
             String base = apk.getName();
