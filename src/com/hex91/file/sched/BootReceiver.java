@@ -31,7 +31,7 @@ public class BootReceiver extends BroadcastReceiver {
             ScheduleStore.scheduleNext(ctx);
         } catch (Throwable t) {
             // 自启动被系统/ROM 拦下时不重排就是了，下次打开应用还会再排一次
-            Log.w("HexFile", "开机重排定时任务失败: " + t);
+            Log.w("HexFile", "Failed to reschedule tasks after boot: " + t);
         }
     }
 }

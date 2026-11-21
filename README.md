@@ -1785,6 +1785,51 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.110.0（versionCode 303）—— F-14/97：F-14 收尾，全仓中文只剩功能数据
+
+`apk/ArchiveWrite` 两处 `Log.w("写回失败: " + r.message)` 改 ASCII 诊断串。
+改完这一处，**全仓 `src/` 里剩下的中文字符串全部是有意保留的功能数据**：
+
+| 包 | 处数 | 内容 |
+| --- | --- | --- |
+| `apk` | 580 | 全部在 `SmaliDocs`（Smali 指令文档正文，产品内容） |
+| `core` | 36 | `ThemeSchemes` 主题名 22、`TestDataCore` 示例数据 12、`RegionTable` 行政区划术语 2 |
+| `ui` | 19 | 字体样张、落盘目录名 2、Smali 示例 javadoc、终端脚本模板 11、行政区划测试数据、（注释里的旧词 1） |
+| `net` | 1 | `StreamUrl` 全角标点剥离集（功能字符表） |
+
+四门全过、全量 97/0/4；APK 13,521,616 B（md5 `7ac4edb7…`），badging 303/2.110.0。
+
+---
+
+## v2.109.0（versionCode 302）—— F-14/96：sched 结果码化，sched 包中文清零
+
+`ScheduleRunner.Result` 从「中文 error 串」改成「码 + 参数」：
+
+```java
+public final int done;
+public final int code;      // E_NONE / E_NOT_EXIST / E_CLEAN_PARTIAL ...
+public final Object[] args; // 路径 / 计数
+public final String error;  // ASCII 诊断串，仅日志用："SCHED E5 /sdcard/x"
+public boolean ok() { return code == E_NONE; }
+```
+
+14 个码覆盖：任务为空 / 未知动作 / 未设目标 / 危险目录 / 目标不存在 / 不是目录 /
+列目录失败 / 清理部分失败 / 保留天数非法 / 过期部分失败 / 无上级目录 / 空目录 /
+只有隐私空间 / 压缩失败。
+
+映射放在 `sched/SchedText` 而不是 `ui`：`ScheduleReceiver` 在后台拿到结果后要立刻把
+「上一轮结果」写进任务表（`lastResult` 是持久化展示串），必须先翻成人话；而依赖方向是
+ui → sched，sched 不能反向 import ui。`SchedText` 吃 `Context` + 资源键，与
+`ScheduleReceiver` 原本就在用的 `ctx.getString(R.string.…)` 是同一种做法。
+
+`ScheduleReceiver` / `BootReceiver` / `ScheduleStore` 四条后台日志改 ASCII。
+至此 sched 包**代码字符串中文清零**。
+
+资源 3126 → 3140（100%）。四门全过、全量 97/0/4；APK 13,521,616 B
+（md5 `cbf225ba…`），badging 302/2.109.0。
+
+---
+
 ## v2.108.0（versionCode 301）—— F-14/95：ui 包可翻文案入资源
 
 ui 包剩下的中文字面量大多不是文案，这一版只清真正要跟着语言走的三处：

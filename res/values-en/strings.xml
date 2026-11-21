@@ -3331,4 +3331,19 @@
 
     <string name="lan_radar_searching">Searching for devices…</string>
     <string name="ht_need_http">URL must start with http:// or https://</string>
+
+    <string name="sched_err_empty_task">Task is empty</string>
+    <string name="sched_err_unknown_action">Unknown action: %1$s</string>
+    <string name="sched_err_no_target">No target folder set</string>
+    <string name="sched_err_dangerous">This folder cannot be a target: %1$s</string>
+    <string name="sched_err_not_exist">Target does not exist: %1$s</string>
+    <string name="sched_err_not_dir">Target is not a folder: %1$s</string>
+    <string name="sched_err_list_fail">Cannot list folder (permission denied or restricted by the system)</string>
+    <string name="sched_err_clean_partial">%1$d item(s) could not be deleted (permission denied or in use)</string>
+    <string name="sched_err_bad_days">Retention days must be greater than 0</string>
+    <string name="sched_err_expire_partial">%1$d file(s) could not be deleted (permission denied or in use)</string>
+    <string name="sched_err_no_parent">Target folder has no parent, so the archive location is undefined</string>
+    <string name="sched_err_empty_dir">Folder is empty; nothing to compress</string>
+    <string name="sched_err_vault_only">Folder holds only the vault; nothing to compress</string>
+    <string name="sched_err_zip_fail">Compression failed: %1$s</string>
 </resources>

@@ -259,7 +259,7 @@ public class ArchiveWrite {
                 }
                 // v1.99.2（R-06）：同 ZipUtil，失败原因留日志
                 AtomicReplace.Result r = AtomicReplace.replaceWith(tmp, sz);
-                if (!r.ok) android.util.Log.w("ArchiveWrite", "写回失败: " + r.message);
+                if (!r.ok) android.util.Log.w("ArchiveWrite", "Write-back failed: " + r.message);
                 return r.ok;
             } catch (Exception e) {
                 // 加密 7z（SevenZFile 打不开）等都会落到这里，返回 false 由 UI 提示
@@ -359,7 +359,7 @@ public class ArchiveWrite {
                     return false;
                 }
                 AtomicReplace.Result r = AtomicReplace.replaceWith(tmp, tar);
-                if (!r.ok) android.util.Log.w("ArchiveWrite", "写回失败: " + r.message);
+                if (!r.ok) android.util.Log.w("ArchiveWrite", "Write-back failed: " + r.message);
                 return r.ok;
             } catch (Exception e) {
                 return false;

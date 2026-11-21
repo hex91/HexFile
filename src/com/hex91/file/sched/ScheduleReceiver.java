@@ -51,7 +51,7 @@ public class ScheduleReceiver extends BroadcastReceiver {
                 try {
                     runDue(app);
                 } catch (Throwable t) {
-                    Log.w("HexFile", "定时任务执行异常: " + t);
+                    Log.w("HexFile", "Scheduled task threw: " + t);
                 } finally {
                     pr.finish();
                 }
@@ -76,7 +76,7 @@ public class ScheduleReceiver extends BroadcastReceiver {
             it.lastRun = now;
             it.lastResult = r.ok()
                     ? ctx.getString(R.string.sched_result_ok, r.done)
-                    : ctx.getString(R.string.sched_result_err, r.error == null ? "" : r.error);
+                    : ctx.getString(R.string.sched_result_err, SchedText.errorText(ctx, r));
             ran++;
             if (!r.ok()) failed++;
             if (lines.length() > 0) lines.append('\n');
@@ -125,7 +125,7 @@ public class ScheduleReceiver extends BroadcastReceiver {
             nm.notify(NOTI_ID, b.build());
         } catch (Throwable t) {
             // 未授予通知权限（Android 13+）时部分 ROM 会抛：结果已在列表里，不该因此崩
-            Log.w("HexFile", "定时任务通知发送失败: " + t);
+            Log.w("HexFile", "Failed to post schedule notification: " + t);
         }
     }
 }

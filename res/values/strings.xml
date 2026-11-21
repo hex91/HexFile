@@ -3340,4 +3340,20 @@
     <!-- v2.108.0（F-14/95）：ui 包剩余可翻文案 -->
     <string name="lan_radar_searching">正在搜索设备…</string>
     <string name="ht_need_http">URL 需要以 http:// 或 https:// 开头</string>
+
+    <!-- v2.109.0（F-14/96）：定时任务结果码 -->
+    <string name="sched_err_empty_task">任务为空</string>
+    <string name="sched_err_unknown_action">未知动作：%1$s</string>
+    <string name="sched_err_no_target">没有设置目标目录</string>
+    <string name="sched_err_dangerous">这个目录不能作为目标：%1$s</string>
+    <string name="sched_err_not_exist">目标不存在：%1$s</string>
+    <string name="sched_err_not_dir">目标不是目录：%1$s</string>
+    <string name="sched_err_list_fail">无法列出目录（权限不足，或被系统限制）</string>
+    <string name="sched_err_clean_partial">有 %1$d 项删不掉（权限不足或被占用）</string>
+    <string name="sched_err_bad_days">保留天数必须大于 0</string>
+    <string name="sched_err_expire_partial">有 %1$d 个文件删不掉（权限不足或被占用）</string>
+    <string name="sched_err_no_parent">目标目录没有上级，无法决定压缩包放哪</string>
+    <string name="sched_err_empty_dir">目录是空的，没有可压缩的内容</string>
+    <string name="sched_err_vault_only">目录里只有隐私空间，没有可压缩的内容</string>
+    <string name="sched_err_zip_fail">压缩失败：%1$s</string>
 </resources>

@@ -84,7 +84,7 @@ public final class ScheduleStore {
         } catch (Throwable t) {
             // 个别 ROM 在「自启动被禁止」时抛 SecurityException：任务仍在表里，
             // 下次打开应用会重排，这里只记一笔，别让设置页崩掉
-            Log.w("HexFile", "定时闹钟注册失败: " + t);
+            Log.w("HexFile", "Failed to register schedule alarm: " + t);
         }
     }
 

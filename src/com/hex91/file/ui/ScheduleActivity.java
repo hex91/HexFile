@@ -166,12 +166,16 @@ public class ScheduleActivity extends BaseActivity {
                             x.lastRun = System.currentTimeMillis();
                             x.lastResult = r.ok()
                                     ? getString(R.string.sched_result_ok, r.done)
-                                    : getString(R.string.sched_result_err, r.error);
+                                    : getString(R.string.sched_result_err,
+                                            com.hex91.file.sched.SchedText.errorText(
+                                                    ScheduleActivity.this, r));
                         }
                         ScheduleStore.saveAndReschedule(ScheduleActivity.this, list);
                         reload();
                         toast(r.ok() ? getString(R.string.sched_run_ok, r.done)
-                                : getString(R.string.sched_run_err, r.error));
+                                : getString(R.string.sched_run_err,
+                                        com.hex91.file.sched.SchedText.errorText(
+                                                ScheduleActivity.this, r)));
                     }
                 });
             }

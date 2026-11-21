@@ -25,17 +25,62 @@ public final class ScheduleRunner {
 
     /** 执行结果 */
     public static final class Result {
+        /** 失败原因码；{@link #E_NONE} = 全部成功 */
+        public static final int E_NONE = 0;
+        public static final int E_EMPTY_TASK = 1;
+        public static final int E_UNKNOWN_ACTION = 2;
+        public static final int E_NO_TARGET = 3;
+        public static final int E_DANGEROUS = 4;
+        public static final int E_NOT_EXIST = 5;
+        public static final int E_NOT_DIR = 6;
+        public static final int E_LIST_FAIL = 7;
+        public static final int E_CLEAN_PARTIAL = 8;
+        public static final int E_BAD_DAYS = 9;
+        public static final int E_EXPIRE_PARTIAL = 10;
+        public static final int E_NO_PARENT = 11;
+        public static final int E_EMPTY_DIR = 12;
+        public static final int E_VAULT_ONLY = 13;
+        public static final int E_ZIP_FAIL = 14;
+
         /** 处理掉的条目数：clean=删掉的顶层项，expire=删掉的文件数，zip=打进包的顶层项 */
         public final int done;
-        /** 失败原因；null = 全部成功 */
+        /** 失败原因码；E_NONE = 全部成功。展示文案由 {@link SchedText} 映射 */
+        public final int code;
+        /** 原因码附带的参数（路径 / 计数），供文案占位使用 */
+        public final Object[] args;
+        /** ASCII 诊断串（日志用）；成功时为 null */
         public final String error;
 
-        public Result(int done, String error) {
+        public Result(int done, int code, Object... args) {
             this.done = done;
-            this.error = error;
+            this.code = code;
+            this.args = args;
+            this.error = code == E_NONE ? null : diagnose(code, args);
         }
 
-        public boolean ok() { return error == null; }
+        public boolean ok() { return code == E_NONE; }
+
+        public Object arg(int i) {
+            return args != null && i < args.length ? args[i] : null;
+        }
+
+        public String str(int i) {
+            Object o = arg(i);
+            return o == null ? "" : String.valueOf(o);
+        }
+
+        public int num(int i) {
+            Object o = arg(i);
+            return o instanceof Number ? ((Number) o).intValue() : 0;
+        }
+
+        private static String diagnose(int code, Object[] args) {
+            StringBuilder sb = new StringBuilder("SCHED E").append(code);
+            if (args != null) {
+                for (Object a : args) sb.append(' ').append(a);
+            }
+            return sb.toString();
+        }
     }
 
     public static Result run(ScheduleItem it) {
@@ -43,14 +88,14 @@ public final class ScheduleRunner {
     }
 
     public static Result run(ScheduleItem it, long now, TreeOps.LinkProbe probe) {
-        if (it == null) return new Result(0, "任务为空");
-        if (!it.actionKnown()) return new Result(0, "未知动作: " + it.action);
+        if (it == null) return new Result(0, Result.E_EMPTY_TASK);
+        if (!it.actionKnown()) return new Result(0, Result.E_UNKNOWN_ACTION, it.action);
         String t = it.target == null ? "" : it.target.trim();
-        if (t.isEmpty()) return new Result(0, "没有设置目标目录");
-        if (isDangerous(t)) return new Result(0, "这个目录不能作为目标: " + t);
+        if (t.isEmpty()) return new Result(0, Result.E_NO_TARGET);
+        if (isDangerous(t)) return new Result(0, Result.E_DANGEROUS, t);
         File dir = new File(t);
-        if (!dir.exists()) return new Result(0, "目标不存在: " + t);
-        if (!dir.isDirectory()) return new Result(0, "目标不是目录: " + t);
+        if (!dir.exists()) return new Result(0, Result.E_NOT_EXIST, t);
+        if (!dir.isDirectory()) return new Result(0, Result.E_NOT_DIR, t);
         TreeOps.LinkProbe p = probe == null ? TreeOps.SYSTEM : probe;
 
         if (ScheduleItem.ACTION_CLEAN.equals(it.action)) return clean(dir, p);
@@ -83,7 +128,7 @@ public final class ScheduleRunner {
     /** 清空目录内容，保留目录本身 */
     private static Result clean(File dir, TreeOps.LinkProbe probe) {
         File[] kids = dir.listFiles();
-        if (kids == null) return new Result(0, "无法列出目录（权限不足，或被系统限制）");
+        if (kids == null) return new Result(0, Result.E_LIST_FAIL);
         int ok = 0, bad = 0;
         for (int i = 0; i < kids.length; i++) {
             if (isVaultDir(kids[i])) continue;   // v2.18.0：隐私空间绝不清
@@ -91,18 +136,18 @@ public final class ScheduleRunner {
             else bad++;
         }
         // 部分失败要说清：报「成功」但删不掉的东西还在，下次来还在那儿堆着
-        return bad == 0 ? new Result(ok, null)
-                : new Result(ok, "有 " + bad + " 项删不掉（权限不足或被占用）");
+        return bad == 0 ? new Result(ok, Result.E_NONE)
+                : new Result(ok, Result.E_CLEAN_PARTIAL, bad);
     }
 
     /** 删除超过 N 天没修改的文件；空目录不动（可能是用户刻意留的结构） */
     private static Result expire(File dir, long now, int days, TreeOps.LinkProbe probe) {
-        if (days <= 0) return new Result(0, "保留天数必须大于 0");
+        if (days <= 0) return new Result(0, Result.E_BAD_DAYS);
         long cut = now - days * 86400000L;
         int[] cnt = new int[2];      // [0]=删掉，[1]=删不掉
         walk(dir, cut, probe, cnt, 0);
-        return cnt[1] == 0 ? new Result(cnt[0], null)
-                : new Result(cnt[0], "有 " + cnt[1] + " 个文件删不掉（权限不足或被占用）");
+        return cnt[1] == 0 ? new Result(cnt[0], Result.E_NONE)
+                : new Result(cnt[0], Result.E_EXPIRE_PARTIAL, cnt[1]);
     }
 
     private static void walk(File dir, long cut, TreeOps.LinkProbe probe, int[] cnt, int depth) {
@@ -140,18 +185,19 @@ public final class ScheduleRunner {
     /** 压成「目录名.zip」，放在目录的父目录里（覆盖同名旧包） */
     private static Result zip(File dir, TreeOps.LinkProbe probe) {
         File parent = dir.getParentFile();
-        if (parent == null) return new Result(0, "目标目录没有上级，无法决定压缩包放哪");
+        if (parent == null) return new Result(0, Result.E_NO_PARENT);
         File[] kids = dir.listFiles();
-        if (kids == null) return new Result(0, "无法列出目录（权限不足，或被系统限制）");
-        if (kids.length == 0) return new Result(0, "目录是空的，没有可压缩的内容");
+        if (kids == null) return new Result(0, Result.E_LIST_FAIL);
+        if (kids.length == 0) return new Result(0, Result.E_EMPTY_DIR);
         File out = new File(parent, dir.getName() + ".zip");
         // 隐私空间不进压缩包：包可能被随手分享出去，而用户要的恰恰是它不出去
         java.util.List<File> pack = new java.util.ArrayList<File>();
         for (int i = 0; i < kids.length; i++) {
             if (!isVaultDir(kids[i])) pack.add(kids[i]);
         }
-        if (pack.isEmpty()) return new Result(0, "目录里只有隐私空间，没有可压缩的内容");
+        if (pack.isEmpty()) return new Result(0, Result.E_VAULT_ONLY);
         boolean ok = ZipUtil.createZip(out, pack, probe);
-        return ok ? new Result(pack.size(), null) : new Result(0, "压缩失败: " + out.getPath());
+        return ok ? new Result(pack.size(), Result.E_NONE)
+                : new Result(0, Result.E_ZIP_FAIL, out.getPath());
     }
 }
