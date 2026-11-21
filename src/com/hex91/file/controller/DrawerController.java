@@ -93,7 +93,7 @@ public final class DrawerController {
                 closeDrawer();
                 host.loadDir(host.active(), new File("/"), true);
                 if (!RootUtil.isRootAvailable())
-                    host.toast("未获取 Root，仅能浏览可读部分（/data 等目录不可见）");
+                    host.toast(host.ctx().getString(R.string.ctrl_root_hint));
             }
         });
         host.find(R.id.drawer_sd).setOnClickListener(new View.OnClickListener() {
@@ -256,7 +256,8 @@ public final class DrawerController {
                 host.ui(new Runnable() {
                     public void run() {
                         TextView tv = (TextView) host.find(R.id.drawer_rootstat);
-                        tv.setText(ok ? "Root: 已授权 ✓" : "Root: 未获取");
+                        tv.setText(host.ctx().getString(ok
+                                ? R.string.ctrl_root_state_on : R.string.ctrl_root_state_off));
                         tv.setTextColor(ok ? 0xFFAED581 : 0xFF90A4AE);
                     }
                 });

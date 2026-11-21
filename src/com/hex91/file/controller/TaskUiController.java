@@ -210,14 +210,15 @@ public final class TaskUiController {
             if (running.cancelRequested) {
                 // 取消标志每 128KB 才检查一次，写大块数据时还会晚几百毫秒；
                 // 这段时间必须给出反馈，否则按钮看起来「点了没反应」，用户会连点。
-                taskText.setText("正在取消 " + FsText.taskTitle(host.ctx(), running) + "…");
-                taskAction.setText("取消中");
+                taskText.setText(host.ctx().getString(R.string.ctrl_task_canceling,
+                        FsText.taskTitle(host.ctx(), running)));
+                taskAction.setText(host.ctx().getString(R.string.ctrl_task_cancel_doing));
                 taskAction.setEnabled(false);
                 taskAction.setAlpha(0.45f);
             } else {
-                StringBuilder sb = new StringBuilder("正在")
-                        .append(FsText.taskTitle(host.ctx(), running))
-                        .append(" · ").append(pct).append('%');
+                StringBuilder sb = new StringBuilder(host.ctx().getString(
+                        R.string.ctrl_task_running,
+                        FsText.taskTitle(host.ctx(), running), pct));
                 long sp = running.speed(System.currentTimeMillis());
                 if (sp > 0) sb.append(" · ").append(FileOps.formatSize(sp)).append("/s");
                 // 「另 N 项」里可能既有排队也有已暂停，分开数才不误导
@@ -227,10 +228,12 @@ public final class TaskUiController {
                     if (t.pausable()) queue++;
                     else if (t.resumable()) hold++;
                 }
-                if (queue > 0) sb.append(" · 另 ").append(queue).append(" 项排队");
-                if (hold > 0) sb.append(" · ").append(hold).append(" 项暂停");
+                if (queue > 0) sb.append(host.ctx().getResources()
+                        .getQuantityString(R.plurals.ctrl_task_queue_more, queue, queue));
+                if (hold > 0) sb.append(host.ctx().getResources()
+                        .getQuantityString(R.plurals.ctrl_task_hold_more, hold, hold));
                 taskText.setText(sb.toString());
-                taskAction.setText("取消");
+                taskAction.setText(host.ctx().getString(R.string.ctrl_task_cancel));
                 taskAction.setEnabled(true);
                 taskAction.setAlpha(1f);
             }
@@ -238,7 +241,7 @@ public final class TaskUiController {
             barMode = BAR_VIEW;
             taskProgress.setProgress(100);
             taskText.setText(resultLine(last));
-            taskAction.setText("查看");
+            taskAction.setText(host.ctx().getString(R.string.ctrl_task_view));
             taskAction.setEnabled(true);
             taskAction.setAlpha(1f);
             host.ui().removeCallbacks(hideTaskBar);
@@ -250,13 +253,14 @@ public final class TaskUiController {
         String title = FsText.taskTitle(host.ctx(), t);
         switch (t.state) {
             case FileTask.DONE:
-                return "✓ " + title + "完成 · " + FileOps.formatSize(t.totalBytes);
+                return host.ctx().getString(R.string.ctrl_task_done,
+                        title, FileOps.formatSize(t.totalBytes));
             case FileTask.PARTIAL:
-                return "⚠ " + title + "，失败 " + t.failedFiles + " 项";
+                return host.ctx().getString(R.string.ctrl_task_partial, title, t.failedFiles);
             case FileTask.FAILED:
-                return "✗ " + title + "失败";
+                return host.ctx().getString(R.string.ctrl_task_failed, title);
             case FileTask.CANCELLED:
-                return "已取消 " + title;
+                return host.ctx().getString(R.string.ctrl_task_cancelled, title);
             default:
                 return title;
         }
@@ -275,7 +279,7 @@ public final class TaskUiController {
         final List<TaskJournal.Entry> pending = store.load();
         FileTaskEngine.get().setJournalStore(store);
         if (pending.isEmpty()) return;
-        host.toast("上次有任务被中断");
+        host.toast(host.ctx().getString(R.string.ctrl_journal_toast));
         host.post(new Runnable() {
             public void run() { showInterrupted(pending, store); }
         });
@@ -285,25 +289,27 @@ public final class TaskUiController {
         if (!host.alive()) return;
         int items = 0;
         for (TaskJournal.Entry e : pending) items += e.srcs.size();
-        StringBuilder sb = new StringBuilder();
-        sb.append(pending.size()).append(" 个任务（共 ").append(items)
-                .append(" 项文件）上次没有做完。\n\n可能是被系统清理，或应用被强制结束。\n\n");
-        sb.append("目标目录：").append(pending.get(0).dstDir.getPath());
-        if (pending.size() > 1) sb.append(" 等");
+        String etc = pending.size() > 1
+                ? host.ctx().getString(R.string.ctrl_journal_more) : "";
+        String msg = host.ctx().getString(R.string.ctrl_journal_msg,
+                pending.size(), items, pending.get(0).dstDir.getPath(), etc);
         new HfDialogBuilder(host.ctx())
-                .setTitle("上次有任务没做完")
-                .setMessage(sb.toString())
-                .setPositiveButton("重试", new android.content.DialogInterface.OnClickListener() {
+                .setTitle(host.ctx().getString(R.string.ctrl_journal_title))
+                .setMessage(msg)
+                .setPositiveButton(host.ctx().getString(R.string.ctrl_journal_retry),
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         int n = 0;
                         for (TaskJournal.Entry e : pending) {
                             if (FileTaskEngine.get().submit(e.kind, e.srcs, e.dstDir) != null) n++;
                         }
                         TaskService.start(host.ctx());
-                        host.toast("已重新提交 " + n + " 个任务");
+                        host.toast(host.ctx().getString(
+                                R.string.ctrl_journal_resubmitted, n));
                     }
                 })
-                .setNegativeButton("忽略", new android.content.DialogInterface.OnClickListener() {
+                .setNegativeButton(host.ctx().getString(R.string.ctrl_journal_ignore),
+                        new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
                         store.clear();      // 只清 running_task_json 这一个键
                     }

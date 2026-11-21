@@ -1,5 +1,6 @@
 package com.hex91.file.controller;
 
+import com.hex91.file.R;
 import com.hex91.file.ui.FsText;
 import com.hex91.file.utils.Bg;
 import com.hex91.file.fs.DirReader;
@@ -78,7 +79,9 @@ public final class DirectoryController {
     public boolean loadDir(Pane p, File dir, boolean push) {
         // v1.42.0：root 设备上 stat 可能被拒（ls 才需要 su），放行交给 DirReader 的 root 回退
         if (dir == null || (!dir.isDirectory() && !RootUtil.isRootAvailable())) {
-            Toast.makeText(host.ctx(), "无法访问: " + dir, Toast.LENGTH_SHORT).show();
+            Toast.makeText(host.ctx(),
+                    host.ctx().getString(R.string.ctrl_dir_no_access, String.valueOf(dir)),
+                    Toast.LENGTH_SHORT).show();
             return false;
         }
         // v1.98.0：同一目录、上一次还在读 → 直接忽略。
@@ -151,7 +154,8 @@ public final class DirectoryController {
                 p.fileCount = 0;
                 host.updateHeader();
                 if (p.pull != null) p.pull.finishRefresh();
-                if (host.alive()) host.toast("读取超时: " + dir.getName());
+                if (host.alive()) host.toast(host.ctx().getString(
+                        R.string.ctrl_read_timeout, dir.getName()));
             }
         }, LOAD_TIMEOUT_MS);
         return true;
@@ -169,7 +173,8 @@ public final class DirectoryController {
             p.dirCount = 0;
             p.fileCount = 0;
             host.updateHeader();
-            host.toast("读取失败: " + FsText.readError(host.ctx(), r == null ? null : r.error));
+            host.toast(host.ctx().getString(R.string.ctrl_read_fail,
+                    FsText.readError(host.ctx(), r == null ? null : r.error)));
             return;
         }
         p.adapter.setResult(r);
@@ -182,7 +187,7 @@ public final class DirectoryController {
         for (FileItem it : r.items) {
             if (!it.upEntry) { onlyUp = false; break; }
         }
-        if (onlyUp) host.toast("此文件夹为空");
+        if (onlyUp) host.toast(host.ctx().getString(R.string.ctrl_dir_empty));
     }
 
     /** 两栏一起刷新（不进历史栈） */
@@ -294,7 +299,8 @@ public final class DirectoryController {
         }
         int ni = p.hIndex + delta;
         if (ni < 0 || ni >= p.history.size()) {
-            host.toast(delta < 0 ? "没有更早的历史" : "没有更新的历史");
+            host.toast(host.ctx().getString(
+                    delta < 0 ? R.string.ctrl_hist_older : R.string.ctrl_hist_newer));
             return;
         }
         p.hIndex = ni;
@@ -302,7 +308,7 @@ public final class DirectoryController {
         if (dir.isDirectory()) {
             loadDir(p, dir, false);
         } else {
-            host.toast("目录已不存在");
+            host.toast(host.ctx().getString(R.string.ctrl_dir_gone));
             p.history.remove(ni);
             p.hIndex = Math.min(p.hIndex, p.history.size() - 1);
         }

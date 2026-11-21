@@ -3293,4 +3293,39 @@
     <string name="ut_shiz_request_unsupported">System version too old; Shizuku requires Android 6.0 or newer</string>
     <string name="ut_shiz_request_fail">Cannot request permission: %1$s</string>
     <string name="ut_shiz_not_ready">Shizuku is not ready or not authorized</string>
+
+    <string name="ctrl_dir_no_access">Cannot access: %1$s</string>
+    <string name="ctrl_read_timeout">Read timed out: %1$s</string>
+    <string name="ctrl_read_fail">Failed to read: %1$s</string>
+    <string name="ctrl_dir_empty">This folder is empty</string>
+    <string name="ctrl_hist_older">No earlier history</string>
+    <string name="ctrl_hist_newer">No later history</string>
+    <string name="ctrl_dir_gone">Directory no longer exists</string>
+    <string name="ctrl_root_hint">Root not granted; only readable paths are browsable (/data and similar are hidden)</string>
+    <string name="ctrl_root_state_on">Root: granted ✓</string>
+    <string name="ctrl_root_state_off">Root: not granted</string>
+    <string name="ctrl_task_canceling">Cancelling %1$s…</string>
+    <string name="ctrl_task_cancel_doing">Cancelling</string>
+    <string name="ctrl_task_running">Running %1$s · %2$d%%</string>
+    <string name="ctrl_task_cancel">Cancel</string>
+    <string name="ctrl_task_view">View</string>
+    <string name="ctrl_task_done">✓ %1$s done · %2$s</string>
+    <string name="ctrl_task_partial">⚠ %1$s, %2$d failed</string>
+    <string name="ctrl_task_failed">✗ %1$s failed</string>
+    <string name="ctrl_task_cancelled">%1$s cancelled</string>
+    <string name="ctrl_journal_toast">A task was interrupted last time</string>
+    <string name="ctrl_journal_title">A task did not finish last time</string>
+    <string name="ctrl_journal_msg">%1$d task(s) (%2$d file(s)) did not finish last time.\n\nThe app may have been cleared by the system or force-stopped.\n\nDestination: %3$s%4$s</string>
+    <string name="ctrl_journal_more">" etc."</string>
+    <string name="ctrl_journal_retry">Retry</string>
+    <string name="ctrl_journal_ignore">Ignore</string>
+    <string name="ctrl_journal_resubmitted">Resubmitted %1$d task(s)</string>
+    <plurals name="ctrl_task_queue_more">
+        <item quantity="one"> · %d more queued</item>
+        <item quantity="other"> · %d more queued</item>
+    </plurals>
+    <plurals name="ctrl_task_hold_more">
+        <item quantity="one"> · %d paused</item>
+        <item quantity="other"> · %d paused</item>
+    </plurals>
 </resources>

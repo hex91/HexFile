@@ -3301,4 +3301,39 @@
     <string name="ut_shiz_request_unsupported">当前系统版本过低，Shizuku 需要 Android 6.0 以上</string>
     <string name="ut_shiz_request_fail">无法请求授权：%1$s</string>
     <string name="ut_shiz_not_ready">Shizuku 未就绪或未授权</string>
+
+    <!-- v2.107.0（F-14/94）：controller 层文案。控制器的 Host.ctx() 能拿 Context，
+         所以直接走资源，不再需要额外的码表类。 -->
+    <string name="ctrl_dir_no_access">无法访问：%1$s</string>
+    <string name="ctrl_read_timeout">读取超时：%1$s</string>
+    <string name="ctrl_read_fail">读取失败：%1$s</string>
+    <string name="ctrl_dir_empty">此文件夹为空</string>
+    <string name="ctrl_hist_older">没有更早的历史</string>
+    <string name="ctrl_hist_newer">没有更新的历史</string>
+    <string name="ctrl_dir_gone">目录已不存在</string>
+    <string name="ctrl_root_hint">未获取 Root，仅能浏览可读部分（/data 等目录不可见）</string>
+    <string name="ctrl_root_state_on">Root: 已授权 ✓</string>
+    <string name="ctrl_root_state_off">Root: 未获取</string>
+    <string name="ctrl_task_canceling">正在取消 %1$s…</string>
+    <string name="ctrl_task_cancel_doing">取消中</string>
+    <string name="ctrl_task_running">正在%1$s · %2$d%%</string>
+    <string name="ctrl_task_cancel">取消</string>
+    <string name="ctrl_task_view">查看</string>
+    <string name="ctrl_task_done">✓ %1$s完成 · %2$s</string>
+    <string name="ctrl_task_partial">⚠ %1$s，失败 %2$d 项</string>
+    <string name="ctrl_task_failed">✗ %1$s失败</string>
+    <string name="ctrl_task_cancelled">已取消 %1$s</string>
+    <string name="ctrl_journal_toast">上次有任务被中断</string>
+    <string name="ctrl_journal_title">上次有任务没做完</string>
+    <string name="ctrl_journal_msg">%1$d 个任务（共 %2$d 项文件）上次没有做完。\n\n可能是被系统清理，或应用被强制结束。\n\n目标目录：%3$s%4$s</string>
+    <string name="ctrl_journal_more">" 等"</string>
+    <string name="ctrl_journal_retry">重试</string>
+    <string name="ctrl_journal_ignore">忽略</string>
+    <string name="ctrl_journal_resubmitted">已重新提交 %1$d 个任务</string>
+    <plurals name="ctrl_task_queue_more">
+        <item quantity="other"> · 另 %d 项排队</item>
+    </plurals>
+    <plurals name="ctrl_task_hold_more">
+        <item quantity="other"> · %d 项暂停</item>
+    </plurals>
 </resources>

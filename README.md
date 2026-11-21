@@ -1785,6 +1785,24 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.107.0（versionCode 300）—— F-14/94：controller 文案入资源，controller 包中文清零
+
+三个控制器都能从 `Host.ctx()` 拿到 Context，因此不需要额外的码表类，直接 `getString()`：
+
+- `DirectoryController`：无法访问 / 读取超时 / 读取失败 / 空目录 / 历史到头 / 目录已不存在
+  六条 toast 全部改资源；失败原因仍由 `FsText.readError()` 提供（ASCII 诊断串或 UNKNOWN 映射）。
+- `DrawerController`：未授权 Root 的提示、抽屉底部 `Root: 已授权 ✓ / 未获取` 状态行。
+- `TaskUiController`：任务条「正在取消 X…」「取消中」「正在 X · N%」「取消」「查看」，
+  结果行（完成 / 部分失败 / 失败 / 已取消 四种）、中断任务恢复对话框（标题 / 正文 /
+  目标目录 + 「等」/ 重试 / 忽略 / 已重新提交）。
+  排队与暂停两项用 `plurals`（中文 only other，英文 one/other），数字位置两侧一致。
+
+中文侧新增 26 个 `ctrl_*` 键 + 2 个 plurals，资源 3096 → 3124（100%）。四门全过、
+全量 97/0/4；APK 13,521,616 B（md5 `49ce02d2…`），badging 300/2.107.0。
+dex 反证：九条旧中文串全部不存在；`ctrl_*` 键均已在 resources.arsc 内。
+
+---
+
 ## v2.106.0（versionCode 299）—— F-14/93：utils 异常码化，utils 包中文清零
 
 新增 `utils/UtilError extends IOException`（7 码）+ `UtilText.errorText()`：
