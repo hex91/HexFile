@@ -192,6 +192,40 @@ public class ScheduleTest {
         ok(!ScheduleRunner.isDangerous("/sdcard/Download/cache"), "dangerous: 普通目录放行");
         ok(!ScheduleRunner.isDangerous("/storage/emulated/0/DCIM"), "dangerous: 存储子目录放行");
         ok(ScheduleRunner.isDangerous(null), "dangerous: null 被拒");
+
+        // R-42：真实存储根（Environment 的返回值，也是手输最常见的写法）必须拦
+        ok(ScheduleRunner.isDangerous("/storage/emulated/0"),
+                "R-42: /storage/emulated/0 被拒");
+        ok(ScheduleRunner.isDangerous("/storage/emulated/0/"),
+                "R-42: 尾斜杠不放过卷根");
+        ok(ScheduleRunner.isDangerous("//storage//emulated//0"),
+                "R-42: 重复斜杠不放过卷根");
+        ok(ScheduleRunner.isDangerous("/storage/emulated/0/../0"),
+                "R-42: .. 折叠后仍是卷根");
+        ok(ScheduleRunner.isDangerous("/Storage/Emulated/0"),
+                "R-42: 大小写变形不放过卷根");
+        ok(ScheduleRunner.isDangerous("/storage/1A2B-3C4D"),
+                "R-42: 可移动卷根被拒");
+        ok(ScheduleRunner.isDangerous("/mnt/media_rw/1A2B-3C4D"),
+                "R-42: media_rw 卷根被拒");
+        ok(ScheduleRunner.isDangerous("/storage/self"),
+                "R-42: /storage/self 这类别名被拒");
+        ok(!ScheduleRunner.isDangerous("/storage/emulated/0/Download/tmp"),
+                "R-42: 卷根之下两层放行");
+        ok(!ScheduleRunner.isDangerous("/storage/emulated/0/../0/DCIM"),
+                "R-42: .. 折叠后是子目录则放行");
+        // 注入的真实卷根（厂商自定义挂载点）：靠字符串规则认不出，必须比对清单
+        java.util.List<String> fakeRoots = new java.util.ArrayList<String>();
+        fakeRoots.add("/mnt/vendor/xyz");
+        ok(ScheduleRunner.isDangerous("/mnt/vendor/xyz", fakeRoots),
+                "R-42: 注入卷根本身被拒");
+        ok(ScheduleRunner.isDangerous("/mnt/vendor/xyz/", fakeRoots),
+                "R-42: 注入卷根带尾斜杠仍被拒");
+        ok(!ScheduleRunner.isDangerous("/mnt/vendor/xyz/sub", fakeRoots),
+                "R-42: 注入卷根的子目录放行");
+        ok(!ScheduleRunner.isDangerous("/mnt/vendor/xyzabcd", fakeRoots),
+                "R-42: 前缀相同的另一个目录不误伤");
+
         ScheduleItem dm = new ScheduleItem();
         dm.action = ScheduleItem.ACTION_CLEAN;
         dm.target = "/";

@@ -35,6 +35,15 @@ public class ZipBrowserActivity extends BaseActivity {
 
     private File archiveFile;
     private ArchiveUtil.Archive archive;
+    /**
+     * 解压线程（R-43）。onDestroy 要能通知它「到下一条目就停」并等它退出，
+     * 否则归档句柄先被关、线程在下一条目抛 IOException，正在写的那个条目留下半截。
+     */
+    private Thread extractThread;
+    /** 取消标志用字段而不用方法内的 boolean[]：onDestroy 够得着才谈得上「先停再关」 */
+    private volatile boolean extractCancel;
+    /** 解压是否还在进行（run() 的 finally 置回 false） */
+    private volatile boolean extractRunning;
     private String format = "ZIP";
     private File dest;
     private String prefix = "";
@@ -148,6 +157,19 @@ public class ZipBrowserActivity extends BaseActivity {
     @Override
     protected void onDestroy() {
         dead = true;                 // 搜索线程可能还在跑，回来后不许再碰 View
+        // R-43：先置取消、给线程 500ms 走到条目边界，再关归档。
+        // 直接 close 的话，后台解压会在下一条目抛 IOException，当前条目半截落盘且无人清理。
+        if (extractRunning) {
+            extractCancel = true;
+            Thread t = extractThread;
+            if (t != null) {
+                try {
+                    t.join(500);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
         if (archive != null) {
             try { archive.close(); } catch (IOException ignored) {}
         }
@@ -225,7 +247,9 @@ public class ZipBrowserActivity extends BaseActivity {
      * 会让用户以为解压停了，实际线程还在跑 —— 那种「静默完成」比多一个按钮更困惑。</p>
      */
     private void startExtract(final File target) {
-        final boolean[] cancel = {false};
+        // R-43：取消标志放到字段，onDestroy 才够得着；每次开始解压先复位
+        extractCancel = false;
+        extractRunning = true;
         extracting = true;
         final ProgressDialog pd = new ProgressDialog(this);
         pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
@@ -238,11 +262,11 @@ public class ZipBrowserActivity extends BaseActivity {
         pd.setButton(android.content.DialogInterface.BUTTON_NEGATIVE, s(R.string.common_cancel),
                 new android.content.DialogInterface.OnClickListener() {
                     public void onClick(android.content.DialogInterface d, int w) {
-                        cancel[0] = true;
+                        extractCancel = true;
                         pd.setMessage(ZipBrowserActivity.this.s(R.string.zip_stopping));
                     }
                 });
-        new Thread(new Runnable() {
+        Thread th = new Thread(new Runnable() {
             public void run() {
                 ArchiveExtract.Result r = ArchiveExtract.run(archive, target,
                         new ArchiveExtract.Listener() {
@@ -260,10 +284,11 @@ public class ZipBrowserActivity extends BaseActivity {
                             }
 
                             public boolean cancelled() {
-                                return cancel[0];
+                                return extractCancel;
                             }
                         });
                 final ArchiveExtract.Result fr = r;
+                extractRunning = false;      // 线程已过条目边界，归档可以安全关闭
                 runOnUiThread(new Runnable() {
                     public void run() {
                         extracting = false;
@@ -278,7 +303,9 @@ public class ZipBrowserActivity extends BaseActivity {
                     }
                 });
             }
-        }, "zip-extract").start();
+        }, "zip-extract");
+        extractThread = th;
+        th.start();
     }
 
     private void extractEntry(ArchiveUtil.Entry e) {

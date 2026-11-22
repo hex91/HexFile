@@ -1,6 +1,7 @@
 package com.hex91.file.ui;
 
 
+import com.hex91.file.fs.WorkDir;
 import com.hex91.file.net.RemoteServer;
 import com.hex91.file.R;
 import android.content.ClipboardManager;
@@ -36,6 +37,8 @@ public final class RemoteActivity extends BaseActivity {
 
     private static final int DEFAULT_PORT = 8765;
     private static final String PREFS = "remote";
+    /** R-45：16 位 × 32 字符集 ≈ 80 bit。原 8 位只有 40 bit，在线爆破可行 */
+    private static final int KEY_LEN = 16;
 
     private TextView mStatus, mUrl, mKey, mLog;
     private ImageView mQr;
@@ -64,9 +67,13 @@ public final class RemoteActivity extends BaseActivity {
         mToggle = findViewById(R.id.remote_toggle);
         mRegen = findViewById(R.id.remote_regen);
 
-        mAccessKey = getSharedPreferences(PREFS, MODE_PRIVATE).getString("key", null);
-        if (mAccessKey == null || mAccessKey.length() != 8) mAccessKey = genKey();
+        // R-45：密钥不再跨重启复用。原来「长度 8 就继续用」等于同一把 40 bit 密钥
+        // 长期有效；现在每次进入页面重新生成，并清掉历史持久化的旧值。
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove("key").apply();
+        mAccessKey = genKey();
         mKey.setText(mAccessKey);
+        // 「仅在可信网络使用」这句必须在页面常驻，不能只写在 README
+        ((TextView) findViewById(R.id.remote_hint)).setText(R.string.rmt_hint);
 
         mToggle.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { toggle(); }
@@ -99,9 +106,15 @@ public final class RemoteActivity extends BaseActivity {
             // 进程内已有服务（如 Activity 重建后）→ 直接接管，避免重复绑定端口失败
             if (sActive != null) {
                 mServer = sActive;
+                // 接管必须用旧服务的密钥：它校验的是构造时那一把，页面显示新的会全是 403
+                mAccessKey = sActive.accessKey();
+                mKey.setText(mAccessKey);
                 appendLog(getString(R.string.rmt_takeover));
                 return;
             }
+            // R-45：每次启动服务换一把新密钥（旧链接立即失效，页面上已写明）
+            mAccessKey = genKey();
+            mKey.setText(mAccessKey);
             File root = safeRoot();
             RemoteServer s = new RemoteServer(this, DEFAULT_PORT, root, mAccessKey,
                     new File(getCacheDir(), "remote_upload"), new RemoteServer.Listener() {
@@ -135,10 +148,16 @@ public final class RemoteActivity extends BaseActivity {
         }
     }
 
-    /** 服务根目录：外部存储根（不可用时回退应用私有目录） */
+    /**
+     * 服务根目录（R-45）：工作目录，而不是整个外部存储根。
+     *
+     * <p>原来给的是 {@code Environment.getExternalStorageDirectory()}：密钥一旦被猜中，
+     * 攻击面是 /sdcard 下的 DCIM、Download、Android/data 全部内容，而不只是一个子目录。
+     * 现在默认只开放工作目录；需要更大范围时应该由用户在页面显式选目录（后续再做）。</p>
+     */
     private File safeRoot() {
-        File sd = android.os.Environment.getExternalStorageDirectory();
-        if (sd != null && sd.isDirectory() && sd.canRead()) return sd;
+        File base = WorkDir.base();
+        if (base != null && base.isDirectory() && base.canRead()) return base;
         return getExternalFilesDir(null) != null ? getExternalFilesDir(null) : getFilesDir();
     }
 
@@ -224,14 +243,22 @@ public final class RemoteActivity extends BaseActivity {
         }
     }
 
+    /**
+     * 生成访问密钥（R-45）。
+     *
+     * <p>原来用 {@code java.util.Random}：种子可由 {@code System.nanoTime()} 一类外部可观测值
+     * 推算，8 位字符只有约 40 bit 熵，而服务端又不限速 —— 同一 Wi-Fi 下在线爆破是可行的。
+     * 一次猜中即拥有浏览 / 下载 / 上传 / 删除全部能力，攻击面是整个服务根。</p>
+     *
+     * <p>现在用 {@code SecureRandom}、长度 16（约 80 bit），且不再落盘：密钥只活在进程内，
+     * 服务停了就作废。</p>
+     */
     private String genKey() {
-        java.util.Random r = new java.util.Random();
-        StringBuilder sb = new StringBuilder(8);
+        java.security.SecureRandom r = new java.security.SecureRandom();
+        StringBuilder sb = new StringBuilder(KEY_LEN);
         String chars = "abcdefghjkmnpqrstuvwxyz23456789";
-        for (int i = 0; i < 8; i++) sb.append(chars.charAt(r.nextInt(chars.length())));
-        String k = sb.toString();
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("key", k).apply();
-        return k;
+        for (int i = 0; i < KEY_LEN; i++) sb.append(chars.charAt(r.nextInt(chars.length())));
+        return sb.toString();
     }
 
     private void regenKey() {

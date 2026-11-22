@@ -12,6 +12,8 @@ cd "$(dirname "$0")/.."
 # 现在只维护一份：环境变量优先 → 常见位置探测 → 明确报错。
 #   JH=/path/to/jdk/bin   BT=/path/to/build-tools/37.0.0   ANDJ=/path/to/android.jar
 . "$(dirname "$0")/../tools/toolchain.sh"
+# R-44：缺样本判据与 run_all.sh 共用一份，两个入口对同一环境必须同一结论。
+. "$(dirname "$0")/../tools/testlib.sh"
 echo "JDK=$JH  BT=$BT"
 CP="build/obj${SEP}libs/*${SEP}$APKSIG${SEP}$ANDJ"
 OUT="test/bin_core"
@@ -29,13 +31,13 @@ SRCS=$(ls test/*.java | grep -vE "RarProbe|ArscDbgB")
 "$JH/javac$EXE" -J-Dfile.encoding=UTF-8 -encoding UTF-8 -nowarn -cp "$CP" -d "$OUT" $SRCS \
   || { echo "COMPILE FAIL"; exit 2; }
 
-ALL="DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest SessionTest SignPromptFlowTest CustomSignE2ETest ArscPreviewTest HexLayoutTest FileInspectTest KeystoreCreateTest ActivityLogTest ToolboxCoreTest TestDataCoreTest MimeUtilTest DiskScanTest UiKitTest ScanCacheTest LanProtocolTest UiDecorTest FileTaskTest FileClipboardTest FileAttrsTest ContentGrepTest LinkUtilTest TrashPolicyTest CredentialCodecTest ContrastTest WorkDirTest DocPathTest WidgetTextTest SyncPlanTest ResumePlanTest DragPlanTest S3SignerTest JsonTest OAuthTokenTest CloudPathTest Iso8601Test TokenHarvestTest M3u8PlaylistTest StreamUrlTest PlaySpeedTest HlsPlaylistTest ScreenPolicyTest AuditFixTest HlsDownloaderTest DirReaderTest TreeOpsTest TaskListenerTest AtomicReplaceTest ZipUtilTest TaskJournalTest LeftoverScanTest FileItemCacheTest LanReserveTest FileOpsTest IntentImportTest CrashLogTest ArchCompareTest SplitPackageTest EntryNamesTest ArchiveEditTest LanScanTest TaskPauseTest ArchiveSearchTest ScheduleTest VaultTest"
+ALL="DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest SessionTest SignPromptFlowTest CustomSignE2ETest ArscPreviewTest HexLayoutTest FileInspectTest KeystoreCreateTest ActivityLogTest ToolboxCoreTest TestDataCoreTest MimeUtilTest DiskScanTest UiKitTest ScanCacheTest LanProtocolTest UiDecorTest FileTaskTest FileClipboardTest FileAttrsTest ContentGrepTest LinkUtilTest TrashPolicyTest CredentialCodecTest ContrastTest WorkDirTest DocPathTest WidgetTextTest SyncPlanTest ResumePlanTest DragPlanTest S3SignerTest JsonTest OAuthTokenTest CloudPathTest Iso8601Test TokenHarvestTest M3u8PlaylistTest StreamUrlTest PlaySpeedTest HlsPlaylistTest ScreenPolicyTest AuditFixTest HlsDownloaderTest DirReaderTest TreeOpsTest TaskListenerTest AtomicReplaceTest ZipUtilTest TaskJournalTest LeftoverScanTest FileItemCacheTest LanReserveTest FileOpsTest IntentImportTest CrashLogTest ArchCompareTest SplitPackageTest EntryNamesTest ArchiveEditTest LanScanTest TaskPauseTest ArchiveSearchTest ScheduleTest VaultTest VaultExcludeTest"
 
 if [ $# -gt 0 ]; then
   TESTS="$*"
 elif [ "${QUICK:-0}" = "1" ]; then
   # 重签/会话类用例要真跑 apksig 打包，几十秒起，改 UI 时没必要每次都等
-  TESTS="DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest ArscPreviewTest HexLayoutTest FileInspectTest KeystoreCreateTest ActivityLogTest ToolboxCoreTest TestDataCoreTest MimeUtilTest DiskScanTest UiKitTest ScanCacheTest LanProtocolTest UiDecorTest FileTaskTest FileClipboardTest FileAttrsTest ContentGrepTest LinkUtilTest TrashPolicyTest CredentialCodecTest ContrastTest WorkDirTest DocPathTest WidgetTextTest SyncPlanTest ResumePlanTest DragPlanTest S3SignerTest JsonTest OAuthTokenTest CloudPathTest Iso8601Test TokenHarvestTest M3u8PlaylistTest StreamUrlTest PlaySpeedTest HlsPlaylistTest ScreenPolicyTest AuditFixTest HlsDownloaderTest DirReaderTest TreeOpsTest TaskListenerTest AtomicReplaceTest ZipUtilTest TaskJournalTest LeftoverScanTest FileItemCacheTest LanReserveTest FileOpsTest IntentImportTest CrashLogTest ArchCompareTest SplitPackageTest EntryNamesTest ArchiveEditTest LanScanTest TaskPauseTest ArchiveSearchTest ScheduleTest VaultTest"
+  TESTS="DexPropsTest KeyStoreUtilTest SignSchemeTest TreeMergeTest BakTest ArscPreviewTest HexLayoutTest FileInspectTest KeystoreCreateTest ActivityLogTest ToolboxCoreTest TestDataCoreTest MimeUtilTest DiskScanTest UiKitTest ScanCacheTest LanProtocolTest UiDecorTest FileTaskTest FileClipboardTest FileAttrsTest ContentGrepTest LinkUtilTest TrashPolicyTest CredentialCodecTest ContrastTest WorkDirTest DocPathTest WidgetTextTest SyncPlanTest ResumePlanTest DragPlanTest S3SignerTest JsonTest OAuthTokenTest CloudPathTest Iso8601Test TokenHarvestTest M3u8PlaylistTest StreamUrlTest PlaySpeedTest HlsPlaylistTest ScreenPolicyTest AuditFixTest HlsDownloaderTest DirReaderTest TreeOpsTest TaskListenerTest AtomicReplaceTest ZipUtilTest TaskJournalTest LeftoverScanTest FileItemCacheTest LanReserveTest FileOpsTest IntentImportTest CrashLogTest ArchCompareTest SplitPackageTest EntryNamesTest ArchiveEditTest LanScanTest TaskPauseTest ArchiveSearchTest ScheduleTest VaultTest VaultExcludeTest"
 else
   TESTS="$ALL"
 fi
@@ -56,13 +58,10 @@ for t in $TESTS; do
   # 内部直接调 ApkSignerTool.sign —— 缺样本时不是 SKIP 而是 FAIL，新机器上跑
   # `bash test/run_core.sh`（ALL=58）会无条件变红，第一反应却是「代码坏了」。
   # SessionTest 还要读 assets/hexfile.p12（内置密钥），单独判一次。
-  need_p12=0
-  case "$t" in
-    KeyStoreUtilTest|SignSchemeTest|ArscPreviewTest|FileInspectTest|\
-    SignPromptFlowTest|CustomSignE2ETest) needs_apk=1;;
-    SessionTest) needs_apk=1; need_p12=1;;
-    *) needs_apk=0;;
-  esac
+  # R-44：名单已抽到 tools/testlib.sh，与 run_all.sh 共用，避免两处再次走偏。
+  needs_apk=0; need_p12=0
+  test_needs_apk "$t" && needs_apk=1
+  test_needs_p12 "$t" && need_p12=1
   if [ "$needs_apk" = "1" ] && [ ! -f test/huangguo.apk ]; then
     printf '[..] %-20s SKIP (缺 test/huangguo.apk)\n' "$t"
     skipped=$((skipped + 1))

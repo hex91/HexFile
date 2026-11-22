@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：2651 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：3142 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1782,6 +1782,101 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.111.0（versionCode 304）—— 安全批：隐私空间排除 / 防截屏宽限锁 / 卷根判定 / 远程密钥 / 解压退出
+
+按 §24.3 与 §24.8 的审计结论修 6 项，全部属于「不修会真的丢数据或泄露」；
+另附 R-44 把全量测试入口从开发机解绑 —— 否则后面所有验收数字都只在同一台机器上成立。
+
+### R-44：`test/run_all.sh` 不再硬编码本机路径
+
+原来 `JH="D:/Program Files/Java/zulu17.38.21/bin"`、`BT="E:/repo/android/Sdk/build-tools/37.0.0"`、
+`CP` 用 `;` 拼 —— 任何没有这两个盘符的机器（CI、Linux、同事的笔记本）必然失败，
+而 README 的「全量」正是这个入口。现在与 `run_core.sh` 共用 `tools/toolchain.sh`；
+缺样本判据抽到新文件 `tools/testlib.sh`（`test_needs_apk` / `test_needs_p12`），
+两个入口对同一环境给出同一结论：
+
+| 场景 | run_core | run_all |
+| --- | --- | --- |
+| 缺 `test/huangguo.apk` | `SKIP (缺 test/huangguo.apk)` | 同左（原来 7 个 FAIL） |
+| 有样本 | 70/0/0 | 98/0/4 |
+
+`grep -n 'D:/\|E:/' test/*.sh` 只剩注释。
+
+### R-39：隐私空间从搜索 / 存储分析 / 查重中排除（P2）
+
+原来 `SearchActivity.walk` 只跳过回收站，`DiskScanUtil` 直接 `listFiles()` ——
+搜 `*.bin` 会列出 `.vault/b/<id>.bin`，用户能点开、能删，删一个 blob 就是一条记录永久丢失。
+判据收口到 `VaultStore.isVaultDir` / `isInsideVault`（目录名 `.vault` **且**有 `v.hdr`，
+不是只看名字），三处共用：
+
+- `SearchActivity.walk`：整棵树跳过；
+- `DiskScanUtil.analyze`：**容量照算**（否则总占用与真实剩余对不上），子项不进 Top N、
+  不登记为可点击子目录 —— 新增 `quiet` 递归模式；
+- `topFiles` / `findDuplicates`：不参与排行、不读密文；
+- `ScheduleRunner.isVaultDir` 改为委托同一函数，三处判据不再各写一份。
+
+用户自己建的、只是叫 `.vault` 的普通目录仍照常统计与搜索 —— 只看名字会让一棵正常目录
+无故消失，而用户没有任何线索。
+
+### R-40：防截屏 + 30 秒宽限锁定（P3）
+
+`VaultActivity.onCreate` 加 `FLAG_SECURE`：解锁后的文件名、大小不再出现在截图、录屏、
+最近任务预览里。`onStop` 从「立即 `lock()`」改成「记 30 秒宽限」：
+`onStart` 回来就取消，超时才清主密钥；`onDestroy` 立即清（页面真没了，宽限没有意义）。
+文件选择器与后台任务两个例外保持原样。
+
+### R-42：危险目录判定补上真实存储根（P2）
+
+`isDangerous` 原来只拦 `/`、`/system`、`/sdcard` 这类**挂载点本身**，而
+`Environment.getExternalStorageDirectory()` 返回的 `/storage/emulated/0` 恰好不在名单里 ——
+最需要拦的那种写法被放行，一次「清空目录」就删掉 DCIM / Download / Android/data。
+
+现在三层：
+
+1. 纯路径规则：`/storage/<一级>`（含 `emulated/<用户>`、`XXXX-XXXX` 卷）、`/mnt/media_rw/<一级>`、
+   `/mnt/user/<一级>` 一律视为卷根；子目录放行；
+2. `.` / `..` 折叠（自己实现，不用 API 26 的 `Paths`；Windows 桌面上 `/x` 会被解析成当前盘根，
+   单测与真机结论会不一致）；
+3. 调用方注入真实卷根（`sched/VolumeRoots`：`Environment` + `getExternalFilesDirs` + `StorageManager`，
+   API 30+ 用 `getDirectory()`、24–29 用 `getUuid()` 拼），保存与执行两条路径都注入。
+
+单测覆盖：卷根、尾斜杠、重复斜杠、`..`、大小写、可移动卷、注入的厂商挂载点、前缀相近不误伤。
+
+### R-43：解压中退出不再留下半截条目（P3）
+
+`onDestroy` 原来无条件 `archive.close()`，后台解压线程在下一条目抛 `IOException`，
+当前条目留半截且不会自动清理。现在取消标志从方法内 `boolean[]` 提为字段，
+`onDestroy` 先置取消、`join(500ms)` 等线程走到条目边界，再关归档。
+
+### R-45：远程管理密钥换 SecureRandom + 每次启动轮换 + 失败限速 + 根目录收窄（P2）
+
+审计里攻击面最大的一处：`java.util.Random` 生成 8 位密钥（约 40 bit，种子可由
+`nanoTime` 推算）、跨重启复用、服务端不限速、服务根是整个外部存储。
+
+- 密钥改 `SecureRandom`、长度 16（约 80 bit），不再落盘，服务停了就作废；
+- 每次启动服务重新生成；老 URL 立即 403（页面文案已写明）；
+- `RemoteServer` 记录源 IP 失败次数，连续 8 次错误 → 封禁 5 分钟并写一条访问日志；
+- 服务根默认改为 `WorkDir.base()`（工作目录），不再默认开放整个 `/sdcard`；
+- 页面常驻提示「本服务不加密传输，仅在可信网络使用」。
+
+### R-46：锁定后主密钥清零（P3）
+
+`master = null` 只是「引用没了」，64 字节密钥仍在堆里等 GC，而 GC 不保证覆写。
+`VaultCrypto.Master` 加 `destroy()`（`Arrays.fill(enc/mac, 0)`）；
+`wrapHeader` / `openHeader` 派生的 KEK 与中间 `vaultKey` 在 `finally` 里清零（口令输错的分支同样会派生，
+原来每次输错都留一份）；`VaultActivity` 统一走 `dropMaster()`，三态切换、锁定、销毁三条路径同一出口。
+
+### 验证
+
+- 四门：依赖方向 PASS、空 catch **335**（与基线一致，新增代码零空 catch）、
+  文案键 3142/3142 中英 100%、动作码 55 一致；
+- 全量：`run_core` 70/0/0，`run_all` **98/0/4**（新增 `VaultExcludeTest`）；
+- 缺样本路径实测：`TEST_APK=/nonexistent.apk bash test/run_all.sh FileInspectTest` → `SKIP`；
+- 资源 3140 → 3142（新增 `rmt_hint` / `rmt_log_key_blocked`）；
+- APK 13,521,616 B（md5 `8638225c…`），badging 304/2.111.0。
 
 ---
 

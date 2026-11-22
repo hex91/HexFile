@@ -6,6 +6,7 @@ import com.hex91.file.MainActivity;
 import com.hex91.file.fs.ContentGrep;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.fs.Trash;
+import com.hex91.file.fs.VaultStore;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
@@ -297,6 +298,9 @@ public class SearchActivity extends BaseActivity {
             String n = f.getName();
             // 回收站里的东西是被「删除」的，不该出现在搜索结果里（旧代码只比较了目录名，永远不命中）
             if (f.isDirectory() && f.getAbsolutePath().equals(Trash.dir().getAbsolutePath())) continue;
+            // R-39：隐私空间整体跳过。密文不泄露明文名，但结果行能被点开、能被删 ——
+            // 删掉一个 b/<id>.bin 就是一条记录永久丢失，比「看不到」糟得多。
+            if (f.isDirectory() && VaultStore.isVaultDir(f)) continue;
             if (f.isDirectory()) {
                 if (ft.content == null && accept(f, ft, now)) results.add(f);
                 walk(f, ft, depth + 1);

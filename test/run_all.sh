@@ -5,12 +5,16 @@
 set -u
 cd "$(dirname "$0")/.."
 
-JH="D:/Program Files/Java/zulu17.38.21/bin"
-if [ -x "${JAVA_HOME:-}/bin/javac.exe" ]; then JH="$JAVA_HOME/bin"; fi
-JAVAC="$JH/javac"; JAVA="$JH/java"
-BT="E:/repo/android/Sdk/build-tools/37.0.0"
-ANDJ="E:/repo/android/Sdk/platforms/android-35/android.jar"
-CP="build/obj;libs/*;$BT/lib/apksigner.jar;$ANDJ"
+# ---- 工具链定位 -------------------------------------------------------------
+# R-44：原来这里写死 D:/Program Files/Java/zulu17.38.21 与 E:/repo/android/Sdk，
+# 且用 ';' 拼 classpath —— 任何没有这两个盘符的机器（含 CI、Linux）必然失败，
+# 而 README 的「全量 97/0/4」正是这个脚本的口径。现在与 run_core.sh 共用
+# tools/toolchain.sh：环境变量优先 → 常见位置探测 → 缺东西 exit 2 + 可操作提示。
+. "$(dirname "$0")/../tools/toolchain.sh"
+# 缺样本的判据也要共用，否则两个入口对同一环境给出相反结论（见 tools/testlib.sh）。
+. "$(dirname "$0")/../tools/testlib.sh"
+JAVAC="$JH/javac$EXE"; JAVA="$JH/java$EXE"
+CP="build/obj${SEP}libs/*${SEP}$APKSIG${SEP}$ANDJ"
 OUT="test/bin_all"
 
 # v1.67.2：单个测试 JVM 内存上限（防止某个测试把整机内存吃满、表现为「卡死」）
@@ -20,6 +24,12 @@ TEST_APK="${TEST_APK:-test/huangguo.apk}"
 TEST_KS="${TEST_KS:-assets/hexfile.p12}"
 
 FILTER="${1:-}"
+
+# 依赖 build/obj 里的编译产物：先确保 src 已构建（否则整批报「找不到符号」的假失败）
+if [ -z "$(find build/obj/com/hex91/file -name '*.class' -print -quit 2>/dev/null)" ]; then
+    echo "build/obj 缺失，先跑 ./build.sh"; exit 2
+fi
+
 rm -rf "$OUT" && mkdir -p "$OUT"
 
 echo "== 编译全部测试 =="
@@ -49,6 +59,14 @@ for cls in "${CLASSES[@]}"; do
         if [[ "$short" == "$name" ]]; then skip_reason="$reason"; break; fi
     done
     if [[ "$short" == "AxmlRealChainTest" && "${HEXFILE_SLOW:-0}" == "1" ]]; then skip_reason=""; fi
+    # R-44：缺样本与 run_core.sh 同口径 —— SKIP 而不是 FAIL，且提示文本一致。
+    if [[ -z "$skip_reason" ]]; then
+        if test_needs_apk "$short" && [ ! -f "$TEST_APK" ]; then
+            skip_reason="缺 $TEST_APK"
+        elif test_needs_p12 "$short" && [ ! -f "$TEST_KS" ]; then
+            skip_reason="缺 $TEST_KS"
+        fi
+    fi
     if [[ -n "$skip_reason" ]]; then
         printf '%-40sSKIP (%s)\n' "$cls" "$skip_reason"
         skip=$((skip+1)); continue

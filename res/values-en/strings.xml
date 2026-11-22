@@ -2145,6 +2145,8 @@
     <string name="rmt_rename">Rename</string>
     <string name="rmt_back">Back</string>
     <string name="rmt_takeover">Took over the running service</string>
+    <string name="rmt_hint">Open the address above in a browser (tap to copy). Same Wi-Fi required; keep this page open. Traffic is not encrypted — use only on networks you trust.</string>
+    <string name="rmt_log_key_blocked">%1$s failed the access key 8 times in a row; blocked for %2$s min</string>
     <string name="rmt_log_started">Service started :</string>
     <string name="rmt_toast_started">Service started</string>
     <string name="rmt_start_fail">Failed to start: %1$s</string>

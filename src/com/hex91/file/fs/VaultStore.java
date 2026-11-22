@@ -68,6 +68,36 @@ public final class VaultStore {
         return dir != null && headerFile(dir).isFile();
     }
 
+    /**
+     * 是否是隐私空间根目录（R-39）。
+     *
+     * <p>判据是「目录名是 {@code .vault} <b>且</b>里面有 {@code v.hdr}」而不是只比名字：
+     * 用户完全可能自己建一个叫 .vault 的普通目录，那种该照常搜索 / 统计 / 清理。
+     * 只看名字的话，一个正常的目录会莫名其妙从结果里消失，而用户没有任何线索。</p>
+     */
+    public static boolean isVaultDir(File f) {
+        if (f == null || !f.isDirectory()) return false;
+        if (!DIR_NAME.equals(f.getName())) return false;
+        return headerFile(f).isFile();
+    }
+
+    /**
+     * 是否位于某个隐私空间内部（含根目录自身）。
+     *
+     * <p>用于那些只知道「一个文件」、拿不到扫描起点的调用点：向上找祖先，
+     * 遇到 {@link #isVaultDir(File)} 为真即判定。索引、密文 blob、临时文件都在里面。</p>
+     */
+    public static boolean isInsideVault(File f) {
+        if (f == null) return false;
+        File p = f;
+        // 深度上限与 TreeOps 一致，防止异常链接把父链拉成环
+        for (int i = 0; i < 64 && p != null; i++) {
+            if (isVaultDir(p)) return true;
+            p = p.getParentFile();
+        }
+        return false;
+    }
+
     // ------------------------------------------------------------------ 建立 / 解锁
 
     /**

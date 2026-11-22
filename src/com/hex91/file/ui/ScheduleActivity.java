@@ -8,6 +8,7 @@ import com.hex91.file.sched.ScheduleReceiver;
 import com.hex91.file.sched.ScheduleRule;
 import com.hex91.file.sched.ScheduleRunner;
 import com.hex91.file.sched.ScheduleStore;
+import com.hex91.file.sched.VolumeRoots;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.os.Bundle;
@@ -156,6 +157,8 @@ public class ScheduleActivity extends BaseActivity {
         toast(getString(R.string.sched_running));
         new Thread(new Runnable() {
             public void run() {
+                // R-42：执行前先收集真实卷根，让 isDangerous 的注入比对生效
+                VolumeRoots.of(ScheduleActivity.this);
                 final ScheduleRunner.Result r = ScheduleRunner.run(it);
                 runOnUiThread(new Runnable() {
                     public void run() {
@@ -277,7 +280,8 @@ public class ScheduleActivity extends BaseActivity {
                                     toast(getString(R.string.sched_target_invalid));
                                     return;
                                 }
-                                if (ScheduleRunner.isDangerous(target)) {
+                                // R-42：保存时就按真实卷根判一次，/storage/emulated/0 与可移动卷根都要拦
+                                if (ScheduleRunner.isDangerous(target, VolumeRoots.of(ScheduleActivity.this))) {
                                     toast(getString(R.string.sched_target_dangerous));
                                     return;
                                 }

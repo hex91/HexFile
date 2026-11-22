@@ -49,6 +49,20 @@ public final class RemoteServer extends NanoHTTPD {
     /** 当前线程正在处理的上传文件原始名（由 {@link UploadTempFileManager} 捕获） */
     private static final ThreadLocal<String> UPLOAD_NAME = new ThreadLocal<>();
 
+    /** R-45：同一源 IP 连续猜错这么多次就拉黑。8 次是「够宽容、又不至于被爆破」的折中 */
+    private static final int MAX_KEY_FAILS = 8;
+    /** 拉黑时长：5 分钟。只看内存，服务重启即清空 —— 不该为限速再引入持久化 */
+    private static final long BLOCK_MS = 5 * 60 * 1000L;
+
+    /** 源 IP → 失败计数与封禁截止时间 */
+    private final java.util.concurrent.ConcurrentHashMap<String, KeyFail> keyFails =
+            new java.util.concurrent.ConcurrentHashMap<String, KeyFail>();
+
+    private static final class KeyFail {
+        int count;
+        long blockedUntil;
+    }
+
     /** 事件回调（供界面显示访问日志） */
     public interface Listener {
         void onLog(String line);
@@ -66,6 +80,11 @@ public final class RemoteServer extends NanoHTTPD {
             @Override
             public TempFileManager create() { return new UploadTempFileManager(); }
         });
+    }
+
+    /** 当前服务校验用的密钥。Activity 接管既有服务时必须显示这一把，而不是新生成的一把 */
+    public String accessKey() {
+        return key;
     }
 
     /**
@@ -103,8 +122,15 @@ public final class RemoteServer extends NanoHTTPD {
     public Response serve(IHTTPSession session) {
         try {
             String uri = session.getUri();
+            String ip = session.getRemoteIpAddress();
+            // R-45：先看这个源 IP 是否还在封禁期。封禁中的请求连密钥都不比对，
+            // 免得「错一次记一次」变成攻击者的计数器
+            if (isBlocked(ip)) {
+                return plain(Response.Status.FORBIDDEN, ctx.getString(R.string.rmt_denied));
+            }
             // 密钥校验：/KEY 或 /KEY/... 之外的路径一律拒绝
             if (!uri.equals(base) && !uri.startsWith(base + "/")) {
+                noteKeyFail(ip);
                 return plain(Response.Status.FORBIDDEN, ctx.getString(R.string.rmt_denied));
             }
             String sub = uri.substring(key.length() + 1); // 去掉 /KEY
@@ -445,6 +471,37 @@ public final class RemoteServer extends NanoHTTPD {
         if (n.endsWith(".zip")) return "application/zip";
         if (n.endsWith(".apk")) return "application/vnd.android.package-archive";
         return "application/octet-stream";
+    }
+
+    /** 该源 IP 是否在封禁期内 */
+    private boolean isBlocked(String ip) {
+        if (ip == null) return false;
+        KeyFail f = keyFails.get(ip);
+        return f != null && f.blockedUntil > System.currentTimeMillis();
+    }
+
+    /**
+     * 记一次密钥错误（R-45）。
+     *
+     * <p>没有这一层时，16 位密钥虽难爆破，但服务端不限速意味着攻击者可以无限尝试；
+     * 限速把「在线爆破」从「可行」压到「不划算」，同时给用户一条可读的日志。</p>
+     */
+    private void noteKeyFail(String ip) {
+        if (ip == null) return;
+        KeyFail f = keyFails.get(ip);
+        if (f == null) {
+            KeyFail fresh = new KeyFail();
+            KeyFail prev = keyFails.putIfAbsent(ip, fresh);
+            f = prev == null ? fresh : prev;
+        }
+        synchronized (f) {
+            f.count++;
+            if (f.count >= MAX_KEY_FAILS) {
+                f.count = 0;
+                f.blockedUntil = System.currentTimeMillis() + BLOCK_MS;
+                log(ctx.getString(R.string.rmt_log_key_blocked, ip, String.valueOf(BLOCK_MS / 60000)));
+            }
+        }
     }
 
     private void log(String line) {

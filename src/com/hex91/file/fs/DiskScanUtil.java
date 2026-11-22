@@ -136,6 +136,17 @@ public final class DiskScanUtil {
 
     private static void walk(File dir, boolean isRoot, Result r, PriorityQueue<FileSize> pq,
             int topN, int total, int[] done, long[] bytes, ScanProgress p, Acc out, int depth) {
+        walk(dir, isRoot, r, pq, topN, total, done, bytes, p, out, depth, false);
+    }
+
+    /**
+     * @param quiet R-39：隐私空间内部只累计容量与条目数，不收集 Top N、不登记子目录。
+     *              容量必须算（否则「总占用」与 /sdcard 的真实剩余对不上），但文件名不能列 ——
+     *              否则会出现「隐私空间占 3GB」下面跟着一串 {@code b/*.bin} 的诡异列表。
+     */
+    private static void walk(File dir, boolean isRoot, Result r, PriorityQueue<FileSize> pq,
+            int topN, int total, int[] done, long[] bytes, ScanProgress p, Acc out, int depth,
+            boolean quiet) {
         if (depth > TreeOps.MAX_DEPTH) { out.size = 0; out.files = 0; return; }
         File[] cs = dir.listFiles();
         if (cs == null) { out.size = 0; out.files = 0; return; }
@@ -154,10 +165,12 @@ public final class DiskScanUtil {
             if (c.isDirectory()) {
                 r.dirCount++;
                 Acc sub = new Acc();
-                walk(c, false, r, pq, topN, total, done, bytes, p, sub, depth + 1);
+                // R-39：隐私空间整棵子树切到 quiet 模式（容量照算，名字不列）
+                walk(c, false, r, pq, topN, total, done, bytes, p, sub, depth + 1,
+                        quiet || VaultStore.isVaultDir(c));
                 size += sub.size;
                 files += sub.files;
-                if (isRoot) {
+                if (isRoot && !quiet) {
                     DirStat s = new DirStat();
                     s.dir = c;
                     s.size = sub.size;
@@ -171,7 +184,7 @@ public final class DiskScanUtil {
                 r.fileCount++;
                 bytes[0] += len;
                 done[0]++;
-                pushTop(pq, c, len, topN);
+                if (!quiet) pushTop(pq, c, len, topN);
                 if (p != null && (done[0] & 63) == 0) p.onProgress(done[0], total, bytes[0]);
             }
         }
@@ -245,7 +258,10 @@ public final class DiskScanUtil {
         File[] cs = LinkUtil.listNoFollow(dir);
         if (cs == null) return;
         for (File c : cs) {
+            // R-39：隐私空间不参与「最大文件」排行 —— 密文 id 对上用户没有任何意义，
+            // 却会把真实的大文件挤出榜单
             if (c.isDirectory()) {
+                if (VaultStore.isVaultDir(c)) continue;
                 collect(c, pq, n, depth + 1);
             } else {
                 long len = c.length();
@@ -364,8 +380,11 @@ public final class DiskScanUtil {
         File[] cs = LinkUtil.listNoFollow(dir);
         if (cs == null) return;
         for (File c : cs) {
-            if (c.isDirectory()) collectFiles(c, out, depth + 1);
-            else if (c.isFile()) out.add(c);
+            // R-39：隐私空间的密文不参与查重 —— 既不会真的重复，也免得把整库密文读一遍
+            if (c.isDirectory()) {
+                if (VaultStore.isVaultDir(c)) continue;
+                collectFiles(c, out, depth + 1);
+            } else if (c.isFile()) out.add(c);
         }
     }
 

@@ -15,10 +15,13 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.OpenableColumns;
 import android.text.InputType;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.Button;
@@ -75,10 +78,22 @@ public class VaultActivity extends BaseActivity {
     private boolean lockAfterJob;
     private boolean leftForeground;
 
+    /** R-40：离开后的宽限期。30 秒内回来不重锁，超过才清主密钥 */
+    private static final long LOCK_GRACE_MS = 30_000L;
+    private final Handler graceHandler = new Handler(Looper.getMainLooper());
+    private final Runnable graceLock = new Runnable() {
+        public void run() { lock(); }
+    };
+
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         setContentView(R.layout.activity_vault);
+
+        // R-40：解锁后的文件名 / 大小不该被截图、录屏、最近任务预览看到。
+        // 只要这一个标志，系统会在这三种场合统一遮成黑屏；比在每个列表项上做手脚可靠。
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE,
+                WindowManager.LayoutParams.FLAG_SECURE);
 
         dir = VaultStore.defaultDir();
 
@@ -132,6 +147,13 @@ public class VaultActivity extends BaseActivity {
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        // 宽限期内回来：撤销待执行的锁定。主密钥从未离开，不需要重新解锁。
+        graceHandler.removeCallbacks(graceLock);
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         leftForeground = false;
@@ -143,14 +165,40 @@ public class VaultActivity extends BaseActivity {
         leftForeground = true;
         if (picking) return;
         if (jobRunning) { lockAfterJob = true; return; }
-        lock();
+        // R-40：原来这里直接 lock()，于是「切出去看一眼聊天再回来」必须重输口令。
+        // 现在先给 30 秒宽限，期间回来（onStart）就取消；超过才清主密钥。
+        if (master == null) { lock(); return; }
+        graceHandler.removeCallbacks(graceLock);
+        graceHandler.postDelayed(graceLock, LOCK_GRACE_MS);
+    }
+
+    @Override
+    protected void onDestroy() {
+        // 页面真的销毁了（返回键 / 系统回收）：宽限没有意义，立即清密钥。
+        // 这里不调 lock()：那会去改已销毁页面的控件，只做「清零 + 放手」。
+        graceHandler.removeCallbacks(graceLock);
+        dropMaster();
+        super.onDestroy();
+    }
+
+    /**
+     * 清主密钥的唯一出口（R-46）：先清零字节，再放开引用。
+     *
+     * <p>散落的 {@code master = null} 会漏掉清零 —— 锁定只是「引用没了」，
+     * 64 字节密钥仍在堆里，配合无 FLAG_SECURE 时的转储路径等于没锁。</p>
+     */
+    private void dropMaster() {
+        if (master != null) {
+            master.destroy();
+            master = null;
+        }
     }
 
     // ---------------------------------------------------------------- 三态切换
 
     private void enterSetupMode() {
         setupMode = true;
-        master = null;
+        dropMaster();
         data.clear();
         adapter.notifyDataSetChanged();
         lockTitle.setText(R.string.vault_setup_title);
@@ -168,7 +216,7 @@ public class VaultActivity extends BaseActivity {
 
     private void enterLockMode() {
         setupMode = false;
-        master = null;
+        dropMaster();
         data.clear();
         adapter.notifyDataSetChanged();
         lockTitle.setText(R.string.vault_unlock_title);
@@ -196,7 +244,9 @@ public class VaultActivity extends BaseActivity {
             clearErr();
             return;
         }
-        master = null;
+        // R-46：先清零再放手。只写 master = null 的话，那 64 字节还留在堆里等 GC，
+        // 而 GC 不保证覆写 —— 「锁了但密钥还在」。
+        dropMaster();
         lockAfterJob = false;
         if (VaultStore.exists(dir)) enterLockMode();
         else enterSetupMode();

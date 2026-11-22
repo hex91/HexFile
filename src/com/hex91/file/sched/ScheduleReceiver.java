@@ -61,6 +61,8 @@ public class ScheduleReceiver extends BroadcastReceiver {
 
     /** 执行所有「最近一个计划点还没跑过」的任务 */
     private static void runDue(Context ctx) {
+        // R-42：广播执行路径也要拿到真实卷根，否则「保存时拦住了、到点又放行」
+        VolumeRoots.of(ctx);
         List<ScheduleItem> list = ScheduleStore.load(ctx);
         long now = System.currentTimeMillis();
         int ran = 0, failed = 0;

@@ -2153,6 +2153,8 @@
     <string name="rmt_rename">改名</string>
     <string name="rmt_back">返回</string>
     <string name="rmt_takeover">已接管运行中的服务</string>
+    <string name="rmt_hint">电脑/手机浏览器打开上方地址即可访问（点击可复制）。需与手机同一 Wi-Fi，保持本页面开启。本服务不加密传输，仅在可信网络使用。</string>
+    <string name="rmt_log_key_blocked">%1$s 连续 8 次密钥错误，已封禁 %2$s 分钟</string>
     <string name="rmt_log_started">服务已启动 :</string>
     <string name="rmt_toast_started">服务已启动</string>
     <string name="rmt_start_fail">启动失败: %1$s</string>

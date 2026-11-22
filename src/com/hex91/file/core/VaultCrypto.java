@@ -187,6 +187,18 @@ public final class VaultCrypto {
             this.enc = enc;
             this.mac = mac;
         }
+
+        /**
+         * 清零密钥（R-46）：锁定后 64 字节主密钥不该继续留在堆里等 GC。
+         *
+         * <p>GC 不保证覆写，能读到进程内存的途径（调试器、root 后的 heap dump、系统转储）
+         * 都能拿到「已经锁了」的密钥 —— 那等于没锁。数组是 {@code final}，置空引用由
+         * 调用方做（{@code master = null}），这里负责把内容抹掉。</p>
+         */
+        public void destroy() {
+            Arrays.fill(enc, (byte) 0);
+            Arrays.fill(mac, (byte) 0);
+        }
     }
 
     public static final int ITERATIONS = 210_000;
@@ -249,12 +261,17 @@ public final class VaultCrypto {
     /** 创建新头部（内部生成随机主密钥）。返回 8+1：header 与 master 一起给出。 */
     public static Header newHeader(String password) throws Exception {
         byte[] vaultKey = new byte[KEY_LEN * 2];
-        new SecureRandom().nextBytes(vaultKey);
-        Master m = new Master(Arrays.copyOfRange(vaultKey, 0, KEY_LEN),
-                Arrays.copyOfRange(vaultKey, KEY_LEN, KEY_LEN * 2));
-        byte[] salt = newSalt();
-        byte[] h = wrapHeader(m, password, salt, ITERATIONS);
-        return new Header(h, m);
+        try {
+            new SecureRandom().nextBytes(vaultKey);
+            Master m = new Master(Arrays.copyOfRange(vaultKey, 0, KEY_LEN),
+                    Arrays.copyOfRange(vaultKey, KEY_LEN, KEY_LEN * 2));
+            byte[] salt = newSalt();
+            byte[] h = wrapHeader(m, password, salt, ITERATIONS);
+            return new Header(h, m);
+        } finally {
+            // R-46：主密钥已经复制进 Master，这份中间缓冲不必留
+            Arrays.fill(vaultKey, (byte) 0);
+        }
     }
 
     /** {@link #newHeader} 的返回体：头部字节 + 主密钥 */
@@ -276,30 +293,37 @@ public final class VaultCrypto {
     private static byte[] wrapHeader(Master m, String password, byte[] salt, int iter)
             throws Exception {
         Master kek = derive(password, salt, iter);
-        byte[] ivK = new byte[IV_LEN];
-        new SecureRandom().nextBytes(ivK);
+        byte[] vaultKey = null;
+        try {
+            byte[] ivK = new byte[IV_LEN];
+            new SecureRandom().nextBytes(ivK);
 
-        Cipher c = Cipher.getInstance(TRANSFORM);
-        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(kek.enc, AES), new IvParameterSpec(ivK));
-        byte[] vaultKey = concat(m.enc, m.mac);
-        byte[] wrapped = c.doFinal(vaultKey);
+            Cipher c = Cipher.getInstance(TRANSFORM);
+            c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(kek.enc, AES), new IvParameterSpec(ivK));
+            vaultKey = concat(m.enc, m.mac);
+            byte[] wrapped = c.doFinal(vaultKey);
 
-        ByteArrayOutputStream bo = new ByteArrayOutputStream(HEADER_LEN);
-        bo.write(M_HDR);
-        bo.write(VERSION);
-        writeIntBE(bo, iter);
-        bo.write(salt.length);
-        bo.write(salt);
-        bo.write(ivK);
-        bo.write(wrapped);
-        byte[] body = bo.toByteArray();
+            ByteArrayOutputStream bo = new ByteArrayOutputStream(HEADER_LEN);
+            bo.write(M_HDR);
+            bo.write(VERSION);
+            writeIntBE(bo, iter);
+            bo.write(salt.length);
+            bo.write(salt);
+            bo.write(ivK);
+            bo.write(wrapped);
+            byte[] body = bo.toByteArray();
 
-        Mac mac = Mac.getInstance(MAC_ALGO);
-        mac.init(new SecretKeySpec(kek.mac, MAC_ALGO));
-        mac.update(body);
-        byte[] tag = mac.doFinal();
+            Mac mac = Mac.getInstance(MAC_ALGO);
+            mac.init(new SecretKeySpec(kek.mac, MAC_ALGO));
+            mac.update(body);
+            byte[] tag = mac.doFinal();
 
-        return concat(body, tag);
+            return concat(body, tag);
+        } finally {
+            // R-46：KEK 与拼接出的明文密钥都只在这一方法里需要，返回前清零
+            if (vaultKey != null) Arrays.fill(vaultKey, (byte) 0);
+            kek.destroy();
+        }
     }
 
     /** 是否像本工具的头部（只看魔数，给「目录里已经有别的东西」这种场合用） */
@@ -338,19 +362,26 @@ public final class VaultCrypto {
         byte[] tag = Arrays.copyOfRange(header, HEADER_LEN - TAG_LEN, HEADER_LEN);
 
         Master kek = derive(password, salt, iter);
-        Mac mac = Mac.getInstance(MAC_ALGO);
-        mac.init(new SecretKeySpec(kek.mac, MAC_ALGO));
-        mac.update(header, 0, HEADER_LEN - TAG_LEN);
-        if (!MessageDigest.isEqual(mac.doFinal(), tag)) {
-            throw new AuthFail(Code.WRONG_PASSWORD);
-        }
+        byte[] vaultKey = null;
+        try {
+            Mac mac = Mac.getInstance(MAC_ALGO);
+            mac.init(new SecretKeySpec(kek.mac, MAC_ALGO));
+            mac.update(header, 0, HEADER_LEN - TAG_LEN);
+            if (!MessageDigest.isEqual(mac.doFinal(), tag)) {
+                throw new AuthFail(Code.WRONG_PASSWORD);
+            }
 
-        Cipher c = Cipher.getInstance(TRANSFORM);
-        c.init(Cipher.DECRYPT_MODE, new SecretKeySpec(kek.enc, AES), new IvParameterSpec(ivK));
-        byte[] vaultKey = c.doFinal(wrapped);
-        if (vaultKey.length != KEY_LEN * 2) throw new Fail(Code.HEADER_BROKEN);
-        return new Master(Arrays.copyOfRange(vaultKey, 0, KEY_LEN),
-                Arrays.copyOfRange(vaultKey, KEY_LEN, KEY_LEN * 2));
+            Cipher c = Cipher.getInstance(TRANSFORM);
+            c.init(Cipher.DECRYPT_MODE, new SecretKeySpec(kek.enc, AES), new IvParameterSpec(ivK));
+            vaultKey = c.doFinal(wrapped);
+            if (vaultKey.length != KEY_LEN * 2) throw new Fail(Code.HEADER_BROKEN);
+            return new Master(Arrays.copyOfRange(vaultKey, 0, KEY_LEN),
+                    Arrays.copyOfRange(vaultKey, KEY_LEN, KEY_LEN * 2));
+        } finally {
+            // R-46：口令不对的路径同样会派生 KEK，异常分支不清理等于每次输错都留一份
+            if (vaultKey != null) Arrays.fill(vaultKey, (byte) 0);
+            kek.destroy();
+        }
     }
 
     // ------------------------------------------------------------------ 文件块
