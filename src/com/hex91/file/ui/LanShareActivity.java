@@ -8,6 +8,7 @@ import com.hex91.file.R;
 import com.hex91.file.MainActivity;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.core.MimeUtil;
+import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -20,6 +21,7 @@ import android.provider.OpenableColumns;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -49,7 +51,7 @@ import java.util.Locale;
  *   <li>接收目录统一到 {@code /sdcard/HexFile/LanShare}，与其它 HexFile 产物同一棵树。</li>
  * </ul>
  */
-public class LanShareActivity extends BaseActivity implements LanNode.Listener {
+public class LanShareActivity extends BaseActivity implements LanNode.Listener, LanNode.Confirmer {
 
     public static final String EXTRA_PATH = "lan_path";
 
@@ -85,6 +87,8 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
 
     /** 还没选文件就点了设备：记住目标，选完直接发 */
     private LanProtocol.Device pendingTarget;
+    /** R-47：本次会话记住上次输入的配对码，连发多个文件不用重复输 */
+    private String lastCode;
     private boolean sending;
 
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -166,9 +170,7 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
             public void onClick(View v) { refreshReceived(); }
         });
 
-        String ip = LanNet.localIp();
-        sub.setText(getString(R.string.lan_self, node.selfName(),
-                ip.length() > 0 ? getString(R.string.lan_self_ip, ip) : ""));
+        updateSelfLine();
 
         String path = getIntent() == null ? null : getIntent().getStringExtra(EXTRA_PATH);
         if (path != null) {
@@ -198,7 +200,10 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
         } else {
             state.setText(R.string.lan_state_recv);
             state.setTextColor(0xFF5CFFC8);
+            // R-47：只有页面真的在前台才问「收不收」；后台接收时没有可问的界面
+            node.setConfirmer(this);
         }
+        updateSelfLine();      // 配对码随 start() 生成，必须在 start 之后刷
         radar.start();
         node.probeNow();
         renderDevices(node.devices());
@@ -208,6 +213,7 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
     @Override
     protected void onPause() {
         radar.stop();
+        node.setConfirmer(null);
         node.removeListener(this);
         super.onPause();
     }
@@ -217,6 +223,69 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
         // 没开「后台接收」就把监听停掉：端口不该在用户不知情时一直占着
         if (!node.keepReceiving()) node.stop();
         super.onDestroy();
+    }
+
+    /** 顶部那行：设备名 + 本机 IP + 本次的配对码 */
+    private void updateSelfLine() {
+        String ip = LanNet.localIp();
+        String line = getString(R.string.lan_self, node.selfName(),
+                ip.length() > 0 ? getString(R.string.lan_self_ip, ip) : "");
+        String code = node.pairCode();
+        // start() 之前没有码，这时只显示名字与 IP，不留一个「配对码 null」
+        if (code != null && code.length() > 0) line = line + getString(R.string.lan_pair_code, code);
+        sub.setText(line);
+    }
+
+    /**
+     * 收件确认（R-47）：在 HTTP 线程被调，阻塞到用户选择或 20 秒超时。
+     *
+     * <p>为什么必须阻塞而不是「先回 200 再异步处理」：对端是边发边等响应的流式上传，
+     * 先回 200 等于告诉它「收下了」，可用户可能点拒绝 —— 那时文件已经落盘了。
+     * 阻塞在这条连接上，拒绝就干脆一个字节都不写。</p>
+     *
+     * <p>超时按拒绝处理：用户不在看屏幕（或页面刚好在切换）时，不该默认接收。</p>
+     */
+    public boolean confirm(final String from, final String name, final long size) {
+        final java.util.concurrent.CountDownLatch latch =
+                new java.util.concurrent.CountDownLatch(1);
+        final boolean[] accepted = {false};
+        ui.post(new Runnable() {
+            public void run() {
+                if (isFinishing() || isDestroyed()) {
+                    latch.countDown();
+                    return;
+                }
+                String shown = name == null || name.length() == 0
+                        ? getString(R.string.lan_ask_unnamed) : name;
+                String who = from == null || from.length() == 0
+                        ? getString(R.string.lan_ask_unknown) : from;
+                new HfDialogBuilder(LanShareActivity.this)
+                        .setTitle(R.string.lan_ask_title)
+                        .setMessage(getString(R.string.lan_ask_msg, who, shown,
+                                FileOps.formatSize(size)))
+                        .setPositiveButton(R.string.lan_ask_accept,
+                                new DialogInterface.OnClickListener() {
+                                    public void onClick(DialogInterface d, int w) {
+                                        accepted[0] = true;
+                                        latch.countDown();
+                                    }
+                                })
+                        .setNegativeButton(R.string.lan_ask_decline,
+                                new DialogInterface.OnClickListener() {
+                                    public void onClick(DialogInterface d, int w) {
+                                        latch.countDown();
+                                    }
+                                })
+                        .setCancelable(false)
+                        .show();
+            }
+        });
+        try {
+            return latch.await(20, java.util.concurrent.TimeUnit.SECONDS) && accepted[0];
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 
     // ---------------------------------------------------------------- 分页
@@ -634,17 +703,55 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
             pickFile();
             return;
         }
-        new HfDialogBuilder(this)
+        // R-47：发送前必须填对方的配对码。这一步看着麻烦，但它把「同网任何人都能
+        // 往我手机里塞文件」变成了「知道屏幕上那 6 位数字的人才能」。
+        final EditText codeEt = new EditText(this);
+        codeEt.setSingleLine(true);
+        codeEt.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        codeEt.setHint(R.string.lan_pair_hint);
+        if (lastCode != null) codeEt.setText(lastCode);
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = UiDecor.dp(this, 16);
+        box.setPadding(pad, 0, pad, 0);
+        TextView line = new TextView(this);
+        line.setText(sendName + "\n" + FileOps.formatSize(sendSize));
+        line.setTextSize(12f);
+        box.addView(line);
+        box.addView(codeEt);
+
+        final AlertDialog dlg = new HfDialogBuilder(this)
                 .setTitle(getString(R.string.lan_send_to, d.name))
-                .setMessage(sendName + "\n" + FileOps.formatSize(sendSize))
-                .setPositiveButton(R.string.lan_send, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface di, int w) { startSend(d); }
-                })
+                .setView(box)
+                .setPositiveButton(R.string.lan_send, null)
                 .setNegativeButton(R.string.common_cancel, null)
-                .show();
+                .create();
+        // 注意：create() 里 HfDialogBuilder 已经挂了 polishDialog 的 OnShowListener，
+        // 这里再设一次会覆盖它，所以顺手补一次美化（幂等）
+        dlg.setOnShowListener(new DialogInterface.OnShowListener() {
+            public void onShow(DialogInterface di) {
+                UiDecor.polishDialog(dlg);
+                dlg.getButton(DialogInterface.BUTTON_POSITIVE)
+                        .setOnClickListener(new View.OnClickListener() {
+                            public void onClick(View v) {
+                                String c = codeEt.getText().toString().trim();
+                                if (c.length() != LanProtocol.PAIR_CODE_LEN) {
+                                    Toast.makeText(LanShareActivity.this,
+                                            R.string.lan_pair_need, Toast.LENGTH_SHORT).show();
+                                    return;
+                                }
+                                lastCode = c;
+                                dlg.dismiss();
+                                startSend(d, c);
+                            }
+                        });
+            }
+        });
+        dlg.show();
     }
 
-    private void startSend(final LanProtocol.Device d) {
+    private void startSend(final LanProtocol.Device d, final String code) {
         sending = true;
         final ProgressDialog pd = new ProgressDialog(this);
         pd.setTitle(getString(R.string.lan_sending_title));
@@ -679,9 +786,9 @@ public class LanShareActivity extends BaseActivity implements LanNode.Listener {
         };
 
         if (sendUri != null) {
-            LanSender.sendUri(this, d, sendUri, sendName, sendSize, cb);
+            LanSender.sendUri(this, d, sendUri, sendName, sendSize, code, cb);
         } else {
-            LanSender.send(this, d, sendFile, cb);
+            LanSender.send(this, d, sendFile, code, cb);
         }
     }
 

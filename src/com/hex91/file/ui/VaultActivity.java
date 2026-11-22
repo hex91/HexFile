@@ -4,6 +4,7 @@ import com.hex91.file.R;
 import com.hex91.file.core.VaultCrypto;
 import com.hex91.file.core.VaultIndex;
 import com.hex91.file.fs.FileOps;
+import com.hex91.file.fs.VaultBio;
 import com.hex91.file.fs.VaultStore;
 import com.hex91.file.fs.WorkDir;
 
@@ -69,6 +70,10 @@ public class VaultActivity extends BaseActivity {
     private LinearLayout lockPanel;
     private EditText pw, pw2;
     private Button go, importBtn, moreBtn;
+    /** F-25：指纹快捷解锁入口。设备不支持 / 未开启时恒为 GONE */
+    private Button bioBtn;
+    /** 认证对话框正在前台：连点两次会叠两个系统弹窗，用标志挡住 */
+    private boolean bioBusy;
     private ListView list;
 
     private boolean setupMode;
@@ -110,6 +115,10 @@ public class VaultActivity extends BaseActivity {
         importBtn = (Button) findViewById(R.id.vt_import);
         moreBtn = (Button) findViewById(R.id.vt_more);
         list = (ListView) findViewById(R.id.vt_list);
+        bioBtn = (Button) findViewById(R.id.vt_bio);
+        bioBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { bioUnlock(); }
+        });
 
         UiDecor.barButtonOnBar(importBtn, this, UiDecor.KIND_PRIMARY, 11.5f);
         UiDecor.gap(importBtn, this, 4f);
@@ -207,6 +216,7 @@ public class VaultActivity extends BaseActivity {
         hint.setText(R.string.vault_setup_hint);
         importBtn.setEnabled(false);
         moreBtn.setEnabled(false);
+        bioBtn.setVisibility(View.GONE);   // 还没建库，没有可封装的密钥
         list.setVisibility(View.GONE);
         empty.setVisibility(View.GONE);
         lockPanel.setVisibility(View.VISIBLE);
@@ -226,6 +236,10 @@ public class VaultActivity extends BaseActivity {
         hint.setText(R.string.vault_lock_hint);
         importBtn.setEnabled(false);
         moreBtn.setEnabled(false);
+        // F-25：只有「存过封装 + 设备支持」才给按钮。封装存在但密钥已被系统销毁时
+        // 仍然显示 —— 点下去会失败并提示改口令，比让按钮凭空消失更容易理解
+        bioBtn.setVisibility(VaultBio.exists(dir) && VaultAuth.available(this)
+                ? View.VISIBLE : View.GONE);
         list.setVisibility(View.GONE);
         empty.setVisibility(View.GONE);
         lockPanel.setVisibility(View.VISIBLE);
@@ -253,6 +267,7 @@ public class VaultActivity extends BaseActivity {
     }
 
     private void showList() {
+        bioBtn.setVisibility(View.GONE);
         lockPanel.setVisibility(View.GONE);
         list.setVisibility(View.VISIBLE);
         hint.setText(R.string.vault_import_hint);
@@ -330,6 +345,76 @@ public class VaultActivity extends BaseActivity {
                     showList();
                 }
             });
+        }
+    }
+
+    // ---------------------------------------------------------------- 指纹快捷解锁
+
+    /**
+     * 指纹解锁（F-25）：先过设备认证，再解封主密钥。
+     *
+     * <p>解封放在 {@link Job} 里做 —— 它要读文件 + 走一次 AES-GCM，虽然只有几十字节，
+     * 但 KeyStore 在某些设备上首次取密钥能卡几十毫秒，主线程上做就是一次可见的顿。</p>
+     */
+    private void bioUnlock() {
+        if (bioBusy) return;
+        if (!VaultBio.exists(dir)) {
+            // 封装被清掉了（例如用户清理了目录）：按钮本不该还在，兜一下再刷新界面
+            enterLockMode();
+            return;
+        }
+        bioBusy = true;
+        VaultAuth.prompt(this, new VaultAuth.Cb() {
+            public void onOk() {
+                bioBusy = false;
+                start(new Job(R.string.vault_unlocking) {
+                    Object work() throws Exception { return VaultBio.unwrap(dir); }
+                    void done(Object r, Exception e) {
+                        if (e != null) {
+                            // 密钥被系统销毁（重录指纹 / 改锁屏）或封装损坏：删掉废封装，
+                            // 让按钮消失，用户下次用口令进来时再重新开启
+                            VaultBio.forget(dir, true);
+                            showErr(R.string.vault_bio_broken);
+                            bioBtn.setVisibility(View.GONE);
+                            return;
+                        }
+                        master = (VaultCrypto.Master) r;
+                        toast(getString(R.string.vault_unlocked));
+                        showList();
+                    }
+                });
+            }
+
+            public void onFail(String reason) {
+                bioBusy = false;
+                // null = 用户主动取消，不打扰
+                if (reason != null) toast(getString(R.string.vault_bio_fail, reason));
+            }
+        });
+    }
+
+    /**
+     * 开 / 关指纹快捷解锁。
+     *
+     * <p>开启时必须已经解锁（手里有主密钥）—— 这是唯一能拿到主密钥来封装的时刻。
+     * 关闭时连 KeyStore 密钥一起删：只删封装文件的话，那把 key 会一直留在系统里，
+     * 白白多一个可被利用的入口。</p>
+     */
+    private void toggleBio() {
+        if (VaultBio.exists(dir)) {
+            VaultBio.forget(dir, true);
+            toast(getString(R.string.vault_bio_disabled));
+            return;
+        }
+        if (master == null) {
+            showErr(R.string.vault_bio_need_unlock);
+            return;
+        }
+        try {
+            VaultBio.enroll(dir, master);
+            toast(getString(R.string.vault_bio_enabled));
+        } catch (Throwable t) {
+            toast(getString(R.string.vault_bio_enroll_fail, msg(t)));
         }
     }
 
@@ -561,16 +646,22 @@ public class VaultActivity extends BaseActivity {
     private void showMore() {
         String[] ops = new String[]{
                 getString(R.string.vault_change_pw),
+                // F-25：设备不支持时就别放这一项 —— 一个点了必然失败的开关比没有更糟
+                getString(VaultBio.exists(dir) ? R.string.vault_bio_off : R.string.vault_bio_on),
                 getString(R.string.vault_clean_orphans),
                 getString(R.string.vault_about),
                 getString(R.string.vault_lock)
         };
+        final boolean bioOk = VaultBio.exists(dir) || VaultAuth.available(this);
         new HfDialogBuilder(this)
                 .setItems(ops, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface d, int which) {
                         if (which == 0) changePwDialog();
-                        else if (which == 1) cleanOrphans();
-                        else if (which == 2) aboutDialog();
+                        else if (which == 1) {
+                            if (bioOk) toggleBio();
+                            else toast(getString(R.string.vault_bio_unsupported));
+                        } else if (which == 2) cleanOrphans();
+                        else if (which == 3) aboutDialog();
                         else lock();
                     }
                 })

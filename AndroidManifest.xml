@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hex91.file"
-    android:versionCode="305"
-    android:versionName="2.112.0">
+    android:versionCode="306"
+    android:versionName="2.113.0">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="30"/>
 
@@ -23,6 +23,9 @@
     <!-- v1.98.0：文件任务前台服务（复制/移动/压缩跑在后台）。API 34 起按类型授权，
          这里提前声明 dataSync 类型与对应权限，targetSdk 还是 30 时系统会忽略 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <!-- v2.113.0（F-25）：隐私空间的指纹快捷解锁。normal 权限，安装即授予，
+         不需要运行时申请；不声明则 KeyStore 的认证型密钥生成会被系统拒绝 -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <!-- v1.98.0：任务进度通知。targetSdk 30 时安装即授予；提前声明便于日后升 targetSdk -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- v1.74.0 局域网快传：UDP 广播发现 + 本机 HTTP 接收 -->
@@ -466,6 +469,14 @@
         <service
             android:name="com.hex91.file.ui.TaskService"
             android:label="文件任务"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"/>
+
+        <!-- v2.113.0（R-41）：定时任务执行的前台服务。原来在广播 receiver 里跑，
+             10 秒预算一过就可能被杀；现在由服务承载，通知可见、锁屏不中断 -->
+        <service
+            android:name="com.hex91.file.sched.ScheduleService"
+            android:label="定时任务"
             android:exported="false"
             android:foregroundServiceType="dataSync"/>
 

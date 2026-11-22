@@ -9,7 +9,9 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 
 /**
  * 局域网快传的前台服务（v1.74.0）。
@@ -25,12 +27,31 @@ public class LanShareService extends Service {
     private static final String CHANNEL = "lan_share";
     private static final int NOTIF_ID = 0x4C41;
 
+    /**
+     * R-47：后台接收最长 30 分钟。
+     *
+     * <p>原来这个服务一旦开着就一直开着 —— 用户点了「后台接收」，之后忘了，
+     * 手机在咖啡馆 Wi-Fi 里就一直挂着一个局域网投递口。加一个上限，
+     * 到点自己收摊；需要继续再点一次。</p>
+     */
+    private static final long MAX_KEEP_MS = 30 * 60 * 1000L;
+
+    private final Handler ui = new Handler(Looper.getMainLooper());
+    private final Runnable autoStop = new Runnable() {
+        public void run() {
+            stopSelf();
+        }
+    };
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         LanNode node = LanNode.get(this);
         node.setKeepReceiving(true);
         boolean ok = node.start();
         startForeground(NOTIF_ID, build(node, ok));
+        // 每次启动重新计时：用户又点了一次「后台接收」，说明他现在确实要用
+        ui.removeCallbacks(autoStop);
+        ui.postDelayed(autoStop, MAX_KEEP_MS);
         return START_STICKY;
     }
 
@@ -74,6 +95,13 @@ public class LanShareService extends Service {
 
     @Override
     public void onDestroy() {
+        ui.removeCallbacks(autoStop);
+        // 服务没了就不该还留着「后台接收」的偏好，否则下次进页面会显示「开着」但其实没监听
+        try {
+            LanNode.get(this).setKeepReceiving(false);
+        } catch (Throwable t) {
+            android.util.Log.w("HexFile", "LanShareService: reset keep flag failed: " + t);
+        }
         try {
             if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE);
             else stopForeground(true);

@@ -7,6 +7,7 @@ import com.hex91.file.sched.ScheduleItem;
 import com.hex91.file.sched.ScheduleReceiver;
 import com.hex91.file.sched.ScheduleRule;
 import com.hex91.file.sched.ScheduleRunner;
+import com.hex91.file.sched.ScheduleRunState;
 import com.hex91.file.sched.ScheduleStore;
 import com.hex91.file.sched.VolumeRoots;
 import android.app.AlertDialog;
@@ -87,6 +88,11 @@ public class ScheduleActivity extends BaseActivity {
     protected void onResume() {
         super.onResume();
         reload();
+        // R-41：上一次执行是被系统杀掉的。这里只说「没跑完」，不谎报成功，
+        // 也不自动重跑 —— 清空/压缩都不是幂等操作，重跑比不跑更危险。
+        if (ScheduleRunState.takeInterrupted(this)) {
+            Toast.makeText(this, R.string.sched_interrupted, Toast.LENGTH_LONG).show();
+        }
     }
 
     private void reload() {

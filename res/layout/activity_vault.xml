@@ -101,6 +101,16 @@
             android:text="@string/vault_btn_unlock"
             android:textSize="13sp"/>
 
+        <!-- F-25：只有「设备支持 + 已开启」时才显示；其余情况一律走口令 -->
+        <Button
+            android:id="@+id/vt_bio"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:layout_marginTop="8dp"
+            android:text="@string/vault_bio"
+            android:textSize="13sp"
+            android:visibility="gone"/>
+
         <TextView
             android:id="@+id/vt_err"
             android:layout_width="match_parent"

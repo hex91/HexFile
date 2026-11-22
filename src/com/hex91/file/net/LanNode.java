@@ -62,6 +62,26 @@ public final class LanNode {
         void onNotice(String text);
     }
 
+    /**
+     * 接收确认（R-47）：对端要写文件前先问一句「收不收」。
+     *
+     * <p>只在页面可见时注册。后台接收时没有页面可问，就只靠配对码 —— 这与
+     * 「后台接收 = 用户明确允许长时间开放」的语义一致，也不会让页面不可见时
+     * 的传输永远等一个不会出现的弹窗。</p>
+     *
+     * <p>实现方在 <b>HTTP 线程</b>被调用，必须阻塞到用户做出选择或超时；
+     * 返回 false 表示拒收，接收端不会创建任何文件。</p>
+     */
+    public interface Confirmer {
+        /**
+         * @param from 发送方设备名（可能为空：老客户端不带这个头）
+         * @param name 文件名
+         * @param size 声明长度，未知时为 -1
+         * @return true 才继续落盘；false 时接收端一个字节都不写
+         */
+        boolean confirm(String from, String name, long size);
+    }
+
     private static LanNode sInst;
 
     public static synchronized LanNode get(Context c) {
@@ -80,6 +100,10 @@ public final class LanNode {
     private int httpPort;
 
     private volatile boolean running;
+    /** 本次运行的配对码（R-47）。每次 start 换新的，stop 后置空 —— 旧码立刻失效 */
+    private volatile String pairCode;
+    /** 前台页面注册的接收确认；null = 没人可问（后台接收），只校验配对码 */
+    private volatile Confirmer confirmer;
     private DatagramSocket udp;
     private Server server;
     private Thread rxThread;
@@ -97,6 +121,8 @@ public final class LanNode {
         if (running) return true;
         selfId = LanNet.selfId(app);
         selfName = LanNet.deviceName();
+        // R-47：码跟着这次运行走。不落盘、不复用 —— 服务停了就该作废
+        pairCode = LanProtocol.newPairCode();
         try {
             server = new Server();
             server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, true);
@@ -151,6 +177,7 @@ public final class LanNode {
         if (probeThread != null) probeThread.interrupt();
         udp = null;
         server = null;
+        pairCode = null;
         LanNet.releaseQuietly(mcastLock);
         LanNet.releaseQuietly(wifiLock);
         mcastLock = null;
@@ -177,6 +204,16 @@ public final class LanNode {
 
     public int httpPort() {
         return httpPort;
+    }
+
+    /** 当前配对码；未启动时为 null。页面显示、发送方输入都用它 */
+    public String pairCode() {
+        return pairCode;
+    }
+
+    /** 注册 / 注销接收确认（页面 onResume / onPause） */
+    public void setConfirmer(Confirmer c) {
+        this.confirmer = c;
     }
 
     /** 当前在线设备（按名字排序，避免列表每次刷新都跳来跳去） */
@@ -423,6 +460,19 @@ public final class LanNode {
 
     // ---------------------------------------------------------------- HTTP 接收
 
+    /** 从请求头取声明长度。缺失或畸形返回 -1（调用方自己决定怎么处理） */
+    private static long declaredOf(NanoHTTPD.IHTTPSession session) {
+        Map<String, String> hs = session == null ? null : session.getHeaders();
+        if (hs == null) return -1;
+        String cl = hs.get("content-length");
+        if (cl == null) return -1;
+        try {
+            return Long.parseLong(cl.trim());
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
     private final class Server extends NanoHTTPD {
 
         Server() throws IOException {
@@ -444,7 +494,7 @@ public final class LanNode {
                         return NanoHTTPD.newFixedLengthResponse(Response.Status.METHOD_NOT_ALLOWED,
                                 "text/plain; charset=utf-8", "POST only");
                     }
-                    return receive(session);
+                    return accept(session);
                 }
                 return NanoHTTPD.newFixedLengthResponse(Response.Status.NOT_FOUND,
                         "text/plain; charset=utf-8", "HexFile LAN");
@@ -455,19 +505,54 @@ public final class LanNode {
             }
         }
 
+        /**
+         * 收件前的两道闸（R-47）：配对码 + 接收确认。
+         *
+         * <p>顺序不能反：先校验码再问用户。反过来会出现「随便谁能弹窗骚扰」，
+         * 而且用户没理由为一个陌生请求做决定。</p>
+         */
+        private Response accept(IHTTPSession session) throws IOException {
+            Map<String, String> params = session.getParms();
+            Map<String, String> hs = session.getHeaders();
+            String code = null;
+            if (hs != null) code = hs.get(LanProtocol.CODE_HEADER.toLowerCase(java.util.Locale.ROOT));
+            if (code == null && params != null) code = params.get(LanProtocol.CODE_PARAM);
+            if (!LanProtocol.matchCode(pairCode, code)) {
+                Log.w(TAG, "rejected: bad pair code from " + session.getRemoteIpAddress());
+                return NanoHTTPD.newFixedLengthResponse(Response.Status.FORBIDDEN,
+                        "text/plain; charset=utf-8", "bad pair code");
+            }
+            String rawName = params == null ? null : params.get("name");
+            String from = null;
+            if (hs != null) {
+                String raw = hs.get(LanProtocol.FROM_HEADER.toLowerCase(java.util.Locale.ROOT));
+                if (raw != null && raw.length() > 0) from = LanProtocol.percentDecode(raw);
+            }
+            long declared = declaredOf(session);
+            Confirmer c = confirmer;
+            if (c != null) {
+                boolean ok;
+                try {
+                    ok = c.confirm(from, rawName, declared);
+                } catch (Throwable t) {
+                    // 确认方自己崩了不能变成「默认放行」——那等于没做这道闸
+                    Log.w(TAG, "confirmer failed", t);
+                    ok = false;
+                }
+                if (!ok) {
+                    Log.i(TAG, "declined by user: " + rawName);
+                    return NanoHTTPD.newFixedLengthResponse(Response.Status.FORBIDDEN,
+                            "text/plain; charset=utf-8", "declined");
+                }
+            }
+            return receive(session);
+        }
+
         /** 裸字节流落盘：不经过 multipart 解析，省一次拷贝，也能边收边报进度 */
         private Response receive(IHTTPSession session) throws IOException {
             Map<String, String> params = session.getParms();
             String rawName = params == null ? null : params.get("name");
-            long declared = -1;
-            String cl = session.getHeaders() == null ? null
-                    : session.getHeaders().get("content-length");
-            if (cl != null) {
-                try {
-                    declared = Long.parseLong(cl.trim());
-                } catch (NumberFormatException ignored) {
-                }
-            }
+            long declared = declaredOf(session);
             if (declared <= 0) {
                 return NanoHTTPD.newFixedLengthResponse(Response.Status.LENGTH_REQUIRED,
                         "text/plain; charset=utf-8", "content-length required");

@@ -41,13 +41,14 @@ public final class LanSender {
     }
 
     public static void send(final Context ctx, final LanProtocol.Device device,
-                            final File file, final Cb cb) {
+                            final File file, final String code, final Cb cb) {
         Thread t = new Thread(new Runnable() {
             public void run() {
                 FileInputStream in = null;
                 try {
                     in = new FileInputStream(file);
-                    doSend(device, in, file.getName(), file.length(), cb);
+                    doSend(device, in, file.getName(), file.length(), code,
+                            LanNet.deviceName(), cb);
                 } catch (Throwable e) {
                     fail(cb, e);
                 } finally {
@@ -65,14 +66,14 @@ public final class LanSender {
      */
     public static void sendUri(final Context ctx, final LanProtocol.Device device,
                                final Uri uri, final String displayName,
-                               final long size, final Cb cb) {
+                               final long size, final String code, final Cb cb) {
         Thread t = new Thread(new Runnable() {
             public void run() {
                 InputStream in = null;
                 try {
                     in = ctx.getContentResolver().openInputStream(uri);
                     if (in == null) throw NetFsError.fieldRequired("selected file");
-                    doSend(device, in, displayName, size, cb);
+                    doSend(device, in, displayName, size, code, LanNet.deviceName(), cb);
                 } catch (Throwable e) {
                     fail(cb, e);
                 } finally {
@@ -85,13 +86,17 @@ public final class LanSender {
     }
 
     private static void doSend(LanProtocol.Device device, InputStream in, String name,
-                               long size, Cb cb) throws IOException {
+                               long size, String code, String from, Cb cb) throws IOException {
         if (device == null) throw NetFsError.fieldRequired("device");
         if (size <= 0) throw NetFsError.fieldRequired("file size (copy locally first)");
         String host = device.host == null ? "" : device.host;
         if (host.indexOf(':') >= 0) host = "[" + host + "]";   // IPv6 字面量
         String url = "http://" + host + ":" + device.port + "/lan/send?name="
-                + LanProtocol.percentEncode(name) + "&size=" + size;
+                + LanProtocol.percentEncode(name) + "&size=" + size
+                // R-47：配对码同时走 query 与请求头，服务端两个都认；这里给全是为了
+                // 抓包/手搓 curl 时能直接复用
+                + "&" + LanProtocol.CODE_PARAM + "=" + LanProtocol.percentEncode(
+                        code == null ? "" : code);
 
         HttpURLConnection conn = null;
         try {
@@ -102,6 +107,12 @@ public final class LanSender {
             conn.setDoOutput(true);
             conn.setFixedLengthStreamingMode(size);
             conn.setRequestProperty("Content-Type", "application/octet-stream");
+            if (code != null && code.length() > 0) {
+                conn.setRequestProperty(LanProtocol.CODE_HEADER, code);
+            }
+            // 设备名可能含中文：HTTP 头只允许 ASCII，先百分号编码，接收端再解
+            conn.setRequestProperty(LanProtocol.FROM_HEADER,
+                    LanProtocol.percentEncode(from == null ? "" : from));
             conn.setRequestProperty("Connection", "close");
 
             OutputStream os = conn.getOutputStream();
@@ -122,12 +133,13 @@ public final class LanSender {
             os.close();
             if (sent != size) throw NetFsError.opFail(NetFsError.OP_READ, "", -1, NetFsError.HINT_NONE, "short read " + sent + "/" + size);
 
-            int code = conn.getResponseCode();
-            if (code == HttpURLConnection.HTTP_OK) {
+            // 变量不能叫 code：本方法的形参里已经有配对码 code（R-47）
+            int httpCode = conn.getResponseCode();
+            if (httpCode == HttpURLConnection.HTTP_OK) {
                 done(cb, readText(conn.getInputStream()));
             } else {
                 String body = readText(conn.getErrorStream());
-                fail(cb, NetFsError.httpFail("peer", code, NetFsError.HINT_NONE));
+                fail(cb, NetFsError.httpFail("peer", httpCode, NetFsError.HINT_NONE));
             }
         } finally {
             if (conn != null) {

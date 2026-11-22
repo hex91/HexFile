@@ -49,7 +49,56 @@ public final class LanProtocol {
     /** {@link #reserve} 的换号上限：防御性上限，正常路径（同名并发）远远走不到 */
     private static final int MAX_NAME_ATTEMPTS = 10000;
 
+    /** 配对码长度（v2.113.0，R-47）：6 位数字，念给对面听不会出错 */
+    public static final int PAIR_CODE_LEN = 6;
+
+    /** 配对码的请求头。用头而不是只放 query：query 会进访问日志与服务端 URI，头更干净 */
+    public static final String CODE_HEADER = "X-HexFile-Code";
+
+    /** 配对码的查询参数（老客户端 / 手搓 curl 用这个更顺手，服务端两个都认） */
+    public static final String CODE_PARAM = "code";
+
+    /** 发送方设备名（R-47）。让接收方能问「来自 <设备名> 的文件，收吗？」 */
+    public static final String FROM_HEADER = "X-HexFile-From";
+
     private LanProtocol() {
+    }
+
+    /**
+     * 生成一个配对码（R-47）。
+     *
+     * <p>为什么需要它：原来 {@code POST /lan/send} 对任何同网设备都直接落盘，
+     * 等于手机一开「后台接收」就成了一个无鉴权的投递口 —— 谁都能往里塞一个
+     * 名字看起来像安装包的恶意文件，用户随后在文件管理器里点开就是执行路径。</p>
+     *
+     * <p>6 位纯数字只有 100 万种，理论上可爆破，但：码每次启动服务都换、
+     * 只显示在接收方屏幕上、且局域网内攻击窗口极短。对「防止随手投毒」这个目标足够；
+     * 真要抗定向爆破得走非对称签名，那是另一个量级的工作。</p>
+     */
+    public static String newPairCode() {
+        java.security.SecureRandom r = new java.security.SecureRandom();
+        StringBuilder sb = new StringBuilder(PAIR_CODE_LEN);
+        for (int i = 0; i < PAIR_CODE_LEN; i++) sb.append((char) ('0' + r.nextInt(10)));
+        return sb.toString();
+    }
+
+    /**
+     * 比对配对码。
+     *
+     * <p>{@code expected} 为空视为「未启用校验」，直接放行 —— 这条分支只为兼容
+     * 「接收端还没起来」之类的过渡状态，正常运行时码一定非空。</p>
+     *
+     * <p>用 {@code MessageDigest.isEqual} 而不是 {@code equals}：后者在第一个不同字符处
+     * 就返回，逐位比较的时间差理论上能被用来一位一位试出码。虽然 6 位数字 + 短窗口
+     * 让这种攻击不划算，但换成常量时间比较不花任何代价。</p>
+     */
+    public static boolean matchCode(String expected, String got) {
+        if (expected == null || expected.length() == 0) return true;
+        if (got == null) return false;
+        String g = got.trim();
+        if (g.length() != expected.length()) return false;
+        java.nio.charset.Charset u = java.nio.charset.Charset.forName("UTF-8");
+        return java.security.MessageDigest.isEqual(expected.getBytes(u), g.getBytes(u));
     }
 
     /** 在线设备 */
