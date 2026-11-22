@@ -1,0 +1,236 @@
+import com.hex91.file.core.PathCore;
+import com.hex91.file.fs.Fs;
+import com.hex91.file.fs.FsError;
+import com.hex91.file.fs.LocalFs;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.List;
+
+/**
+ * O-27：{@link LocalFs} 与 {@link PathCore} 的行为护栏。
+ *
+ * <p>为什么这些用例值得写：{@code Fs} 的存在意义是「同一份调用代码在本地与远程
+ * 表现一致」。一旦本地实现把「目标已存在」做成静默覆盖，或者把 {@code ..} 折错，
+ * 上层切到远程视图时就会出现「本地正常、远程删错目录」—— 这种问题在真机上
+ * 往往表现为「数据没了但没有报错」，最难回溯。</p>
+ *
+ * <p>与 {@link java.io.File} 的结论逐项对齐：list 项数、stat 大小、目录判定
+ * 都直接拿 {@code File} 的返回值当对照，不另立一套期望值。</p>
+ */
+public class FsLocalTest {
+
+    static int pass = 0, fail = 0;
+
+    static void ok(boolean v, String msg) {
+        if (v) { pass++; System.out.println("PASS  " + msg); }
+        else { fail++; System.out.println("FAIL  " + msg); }
+    }
+
+    static void eq(Object a, Object b, String msg) {
+        boolean v = a == null ? b == null : a.equals(b);
+        ok(v, msg + (v ? "" : "  (got=" + a + " want=" + b + ")"));
+    }
+
+    public static void main(String[] args) throws Exception {
+        pathCore();
+        File root = mkTempDir();
+        try {
+            localOps(root);
+        } finally {
+            deleteTree(root);
+        }
+        System.out.println("-----------------------------------------");
+        System.out.println("pass=" + pass + " fail=" + fail);
+        if (fail > 0) System.exit(1);
+    }
+
+    // ---------------------------------------------------------------- PathCore
+
+    static void pathCore() {
+        eq(PathCore.normalize(""), "", "normalize: 空串");
+        eq(PathCore.normalize(null), "", "normalize: null");
+        eq(PathCore.normalize("/"), "/", "normalize: 根");
+        eq(PathCore.normalize("//a///b/"), "/a/b", "normalize: 压缩重复分隔符与尾斜杠");
+        eq(PathCore.normalize("/a/./b"), "/a/b", "normalize: 折叠 .");
+        eq(PathCore.normalize("/a/b/../c"), "/a/c", "normalize: 折叠 ..");
+        eq(PathCore.normalize("/.."), "/", "normalize: 绝对路径的 .. 不越过根");
+        eq(PathCore.normalize("/a/../../b"), "/b", "normalize: 多个 .. 折叠到根");
+        eq(PathCore.normalize("a/../../b"), "../b", "normalize: 相对路径保留前导 ..");
+        eq(PathCore.normalize("C:\\tmp\\a\\..\\b"), "C:/tmp/b", "normalize: Windows 反斜杠与盘符");
+
+        eq(PathCore.join("", "a"), "a", "join: 空父");
+        eq(PathCore.join("/a", "b"), "/a/b", "join: 普通");
+        eq(PathCore.join("/a/", "b"), "/a/b", "join: 父已带斜杠不重复");
+        eq(PathCore.baseName("/a/b.txt"), "b.txt", "baseName: 普通");
+        eq(PathCore.baseName("/a/"), "a", "baseName: 尾斜杠");
+        eq(PathCore.baseName("/"), "", "baseName: 根");
+        eq(PathCore.parentOf("/a/b.txt"), "/a", "parentOf: 普通");
+        eq(PathCore.parentOf("/a"), "/", "parentOf: 一级绝对路径");
+        eq(PathCore.parentOf("a"), "", "parentOf: 一级相对路径");
+        eq(PathCore.parentOf("C:/a"), "C:/", "parentOf: 盘符根");
+        ok(PathCore.isRoot("/"), "isRoot: /");
+        ok(PathCore.isRoot("C:/"), "isRoot: C:/");
+        ok(!PathCore.isRoot("/a"), "isRoot: /a 不是根");
+    }
+
+    // ---------------------------------------------------------------- LocalFs
+
+    static void localOps(File root) throws Exception {
+        LocalFs fs = new LocalFs();
+        final String base = PathCore.normalize(root.getAbsolutePath());
+
+        // ---- 造树：目录 + 文件混合，名字故意让大小写交叉 ----
+        mkdirs(new File(root, "Beta"));
+        mkdirs(new File(root, "alpha"));
+        write(new File(root, "zeta.txt"), new byte[10]);
+        write(new File(root, "Alpha.txt"), new byte[20]);
+
+        List<Fs.Entry> list = fs.list(base);
+        eq(list.size(), 4, "list: 项数与 File.listFiles 一致");
+        String[] names = new String[list.size()];
+        for (int i = 0; i < list.size(); i++) names[i] = list.get(i).name;
+        eq(names[0], "alpha", "list: 目录优先且忽略大小写（第 1 项 alpha 目录）");
+        eq(names[1], "Beta", "list: 第 2 项 Beta 目录");
+        eq(names[2], "Alpha.txt", "list: 文件按忽略大小写排序（Alpha.txt 在 zeta 前）");
+        eq(names[3], "zeta.txt", "list: 最后一项 zeta.txt");
+        ok(list.get(0).dir, "list: alpha 标记为目录");
+        ok(!list.get(2).dir, "list: Alpha.txt 标记为文件");
+        eq(list.get(2).size, 20L, "list: 文件大小与 File.length 一致");
+        eq(list.get(0).path, PathCore.join(base, "alpha"), "list: path 由父路径拼出");
+        ok(list.get(0).mtime > 0L, "list: mtime 为 epoch 毫秒");
+
+        // ---- 读 ----
+        eq(fs.stat(base).dir, true, "stat: 目录");
+        eq(fs.stat(PathCore.join(base, "zeta.txt")).size, 10L, "stat: 文件大小");
+        ok(fs.stat(PathCore.join(base, "nope")) == null, "stat: 不存在返回 null");
+
+        InputStream in = fs.openRead(PathCore.join(base, "zeta.txt"));
+        try {
+            eq(in.read(), 0, "openRead: 能读到内容");
+        } finally {
+            in.close();
+        }
+
+        // ---- 写：覆盖 / 追加 / 自动补父目录 ----
+        String sub = PathCore.join(base, "deep/one");
+        OutputStream out = fs.openWrite(sub, false);
+        out.write(new byte[]{1, 2, 3});
+        out.close();
+        eq(new File(root, "deep/one").length(), 3L, "openWrite: 自动补齐父目录");
+        out = fs.openWrite(sub, false);
+        out.write(new byte[]{9});
+        out.close();
+        eq(new File(root, "deep/one").length(), 1L, "openWrite(false): 截断覆盖");
+        out = fs.openWrite(sub, true);
+        out.write(new byte[]{8, 7});
+        out.close();
+        eq(new File(root, "deep/one").length(), 3L, "openWrite(true): 追加");
+
+        // ---- mkdir ----
+        fs.mkdir(PathCore.join(base, "newdir"));
+        ok(new File(root, "newdir").isDirectory(), "mkdir: 一级目录");
+        fs.mkdir(PathCore.join(base, "newdir"));
+        ok(true, "mkdir: 已存在是幂等成功（未抛异常）");
+        expect(FsError.Code.BAD_PATH, new Body() {
+            public void run() throws Exception { new LocalFs().mkdir("  "); }
+        }, "mkdir: 空路径报 BAD_PATH");
+        expect(FsError.Code.MKDIR_FAIL, new Body() {
+            public void run() throws Exception { new LocalFs().mkdir(PathCore.join(base, "no-such-parent/x")); }
+        }, "mkdir: 父目录不存在报 MKDIR_FAIL（不偷偷 mkdirs）");
+        write(new File(root, "occupied"), new byte[1]);
+        expect(FsError.Code.MKDIR_FAIL, new Body() {
+            public void run() throws Exception { new LocalFs().mkdir(PathCore.join(base, "occupied")); }
+        }, "mkdir: 同名文件已存在报 MKDIR_FAIL");
+
+        // ---- delete ----
+        File gone = write(new File(root, "gone.txt"), new byte[1]);
+        fs.delete(PathCore.join(base, "gone.txt"), false);
+        ok(!gone.exists(), "delete: 文件");
+        File empty = new File(root, "empty");
+        mkdirs(empty);
+        fs.delete(PathCore.join(base, "empty"), false);
+        ok(!empty.exists(), "delete: 空目录非递归可删");
+        File nonEmpty = new File(root, "nonempty");
+        write(new File(nonEmpty, "a.txt"), new byte[1]);
+        expect(FsError.Code.DELETE_SRC_FAIL, new Body() {
+            public void run() throws Exception { new LocalFs().delete(PathCore.join(base, "nonempty"), false); }
+        }, "delete: 非空目录非递归必须失败");
+        fs.delete(PathCore.join(base, "nonempty"), true);
+        ok(!nonEmpty.exists(), "delete: 非空目录递归删除");
+        expect(FsError.Code.SRC_MISSING, new Body() {
+            public void run() throws Exception { new LocalFs().delete(PathCore.join(base, "no-such-entry"), true); }
+        }, "delete: 不存在报 SRC_MISSING");
+
+        // ---- rename ----
+        write(new File(root, "r1.txt"), new byte[2]);
+        fs.rename(PathCore.join(base, "r1.txt"), PathCore.join(base, "r2.txt"));
+        ok(!new File(root, "r1.txt").exists() && new File(root, "r2.txt").exists(),
+                "rename: 同目录改名");
+        fs.rename(PathCore.join(base, "r2.txt"), PathCore.join(base, "deep/r2.txt"));
+        ok(new File(root, "deep/r2.txt").exists(), "rename: 跨目录移动");
+        write(new File(root, "r3.txt"), new byte[1]);
+        write(new File(root, "r4.txt"), new byte[1]);
+        expect(FsError.Code.TARGET_EXISTS, new Body() {
+            public void run() throws Exception {
+                new LocalFs().rename(PathCore.join(base, "r3.txt"), PathCore.join(base, "r4.txt"));
+            }
+        }, "rename: 目标存在不覆盖（TARGET_EXISTS）");
+        expect(FsError.Code.SRC_MISSING, new Body() {
+            public void run() throws Exception {
+                new LocalFs().rename(PathCore.join(base, "no-such-src"), PathCore.join(base, "dst"));
+            }
+        }, "rename: 源不存在报 SRC_MISSING");
+
+        // ---- list 失败 ----
+        expect(FsError.Code.LIST_FAIL, new Body() {
+            public void run() throws Exception { new LocalFs().list(PathCore.join(base, "no-such-dir")); }
+        }, "list: 不存在报 LIST_FAIL（不是空列表）");
+
+        // ---- close 后仍可用（本地实现无状态，契约如此） ----
+        fs.close();
+        ok(fs.stat(base) != null, "close: 本地实现 close 后仍可调用");
+    }
+
+    // ---------------------------------------------------------------- 工具
+
+    interface Body { void run() throws Exception; }
+
+    static void expect(FsError.Code code, Body body, String msg) {
+        try {
+            body.run();
+            ok(false, msg + "  (未抛异常)");
+        } catch (FsError e) {
+            ok(e.code == code, msg + (e.code == code ? "" : "  (got=" + e.code + ")"));
+        } catch (Exception e) {
+            ok(false, msg + "  (got=" + e.getClass().getSimpleName() + ":" + e.getMessage() + ")");
+        }
+    }
+
+    static File mkTempDir() throws Exception {
+        File f = File.createTempFile("hf_fs_local", "");
+        if (!f.delete() || !f.mkdirs()) throw new IllegalStateException("无法建临时目录");
+        return f;
+    }
+
+    static void mkdirs(File f) {
+        if (!f.isDirectory() && !f.mkdirs()) throw new IllegalStateException("mkdirs: " + f);
+    }
+
+    static File write(File f, byte[] data) throws Exception {
+        File p = f.getParentFile();
+        if (p != null) mkdirs(p);
+        FileOutputStream out = new FileOutputStream(f);
+        try { out.write(data); } finally { out.close(); }
+        return f;
+    }
+
+    static void deleteTree(File f) {
+        if (f == null || !f.exists()) return;
+        File[] cs = f.listFiles();
+        if (cs != null) for (int i = 0; i < cs.length; i++) deleteTree(cs[i]);
+        f.delete();
+    }
+}

@@ -185,6 +185,16 @@ public final class FsText {
                 return c.getString(R.string.fs_err_bad_magic, e.str(0));
             case OUTDIR_FAIL:
                 return c.getString(R.string.fs_err_outdir, e.str(0));
+            case LIST_FAIL:
+                return c.getString(R.string.fs_err_list, e.str(0));
+            case RENAME_FAIL:
+                return c.getString(R.string.fs_err_rename, e.str(0));
+            case TARGET_EXISTS:
+                return c.getString(R.string.fs_err_target_exists, e.str(0));
+            case BAD_PATH:
+                return c.getString(R.string.fs_err_bad_path);
+            case UNSUPPORTED:
+                return c.getString(R.string.fs_err_unsupported, e.str(0));
             default:
                 return e.getMessage();
         }

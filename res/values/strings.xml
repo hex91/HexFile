@@ -3289,6 +3289,12 @@
     <string name="fs_err_no_input">没有可压缩的内容</string>
     <string name="fs_err_bad_magic">不是 zstd 文件（魔数不符）：%1$s</string>
     <string name="fs_err_outdir">无法创建输出目录：%1$s</string>
+    <!-- v2.114.0（O-27）Fs/LocalFs 统一操作面 -->
+    <string name="fs_err_list">无法列出目录：%1$s</string>
+    <string name="fs_err_rename">重命名失败：%1$s</string>
+    <string name="fs_err_target_exists">目标已存在：%1$s</string>
+    <string name="fs_err_bad_path">路径为空</string>
+    <string name="fs_err_unsupported">该存储不支持此操作：%1$s</string>
     <!-- v2.105.0 utils 状态/摘要码（UtilText） -->
     <string name="ut_hash_fail">失败</string>
     <string name="ut_import_summary">导入 %1$d 个</string>

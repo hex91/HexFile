@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：3169 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：3174 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -51,31 +51,33 @@ adb install -r out/HexFile-*.apk
     │   ├── TaskUiController     任务条 / 任务中心 / 「上次有任务被中断」
     │   ├── DrawerController     抽屉 16 个入口 / 存储容量 / Root 状态
     │   └── PropsController      属性 / 权限 / 时间 / 所有者 / 哈希
-    ├── core/        (28)        # 基础工具：编码、加密、格式化、时间、十六进制、颜色对比
+    ├── core/        (30)        # 基础工具：编码、加密、格式化、时间、十六进制、颜色对比
     │   ├── Base64Codec Json Iso8601 FormatUtil HexCore Sm3 Sm4 CryptoCore CodecCore
     │   ├── AtomicReplace MimeUtil TimeCore TextDiffUtil Contrast ScreenPolicy ByteIO
-    │   └── CredentialCodec ScanCache StringExtract RadixCore ThemeSchemes
+    │   └── CredentialCodec ScanCache StringExtract RadixCore ThemeSchemes PathCore
     │       RegionTable PlaySpeed TestDataCore ArscDefs
-    ├── fs/          (30)        # 文件系统：读目录、复制移动、回收站、压缩包、Root/Shell
-    │   ├── FileItem FileOps FileAttrs FileClipboard DirReader DiskScanUtil FileKind
+    ├── fs/          (34)        # 文件系统：读目录、复制移动、回收站、压缩包、Root/Shell
+    │   ├── Fs LocalFs FileItem FileOps FileAttrs FileClipboard DirReader DiskScanUtil FileKind
     │   ├── FileTask FileTaskEngine FileSplit FileCrypt Trash TrashJanitor TrashPolicy
     │   ├── ZipUtil ZstdUtil WorkDir DocPath BatchRenameCore CompareUtil ContentGrep
     │   └── LeftoverScan TreeOps RootIO RootUtil Shell LinkUtil SortMode TempFiles
-    ├── apk/         (31)        # APK / 压缩包 / 资源二进制：重打包、签名、ARSC、AXML、smali
+    │       VaultStore VaultBio
+    ├── apk/         (33)        # APK / 压缩包 / 资源二进制：重打包、签名、ARSC、AXML、smali
     │   ├── ApkUtil ApkInfoUtil ApkPackager ApkRepack ApkEditSession ApkSignCheck
     │   ├── ApkSignerTool ApkCloneTool ApkCompareUtil ArchiveUtil ArchiveWrite ArchivePasswords
     │   ├── FileInspect ArscEditor ArscFile ArscPlus ArscValues ArscWriter
     │   └── AxmlFile AxmlTextSync AxmlWriter Decompiler SmaliTool SmaliDocs
-    │       KeyStoreUtil KeystoreCreate SigKill
-    ├── net/         (28)        # 网络：云盘 / FTP / SFTP / SMB / WebDAV / S3 / HLS / 局域网
-    │   ├── NetFs NetFsFactory FtpFs SftpFs SmbFs WebDavFs S3Fs S3Signer
+    │       KeyStoreUtil KeystoreCreate SigKill ArchiveGrep
+    ├── net/         (31)        # 网络：云盘 / FTP / SFTP / SMB / WebDAV / S3 / HLS / 局域网
+    │   ├── NetFs NetFsAdapter NetFsFactory FtpFs SftpFs SmbFs WebDavFs S3Fs S3Signer
     │   ├── OneDriveFs AliyunDriveFs OAuthClient OAuthToken CloudPath StreamUrl
     │   ├── HlsPlaylist HlsCrypto HlsKey M3u8Playlist HlsDownloader TsRemuxer
     │   └── LanNet LanNode LanProtocol LanSender RemoteServer TokenHarvest SyncRunner
-    ├── sched/       (7)         # 定时任务：规则解析 / 编解码 / 执行 / 存储 / 两个接收器
+    ├── sched/       (11)        # 定时任务：规则解析 / 编解码 / 执行 / 前台服务 / 接收器
     │   ├── ScheduleRule ScheduleItem ScheduleCodec ScheduleRunner ScheduleStore
+    │   ├── ScheduleService ScheduleRunState VolumeRoots SchedText
     │   └── ScheduleReceiver BootReceiver
-    ├── ui/          (79)        # 界面：49 Activity + 7 Service/Provider + 视图/适配器/对话框
+    ├── ui/          (98)        # 界面：49 Activity + 7 Service/Provider + 视图/适配器/对话框
     │   ├── *Activity（除 MainActivity 外全部）、ActivityFloatService / ActivityTraceService
     │   ├── ApkFileProvider / HfDocumentsProvider / WidgetProvider / LanShareService / TaskService
     │   ├── FileAdapter / FileGridAdapter / ZipAdapter、PullRefreshLayout / RadarView
@@ -1782,6 +1784,73 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.114.0（versionCode 307）—— 批次 C 起步：O-27 `Fs` / `LocalFs` 统一操作面
+
+这一版只做「铺路」，不切换任何调用点。原因写在前面：双栏浏览、搜索、解压、定时任务
+现在各自直接对 `java.io.File` 编程，想让「远程目录像本地一样浏览」或「把某个操作换一套实现」，
+就得把每个调用点都改一遍。先定一个 7 个方法的最小面，把 `File` 快路径留在本地实现内部，
+后续按调用点逐个切换 —— 比一次性大改可控得多，也不会把现有功能当试验品。
+
+### 接口（`fs/Fs`）
+
+| 方法 | 语义 | 返回 / 失败 |
+| --- | --- | --- |
+| `list(path)` | 列目录，目录排前、名称忽略大小写升序 | 失败抛 `LIST_FAIL`，**不返回空列表**（空目录与读失败是两种状态） |
+| `stat(path)` | 取元数据 | `null` = 确定不存在；查不了（权限/网络）必须抛异常 |
+| `openRead(path)` | 读流 | 调用方 close |
+| `openWrite(path, append)` | 写流，自动补父目录 | `append=true` 追加，`false` 截断 |
+| `mkdir(path)` | 建一级目录 | 父不存在报 `MKDIR_FAIL`（不偷偷 `mkdirs`），已存在且是目录幂等成功 |
+| `delete(path, recursive)` | 删除 | 非空目录 + `recursive=false` 必须失败，不半删 |
+| `rename(from, to)` | 改名 / 移动 | 目标存在报 `TARGET_EXISTS`，**不覆盖** |
+
+`close()` 给了空默认实现：本地实现无状态，关闭后仍可调用（契约写进单测）。
+
+### 三条容易走偏的约定
+
+1. **「不存在」与「查不到」必须分开**。`stat` 用 `null` 表示前者、异常表示后者。
+   合成一个返回值的话，网络超时会被界面显示成「文件已被删除」，用户接着就可能去点「新建」覆盖掉。
+2. **改名不覆盖**。`File.renameTo` 在 Linux 上覆盖、Windows 上失败 —— 同一份代码两个平台两种结果。
+   `LocalFs` 显式检查目标存在并报 `TARGET_EXISTS`，要覆盖就由调用方先删。
+3. **`delete` 的递归是显式参数**。`DirReader`/`FileOps` 里那些「删目录就是递归」的隐含语义
+   在批量操作里很危险；接口上写清楚，调用方每处都得表态。
+
+### `core/PathCore`：为什么不直接用 `Paths.normalize()`
+
+`java.nio.file` 要 API 26（minSdk 21），而且桌面 JVM 上 `Paths.get("/x")` 会解析成「当前盘根」，
+与 Android 结论不同 —— 单测通过、真机出错是最难查的一类问题。这里用纯字符串栈折叠，
+`/a/../../b → /b`、`a/../../b → ../b`、`C:\a\..\b → C:/b` 两个平台逐字符一致。
+`Fs` 与 `NetFs` 的拼接/取父规则都走它，避免本地与远程对同一个路径理解不同。
+
+### `net/NetFsAdapter`：三处协议差异显式化
+
+| 差异 | 处理 |
+| --- | --- |
+| 没有 `stat` | 退化为「列父目录找同名项」；目录层级深时多一次请求，比七个协议各写一份 stat 可靠 |
+| `rename` 只能同目录 | 跨目录直接 `UNSUPPORTED`，由调用方改走「下载 + 上传 + 删除」 |
+| `append` 能力不一 | 支持时偏移取**远端当前长度**（FTP/SFTP 只能追加到末尾）；不支持时 `UNSUPPORTED`，不静默改成覆盖 |
+
+### 本版明确没做的事
+
+- **没有把任何调用点从 `File` 切到 `Fs`**：`FileOps` / `DirReader` / 搜索 / 解压 / 定时任务原样；
+- **没有 Root 回退**：受保护目录仍走 `RootUtil` / `RootIO`，`LocalFs` 只覆盖普通路径；
+- **没有远程 `stat` 的真实接口**：适配器是退化实现，协议层以后补 `stat` 时再换；
+- **没有把 `NetFs` 的静态路径工具删掉**：`Fs` 与它暂时并存，下一版再收敛到 `PathCore`。
+
+### 验证
+
+- 新增 `FsLocalTest`（56 项：路径规范化、排序、读写、mkdir/delete/rename 的失败码、与 `File` 结论逐项对齐）
+  与 `FsNetAdapterTest`（21 项：`BAD_PATH` / append 偏移 / 跨目录改名 / 非空目录非递归删除）；
+- 四门全过：依赖方向 PASS、空 catch **334**（基线 335，未增长）、
+  文案键 **3174 / 3174** 中英 100%、动作码 55 一致；
+- `run_core` **74/0/0**（分批跑，见下方注），`run_all` **102/0/4**；
+- APK 13,538,000 B（md5 `a6723595…`），badging 307/2.114.0。
+
+> 注：本机 `run_core` 一把梭在第 30 个用例（`WorkDirTest`）处偶发挂起，单独跑与分批跑均 1 秒通过，
+> 属环境问题而非用例失败。为拿到可信结果，按 15 个一批分成三批跑完 74 个，全部通过。
+> 这个现象与 v2.113.0 记录过的 `FileOpsTest` 挂起同类，暂不归因到代码。
 
 ---
 

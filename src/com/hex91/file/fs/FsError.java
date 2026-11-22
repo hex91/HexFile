@@ -43,7 +43,13 @@ public class FsError extends IOException {
         ZIP_RENAME_FAIL,
         NO_INPUT,
         BAD_MAGIC,
-        OUTDIR_FAIL
+        OUTDIR_FAIL,
+        // v2.114.0（O-27）：Fs/LocalFs 统一操作面新增
+        LIST_FAIL,
+        RENAME_FAIL,
+        TARGET_EXISTS,
+        BAD_PATH,
+        UNSUPPORTED
     }
 
     public final Code code;

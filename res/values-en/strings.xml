@@ -3281,6 +3281,12 @@
     <string name="fs_err_no_input">Nothing to compress</string>
     <string name="fs_err_bad_magic">Not a zstd file (bad magic): %1$s</string>
     <string name="fs_err_outdir">Cannot create output directory: %1$s</string>
+    <!-- v2.114.0 (O-27) Fs/LocalFs unified operation surface -->
+    <string name="fs_err_list">Cannot list directory: %1$s</string>
+    <string name="fs_err_rename">Rename failed: %1$s</string>
+    <string name="fs_err_target_exists">Target already exists: %1$s</string>
+    <string name="fs_err_bad_path">Path is empty</string>
+    <string name="fs_err_unsupported">This storage does not support the operation: %1$s</string>
     <!-- v2.105.0 utils status/summary codes (UtilText) -->
     <string name="ut_hash_fail">Failed</string>
     <string name="ut_import_summary">Imported %1$d item(s)</string>
