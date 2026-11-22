@@ -30,9 +30,22 @@ public class ZipAdapter extends BaseAdapter {
      */
     private boolean showPath;
 
+    /**
+     * v2.112.0（F-24）：内容搜索命中时的备注，key = 条目完整名（如 {@code L12: <string name=}）。
+     *
+     * <p>内容命中与名称命中共用同一份列表：同一个文件可能两种都命中，也可能只在内容里命中。
+     * 用 Map 而不是给 Entry 加字段 —— Entry 属于归档层，不该为了 UI 的展示多一个可变字段。</p>
+     */
+    private final java.util.Map<String, String> notes = new java.util.HashMap<String, String>();
+
     public ZipAdapter(Context c) { this.ctx = c; }
 
     public void setShowPath(boolean v) { this.showPath = v; }
+
+    public void setNotes(java.util.Map<String, String> m) {
+        notes.clear();
+        if (m != null) notes.putAll(m);
+    }
 
     public void set(List<ArchiveUtil.Entry> list) {
         items.clear();
@@ -61,7 +74,9 @@ public class ZipAdapter extends BaseAdapter {
         icon.setBackground(bg);
         String shown = showPath ? e.full : e.name;
         name.setText(shown + (e.dir && !shown.endsWith("/") ? "/" : ""));
-        detail.setText(e.dir ? ctx.getString(R.string.common_folder) : FileOps.formatSize(e.size));
+        String note = notes.get(e.full);
+        if (note != null) detail.setText(note);
+        else detail.setText(e.dir ? ctx.getString(R.string.common_folder) : FileOps.formatSize(e.size));
         return cv;
     }
 }

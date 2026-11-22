@@ -480,6 +480,10 @@
     <string name="zip_search_hint">File name or path fragment</string>
     <string name="zip_search_empty_query">Enter something to search</string>
     <string name="zip_searching">Searching entries…</string>
+    <string name="zip_search_content">Also search file contents</string>
+    <string name="zip_search_scanning">Scanning contents %1$d/%2$d</string>
+    <string name="zip_search_names">%1$d by name</string>
+    <string name="zip_search_content_stat">%1$d files by content (scanned %2$d, skipped %3$d)</string>
     <string name="zip_search_done">Search "%1$s": %2$d hits</string>
     <string name="zip_search_truncated">Search "%1$s": %2$d hits, showing first %3$d</string>
     <string name="zip_search_none">No entry matches "%1$s"</string>

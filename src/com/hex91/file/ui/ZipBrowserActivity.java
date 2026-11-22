@@ -4,6 +4,7 @@ import com.hex91.file.R;
 import com.hex91.file.MainActivity;
 import com.hex91.file.apk.ApkEditSession;
 import com.hex91.file.apk.ArchiveExtract;
+import com.hex91.file.apk.ArchiveGrep;
 import com.hex91.file.apk.ArchiveSearch;
 import com.hex91.file.apk.ArchiveUtil;
 import com.hex91.file.apk.SmaliTool;
@@ -14,7 +15,9 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -61,6 +64,14 @@ public class ZipBrowserActivity extends BaseActivity {
      */
     private String query;
     private ArchiveSearch.Result searchResult;
+    /** v2.112.0（F-24）：内容搜索的统计（null = 这轮没搜内容） */
+    private ArchiveGrep.Result grepResult;
+    /** 内容搜索取消信号：搜索线程读、UI 写 */
+    private volatile boolean searchCancel;
+    /** 合并后的展示列表（名称命中在前、内容命中在后）；null = 本轮没有内容搜索 */
+    private List<ArchiveUtil.Entry> mergedItems;
+    /** 内容命中的备注：条目完整名 → 「L12」/「L12 +3」 */
+    private final java.util.Map<String, String> hitNotes = new java.util.HashMap<String, String>();
     /** 搜索线程正在跑（挡住点击与被 onResume 重载） */
     private volatile boolean searching;
     /** Activity 已销毁：后台线程回来时不要再碰 View */
@@ -183,6 +194,11 @@ public class ZipBrowserActivity extends BaseActivity {
         }
         try {
             List<ArchiveUtil.Entry> entries = archive.listChildren(prefix);
+            // 回到目录浏览：内容搜索的合并列表与备注都作废，否则目录里会挂着上次的行号
+            mergedItems = null;
+            grepResult = null;
+            hitNotes.clear();
+            adapter.setNotes(null);
             adapter.setShowPath(false);
             adapter.set(entries);
             btnUp.setText(R.string.zip_up);
@@ -331,14 +347,26 @@ public class ZipBrowserActivity extends BaseActivity {
         et.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
         et.setHint(R.string.zip_search_hint);
         if (query != null) et.setText(query);     // 再搜一次时把上次的词带出来好改
+
+        // F-24：名称搜索是快路径（条目表已在内存），内容搜索要逐个解压，勾了才做
+        final CheckBox cb = new CheckBox(this);
+        cb.setText(R.string.zip_search_content);
+        cb.setTextSize(13f);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = ToolUi.dp(this, 16);
+        box.setPadding(pad, 0, pad, 0);
+        box.addView(et);
+        box.addView(cb);
+
         new HfDialogBuilder(this)
                 .setTitle(R.string.zip_search)
                 .setMessage(R.string.zip_search_msg)
-                .setView(et)
+                .setView(box)
                 .setPositiveButton(R.string.zip_search,
                         new android.content.DialogInterface.OnClickListener() {
                             public void onClick(android.content.DialogInterface d, int w) {
-                                startSearch(et.getText().toString());
+                                startSearch(et.getText().toString(), cb.isChecked());
                             }
                         })
                 .setNegativeButton(R.string.common_cancel, null)
@@ -352,10 +380,11 @@ public class ZipBrowserActivity extends BaseActivity {
      * 但 TAR 没有索引，{@code listAll} 等于把整个包顺序读一遍，几百 MB 就是几秒。
      * 同一份代码不能有两种线程模型，所以统一放后台。</p>
      */
-    private void startSearch(final String raw) {
+    private void startSearch(final String raw, final boolean withContent) {
         final String q = ArchiveSearch.normalize(raw);
         if (q.isEmpty()) { toast(getString(R.string.zip_search_empty_query)); return; }
         searching = true;
+        searchCancel = false;
         final ProgressDialog pd = new ProgressDialog(this);
         pd.setMessage(getString(R.string.zip_searching));
         // 与解压一致：关掉对话框不代表停下了，那就不给关
@@ -364,13 +393,38 @@ public class ZipBrowserActivity extends BaseActivity {
         new Thread(new Runnable() {
             public void run() {
                 ArchiveSearch.Result got = null;
+                ArchiveGrep.Result grep = null;
                 String err = null;
+                List<ArchiveUtil.Entry> merged = null;
+                final java.util.Map<String, String> notes = new java.util.HashMap<String, String>();
                 try {
-                    got = ArchiveSearch.filter(archive.listAll(), q, ArchiveSearch.MAX_HITS);
+                    List<ArchiveUtil.Entry> all = archive.listAll();
+                    got = ArchiveSearch.filter(all, q, ArchiveSearch.MAX_HITS);
+                    if (withContent) {
+                        grep = ArchiveGrep.search(archive, all, q, true,
+                                new File(getCacheDir(), "zipgrep"),
+                                new ArchiveGrep.Cancel() {
+                                    public boolean cancelled() { return searchCancel || dead; }
+                                },
+                                new ArchiveGrep.Progress() {
+                                    public void onEntry(final int done, final int total, String name) {
+                                        runOnUiThread(new Runnable() {
+                                            public void run() {
+                                                if (!pd.isShowing()) return;
+                                                pd.setMessage(ZipBrowserActivity.this.getString(
+                                                        R.string.zip_search_scanning, done, total));
+                                            }
+                                        });
+                                    }
+                                });
+                    }
+                    merged = merge(got, grep, all, notes);
                 } catch (Throwable t) {
                     err = shortMsg(ZipBrowserActivity.this, t);
                 }
                 final ArchiveSearch.Result fr = got;
+                final ArchiveGrep.Result fg = grep;
+                final List<ArchiveUtil.Entry> fm = merged;
                 final String fe = err;
                 runOnUiThread(new Runnable() {
                     public void run() {
@@ -383,6 +437,10 @@ public class ZipBrowserActivity extends BaseActivity {
                         }
                         query = q;
                         searchResult = fr;
+                        grepResult = fg;
+                        mergedItems = fm;
+                        hitNotes.clear();
+                        hitNotes.putAll(notes);
                         renderSearch();
                     }
                 });
@@ -390,18 +448,77 @@ public class ZipBrowserActivity extends BaseActivity {
         }, "zip-search").start();
     }
 
-    /** 把搜索结果画进列表：完整路径 + 「命中多少条 / 是否截断」 */
+    /**
+     * 合并名称命中与内容命中（F-24）。
+     *
+     * <p>名称命中排在前面（它们通常是用户真正在找的东西），内容命中按条目首次出现顺序追加，
+     * 同一个文件的多行命中合并成一行，备注里写「L12 等 N 处」——
+     * 一个 3000 行的 xml 命中 40 行时，列表里出现 40 条同名结果毫无用处。</p>
+     */
+    private static List<ArchiveUtil.Entry> merge(ArchiveSearch.Result name, ArchiveGrep.Result grep,
+                                                 List<ArchiveUtil.Entry> all,
+                                                 java.util.Map<String, String> notes) {
+        List<ArchiveUtil.Entry> out = new java.util.ArrayList<ArchiveUtil.Entry>();
+        java.util.HashSet<String> seen = new java.util.HashSet<String>();
+        if (name != null) {
+            for (int i = 0; i < name.items.size(); i++) {
+                ArchiveUtil.Entry e = name.items.get(i);
+                if (seen.add(e.full)) out.add(e);
+            }
+        }
+        if (grep == null || grep.hits.isEmpty()) return out;
+
+        // full → {首次行号, 命中次数}，LinkedHashMap 保序
+        java.util.LinkedHashMap<String, int[]> agg = new java.util.LinkedHashMap<String, int[]>();
+        for (int i = 0; i < grep.hits.size(); i++) {
+            ArchiveGrep.Hit h = grep.hits.get(i);
+            int[] v = agg.get(h.entry.full);
+            if (v == null) agg.put(h.entry.full, new int[]{h.line, 1});
+            else v[1]++;
+        }
+        java.util.HashMap<String, ArchiveUtil.Entry> byFull =
+                new java.util.HashMap<String, ArchiveUtil.Entry>();
+        if (all != null) {
+            for (int i = 0; i < all.size(); i++) {
+                ArchiveUtil.Entry e = all.get(i);
+                if (e != null) byFull.put(e.full, e);
+            }
+        }
+        java.util.Iterator<java.util.Map.Entry<String, int[]>> it = agg.entrySet().iterator();
+        while (it.hasNext()) {
+            java.util.Map.Entry<String, int[]> en = it.next();
+            String full = en.getKey();
+            int[] v = en.getValue();
+            ArchiveUtil.Entry e = byFull.get(full);
+            if (e == null) continue;
+            if (seen.add(full)) out.add(e);
+            // 备注只写行号与命中数，片段留给打开文件后自己看：列表里塞长文本会被截断成乱码感
+            notes.put(full, v[1] > 1
+                    ? "L" + v[0] + " +" + (v[1] - 1)
+                    : "L" + v[0]);
+        }
+        return out;
+    }
+
+    /** 把搜索结果画进列表：完整路径 + 名称/内容两段统计 */
     private void renderSearch() {
         ArchiveSearch.Result r = searchResult;
         if (r == null) { query = null; load(); return; }
         adapter.setShowPath(true);          // 必须在 set() 之前：set 里会 notifyDataSetChanged
-        adapter.set(r.items);
+        adapter.setNotes(hitNotes);
+        adapter.set(mergedItems != null ? mergedItems : r.items);
         btnUp.setText(R.string.zip_search_back);
-        String head;
-        if (r.total == 0) head = getString(R.string.zip_search_none, query);
-        else if (r.truncated) head = getString(R.string.zip_search_truncated, query, r.total, r.items.size());
-        else head = getString(R.string.zip_search_done, query, r.total);
-        titleView.setText(getString(R.string.zip_title_search, archiveFile.getName(), format, head));
+
+        StringBuilder head = new StringBuilder();
+        head.append(getString(R.string.zip_search_names, r.total));
+        if (grepResult != null) {
+            if (head.length() > 0) head.append(" · ");
+            head.append(getString(R.string.zip_search_content_stat,
+                    hitNotes.size(), grepResult.scanned, grepResult.skippedBig));
+            if (grepResult.truncated) head.append(" ⚠");
+        }
+        titleView.setText(getString(R.string.zip_title_search,
+                archiveFile.getName(), format, head.toString()));
     }
 
     /** 关进度条：解压与搜索共用一份，免得同一个 try/catch 写两遍 */

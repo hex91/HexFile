@@ -487,6 +487,10 @@
     <string name="zip_search_hint">文件名或路径片段</string>
     <string name="zip_search_empty_query">请输入搜索内容</string>
     <string name="zip_searching">正在搜索包内条目…</string>
+    <string name="zip_search_content">同时搜索文件内容</string>
+    <string name="zip_search_scanning">正在扫描内容 %1$d/%2$d</string>
+    <string name="zip_search_names">名称 %1$d 条</string>
+    <string name="zip_search_content_stat">内容 %1$d 个文件（扫描 %2$d，跳过 %3$d）</string>
     <string name="zip_search_done">搜索「%1$s」：命中 %2$d 项</string>
     <string name="zip_search_truncated">搜索「%1$s」：命中 %2$d 项，只显示前 %3$d 项</string>
     <string name="zip_search_none">没有匹配「%1$s」的条目</string>
