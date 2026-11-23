@@ -51,7 +51,10 @@ public class FsError extends IOException {
         BAD_PATH,
         UNSUPPORTED,
         // v2.116.0（O-27 续）：遍历入口——根不是目录
-        NOT_DIR
+        NOT_DIR,
+        // v2.117.0（O-27 续）：复制/移动——目标在源子树内、源没能删掉
+        SELF_NEST,
+        SRC_LEFT
     }
 
     public final Code code;

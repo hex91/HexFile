@@ -114,6 +114,44 @@ public final class NetFsAdapter implements Fs {
         net.rename(a, PathCore.baseName(b));
     }
 
+    /**
+     * v2.117.0（O-27 续）：远程复制只做单文件。
+     *
+     * <p>目录复制要逐层建目录、逐文件搬运，中途断线会留下半棵树 —— 而远程没有
+     * 「回滚」手段，用户看到的是一个「好像复制了」但缺文件的目录。在协议层给出
+     * 事务语义之前，明确报 {@code UNSUPPORTED}，让调用方走「下载到本地再上传」。</p>
+     */
+    @Override
+    public void copy(String from, String to) throws IOException {
+        String a = req(from);
+        String b = req(to);
+        if (a.equals(b)) return;
+        if (b.startsWith(a + "/")) throw FsError.of(FsError.Code.SELF_NEST, b);
+        Entry cur = stat(a);
+        if (cur == null) throw FsError.of(FsError.Code.SRC_MISSING, a);
+        if (cur.dir) throw FsError.of(FsError.Code.UNSUPPORTED, "copy directory");
+
+        InputStream in = net.openRead(a);
+        try {
+            OutputStream out = net.openWrite(b);
+            try {
+                byte[] buf = new byte[65536];
+                int n;
+                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            } finally {
+                out.close();
+            }
+        } finally {
+            in.close();
+        }
+    }
+
+    /** v2.117.0：远程只有「同目录原子改名」，跨目录移动会由 {@link #rename} 报不支持 */
+    @Override
+    public void move(String from, String to) throws IOException {
+        rename(from, to);
+    }
+
     @Override
     public void close() {
         net.close();

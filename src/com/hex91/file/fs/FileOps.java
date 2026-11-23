@@ -83,22 +83,14 @@ public class FileOps {
     /**
      * 复制 src 到指定目标路径 dstFile（对比模式同步用）：
      * 自动创建父目录；文件按截断覆盖写；目录递归合并复制（同名文件覆盖、额外文件保留）。
+     *
+     * <p>v2.117.0（O-27 续）：语义搬到 {@link Fs#copy}，这里只保留 root 区回退。
+     * 顺带修掉一个隐患：原实现「源等于目标」时先截断再读，会把文件清空且不抛异常；
+     * {@code Fs.copy} 对同路径直接返回。</p>
      */
     public static boolean copyOverwrite(File src, File dstFile) {
         try {
-            if (src.isDirectory()) {
-                copyDir(src, dstFile);
-                return true;
-            }
-            File parent = dstFile.getParentFile();
-            if (parent != null && !parent.exists()) parent.mkdirs();
-            InputStream in = new FileInputStream(src);
-            OutputStream out = new FileOutputStream(dstFile);
-            byte[] buf = new byte[65536];
-            int n;
-            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-            in.close();
-            out.close();
+            new LocalFs().copy(src.getAbsolutePath(), dstFile.getAbsolutePath());
             return true;
         } catch (Exception e) {
             return RootIO.copyOverwrite(src, dstFile);   // v1.44.0 root 区回退

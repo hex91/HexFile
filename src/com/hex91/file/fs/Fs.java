@@ -64,6 +64,35 @@ public interface Fs {
     /** 改名 / 移动；to 为完整目标路径，目标存在则失败。 */
     void rename(String from, String to) throws IOException;
 
+    /**
+     * v2.117.0（O-27 续）：复制；{@code to} 是完整目标路径。
+     *
+     * <p>语义与 {@code FileOps.copyOverwrite} 一致：文件按截断覆盖写，目录递归合并
+     * （同名文件覆盖、目标里多出来的文件保留），链接按原样复刻而不跟进。</p>
+     *
+     * <p><b>覆盖而非失败</b>：文件管理器里的「复制到」在目标已存在时是要覆盖的，
+     * 这与 {@link #rename} 的「目标存在就失败」相反 —— 改名覆盖是静默丢文件，
+     * 复制覆盖是用户明确要求的结果。两个方法的差异是刻意保留的。</p>
+     *
+     * <p><b>不做进度与取消</b>：大目录复制要走 {@code FileTaskEngine}（可暂停、有进度）。
+     * 这里只保证语义，把「复制」这件事的定义收在一处。</p>
+     *
+     * @throws FsError {@code SRC_MISSING} 源不存在 / {@code SELF_NEST} 目标在自己的子树里 /
+     *                 {@code LINK_UNSUPPORTED} 目标文件系统不支持链接
+     */
+    void copy(String from, String to) throws IOException;
+
+    /**
+     * v2.117.0（O-27 续）：移动；{@code to} 是完整目标路径，目标存在则失败。
+     *
+     * <p>先尝试原子改名；跨卷时退化为「复制 + 删除源」。跨卷且源删不掉时抛
+     * {@code SRC_LEFT} —— 此时目标已有完整数据，调用方应当告诉用户「已移动，但源还在」，
+     * 不要报成「移动失败」让用户再试一次（那会变成源/目标双份）。</p>
+     *
+     * <p>命名保持 {@link #rename} 的「不覆盖」语义：目标存在直接失败。</p>
+     */
+    void move(String from, String to) throws IOException;
+
     /** 释放实现持有的资源（本地实现无状态，空实现）。可重复调用。 */
     default void close() {}
 

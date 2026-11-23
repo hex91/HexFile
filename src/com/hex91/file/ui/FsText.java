@@ -197,6 +197,10 @@ public final class FsText {
                 return c.getString(R.string.fs_err_unsupported, e.str(0));
             case NOT_DIR:
                 return c.getString(R.string.fs_err_not_dir, e.str(0));
+            case SELF_NEST:
+                return c.getString(R.string.fs_err_self_nest, e.str(0));
+            case SRC_LEFT:
+                return c.getString(R.string.fs_err_src_left, e.str(0));
             default:
                 return e.getMessage();
         }

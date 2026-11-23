@@ -48,6 +48,7 @@ public class FsNetAdapterTest {
     public static void main(String[] args) throws Exception {
         netPaths();
         walkSection();
+        copyMoveSection();
         MemFs mem = new MemFs();
         mem.dirs.add("");
         mem.dirs.add("docs");
@@ -227,6 +228,49 @@ public class FsNetAdapterTest {
                 new NetFsAdapter(tree).walk("r.txt", new Probe());
             }
         }, "walk 远程：根是文件报 NOT_DIR");
+    }
+
+    // ---------------------------------------------------------------- copy / move
+
+    /**
+     * v2.117.0（O-27 续）：远程复制只做单文件，目录复制明确报不支持。
+     *
+     * <p>为什么这条值得单测：远程复制如果「尽力而为」，断线后留下的半棵树比直接失败
+     * 更难排查 —— 用户看到目录在、点进去少一半文件，会以为是同步问题而不是复制失败。
+     * 这里钉住「宁可失败也要说清楚」。</p>
+     */
+    static void copyMoveSection() throws Exception {
+        MemFs mem = new MemFs();
+        mem.dirs.add("");
+        mem.dirs.add("d1");
+        mem.put("a.txt", new byte[]{1, 2, 3, 4});
+        mem.put("d1/b.txt", new byte[]{5});
+        NetFsAdapter fs = new NetFsAdapter(mem);
+
+        fs.copy("a.txt", "a2.txt");
+        ok(mem.has("a2.txt"), "copy 远程：单文件复制产生新路径");
+        eq(mem.len("a2.txt"), 4L, "copy 远程：字节数一致");
+        eq(mem.byteAt("a2.txt", 3), (byte) 4, "copy 远程：末尾字节正确");
+        eq(mem.len("a.txt"), 4L, "copy 远程：源未被截断");
+
+        expect(FsError.Code.UNSUPPORTED, new Body() {
+            public void run() throws Exception {
+                new NetFsAdapter(mem).copy("d1", "d1copy");
+            }
+        }, "copy 远程：目录复制报 UNSUPPORTED（不留半棵树）");
+        expect(FsError.Code.SRC_MISSING, new Body() {
+            public void run() throws Exception {
+                new NetFsAdapter(mem).copy("nope", "x");
+            }
+        }, "copy 远程：源不存在报 SRC_MISSING");
+
+        fs.move("a2.txt", "a3.txt");
+        ok(mem.has("a3.txt") && !mem.has("a2.txt"), "move 远程：同目录改名");
+        expect(FsError.Code.UNSUPPORTED, new Body() {
+            public void run() throws Exception {
+                new NetFsAdapter(mem).move("a3.txt", "d1/a3.txt");
+            }
+        }, "move 远程：跨目录报 UNSUPPORTED");
     }
 
     /** 收集式访问者；同时当取消信号用，省掉两个匿名类 */

@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：3175 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：3177 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1784,6 +1784,67 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.117.0（versionCode 310）—— O-27 续：`Fs.copy` / `Fs.move` + 首个写路径切换
+
+上一版把「怎么走」收进 `Fs`，这一版把「怎么搬」也收了进去，并切掉第一个写调用点。
+
+### 为什么先做 copy / move，而不是去切解压
+
+原计划是拿 `ZipBrowserActivity` 的解压落盘当写路径试验田，实际看代码后否掉了：
+解压最终落在 `ArchiveUtil` 的四个格式实现里（`ZipUtil`、zip4j、7z、tar），
+各自直接开 `FileOutputStream` 写流，其中 zip4j 还带着密码与加密包分支。
+要切就得改四处写流并重新验证加密包 —— 那是「重写解压」而不是「换一层入口」，
+风险和收益完全不匹配。
+
+`copy` / `move` 正好相反：语义清楚、有现成实现（`TreeOps` 已经处理了链接不跟进、
+深度上限与跨卷回退），而且**有一个语义完全相同的调用点**可以立即切换验证。
+
+### 两个方法的约定
+
+| 方法 | 目标已存在 | 失败码 |
+| --- | --- | --- |
+| `copy(from, to)` | 覆盖（文件截断、目录合并，目标多出的文件保留） | `SRC_MISSING` / `SELF_NEST` / `LINK_UNSUPPORTED` |
+| `move(from, to)` | 失败（与 `rename` 一致） | 同上 + `SRC_LEFT` |
+
+两处的「反直觉」是刻意的：
+
+- **copy 覆盖、move 不覆盖**：改名覆盖是静默丢文件，复制覆盖是用户明确要求的结果；
+- **`SRC_LEFT` 不是失败**：跨卷移动完成后源删不掉（只读挂载、属主不符）时，目标已有
+  完整数据。报「移动失败」会让用户重试，结果是两份；报「已移动，但源还在」才是实情。
+
+### 顺手修掉的一个隐患
+
+`FileOps.copyOverwrite` 原实现在「源等于目标」时先 `new FileOutputStream(dst)` 截断、
+再 `new FileInputStream(src)` 读 —— 读到 0 字节，文件被清空，且**不抛任何异常**。
+`Fs.copy` 对同路径直接返回，这条路径上的潜在数据丢失没有了。桌面用例钉住了它。
+
+### 首个写路径切换
+
+`FileOps.copyOverwrite` 改为委托 `Fs.copy`，自己只保留 root 区回退（`/data/app` 下
+提取安装包仍走 `RootIO`）。语义逐条对齐：文件截断覆盖、目录递归合并、链接复刻。
+既有用例 `CmpOpsTest`（对比模式同步原语，含「源不存在返回 false」）通过。
+
+### 远程侧的能力边界
+
+`NetFsAdapter.copy` 只做单文件（`openRead` → `openWrite`），目录复制报 `UNSUPPORTED`：
+远程没有回滚，中途断线留下的半棵树比直接失败更难排查。`move` 只有同目录原子改名。
+
+### 验证
+
+- `FsLocalTest` **87** 项（+14：目录合并、覆盖截断、同路径 no-op、自嵌套、跨目录移动）；
+- `FsNetAdapterTest` **54** 项（+8：单文件复制字节一致、目录复制拒绝、移动跨目录拒绝）；
+- 四门全过：依赖方向 PASS、空 catch **334**（基线 335）、文案键 **3177 / 3177**、动作码 55；
+- `run_core` **74/0/0**（分三批）、`run_all` **102/0/4**；
+- APK 13,538,000 B（md5 `e0dfbed9…`），badging 310/2.117.0。
+
+### 仍然遗留
+
+- 解压、复制任务、删除仍走 `FileOps` / `FileTaskEngine` / `RootIO`（有进度与 root 回退，`Fs` 目前不承担）；
+- `Fs` 没有进度与取消：大目录复制要用 `FileTaskEngine`；
+- 受保护目录（`/data` 等）没有 `Fs` 入口。
 
 ---
 

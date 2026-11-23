@@ -205,6 +205,86 @@ public final class LocalFs implements Fs {
     }
 
     /**
+     * v2.117.0（O-27 续）：复制。
+     *
+     * <p>两处与「朴素实现」不同，都是踩过的坑：</p>
+     * <ul>
+     *   <li><b>同路径直接返回</b>：{@code FileOutputStream} 先截断再读，源等于目标时
+     *       会把文件清空 —— 这不是「复制失败」，是数据丢失且没有任何异常。</li>
+     *   <li><b>目标在源子树内直接失败</b>：{@code /a → /a/b} 会一边遍历一边新建目录，
+     *       轻则重复复制，重则无限增长直到磁盘满。</li>
+     * </ul>
+     */
+    @Override
+    public void copy(String from, String to) throws IOException {
+        String a = require(from);
+        String b = require(to);
+        if (a.equals(b)) return;
+        if (b.startsWith(a + "/")) throw FsError.of(FsError.Code.SELF_NEST, b);
+
+        File src = new File(a);
+        if (!src.exists() && LinkUtil.kind(src) == LinkUtil.NONE) {
+            throw FsError.of(FsError.Code.SRC_MISSING, a);
+        }
+        File dst = new File(b);
+        if (LinkUtil.isLink(src)) {
+            // 与 TreeOps 同一策略：链接复刻为链接，不把目标内容拷一份
+            if (!TreeOps.SYSTEM.copyLink(src, dst)) {
+                throw FsError.of(FsError.Code.LINK_UNSUPPORTED, a);
+            }
+            return;
+        }
+        if (src.isDirectory()) {
+            TreeOps.copyDir(src, dst, TreeOps.SYSTEM, null);
+            return;
+        }
+        File parent = dst.getParentFile();
+        if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
+            throw FsError.of(FsError.Code.MKDIR_FAIL, parent.getPath());
+        }
+        try {
+            TreeOps.copyFile(src, dst);
+        } catch (IOException e) {
+            throw FsError.of(FsError.Code.WRITE_FAIL, b);
+        }
+    }
+
+    /**
+     * v2.117.0（O-27 续）：移动 = 先改名，跨卷退化为「复制 + 删除源」。
+     *
+     * <p>{@code renameTo} 返回 false 时无法区分「跨卷」与「其它原因」，但目标是否存在
+     * 已经在前面判过，剩下的主要原因就是 EXDEV。退化路径完成后源删不掉时抛
+     * {@code SRC_LEFT} 而不是失败 —— 数据已经在目标位置了，报失败会让用户重试，
+     * 结果是两份。</p>
+     */
+    @Override
+    public void move(String from, String to) throws IOException {
+        String a = require(from);
+        String b = require(to);
+        if (a.equals(b)) return;
+        if (b.startsWith(a + "/")) throw FsError.of(FsError.Code.SELF_NEST, b);
+
+        File src = new File(a);
+        if (!src.exists() && LinkUtil.kind(src) == LinkUtil.NONE) {
+            throw FsError.of(FsError.Code.SRC_MISSING, a);
+        }
+        File dst = new File(b);
+        if (dst.exists()) throw FsError.of(FsError.Code.TARGET_EXISTS, b);
+        if (src.renameTo(dst)) return;
+
+        copy(a, b);
+        boolean removed = true;
+        try {
+            delete(a, true);
+        } catch (IOException e) {
+            removed = false;   // 源没删掉：下面按「是否真的还在」判定，不重复报错
+        }
+        if (!removed && (src.exists() || LinkUtil.kind(src) != LinkUtil.NONE)) {
+            throw FsError.of(FsError.Code.SRC_LEFT, a);
+        }
+    }
+
+    /**
      * v2.116.0（O-27 续）：{@code File} 快路径遍历。
      *
      * <p>与 {@link FsWalk} 的差别只有「省掉什么」：不走 {@link #list}，因此不做排序、

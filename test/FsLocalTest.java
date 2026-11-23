@@ -48,6 +48,12 @@ public class FsLocalTest {
         } finally {
             deleteTree(walkRoot);
         }
+        File copyRoot = mkTempDir();
+        try {
+            copyMoveOps(copyRoot);
+        } finally {
+            deleteTree(copyRoot);
+        }
         System.out.println("-----------------------------------------");
         System.out.println("pass=" + pass + " fail=" + fail);
         if (fail > 0) System.exit(1);
@@ -311,6 +317,82 @@ public class FsLocalTest {
         }
 
         public boolean isCancelled() { return cancel; }
+    }
+
+    // ---------------------------------------------------------------- copy / move
+
+    /**
+     * v2.117.0（O-27 续）：复制与移动。
+     *
+     * <p>这几条不是「功能验证」而是「数据完整性验证」：复制覆盖、目录合并、同路径 no-op、
+     * 自嵌套拒绝 —— 四条里任意一条写错，表现都是「文件没了但不报错」，
+     * 用户要等到下次打开才发现。</p>
+     */
+    static void copyMoveOps(File root) throws Exception {
+        final LocalFs fs = new LocalFs();
+        final String base = PathCore.normalize(root.getAbsolutePath());
+
+        write(new File(root, "src/a.txt"), new byte[]{1, 2, 3});
+        write(new File(root, "src/sub/b.txt"), new byte[]{1, 2, 3, 4, 5});
+        write(new File(root, "dst/keep.txt"), new byte[]{7});
+
+        // ---- 目录合并复制：目标原有文件留下，新文件到位 ----
+        fs.copy(p(base, "src"), p(base, "dst"));
+        ok(new File(root, "src/a.txt").exists(), "copy: 目录复制后源仍在");
+        eq(new File(root, "dst/a.txt").length(), 3L, "copy: 目录复制，一级文件到位");
+        eq(new File(root, "dst/sub/b.txt").length(), 5L, "copy: 子目录结构保留");
+        eq(new File(root, "dst/keep.txt").length(), 1L, "copy: 目标原有文件保留（合并，不是替换）");
+
+        // ---- 文件覆盖：目标比源长时必须被截断 ----
+        write(new File(root, "src/a.txt"), new byte[]{1, 2, 3, 4, 5, 6});
+        write(new File(root, "dst/a.txt"), new byte[]{9, 9});
+        fs.copy(p(base, "src/a.txt"), p(base, "dst/a.txt"));
+        eq(new File(root, "dst/a.txt").length(), 6L, "copy: 覆盖写按源大小截断");
+
+        // ---- 同路径：必须是 no-op，不能把源清空 ----
+        fs.copy(p(base, "dst/a.txt"), p(base, "dst/a.txt"));
+        eq(new File(root, "dst/a.txt").length(), 6L, "copy: 同路径 no-op（不截断源）");
+
+        // ---- 自嵌套：/src → /src/inner 必须拒绝 ----
+        expect(FsError.Code.SELF_NEST, new Body() {
+            public void run() throws Exception {
+                new LocalFs().copy(p(base, "src"), p(base, "src/inner"));
+            }
+        }, "copy: 目标在源子树内报 SELF_NEST");
+        expect(FsError.Code.SRC_MISSING, new Body() {
+            public void run() throws Exception {
+                new LocalFs().copy(p(base, "nope"), p(base, "x"));
+            }
+        }, "copy: 源不存在报 SRC_MISSING");
+
+        // ---- move：同卷改名 ----
+        fs.move(p(base, "dst/a.txt"), p(base, "moved.txt"));
+        ok(!new File(root, "dst/a.txt").exists(), "move: 源已移除");
+        eq(new File(root, "moved.txt").length(), 6L, "move: 内容随目标走");
+
+        // ---- move：目标存在不覆盖（与 rename 一致） ----
+        write(new File(root, "dup1.txt"), new byte[]{1});
+        write(new File(root, "dup2.txt"), new byte[]{2});
+        expect(FsError.Code.TARGET_EXISTS, new Body() {
+            public void run() throws Exception {
+                new LocalFs().move(p(base, "dup1.txt"), p(base, "dup2.txt"));
+            }
+        }, "move: 目标存在报 TARGET_EXISTS");
+
+        // ---- move：整棵目录 ----
+        fs.move(p(base, "src/sub"), p(base, "movedSub"));
+        ok(!new File(root, "src/sub").exists(), "move: 目录源已移除");
+        eq(new File(root, "movedSub/b.txt").length(), 5L, "move: 目录内容完整");
+
+        expect(FsError.Code.SRC_MISSING, new Body() {
+            public void run() throws Exception {
+                new LocalFs().move(p(base, "nope"), p(base, "x"));
+            }
+        }, "move: 源不存在报 SRC_MISSING");
+    }
+
+    static String p(String base, String rel) {
+        return PathCore.join(base, rel);
     }
 
     // ---------------------------------------------------------------- 工具

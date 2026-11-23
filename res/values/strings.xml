@@ -3296,6 +3296,8 @@
     <string name="fs_err_bad_path">路径为空</string>
     <string name="fs_err_unsupported">该存储不支持此操作：%1$s</string>
     <string name="fs_err_not_dir">不是目录：%1$s</string>
+    <string name="fs_err_self_nest">不能移动到自己的子目录里：%1$s</string>
+    <string name="fs_err_src_left">已复制到新位置，但源没能删除：%1$s</string>
     <!-- v2.105.0 utils 状态/摘要码（UtilText） -->
     <string name="ut_hash_fail">失败</string>
     <string name="ut_import_summary">导入 %1$d 个</string>
