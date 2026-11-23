@@ -61,6 +61,12 @@ public class FsLocalTest {
         } finally {
             deleteTree(progRoot);
         }
+        File fileRoot = mkTempDir();
+        try {
+            copyFileOps(fileRoot);
+        } finally {
+            deleteTree(fileRoot);
+        }
         System.out.println("-----------------------------------------");
         System.out.println("pass=" + pass + " fail=" + fail);
         if (fail > 0) System.exit(1);
@@ -526,6 +532,109 @@ public class FsLocalTest {
                 "copy+atomic: 取消后目标原文件内容未被写过");
         eq(0, countPart(new File(root, "victim")),
                 "copy+atomic: 取消后半成品已删掉（遗留扫描里不该多一条噪音）");
+    }
+
+    // ---------------------------------------------------------------- copyFile（单文件续写）
+
+    static void copyFileOps(File root) throws Exception {
+        LocalFs fs = new LocalFs();
+        final String base = PathCore.normalize(root.getAbsolutePath());
+
+        byte[] src = new byte[300 * 1024];
+        for (int i = 0; i < src.length; i++) src[i] = (byte) (i * 7);
+        write(new File(root, "src.bin"), src);
+
+        // ---- 正常复制（offset = 0）----
+        Fs.FileCopy r1 = fs.copyFile(p(base, "src.bin"), p(base, "a/dst.bin"), 0L, null);
+        ok(!r1.paused && !r1.stopped, "copyFile: 正常完成不带暂停/取消标记");
+        eq((long) src.length, r1.bytes, "copyFile: bytes 等于源长度");
+        ok(sameBytes(new File(root, "a/dst.bin"), src), "copyFile: 内容逐字节一致");
+        eq(0, countPart(new File(root, "a")), "copyFile: 完成后无 .part");
+
+        // ---- 中途 STOP ----
+        Fs.FileCopy r2 = fs.copyFile(p(base, "src.bin"), p(base, "b/dst.bin"), 0L, new Fs.Step() {
+            public int at(long written) {
+                return written >= 128 * 1024 ? STOP : CONTINUE;
+            }
+        });
+        ok(r2.stopped, "copyFile: STOP → stopped");
+        ok(r2.bytes > 0 && r2.bytes < src.length,
+                "copyFile: 停下时带出已写字节（" + r2.bytes + "）");
+        ok(!new File(root, "b/dst.bin").exists(), "copyFile: 取消不留成品");
+        eq(0, countPart(new File(root, "b")), "copyFile: 取消后删掉半成品");
+        ok(!TempFiles.isActive(TempFiles.partOf(new File(root, "b/dst.bin"))),
+                "copyFile: 取消后登记已注销");
+
+        // ---- PAUSE 后续写 ----
+        Fs.FileCopy r3 = fs.copyFile(p(base, "src.bin"), p(base, "c/dst.bin"), 0L, new Fs.Step() {
+            public int at(long written) {
+                return written >= 128 * 1024 ? PAUSE : CONTINUE;
+            }
+        });
+        ok(r3.paused, "copyFile: PAUSE → paused");
+        File part = TempFiles.partOf(new File(root, "c/dst.bin"));
+        ok(part.isFile() && part.length() == r3.bytes,
+                "copyFile: 暂停后 .part 长度等于返回的 bytes");
+        ok(!new File(root, "c/dst.bin").exists(), "copyFile: 暂停不产生成品（不留半截正式文件）");
+        ok(!TempFiles.isActive(part), "copyFile: 暂停时登记已注销（占位交给调用方显式再做）");
+
+        Fs.FileCopy r4 = fs.copyFile(p(base, "src.bin"), p(base, "c/dst.bin"), r3.bytes, null);
+        ok(!r4.paused && !r4.stopped, "copyFile: 续写完成");
+        eq((long) src.length, r4.bytes, "copyFile: 续写返回的是总字节数（不是剩余长度）");
+        ok(sameBytes(new File(root, "c/dst.bin"), src), "copyFile: 续写产物与源逐字节一致");
+        eq(0, countPart(new File(root, "c")), "copyFile: 续写完成后 .part 被消费");
+
+        // ---- 续写点对不上 ----
+        expect(FsError.Code.RESUME_EOF, new Body() {
+            public void run() throws Exception {
+                new LocalFs().copyFile(p(base, "src.bin"), p(base, "d/dst.bin"), 1024L, null);
+            }
+        }, "copyFile: part 不存在却要求续写 → RESUME_EOF");
+        write(new File(root, "e/dst.bin" + TempFiles.PART), new byte[100]);
+        expect(FsError.Code.RESUME_EOF, new Body() {
+            public void run() throws Exception {
+                new LocalFs().copyFile(p(base, "src.bin"), p(base, "e/dst.bin"), 1024L, null);
+            }
+        }, "copyFile: part 长度与 offset 不符 → RESUME_EOF（宁可重来也不拼接来历不明的内容）");
+
+        // ---- 源不存在 ----
+        expect(FsError.Code.SRC_MISSING, new Body() {
+            public void run() throws Exception {
+                new LocalFs().copyFile(p(base, "nope.bin"), p(base, "f/dst.bin"), 0L, null);
+            }
+        }, "copyFile: 源不存在 → SRC_MISSING");
+
+        // ---- 覆盖已有目标，中途取消 ----
+        byte[] old = new byte[]{9, 9, 9, 9};
+        write(new File(root, "g/dst.bin"), old);
+        Fs.FileCopy r5 = fs.copyFile(p(base, "src.bin"), p(base, "g/dst.bin"), 0L, new Fs.Step() {
+            public int at(long written) {
+                return written >= 64 * 1024 ? STOP : CONTINUE;
+            }
+        });
+        ok(r5.stopped, "copyFile: 覆盖写中途取消");
+        eq(4L, new File(root, "g/dst.bin").length(),
+                "copyFile: 取消后目标原文件长度不变（没被截断）");
+        ok(sameBytes(new File(root, "g/dst.bin"), old), "copyFile: 取消后目标原内容未被写过");
+    }
+
+    static boolean sameBytes(File f, byte[] expect) throws Exception {
+        if (f.length() != expect.length) return false;
+        InputStream in = new java.io.FileInputStream(f);
+        try {
+            byte[] buf = new byte[65536];
+            int off = 0;
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                for (int i = 0; i < n; i++) {
+                    if (buf[i] != expect[off + i]) return false;
+                }
+                off += n;
+            }
+            return off == expect.length;
+        } finally {
+            in.close();
+        }
     }
 
     /** 递归数 *.part 条目（半成品可能落在子目录里） */

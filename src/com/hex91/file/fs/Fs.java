@@ -117,6 +117,104 @@ public interface Fs {
     CopyResult copy(String from, String to, Progress p) throws IOException;
 
     /**
+     * v2.120.0（O-27 收尾）：单文件复制，可从 {@code offset} 处续写。
+     *
+     * <p>为什么在 {@link #copy} 之外还要一个文件级入口：任务队列（{@code FileTaskEngine}）
+     * 的暂停是<b>文件级</b>语义 —— 停下时记住「哪个文件、写到第几个字节」，恢复时从那里
+     * 接着写。{@link #copy} 只到「整个任务」粒度，表达不了这件事；而在引擎里再写一遍
+     * 「{@code .part} + 块循环 + 原子替换」，就成了同一件事的第二份实现。</p>
+     *
+     * <p><b>收尾三态</b>（与 {@link #copy(String, String, Progress)} 的取消语义对齐）：</p>
+     * <ul>
+     *   <li>写完 → 原子替换上目标，{@code .part} 被消费；</li>
+     *   <li>{@link Step#STOP} → 删掉 {@code .part}，目标位置一个字节都没动；</li>
+     *   <li>{@link Step#PAUSE} → <b>保留</b> {@code .part}，返回的 {@link FileCopy#bytes}
+     *       就是下次的 {@code offset}。</li>
+     * </ul>
+     *
+     * <p><b>登记</b>：本方法自己 {@code TempFiles.begin/end}，成对闭合，暂停时也不留登记 ——
+     * 暂停之后已经不在写了，要让谁继续「占着」这个路径，由调用方显式再登记一次。
+     * 这样调用方不需要猜「我该不该补一个 end」。</p>
+     *
+     * @param offset 已经写进 {@code .part} 的字节数；{@code 0} 表示从头写。
+     *               {@code > 0} 时要求 {@code 名字.part} 存在且长度恰好为 {@code offset}
+     * @param step   块边界回调；{@code null} 表示一路写完（等价于从不暂停/取消）
+     * @throws FsError {@code SRC_MISSING} 源不存在 / {@code RESUME_EOF} 续写点与
+     *                 {@code .part} 对不上 / {@code RENAME_FAIL} 写完了但换不上去
+     *                 （此时 {@code .part} 保留）
+     */
+    default FileCopy copyFile(String from, String to, long offset, Step step) throws IOException {
+        if (offset > 0) {
+            // 远程协议没有「本地半截文件」这个概念，续写点无从校验，宁可明说
+            throw FsError.of(FsError.Code.UNSUPPORTED, "resume");
+        }
+        long written = 0L;
+        InputStream in = openRead(from);
+        try {
+            OutputStream out = openWrite(to, false);
+            try {
+                byte[] buf = new byte[65536];
+                while (true) {
+                    int c = step == null ? Step.CONTINUE : step.at(written);
+                    if (c == Step.STOP) return new FileCopy(written, false, true);
+                    // 暂停要保住半截文件，远程写的是目标本身，保不住 —— 明说而不是静默继续跑
+                    if (c == Step.PAUSE) throw FsError.of(FsError.Code.UNSUPPORTED, "pause");
+                    int n = in.read(buf);
+                    if (n < 0) break;
+                    out.write(buf, 0, n);
+                    written += n;
+                }
+                out.flush();
+            } finally {
+                out.close();
+            }
+        } finally {
+            in.close();
+        }
+        return new FileCopy(written, false, false);
+    }
+
+    /**
+     * v2.120.0：{@link #copyFile} 的块边界回调。
+     *
+     * <p>每写完一块问一次，所以实现方做判断要便宜 —— 复制 4 GB 时它会被调用几万次。
+     * 参数是「已经写进 {@code .part} 的总字节」（含续写偏移），不是这一块的长度：
+     * 调用方要用它当续传点，不希望自己做加法。</p>
+     */
+    interface Step {
+        /** 继续写 */
+        int CONTINUE = 0;
+        /** 停下但保留下半截，下次用 {@link FileCopy#bytes} 当 offset 接着写 */
+        int PAUSE = 1;
+        /** 停下并丢掉半截 */
+        int STOP = 2;
+
+        int at(long written);
+    }
+
+    /** {@link #copyFile} 的结果。{@code paused} 与 {@code stopped} 不会同时为 true。 */
+    final class FileCopy {
+        /** 写进 {@code .part} 的总字节数（含续写偏移）；暂停时它就是下次的 offset */
+        public final long bytes;
+        /** 暂停：{@code .part} 已保留 */
+        public final boolean paused;
+        /** 取消：{@code .part} 已删除，目标未动 */
+        public final boolean stopped;
+
+        public FileCopy(long bytes, boolean paused, boolean stopped) {
+            this.bytes = bytes;
+            this.paused = paused;
+            this.stopped = stopped;
+        }
+
+        @Override
+        public String toString() {
+            return (paused ? "copyFile(paused)" : stopped ? "copyFile(stopped)" : "copyFile(done)")
+                    + " bytes=" + bytes;
+        }
+    }
+
+    /**
      * v2.117.0（O-27 续）：移动；{@code to} 是完整目标路径，目标存在则失败。
      *
      * <p>先尝试原子改名；跨卷时退化为「复制 + 删除源」。跨卷且源删不掉时抛

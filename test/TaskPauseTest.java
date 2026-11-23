@@ -128,6 +128,10 @@ public class TaskPauseTest {
             ok(sameContent(snapshot, out),
                     "继续：内容等于改动前的原文件（证明从偏移续写，而不是从头重拷）");
             ok(!part.exists(), "继续：半截 .part 已 rename 掉，不留垃圾");
+            // v2.120.0：暂停时为了让遗留清理别删续传点，会替这个路径补一次活动登记；
+            // 接管续传的那次拷贝必须把它解掉，否则这个路径从此在清理列表里永远不可见
+            ok(!com.hex91.file.fs.TempFiles.isActive(part),
+                    "继续：半截文件的活动登记已解掉（否则遗留扫描永久跳过该路径）");
             ok(t.doneBytes == t.totalBytes, "继续：doneBytes 与 totalBytes 对齐（没有重复累加）");
             ok(t.percent() == 100, "继续：百分比 100");
             return;

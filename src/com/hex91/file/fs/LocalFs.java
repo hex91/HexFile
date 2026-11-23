@@ -323,83 +323,139 @@ public final class LocalFs implements Fs {
     }
 
     /**
-     * v2.119.0（O-27 续）：单文件复制改为「写 {@code .part} → 原子替换」。
+     * v2.120.0（O-27 收尾）：单文件复制 —— {@code .part} + 原子替换 + 可续写。
      *
-     * <p><b>为什么不再直接写目标</b>：目标已存在时 {@code FileOutputStream} 打开即截断，
-     * 写到一半被取消（或空间不足、进程被杀），用户手里就是「原文件没了 + 半截新文件」。
-     * 这与 {@link com.hex91.file.core.AtomicReplace} 的既有结论是同一个道理：
-     * 不能边写边赌。代价是覆盖场景下新旧内容短暂共存（空间需求翻倍），
-     * 但目标不存在时没有任何额外开销 —— 而「复制到新位置」才是主流用法。</p>
+     * <p>这是「把一个文件安全地写到目标位置」的<b>唯一</b>实现：{@link #copy} 走它，
+     * 任务队列（{@code FileTaskEngine}）的暂停续传也走它。以前两边各写一份，
+     * 差别是引擎那份会把已有目标先 {@code renameTo} 到备份、失败再挪回来，
+     * 而这份交给 {@link AtomicReplace} —— 两份对「替换失败之后磁盘上剩下什么」
+     * 的结论并不一致。</p>
      *
-     * <p><b>为什么要 {@link TempFiles#begin}</b>：{@code .part} 会被「设置 → 遗留文件」
-     * 按后缀认出来。不登记的话，用户在复制进行中点一下清理，删掉的就是正在写的这个文件，
-     * 写完 rename 必然失败，几百 MB 白拷。登记之后扫描与删除入口都会跳过它。</p>
-     *
-     * <p><b>取消检查放在块边界</b>而不是文件边界：一个 4 GB 视频按 64 KB 走 65536 次，
-     * 每次判一个 volatile 布尔，代价可以忽略；但只在文件边界判，用户按了取消要等
-     * 半分钟才有反应。</p>
-     *
-     * <p>三种收尾：写完并替换成功 → {@code acc.files++}；写入失败或被取消 →
-     * 删掉半成品 {@code .part}（目标原文件一个字节都没动）；写完但替换失败 →
-     * {@code .part} <b>保留</b>，它是完整的新内容，可能是唯一副本。</p>
+     * <p><b>续写必须严格对齐</b>：{@code offset > 0} 时要求 {@code .part} 长度<b>恰好</b>
+     * 等于 {@code offset}。短了说明半截文件被人删过/截断过（遗留清理、用户手删），
+     * 长了说明上一次的偏移记错了 —— 两种都宁可让调用方从头来，也不要在一段来历不明的
+     * 内容后面接着写：产物看起来成功、内容是坏的，比重拷十分钟糟得多。</p>
      */
-    private void copyOne(File src, File dst, Progress p, Acc acc) throws IOException {
+    @Override
+    public FileCopy copyFile(String from, String to, long offset, Step step) throws IOException {
+        String a = require(from);
+        String b = require(to);
+        File src = new File(a);
+        if (!src.isFile()) {
+            // 链接不在这里处理：调用方（copy / 引擎）应当在更外层就决定「复刻链接」还是「跳过」
+            throw FsError.of(FsError.Code.SRC_MISSING, a);
+        }
+        File dst = new File(b);
         File parent = dst.getParentFile();
-        if (parent == null) throw FsError.of(FsError.Code.WRITE_FAIL, dst.getPath());
-        File part = new File(parent, dst.getName() + TempFiles.PART);
+        if (parent != null && !parent.isDirectory() && !parent.mkdirs() && !parent.isDirectory()) {
+            throw FsError.of(FsError.Code.MKDIR_FAIL, parent.getPath());
+        }
+        File part = TempFiles.partOf(dst);
+        if (part == null) throw FsError.of(FsError.Code.WRITE_FAIL, b);
+        if (offset > 0 && (!part.isFile() || part.length() != offset)) {
+            throw FsError.of(FsError.Code.RESUME_EOF, offset, part.getPath());
+        }
 
         InputStream in;
         try {
             in = new FileInputStream(src);
         } catch (IOException e) {
-            throw FsError.of(FsError.Code.READ_FAIL, src.getPath());
+            throw FsError.of(FsError.Code.READ_FAIL, a);
         }
 
+        long written = offset;
+        boolean keepPart = false;   // 暂停 / 替换失败：半截文件有保留价值
+        boolean replaced = false;   // 已换到正式名字：part 路径已被消费
+        boolean ended = false;      // 登记是否已注销（替换前必须注销）
+
         TempFiles.begin(part);
-        boolean wrote = false;
         try {
+            OutputStream out;
             try {
-                OutputStream out;
-                try {
-                    out = new FileOutputStream(part);
-                } catch (IOException e) {
-                    throw FsError.of(FsError.Code.WRITE_FAIL, part.getPath());
-                }
-                try {
-                    byte[] buf = new byte[65536];
-                    int n;
-                    while ((n = in.read(buf)) > 0) {
-                        out.write(buf, 0, n);
-                        acc.bytes += n;
-                        if (p != null && p.isCancelled()) throw Stop.I;
+                out = new FileOutputStream(part, offset > 0);
+            } catch (IOException e) {
+                throw FsError.of(FsError.Code.WRITE_FAIL, part.getPath());
+            }
+            try {
+                if (offset > 0) skipFully(in, offset);
+                byte[] buf = new byte[65536];
+                while (true) {
+                    int c = step == null ? Step.CONTINUE : step.at(written);
+                    if (c == Step.PAUSE) {
+                        out.flush();
+                        keepPart = true;
+                        return new FileCopy(written, true, false);
                     }
-                } finally {
-                    out.close();
+                    if (c == Step.STOP) return new FileCopy(written, false, true);
+                    int n = in.read(buf);
+                    if (n < 0) break;
+                    out.write(buf, 0, n);
+                    written += n;
                 }
+                out.flush();
             } catch (IOException e) {
                 // 读写中途的失败分不出是源还是目标，统一按写入失败报；两者都在诊断串里
                 throw e instanceof FsError ? e
                         : FsError.of(FsError.Code.WRITE_FAIL, part.getPath());
             } finally {
-                in.close();
+                out.close();
             }
-            wrote = true;
 
-            // 完整写完才动目标文件：同挂载点上这是一次 rename，目标要么旧要么新
+            // 必须在替换之前注销：替换后 part 这个路径已不存在，
+            // 留在表里会挡住下一次同名写入（同一目标连拷两次）
+            TempFiles.end(part);
+            ended = true;
             if (!AtomicReplace.tryReplace(part, dst)) {
+                // 数据和目标无关了：这是一份完整的新内容，可能是唯一副本，留着
+                keepPart = true;
                 throw FsError.of(FsError.Code.RENAME_FAIL, dst.getPath(),
                         AtomicReplace.lastError);
             }
-            acc.files++;
+            replaced = true;
+            return new FileCopy(written, false, false);
         } finally {
-            // 必须在替换之前注销：替换后 part 这个路径已不存在，留在表里会挡住下一次同名写入
-            TempFiles.end(part);
-            if (!wrote) {
-                // 半成品没有任何保留价值，删掉免得遗留扫描里多一条噪音；
-                // 删不掉就留着 —— 遗留扫描会列出来，比「静默消失」更容易排查
-                part.delete();
-            }
+            in.close();
+            if (!ended) TempFiles.end(part);
+            // 取消与异常：半成品没有任何保留价值；留垃圾只会让遗留扫描多一条噪音
+            if (!keepPart && !replaced) part.delete();
         }
+    }
+
+    /** 续写时跳过源的前 n 字节：{@code skip} 一次跳不完（或返回 0）时退化成逐字节读 */
+    private static void skipFully(InputStream in, long n) throws IOException {
+        long left = n;
+        while (left > 0) {
+            long s = in.skip(left);
+            if (s > 0) {
+                left -= s;
+                continue;
+            }
+            if (in.read() < 0) throw FsError.of(FsError.Code.RESUME_EOF, left);
+            left--;
+        }
+    }
+
+    /**
+     * v2.120.0（O-27 收尾）：树复制里的单文件一步 —— 只把「用户按了取消」翻译成
+     * {@link Step#STOP}，其余交给 {@link #copyFile}。
+     *
+     * <p>取消检查落在块边界而不是文件边界：一个 4 GB 视频按 64 KB 走 65536 次，
+     * 每次判一个 volatile 布尔，代价可以忽略；但只在文件边界判，用户按了取消要等
+     * 半分钟才有反应。逐层返回 {@code false} 做不到这件事（块循环藏在这个方法里），
+     * 所以取消仍然用 {@link Stop} 异常向上穿。</p>
+     */
+    private void copyOne(File src, File dst, final Progress p, Acc acc) throws IOException {
+        if (dst.getParentFile() == null) throw FsError.of(FsError.Code.WRITE_FAIL, dst.getPath());
+        Step step = p == null ? null : new Step() {
+            public int at(long written) {
+                return p.isCancelled() ? Step.STOP : Step.CONTINUE;
+            }
+        };
+        FileCopy r = copyFile(src.getPath(), dst.getPath(), 0L, step);
+        // 取消时 r.bytes 含被中断那个文件已写入的部分 —— 与旧口径一致（进度要能带出来）
+        acc.bytes += r.bytes;
+        if (r.stopped) throw Stop.I;
+        acc.files++;
     }
 
     /** 复制累加器：取消时要把已完成量带出来，所以不能只是局部变量 */

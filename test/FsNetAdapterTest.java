@@ -49,6 +49,7 @@ public class FsNetAdapterTest {
         netPaths();
         walkSection();
         copyMoveSection();
+        copyFileSection();
         MemFs mem = new MemFs();
         mem.dirs.add("");
         mem.dirs.add("docs");
@@ -301,6 +302,43 @@ public class FsNetAdapterTest {
         });
         ok(r2.cancelled, "copy 远程进度：onFile 返回 false → cancelled");
         ok(mem.has("a5.txt"), "copy 远程进度：取消时已写入内容保留（远程无回滚，不能假装没发生）");
+    }
+
+    // ------------------------------------------------------------ copyFile（远程只支持从头写）
+
+    static void copyFileSection() throws Exception {
+        MemFs mem = new MemFs();
+        mem.dirs.add("");
+        mem.put("src.bin", new byte[]{1, 2, 3, 4, 5});
+
+        Fs.FileCopy r = new NetFsAdapter(mem).copyFile("src.bin", "dst.bin", 0L, null);
+        ok(!r.paused && !r.stopped, "copyFile 远程：正常完成");
+        eq(5L, r.bytes, "copyFile 远程：bytes 等于源长度");
+        eq(5L, mem.len("dst.bin"), "copyFile 远程：远端出现完整内容");
+
+        Fs.FileCopy r2 = new NetFsAdapter(mem).copyFile("src.bin", "stop.bin", 0L, new Fs.Step() {
+            public int at(long written) {
+                return STOP;
+            }
+        });
+        ok(r2.stopped, "copyFile 远程：STOP → stopped");
+        eq(0L, r2.bytes, "copyFile 远程：开局就停 → 0 字节");
+
+        expect(FsError.Code.UNSUPPORTED, new Body() {
+            public void run() throws Exception {
+                new NetFsAdapter(mem).copyFile("src.bin", "resume.bin", 1024L, null);
+            }
+        }, "copyFile 远程：远端没有「本地半截文件」，续写点无从校验 → UNSUPPORTED");
+
+        expect(FsError.Code.UNSUPPORTED, new Body() {
+            public void run() throws Exception {
+                new NetFsAdapter(mem).copyFile("src.bin", "pause.bin", 0L, new Fs.Step() {
+                    public int at(long written) {
+                        return PAUSE;
+                    }
+                });
+            }
+        }, "copyFile 远程：保不住半截文件 → 暂停报 UNSUPPORTED，而不是静默继续跑");
     }
 
     /** 收集式访问者；同时当取消信号用，省掉两个匿名类 */

@@ -2,11 +2,7 @@ package com.hex91.file.fs;
 
 import com.hex91.file.utils.TaskJournal;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
@@ -67,10 +63,16 @@ public final class FileTaskEngine {
 
     public static FileTaskEngine get() { return INSTANCE; }
 
-    private static final int BUF = 128 * 1024;
     private static final int MAX_DEPTH = 64;
     private static final long NOTIFY_MS = 120;
     private static final int HISTORY_MAX = 20;
+
+    /**
+     * v2.120.0（O-27 收尾）：任务队列处理的都是本机路径，所以固定用 {@link LocalFs}。
+     * 换成可注入的实例没有意义 —— 进度要的是「这块数据真的落盘了」，
+     * 而远程没有半截文件与原子替换，暂停续传在那里无从谈起。
+     */
+    private static final Fs FS = new LocalFs();
 
     private static final class Job {
         final FileTask task;
@@ -670,37 +672,78 @@ public final class FileTaskEngine {
         }
     }
 
-    /** 单文件拷贝：写 .part → rename，保证目标不会出现「半截文件」 */
+    /**
+     * v2.120.0（O-27 收尾）：单文件拷贝 —— 数据面交给 {@link Fs#copyFile}，
+     * 这里只保留三件任务层的事：目标位置的占位策略、续传偏移的校验、暂停/取消的翻译。
+     *
+     * <p>以前这里自己写 {@code .part}、自己跑块循环、自己 {@code renameTo}，
+     * 与 {@code LocalFs} 那份是同一件事的第二份实现。两份的差别不是「写法不同」：
+     * 本类用 {@code renameTo} 覆盖已存在的目标（少数文件系统上会失败，于是要先
+     * {@code delete} 再改名，中间有个「目标不存在」的瞬间），{@code LocalFs} 走
+     * {@link com.hex91.file.core.AtomicReplace}（先备份再换，失败可还原）。
+     * 同一次覆盖，两个入口在失败之后磁盘上剩下的东西不一样 —— 这种分歧迟早会咬人。</p>
+     *
+     * <p><b>暂停后的登记</b>：{@code Fs.copyFile} 的 begin/end 是成对的，暂停时它已经
+     * 注销了；半截文件这时候没人「占着」，设置页的遗留清理会把它当垃圾删掉，
+     * 续传就白记了。所以这里暂停之后再补一次 {@link TempFiles#begin}，
+     * 由下次 {@link #resumeBase} 接手续传点时解掉（{@link #discardResume} 走取消分支时同样解）。</p>
+     */
     private static void copyFile(File src, File dst, FileTask t, Sink sink) throws IOException {
         if (dst.isDirectory()) dst = uniqueFile(dst.getParentFile(), src.getName());
         File parent = dst.getParentFile();
         if (parent != null && !parent.isDirectory() && !parent.mkdirs() && !parent.isDirectory())
             throw FsError.of(FsError.Code.CREATE_FAIL, parent);
-        File part = new File(parent, dst.getName() + TempFiles.PART);
-        // v2.15.0（F-19）：这个文件上次被暂停在 half-way 的话，从那里接着写
+        File part = TempFiles.partOf(dst);
         long base = resumeBase(t, src, part);
-        // v2.4.0（R-08）：登记为「本进程正在写的临时文件」，遗留扫描就不会把它列出来
-        // 让用户删掉 —— 删了之后 rename 必然失败，几 GB 的拷贝白跑。
-        // end 必须在 rename 之前：改名之后这个路径已不存在，留在注册表里只会挡住下一次
-        // 同名写入（同一个目标连拷两次的场景）。
-        TempFiles.begin(part);
-        boolean keep = false;
-        try {
-            writePart(src, part, t, sink, base);
-            if (!part.renameTo(dst)) {
-                // 少数文件系统不支持覆盖式 rename（目标已存在时）
-                if (!dst.delete() || !part.renameTo(dst)) {
-                    part.delete();
-                    throw FsError.of(FsError.Code.WRITE_FAIL, dst.getPath());
-                }
+        Fs.FileCopy r = FS.copyFile(src.getPath(), dst.getPath(), base,
+                new Pump(t, sink, src, part, base));
+        if (r.paused) {
+            TempFiles.begin(part);
+            throw new Pause();
+        }
+        if (r.stopped) throw new Cancel();
+    }
+
+    /**
+     * 把任务的「取消 / 暂停」翻译成 {@link Fs.Step}，顺带累计已写字节。
+     *
+     * <p>检查顺序与旧实现一致：先取消后暂停。用户同时点了两个时，「不干了」优先于
+     * 「先停一下」—— 反过来会让一个已经决定取消的任务停在暂停态，得再点两次。</p>
+     */
+    private static final class Pump implements Fs.Step {
+        private final FileTask t;
+        private final Sink sink;
+        private final File src;
+        private final File part;
+        private long last;
+
+        Pump(FileTask t, Sink sink, File src, File part, long base) {
+            this.t = t;
+            this.sink = sink;
+            this.src = src;
+            this.part = part;
+            this.last = base;
+        }
+
+        public int at(long written) {
+            if (t == null) return CONTINUE;      // 只测复制结果、不挂任务时（单测）
+            long delta = written - last;
+            last = written;
+            if (delta > 0) {
+                t.doneBytes += delta;
+                if (sink != null) sink.onProgress(t);
             }
-        } catch (Pause p) {
-            // 暂停：半截 .part 是续传起点，既不能删也不能解除登记 ——
-            // 解除之后设置页的遗留清理会把它当垃圾删掉，续传就白记了
-            keep = true;
-            throw p;
-        } finally {
-            if (!keep) TempFiles.end(part);
+            if (t.cancelRequested) return STOP;
+            if (t.pauseRequested) {
+                // 续传现场：文件 + 已写字节 + 源的长度与 mtime（后者用于「源变了就不接半截」）
+                t.resumeSrc = src;
+                t.resumePart = part;
+                t.resumeOffset = written;
+                t.resumeSrcLen = src.length();
+                t.resumeSrcMtime = src.lastModified();
+                return PAUSE;
+            }
+            return CONTINUE;
         }
     }
 
@@ -736,87 +779,9 @@ public final class FileTaskEngine {
             part.delete();
             return 0;
         }
+        // 接过续传点 = 由这次拷贝接管这个半截文件，暂停时补的那次登记到这里结束
+        TempFiles.end(part);
         return off;
-    }
-
-    /** 续传时跳过源文件的前 n 字节：skip 一次跳不完（或返回 0）时退化成逐字节读 */
-    private static void skipFully(InputStream in, long n) throws IOException {
-        long left = n;
-        while (left > 0) {
-            long s = in.skip(left);
-            if (s > 0) {
-                left -= s;
-                continue;
-            }
-            if (in.read() < 0) throw FsError.of(FsError.Code.RESUME_EOF, left);
-            left--;
-        }
-    }
-
-    /**
-     * 把 src 写进 part；取消/失败时清掉半截文件，成功时只 flush，不负责 rename。
-     *
-     * <p>v2.15.0（F-19）：{@code base > 0} 表示前面这部分已经在 part 里（上次暂停留下的），
-     * 从源的 base 偏移处接着读、以追加方式写。暂停时只 flush 不删，并把
-     * 「文件 + 已写字节」记进任务，成为下一次的续传起点。</p>
-     */
-    private static void writePart(File src, File part, FileTask t, Sink sink, long base)
-            throws IOException {
-        InputStream in = null;
-        OutputStream out = null;
-        long written = base;
-        try {
-            in = new FileInputStream(src);
-            if (base > 0) {
-                skipFully(in, base);
-                out = new FileOutputStream(part, true);
-            } else {
-                out = new FileOutputStream(part);
-            }
-            byte[] buf = new byte[BUF];
-            int n;
-            while ((n = in.read(buf)) != -1) {
-                if (t != null && t.cancelRequested) throw new Cancel();
-                if (t != null && t.pauseRequested) {
-                    // 128KB 边界的检查点：当前块已落盘，先把这一段的偏移记下来再退出
-                    out.flush();
-                    t.resumeSrc = src;
-                    t.resumePart = part;
-                    t.resumeOffset = written;
-                    t.resumeSrcLen = src.length();
-                    t.resumeSrcMtime = src.lastModified();
-                    throw new Pause();
-                }
-                out.write(buf, 0, n);
-                written += n;
-                if (t != null) {
-                    t.doneBytes += n;
-                    if (sink != null) sink.onProgress(t);
-                }
-            }
-            out.flush();
-        } catch (Pause p) {
-            closeQuietly(in);
-            closeQuietly(out);
-            throw p;                                  // 半截文件保留，等「继续」
-        } catch (Cancel c) {
-            closeQuietly(in);
-            closeQuietly(out);
-            part.delete();                            // 取消：清掉半截临时文件
-            throw c;                                  // 必须原样抛出，交由引擎记为「已取消」
-        } catch (IOException e) {
-            closeQuietly(in);
-            closeQuietly(out);
-            part.delete();
-            throw e;
-        } catch (Throwable e) {
-            closeQuietly(in);
-            closeQuietly(out);
-            part.delete();
-            throw new IOException(shortMsg(e));
-        }
-        closeQuietly(in);
-        closeQuietly(out);
     }
 
     /** 递归量体积：字节进 totalBytes、文件进 totalFiles（目录本身不计） */
@@ -879,14 +844,6 @@ public final class FileTaskEngine {
             if (!c.exists()) return c;
         }
         return new File(dir, base + "(" + System.currentTimeMillis() + ")" + ext);
-    }
-
-    private static void closeQuietly(java.io.Closeable c) {
-        if (c == null) return;
-        try {
-            c.close();
-        } catch (Throwable ignored) {
-        }
     }
 
     private static String shortMsg(Throwable e) {

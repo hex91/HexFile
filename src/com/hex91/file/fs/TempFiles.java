@@ -104,6 +104,21 @@ public final class TempFiles {
     }
 
     /**
+     * v2.120.0（O-27 收尾）：{@code target} 对应的半成品路径。
+     *
+     * <p>原来「拼 {@code .part} 名字」在两个地方各写了一遍（{@code LocalFs.copyOne} 与
+     * {@code FileTaskEngine.copyFile}），而续传校验只认其中一处拼出来的结果。任一处改了
+     * 拼法，另一边就再也接不上那半截文件 —— 表现是「暂停后继续，进度归零重拷」，
+     * 不报任何错。所以名字这件事只能有一份实现。</p>
+     */
+    public static File partOf(File target) {
+        if (target == null) return null;
+        File parent = target.getParentFile();
+        return parent == null ? new File(target.getName() + PART)
+                : new File(parent, target.getName() + PART);
+    }
+
+    /**
      * 规范化路径作为键。
      *
      * <p>v2.119.0：只用<b>父目录</b>做 canonical，再拼文件名。原来整条路径 canonical，
