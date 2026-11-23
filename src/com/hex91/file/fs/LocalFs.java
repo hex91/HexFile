@@ -1,5 +1,6 @@
 package com.hex91.file.fs;
 
+import com.hex91.file.core.AtomicReplace;
 import com.hex91.file.core.PathCore;
 
 import java.io.File;
@@ -215,6 +216,9 @@ public final class LocalFs implements Fs {
      *       轻则重复复制，重则无限增长直到磁盘满。</li>
      *   <li><b>量体积与复制分两趟</b>：没有分母的进度条只能显示「已复制 3.2 GB」，
      *       用户无法判断还要多久。量体积不读内容，只 lstat，代价远小于复制本身。</li>
+     *   <li><b>写 {@code .part} 再原子替换</b>（v2.119.0）：直接写到目标时，
+     *       覆盖场景下打开即截断，中途失败就是「原文件没了 + 半截新文件」。
+     *       详见 {@link #copyOne}。</li>
      * </ul>
      *
      * <p>取消用 {@link Stop}（运行期异常，单例、不填栈）向上穿，在边界转成
@@ -319,44 +323,83 @@ public final class LocalFs implements Fs {
     }
 
     /**
-     * 单文件复制（截断覆盖写）。
+     * v2.119.0（O-27 续）：单文件复制改为「写 {@code .part} → 原子替换」。
      *
-     * <p>取消检查放在块边界而不是文件边界：一个 4 GB 视频按 64 KB 走 65536 次，
+     * <p><b>为什么不再直接写目标</b>：目标已存在时 {@code FileOutputStream} 打开即截断，
+     * 写到一半被取消（或空间不足、进程被杀），用户手里就是「原文件没了 + 半截新文件」。
+     * 这与 {@link com.hex91.file.core.AtomicReplace} 的既有结论是同一个道理：
+     * 不能边写边赌。代价是覆盖场景下新旧内容短暂共存（空间需求翻倍），
+     * 但目标不存在时没有任何额外开销 —— 而「复制到新位置」才是主流用法。</p>
+     *
+     * <p><b>为什么要 {@link TempFiles#begin}</b>：{@code .part} 会被「设置 → 遗留文件」
+     * 按后缀认出来。不登记的话，用户在复制进行中点一下清理，删掉的就是正在写的这个文件，
+     * 写完 rename 必然失败，几百 MB 白拷。登记之后扫描与删除入口都会跳过它。</p>
+     *
+     * <p><b>取消检查放在块边界</b>而不是文件边界：一个 4 GB 视频按 64 KB 走 65536 次，
      * 每次判一个 volatile 布尔，代价可以忽略；但只在文件边界判，用户按了取消要等
      * 半分钟才有反应。</p>
+     *
+     * <p>三种收尾：写完并替换成功 → {@code acc.files++}；写入失败或被取消 →
+     * 删掉半成品 {@code .part}（目标原文件一个字节都没动）；写完但替换失败 →
+     * {@code .part} <b>保留</b>，它是完整的新内容，可能是唯一副本。</p>
      */
     private void copyOne(File src, File dst, Progress p, Acc acc) throws IOException {
+        File parent = dst.getParentFile();
+        if (parent == null) throw FsError.of(FsError.Code.WRITE_FAIL, dst.getPath());
+        File part = new File(parent, dst.getName() + TempFiles.PART);
+
         InputStream in;
         try {
             in = new FileInputStream(src);
         } catch (IOException e) {
             throw FsError.of(FsError.Code.READ_FAIL, src.getPath());
         }
+
+        TempFiles.begin(part);
+        boolean wrote = false;
         try {
-            OutputStream out;
             try {
-                out = new FileOutputStream(dst);
-            } catch (IOException e) {
-                throw FsError.of(FsError.Code.WRITE_FAIL, dst.getPath());
-            }
-            try {
-                byte[] buf = new byte[65536];
-                int n;
-                while ((n = in.read(buf)) > 0) {
-                    out.write(buf, 0, n);
-                    acc.bytes += n;
-                    if (p != null && p.isCancelled()) throw Stop.I;
+                OutputStream out;
+                try {
+                    out = new FileOutputStream(part);
+                } catch (IOException e) {
+                    throw FsError.of(FsError.Code.WRITE_FAIL, part.getPath());
                 }
+                try {
+                    byte[] buf = new byte[65536];
+                    int n;
+                    while ((n = in.read(buf)) > 0) {
+                        out.write(buf, 0, n);
+                        acc.bytes += n;
+                        if (p != null && p.isCancelled()) throw Stop.I;
+                    }
+                } finally {
+                    out.close();
+                }
+            } catch (IOException e) {
+                // 读写中途的失败分不出是源还是目标，统一按写入失败报；两者都在诊断串里
+                throw e instanceof FsError ? e
+                        : FsError.of(FsError.Code.WRITE_FAIL, part.getPath());
             } finally {
-                out.close();
+                in.close();
             }
-        } catch (IOException e) {
-            // 读写中途的失败分不出是源还是目标，统一按写入失败报；两者都在诊断串里
-            throw e instanceof FsError ? e : FsError.of(FsError.Code.WRITE_FAIL, dst.getPath());
+            wrote = true;
+
+            // 完整写完才动目标文件：同挂载点上这是一次 rename，目标要么旧要么新
+            if (!AtomicReplace.tryReplace(part, dst)) {
+                throw FsError.of(FsError.Code.RENAME_FAIL, dst.getPath(),
+                        AtomicReplace.lastError);
+            }
+            acc.files++;
         } finally {
-            in.close();
+            // 必须在替换之前注销：替换后 part 这个路径已不存在，留在表里会挡住下一次同名写入
+            TempFiles.end(part);
+            if (!wrote) {
+                // 半成品没有任何保留价值，删掉免得遗留扫描里多一条噪音；
+                // 删不掉就留着 —— 遗留扫描会列出来，比「静默消失」更容易排查
+                part.delete();
+            }
         }
-        acc.files++;
     }
 
     /** 复制累加器：取消时要把已完成量带出来，所以不能只是局部变量 */

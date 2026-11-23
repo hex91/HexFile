@@ -103,9 +103,23 @@ public final class TempFiles {
         }
     }
 
-    /** 规范化路径作为键；canonical 失败（路径不存在、权限）时退回绝对路径 */
+    /**
+     * 规范化路径作为键。
+     *
+     * <p>v2.119.0：只用<b>父目录</b>做 canonical，再拼文件名。原来整条路径 canonical，
+     * 于是「文件还不存在」时（{@link #begin} 发生在创建之前）拿到的是绝对路径，
+     * 而 {@link #end} 时文件已经存在、拿到的是解析过符号链接的路径。{@code /sdcard}
+     * 这类本身就是链接的挂载点上两者必然不同 —— 登记于是永远注销不掉，
+     * 该路径的 {@code .part} 会被 {@link LeftoverScan} 当成「正在写」永久跳过，
+     * 用户看不到也清不掉。</p>
+     *
+     * <p>父目录在写入前一定存在（生产者先建目录再开工），所以这个 key 在整个
+     * 写入周期内稳定。父目录不存在时退回绝对路径，与旧行为一致。</p>
+     */
     public static String key(File f) {
         try {
+            File p = f.getParentFile();
+            if (p != null) return new File(p.getCanonicalFile(), f.getName()).getPath();
             return f.getCanonicalPath();
         } catch (IOException e) {
             return f.getAbsolutePath();

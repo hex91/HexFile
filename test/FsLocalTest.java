@@ -2,6 +2,7 @@ import com.hex91.file.core.PathCore;
 import com.hex91.file.fs.Fs;
 import com.hex91.file.fs.FsError;
 import com.hex91.file.fs.LocalFs;
+import com.hex91.file.fs.TempFiles;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -493,6 +494,63 @@ public class FsLocalTest {
         ok(r4.files == 0L, "copy+progress: 未开始复制时文件数为 0");
         eq(0, plans2[0], "copy+progress: 量体积被打断时不报总量（没有分母就别报）");
         ok(!new File(root, "q3").exists(), "copy+progress: 一开始就取消不建目标目录");
+
+        // ---- v2.119.0：写 .part 再原子替换 ----
+        // 正常复制完：目标目录里不能留下半成品，活动登记也必须注销
+        eq(0, countPart(new File(root, "q")), "copy+atomic: 正常完成后目标目录无 .part");
+        ok(!TempFiles.isActive(new File(root, "q/a.bin" + TempFiles.PART)),
+                "copy+atomic: 替换后活动登记已注销（否则下次同名写入被它挡住）");
+
+        // 覆盖已有大文件时中途取消：原文件必须一个字节都没变
+        write(new File(root, "big.bin"), new byte[512 * 1024]);
+        write(new File(root, "victim/target.bin"), new byte[]{9, 9, 9, 9});
+        final int[] ticks = new int[1];
+        Fs.CopyResult r5 = fs.copy(p(base, "big.bin"), p(base, "victim/target.bin"),
+                new Fs.Progress() {
+                    public void onPlan(long tb, long tf) {}
+
+                    public boolean onFile(String path, long size, long db, long df) {
+                        return true;
+                    }
+
+                    // 前几次不取消：让写入真的开始，再在块边界打断
+                    public boolean isCancelled() {
+                        ticks[0]++;
+                        return ticks[0] > 3;
+                    }
+                });
+        ok(r5.cancelled, "copy+atomic: 覆盖写中途取消 → cancelled");
+        eq(4L, new File(root, "victim/target.bin").length(),
+                "copy+atomic: 取消后目标原文件长度不变（没被截断）");
+        ok(firstByte(new File(root, "victim/target.bin")) == 9,
+                "copy+atomic: 取消后目标原文件内容未被写过");
+        eq(0, countPart(new File(root, "victim")),
+                "copy+atomic: 取消后半成品已删掉（遗留扫描里不该多一条噪音）");
+    }
+
+    /** 递归数 *.part 条目（半成品可能落在子目录里） */
+    static int countPart(File dir) {
+        File[] arr = dir.listFiles();
+        if (arr == null) return -1;
+        int n = 0;
+        for (File f : arr) {
+            if (f.isDirectory()) {
+                int k = countPart(f);
+                if (k > 0) n += k;
+            } else if (f.getName().endsWith(TempFiles.PART)) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    static int firstByte(File f) throws Exception {
+        InputStream in = new java.io.FileInputStream(f);
+        try {
+            return in.read();
+        } finally {
+            in.close();
+        }
     }
 
     static String p(String base, String rel) {
