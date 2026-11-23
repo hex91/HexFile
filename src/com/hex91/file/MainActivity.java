@@ -1,6 +1,7 @@
 package com.hex91.file;
 
 import com.hex91.file.fs.FileKind;
+import com.hex91.file.fs.Shell;
 import com.hex91.file.utils.Bg;
 import com.hex91.file.utils.CrashLog;
 import com.hex91.file.utils.DragPlan;
@@ -62,7 +63,9 @@ import com.hex91.file.ui.VideoPlayerActivity;
 import com.hex91.file.ui.WidgetProvider;
 import com.hex91.file.net.StreamUrl;
 import com.hex91.file.net.TsRemuxer;
+import com.hex91.file.apk.AppInstaller;
 import com.hex91.file.apk.ApkCloneTool;
+import com.hex91.file.apk.InstallCommand;
 import com.hex91.file.apk.ApkEditSession;
 import com.hex91.file.apk.ApkPackager;
 import com.hex91.file.apk.ApkRepack;
@@ -2569,16 +2572,78 @@ public class MainActivity extends BaseActivity {
         }, "apk-sign-detail").start();
     }
 
-    /** 通过自定义 ContentProvider 以 content:// URI 调起系统安装器 */
-    private void installApk(File f) {
+    /**
+     * v2.121.0：自建安装器入口，不再发 {@code ACTION_INSTALL_PACKAGE}。
+     *
+     * <p>Root / Shizuku 可用时走 {@code pm install} 静默安装，既不出现 ROM 安装器
+     * 的推广页也不弹系统确认；无特权时回退 {@link AppInstaller} 的会话通道，进度
+     * 与失败原因仍在 HexFile 界面里，仅保留 Android 强制的系统确认。</p>
+     *
+     * <p>取消按钮在会话 commit 后不再有效（已经交给系统），所以在进入系统确认前
+     * 就收起进度条——避免用户以为还能取消，实际只关掉了一个空壳。</p>
+     */
+    private void installApk(final File f) {
+        final ProgressDialog pd = new ProgressDialog(this);
+        pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+        pd.setTitle(R.string.install_title);
+        pd.setMessage(getString(R.string.install_stage_prepare));
+        pd.setMax(100);
+        pd.setProgress(0);
+        pd.setCancelable(false);
+        pd.show();
+        pd.setButton(android.content.DialogInterface.BUTTON_NEGATIVE,
+                getString(R.string.split_cancel),
+                new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        AppInstaller.cancel();
+                        d.dismiss();
+                    }
+                });
+
+        Intent result = new Intent(this, InstallResultReceiver.class);
+        AppInstaller.install(this, f, result, new AppInstaller.Listener() {
+            public void onStage(int stage, int backend) {
+                if (!pd.isShowing()) return;
+                if (stage == AppInstaller.STAGE_SYSTEM_CONFIRM) {
+                    dismissQuietly(pd);
+                    toast(getString(R.string.install_stage_confirm));
+                    return;
+                }
+                String name = backend == Shell.ROOT ? getString(R.string.install_backend_root)
+                        : backend == Shell.SHIZUKU ? getString(R.string.install_backend_shizuku)
+                        : getString(R.string.install_backend_system);
+                pd.setMessage(stage == AppInstaller.STAGE_PREPARE
+                        ? getString(R.string.install_stage_prepare)
+                        : getString(R.string.install_stage_install, name));
+            }
+
+            public void onProgress(int percent) {
+                if (pd.isShowing()) pd.setProgress(percent);
+            }
+
+            public void onResult(int code, String detail, int backend) {
+                dismissQuietly(pd);
+                if (isFinishing() || isDestroyed()) return;
+                String text = UtilText.installResult(MainActivity.this, code, detail);
+                if (code == InstallCommand.OK) {
+                    toast(text);
+                } else {
+                    new HfDialogBuilder(MainActivity.this)
+                            .setTitle(R.string.install_notif_fail)
+                            .setMessage(text)
+                            .setPositiveButton(R.string.common_close, null)
+                            .show();
+                }
+            }
+        });
+    }
+
+    /** 安装期间页面可能已销毁，dismiss 抛异常不该盖掉安装结果 */
+    private static void dismissQuietly(ProgressDialog pd) {
         try {
-            Uri uri = Uri.parse("content://" + getPackageName() + ".files" + f.getAbsolutePath());
-            Intent i = new Intent(Intent.ACTION_INSTALL_PACKAGE);
-            i.setData(uri);
-            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(i);
-        } catch (Exception e) {
-            toast(s(R.string.main_install_fail, e.getMessage()));
+            if (pd.isShowing()) pd.dismiss();
+        } catch (Throwable t) {
+            LogRing.add("install", "pd.dismiss: " + t);
         }
     }
 

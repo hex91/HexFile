@@ -506,7 +506,6 @@ public class ManifestEditorActivity extends BaseActivity {
     // ---------- IO 小工具 ----------
 
     /** 签名产物覆盖写回原 APK（后台 + 进度框，完成提示刷新） */
-    /** 调起系统安装器安装签名产物（与 MainActivity.installApk 同通道） */
     private static byte[] readZipEntry(File zip, String entryName) throws Exception {
         byte[] pending = ApkEditSession.editBytes(zip, entryName);   // v1.66.0 会话修改优先
         if (pending != null) return pending;

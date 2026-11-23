@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：3177 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：3200 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -62,7 +62,7 @@ adb install -r out/HexFile-*.apk
     │   ├── ZipUtil ZstdUtil WorkDir DocPath BatchRenameCore CompareUtil ContentGrep
     │   └── LeftoverScan TreeOps RootIO RootUtil Shell LinkUtil SortMode TempFiles
     │       VaultStore VaultBio
-    ├── apk/         (33)        # APK / 压缩包 / 资源二进制：重打包、签名、ARSC、AXML、smali
+    ├── apk/         (36)        # APK / 压缩包 / 资源二进制：重打包、签名、ARSC、AXML、smali、安装
     │   ├── ApkUtil ApkInfoUtil ApkPackager ApkRepack ApkEditSession ApkSignCheck
     │   ├── ApkSignerTool ApkCloneTool ApkCompareUtil ArchiveUtil ArchiveWrite ArchivePasswords
     │   ├── FileInspect ArscEditor ArscFile ArscPlus ArscValues ArscWriter
@@ -77,7 +77,7 @@ adb install -r out/HexFile-*.apk
     │   ├── ScheduleRule ScheduleItem ScheduleCodec ScheduleRunner ScheduleStore
     │   ├── ScheduleService ScheduleRunState VolumeRoots SchedText
     │   └── ScheduleReceiver BootReceiver
-    ├── ui/          (98)        # 界面：49 Activity + 7 Service/Provider + 视图/适配器/对话框
+    ├── ui/          (99)        # 界面：49 Activity + 7 Service/Provider + 视图/适配器/对话框
     │   ├── *Activity（除 MainActivity 外全部）、ActivityFloatService / ActivityTraceService
     │   ├── ApkFileProvider / HfDocumentsProvider / WidgetProvider / LanShareService / TaskService
     │   ├── FileAdapter / FileGridAdapter / ZipAdapter、PullRefreshLayout / RadarView
@@ -1784,6 +1784,114 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.121.0（versionCode 314）—— 自建安装器：特权静默优先，无特权去掉 ROM 广告页
+
+国产 ROM 的系统安装器页面常夹带推荐、广告与「风险提醒」，用户安装自己下载的 APK
+也要先过一页营销。本版把「安装 APK」从 `ACTION_INSTALL_PACKAGE` 换成自建通道：
+有 Root / Shizuku 时真正静默安装；没有时仍走自己的界面，ROM 安装器推广页不再出现。
+
+### 一、能做什么、不能做什么
+
+| 层次 | 能否绕过 | 本版做法 |
+| --- | --- | --- |
+| 签名 / 版本降级 / 兼容性校验（PackageManagerService） | **不能** | 所有路径都执行，这是系统完整性底线 |
+| ROM 安装器页面（广告、推荐、营销提示） | 能 | 两条通道都不再发 `ACTION_INSTALL_PACKAGE` |
+| 系统确认弹窗（Android 8+ 第三方会话） | 有特权时能 | Root / Shizuku 走 `pm install`，不出现；无特权仍保留 |
+| Play Protect / ROM 云扫描的交互提示 | 有特权时能 | 特权 shell 不触发安装器交互；后台扫描是系统行为，应用无法关闭 |
+
+> 「不经过系统扫描」严格说只能做到「不经过安装器 UI 与交互提示」。包管理器自身的
+> 校验不可能也不应该跳过——否则装进去的包在安装器与设置页里都不可信。
+
+### 二、两条通道与选择策略
+
+选择点只有一处：`Shell.backend(RootUtil.isEnabled())`。
+
+| 后端 | 通道 | 系统安装器页面 | 系统确认 | 底层校验 |
+| --- | --- | --- | --- | --- |
+| Root（`su`） | `pm install -r` | 不出现 | 不出现 | 执行 |
+| Shizuku（shell） | `pm install -r` | 不出现 | 不出现 | 执行 |
+| 无特权 | `DirectInstaller` 会话 | 不出现（自建 UI） | Android 8+ 出现 | 执行 |
+
+无特权通道的收益是「无广告 + 自己的进度与失败原因」；代价是那一次系统确认仍在。
+这不是实现取舍，而是 Android 对第三方安装会话的强制要求。
+
+### 三、文件与职责
+
+| 文件 | 职责 |
+| --- | --- |
+| `apk/AppInstaller.java` | 统一入口：选后端、串起「拷贝 → chmod → pm install → 清理」、阶段与结果回调 |
+| `apk/InstallCommand.java` | 纯 JDK：shell 转义、命令拼装、pm 输出分类、错误码常量 |
+| `apk/DirectInstaller.java` | 单 APK 的 `PackageInstaller` 会话：写入、commit、结果分发、取消 |
+| `ui/InstallResultReceiver.java` | 按 action 把结果分发给单文件 / 分包两条通道 |
+| `ui/InstallNotifier.java` | 界面销毁后补通知，通道 id 与分包安装分开 |
+| `ui/UtilText.java` | 错误码 → 中英文案，系统原文附在括号内 |
+| `MainActivity.java` | 进度条、阶段提示、结果弹窗与取消按钮 |
+
+逻辑层一律返回错误码 + 系统原文，不产任何用户文案；加语言不需要碰 apk 层。
+
+### 四、为什么要先拷到 `/data/local/tmp`
+
+Android 11 起 `system_server` 经 FUSE 看到的 `/sdcard` 与 shell 看到的不一致，
+直接 `pm install /sdcard/Download/x.apk` 会报 `INVALID_URI`。所以特权路径的顺序
+固定为：
+
+1. `cp '<源>' '/data/local/tmp/hf-install-<token>-<文件名>.apk'`
+2. `chmod 644` 临时文件
+3. `pm install -r -i 'com.hex91.file' '<临时文件>'`
+4. `rm -f` 临时文件（成功失败都清）
+
+文件名经 `shellQuote` 用单引号包裹，`'` 写成 `'\''`；参数里的 `$`、反引号不会被展开。
+临时文件名只保留 `[A-Za-z0-9._-]`，避免外部存储来的文件名进入 shell 命令。
+
+安装超时 180 秒。**超时只放弃等待、不杀进程**——杀掉一个已接近完成的 `pm install`
+可能留下半安装状态，比多等一会儿糟得多；界面会提示「若随后弹出成功提示，以系统结果为准」。
+
+### 五、错误码
+
+| 码 | 常量 | 界面结论 |
+| --- | --- | --- |
+| 0 | `OK` | 安装完成 |
+| 1 | `ERR_CANCELLED` | 已取消安装 |
+| 2 | `ERR_TIMEOUT` | 超时（保留系统后续结果） |
+| 3 | `ERR_CONFLICT` | 签名不同 / 版本更低，需先卸载 |
+| 4 | `ERR_INVALID` | 包无效或分包缺失 |
+| 5 | `ERR_INCOMPATIBLE` | ABI / 系统版本不兼容 |
+| 6 | `ERR_STORAGE` | 空间不足 |
+| 7 | `ERR_BLOCKED` | 系统拦截，检查「安装未知应用」 |
+| 8 | `ERR_ABORTED` | 安装被中止 |
+| 9 | `ERR_IO` | 读写 / 复制失败 |
+| 10 | `ERR_UNKNOWN` | 未知（保留 pm 原文） |
+| 11 | `ERR_BUSY` | 另一个安装正在进行 |
+
+pm 的失败原因全在文本里、退出码几乎恒为非零，所以分类按关键字匹配且**顺序有讲究**：
+签名冲突先于通用 `install_failed`，否则用户看不到「需要先卸载旧版」这条真正有用的提示。
+这部分是纯 JDK 类，由 `InstallCommandTest` 的 29 项用例覆盖。
+
+### 六、验证
+
+| 项 | 结果 |
+| --- | --- |
+| 依赖方向 | PASS |
+| 空 catch | **333**（基线 335，未增长） |
+| 文案键 | **3200 / 3200** 中英 100%（新增 23 键） |
+| 动作码 | 55（未新增动作） |
+| `InstallCommandTest` | **29** 项 |
+| `run_core` | **75 / 0 / 0** |
+| `run_all` | **103 / 0 / 4**（`HlsDownloaderTest` 首轮因本地 HTTP 端口争用偶发失败，单独重跑 1/0/0 通过） |
+
+APK 13,554,384 B（md5 `5cfe51b7`），badging 314/2.121.0。
+
+### 七、真机待确认
+
+1. 有 Shizuku 授权时点安装：全程不出现系统安装器页面与确认弹窗，装完直接回文件列表；
+2. 无特权时点安装：出现一次系统确认（ROM 可能有自己的提示），但**没有**广告页；
+3. 系统确认时拦下安装：界面显示「系统拦截了安装」，括号里带系统原文；
+4. 安装同名但签名不同的包：显示「需先卸载旧版」，不是笼统的「安装失败」；
+5. 文件名带空格或单引号：能正常安装（shell 转义生效）；
+6. 无特权安装期间退出页面：与分包安装行为一致——监听器仍在时由原页面收尾，不额外补通知；请尽量保持页面在前台。
 
 ---
 

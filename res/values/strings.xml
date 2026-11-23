@@ -3394,4 +3394,29 @@
     <string name="sched_err_empty_dir">目录是空的，没有可压缩的内容</string>
     <string name="sched_err_vault_only">目录里只有隐私空间，没有可压缩的内容</string>
     <string name="sched_err_zip_fail">压缩失败：%1$s</string>
+
+    <!-- v2.121.0 自建安装器：特权静默优先 + PackageInstaller 回退 -->
+    <string name="install_title">安装应用</string>
+    <string name="install_stage_prepare">正在准备安装包…</string>
+    <string name="install_stage_install">正在静默安装（%1$s）…</string>
+    <string name="install_stage_confirm">未获得 Root / Shizuku 授权，接下来由系统确认安装</string>
+    <string name="install_backend_root">Root</string>
+    <string name="install_backend_shizuku">Shizuku</string>
+    <string name="install_backend_system">系统安装确认</string>
+    <string name="install_ok">安装完成</string>
+    <string name="install_detail">（%1$s）</string>
+    <string name="install_err_cancelled">已取消安装</string>
+    <string name="install_err_timeout">安装超时；若随后弹出成功提示，请以系统结果为准</string>
+    <string name="install_err_conflict">与已安装版本冲突（签名不同或版本更低），需先卸载旧版</string>
+    <string name="install_err_invalid">安装包无效或已损坏</string>
+    <string name="install_err_incompatible">与当前设备不兼容（ABI 或系统版本）</string>
+    <string name="install_err_storage">存储空间不足</string>
+    <string name="install_err_blocked">系统拦截了安装，请检查「安装未知应用」权限</string>
+    <string name="install_err_aborted">安装被中止</string>
+    <string name="install_err_io">读取或复制安装包失败</string>
+    <string name="install_err_unknown">未知错误</string>
+    <string name="install_err_busy">另一个安装正在进行</string>
+    <string name="install_notif_channel">安装结果</string>
+    <string name="install_notif_ok">安装完成</string>
+    <string name="install_notif_fail">安装失败</string>
 </resources>

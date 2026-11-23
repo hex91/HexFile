@@ -3,6 +3,7 @@ package com.hex91.file.ui;
 import android.content.Context;
 
 import com.hex91.file.R;
+import com.hex91.file.apk.InstallCommand;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.utils.HashUtil;
 import com.hex91.file.utils.IntentImport;
@@ -175,5 +176,54 @@ public final class UtilText {
         if (ShizukuBridge.S_CONNECTED.equals(base))
             return c.getString(R.string.ut_shiz_connected, part(code, 1));
         return code == null ? "" : code;
+    }
+
+    /**
+     * v2.121.0：安装结果码 → 界面文案。apk 层只给码和系统原文，翻译只发生在这里。
+     *
+     * <p>失败时把系统原文附在括号里：错误码给结论（如「签名冲突」），原文给细节
+     * （具体哪个包、哪条 pm 消息），两者缺一都会让排查变难。</p>
+     */
+    public static String installResult(Context c, int code, String detail) {
+        String base;
+        switch (code) {
+            case InstallCommand.OK:
+                return c.getString(R.string.install_ok);
+            case InstallCommand.ERR_CANCELLED:
+                base = c.getString(R.string.install_err_cancelled);
+                break;
+            case InstallCommand.ERR_TIMEOUT:
+                base = c.getString(R.string.install_err_timeout);
+                break;
+            case InstallCommand.ERR_CONFLICT:
+                base = c.getString(R.string.install_err_conflict);
+                break;
+            case InstallCommand.ERR_INVALID:
+                base = c.getString(R.string.install_err_invalid);
+                break;
+            case InstallCommand.ERR_INCOMPATIBLE:
+                base = c.getString(R.string.install_err_incompatible);
+                break;
+            case InstallCommand.ERR_STORAGE:
+                base = c.getString(R.string.install_err_storage);
+                break;
+            case InstallCommand.ERR_BLOCKED:
+                base = c.getString(R.string.install_err_blocked);
+                break;
+            case InstallCommand.ERR_ABORTED:
+                base = c.getString(R.string.install_err_aborted);
+                break;
+            case InstallCommand.ERR_IO:
+                base = c.getString(R.string.install_err_io);
+                break;
+            case InstallCommand.ERR_BUSY:
+                base = c.getString(R.string.install_err_busy);
+                break;
+            default:
+                base = c.getString(R.string.install_err_unknown);
+                break;
+        }
+        if (detail == null || detail.length() == 0) return base;
+        return base + " " + c.getString(R.string.install_detail, detail);
     }
 }
