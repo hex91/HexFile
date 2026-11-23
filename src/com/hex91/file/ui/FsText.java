@@ -195,6 +195,8 @@ public final class FsText {
                 return c.getString(R.string.fs_err_bad_path);
             case UNSUPPORTED:
                 return c.getString(R.string.fs_err_unsupported, e.str(0));
+            case NOT_DIR:
+                return c.getString(R.string.fs_err_not_dir, e.str(0));
             default:
                 return e.getMessage();
         }

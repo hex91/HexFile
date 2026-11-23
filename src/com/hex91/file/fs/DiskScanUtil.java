@@ -249,30 +249,27 @@ public final class DiskScanUtil {
         return out;
     }
 
-    private static void collect(File dir, java.util.PriorityQueue<FileSize> pq, int n) {
-        collect(dir, pq, n, 0);
-    }
+    private static void collect(File dir, final PriorityQueue<FileSize> pq, final int n) {
+        walkTree(dir, new Fs.Visitor() {
+            @Override
+            public boolean onDir(Fs.Entry e, int depth) {
+                // R-39：隐私空间不参与「最大文件」排行 —— 密文 id 对上用户没有任何意义，
+                // 却会把真实的大文件挤出榜单
+                return !VaultStore.isVaultDir(new File(e.path));
+            }
 
-    private static void collect(File dir, java.util.PriorityQueue<FileSize> pq, int n, int depth) {
-        if (depth > TreeOps.MAX_DEPTH) return;
-        File[] cs = LinkUtil.listNoFollow(dir);
-        if (cs == null) return;
-        for (File c : cs) {
-            // R-39：隐私空间不参与「最大文件」排行 —— 密文 id 对上用户没有任何意义，
-            // 却会把真实的大文件挤出榜单
-            if (c.isDirectory()) {
-                if (VaultStore.isVaultDir(c)) continue;
-                collect(c, pq, n, depth + 1);
-            } else {
-                long len = c.length();
+            @Override
+            public void onFile(Fs.Entry e, int depth) {
+                if (e.link) return;
+                long len = e.size;
                 if (pq.size() < n) {
-                    pq.add(new FileSize(c, len));
+                    pq.add(new FileSize(new File(e.path), len));
                 } else if (len > pq.peek().size) {
                     pq.poll();
-                    pq.add(new FileSize(c, len));
+                    pq.add(new FileSize(new File(e.path), len));
                 }
             }
-        }
+        });
     }
 
     // ---------- 重复文件查找（三阶段：大小 → 头4KB → 全量 MD5） ----------
@@ -370,21 +367,43 @@ public final class DiskScanUtil {
         return out;
     }
 
-    private static void collectFiles(File dir, List<File> out) {
-        collectFiles(dir, out, 0);
+    private static void collectFiles(File dir, final List<File> out) {
+        walkTree(dir, new Fs.Visitor() {
+            @Override
+            public boolean onDir(Fs.Entry e, int depth) {
+                // R-39：隐私空间的密文不参与查重 —— 既不会真的重复，也免得把整库密文读一遍
+                return !VaultStore.isVaultDir(new File(e.path));
+            }
+
+            @Override
+            public void onFile(Fs.Entry e, int depth) {
+                // 链接不参与：目标会被自己的路径统计到，跟进等于同一文件判重
+                if (e.link) return;
+                // 保持旧口径的「只收普通文件」：/storage 的 FUSE 下只有三者，但根区可能有
+                // FIFO/设备节点，读它们会阻塞
+                File f = new File(e.path);
+                if (f.isFile()) out.add(f);
+            }
+        });
     }
 
-    private static void collectFiles(File dir, List<File> out, int depth) {
-        if (depth > TreeOps.MAX_DEPTH) return;
-        // 链接不跟进，否则同一文件会被判重（规则见 LinkUtil.listNoFollow）
-        File[] cs = LinkUtil.listNoFollow(dir);
-        if (cs == null) return;
-        for (File c : cs) {
-            // R-39：隐私空间的密文不参与查重 —— 既不会真的重复，也免得把整库密文读一遍
-            if (c.isDirectory()) {
-                if (VaultStore.isVaultDir(c)) continue;
-                collectFiles(c, out, depth + 1);
-            } else if (c.isFile()) out.add(c);
+    /**
+     * v2.116.0（O-27 续）：遍历统一交给 {@link Fs#walk}，这里只兜「根不可用」。
+     *
+     * <p>为什么把异常就地吞掉：这两个入口的调用方是后台扫描线程，返回空结果与
+     * 「这个目录扫不到」在界面上是同一种表现；而根被删除/无权限属于扫描开始前的
+     * 竞态，抛到上层只会变成一条没有上下文的崩溃日志。子目录读不出来仍会走
+     * {@code onError}，不影响其余子树。</p>
+     *
+     * @return false 表示根不可用；已回调收集到的结果仍然有效
+     */
+    private static boolean walkTree(File dir, Fs.Visitor v) {
+        if (dir == null) return false;
+        try {
+            new LocalFs().walk(dir.getAbsolutePath(), TreeOps.MAX_DEPTH, null, v);
+            return true;
+        } catch (IOException e) {
+            return false;
         }
     }
 

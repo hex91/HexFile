@@ -47,6 +47,7 @@ public class FsNetAdapterTest {
 
     public static void main(String[] args) throws Exception {
         netPaths();
+        walkSection();
         MemFs mem = new MemFs();
         mem.dirs.add("");
         mem.dirs.add("docs");
@@ -152,6 +153,105 @@ public class FsNetAdapterTest {
         eq(NetFs.parentOf("/a/b"), "a", "NetFs.parentOf: 前导斜杠被吃掉");
     }
 
+    // ---------------------------------------------------------------- walk
+
+    /**
+     * v2.116.0（O-27 续）：远程实现走的是 {@code Fs.walk} 的默认版本（基于 {@code list}）。
+     *
+     * <p>为什么单独测：{@link com.hex91.file.fs.LocalFs} 覆盖成 {@code File} 快路径之后，
+     * 默认实现就只剩远程在用 —— 本地用例再多也覆盖不到它。而远程的根是空串，
+     * 与文件系统的 {@code "/"} 不是一回事，这条差异只有在这里测得出来。</p>
+     */
+    static void walkSection() throws Exception {
+        MemFs tree = new MemFs();
+        tree.dirs.add("");
+        tree.dirs.add("d1");
+        tree.dirs.add("d1/d2");
+        tree.put("r.txt", new byte[]{1});
+        tree.put("d1/a.txt", new byte[]{2});
+        tree.put("d1/d2/b.txt", new byte[]{3});
+        NetFsAdapter fs = new NetFsAdapter(tree);
+
+        Probe all = new Probe();
+        eq(fs.walk("", all), true, "walk 远程根：走完返回 true（空串是根，不是错误）");
+        eq(all.files.toString(), "[a.txt, b.txt, r.txt]", "walk 远程根：文件集合");
+        eq(all.dirs.toString(), "[d1, d2]", "walk 远程根：目录集合");
+
+        Probe pruned = new Probe() {
+            @Override
+            public boolean onDir(Fs.Entry e, int depth) {
+                return !"d1".equals(e.name);
+            }
+        };
+        fs.walk("", pruned);
+        eq(pruned.files.toString(), "[r.txt]", "walk 远程：剪枝后不进子树");
+
+        Probe shallow = new Probe();
+        fs.walk("", 1, null, shallow);
+        eq(shallow.files.toString(), "[r.txt]", "walk 远程：maxDepth=1");
+        eq(shallow.dirs.toString(), "[d1]", "walk 远程：maxDepth=1 只有一级目录");
+
+        Probe cancelled = new Probe() {
+            @Override
+            public void onFile(Fs.Entry e, int depth) {
+                super.onFile(e, depth);
+                stop = true;
+            }
+        };
+        eq(fs.walk("", 64, cancelled, cancelled), false, "walk 远程：取消后返回 false");
+        eq(cancelled.files.size(), 1, "walk 远程：取消后不再回调");
+
+        // 子目录读不出来：回调 onError，其余子树照走
+        MemFs flaky = new MemFs() {
+            @Override
+            public List<NetEntry> list(String path) throws IOException {
+                if ("bad".equals(path)) throw new IOException("denied");
+                return super.list(path);
+            }
+        };
+        flaky.dirs.add("");
+        flaky.dirs.add("bad");
+        flaky.put("ok.txt", new byte[]{1});
+        Probe skip = new Probe();
+        eq(new NetFsAdapter(flaky).walk("", skip), true, "walk 远程：子目录读不出仍继续走完");
+        eq(skip.files.toString(), "[ok.txt]", "walk 远程：坏目录不影响兄弟节点");
+        eq(skip.errors, 1, "walk 远程：坏目录回调 onError 一次");
+
+        expect(FsError.Code.SRC_MISSING, new Body() {
+            public void run() throws Exception {
+                new NetFsAdapter(tree).walk("no-such", new Probe());
+            }
+        }, "walk 远程：根不存在报 SRC_MISSING");
+        expect(FsError.Code.NOT_DIR, new Body() {
+            public void run() throws Exception {
+                new NetFsAdapter(tree).walk("r.txt", new Probe());
+            }
+        }, "walk 远程：根是文件报 NOT_DIR");
+    }
+
+    /** 收集式访问者；同时当取消信号用，省掉两个匿名类 */
+    static class Probe implements Fs.Visitor, Fs.Cancel {
+        final java.util.Set<String> files = new java.util.TreeSet<String>();
+        final java.util.Set<String> dirs = new java.util.TreeSet<String>();
+        int errors;
+        boolean stop;
+
+        public boolean onDir(Fs.Entry e, int depth) {
+            dirs.add(e.name);
+            return true;
+        }
+
+        public void onFile(Fs.Entry e, int depth) {
+            files.add(e.name);
+        }
+
+        public void onError(Fs.Entry dir, IOException e) {
+            errors++;
+        }
+
+        public boolean isCancelled() { return stop; }
+    }
+
     interface Body { void run() throws Exception; }
 
     static void expect(FsError.Code code, Body body, String msg) {
@@ -166,7 +266,7 @@ public class FsNetAdapterTest {
     }
 
     /** 内存版 NetFs：只实现适配器用得到的语义，行为按「协议能力」可配置 */
-    static final class MemFs implements NetFs {
+    static class MemFs implements NetFs {
         final Map<String, byte[]> files = new LinkedHashMap<String, byte[]>();
         final Set<String> dirs = new LinkedHashSet<String>();
         boolean append = true;

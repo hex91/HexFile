@@ -42,6 +42,12 @@ public class FsLocalTest {
         } finally {
             deleteTree(root);
         }
+        File walkRoot = mkTempDir();
+        try {
+            walkOps(walkRoot);
+        } finally {
+            deleteTree(walkRoot);
+        }
         System.out.println("-----------------------------------------");
         System.out.println("pass=" + pass + " fail=" + fail);
         if (fail > 0) System.exit(1);
@@ -192,6 +198,119 @@ public class FsLocalTest {
         // ---- close 后仍可用（本地实现无状态，契约如此） ----
         fs.close();
         ok(fs.stat(base) != null, "close: 本地实现 close 后仍可调用");
+    }
+
+    // ---------------------------------------------------------------- walk
+
+    /**
+     * v2.116.0（O-27 续）：递归遍历的护栏。
+     *
+     * <p>重点不是「能遍历到文件」，而是四条约束：剪枝真的不进子树、深度上限真的生效、
+     * 取消真的能停、根路径错误时不会伪装成空目录。这四条里任何一条失效，上层看到的
+     * 都是「扫描结果偏少」而不是报错 —— 用户不会发现，只会在某天觉得「大小对不上」。</p>
+     */
+    static void walkOps(File root) throws Exception {
+        final LocalFs fs = new LocalFs();
+        final String base = PathCore.normalize(root.getAbsolutePath());
+
+        mkdirs(new File(root, "sub/deep"));
+        mkdirs(new File(root, "empty"));
+        write(new File(root, "f1.txt"), new byte[3]);
+        write(new File(root, "sub/f2.txt"), new byte[5]);
+        write(new File(root, "sub/deep/f3.txt"), new byte[7]);
+
+        // ---- 全量：文件 3 个、目录 3 个、深度递增 ----
+        Collector all = new Collector();
+        ok(fs.walk(base, all), "walk: 全量走完返回 true");
+        eq(all.files.toString(), "[f1.txt, f2.txt, f3.txt]", "walk: 文件集合");
+        eq(all.dirs.toString(), "[deep, empty, sub]", "walk: 目录集合（不含根自身）");
+        eq(all.pathOf("f1.txt"), PathCore.join(base, "f1.txt"), "walk: 子项 path 是完整路径");
+        eq(all.sizeOf("f2.txt"), 5L, "walk: Entry.size 与 File.length 一致");
+        eq(all.depthOf("f1.txt"), 1, "walk: 根的直接子项深度为 1");
+        eq(all.depthOf("f2.txt"), 2, "walk: 二级目录深度为 2");
+        eq(all.depthOf("f3.txt"), 3, "walk: 三级目录深度为 3");
+
+        // ---- 剪枝：不进入 sub，子树里的文件一个都不该出现 ----
+        Collector pruned = new Collector() {
+            @Override
+            public boolean onDir(Fs.Entry e, int depth) {
+                return !"sub".equals(e.name);      // 返回 false = 剪掉
+            }
+        };
+        fs.walk(base, pruned);
+        eq(pruned.files.toString(), "[f1.txt]", "walk: 剪枝后不进子树");
+        ok(!pruned.dirs.contains("deep"), "walk: 剪枝后更深层目录不再回调");
+
+        // ---- 深度上限 ----
+        Collector shallow = new Collector();
+        fs.walk(base, 1, null, shallow);
+        eq(shallow.files.toString(), "[f1.txt]", "walk: maxDepth=1 只取直接子项");
+        eq(shallow.dirs.toString(), "[empty, sub]", "walk: maxDepth=1 仍回调一级目录（但不进入）");
+
+        // ---- 取消：第一个文件后停，返回 false ----
+        Collector cancelled = new Collector() {
+            @Override
+            public void onFile(Fs.Entry e, int depth) {
+                super.onFile(e, depth);
+                cancel = true;
+            }
+        };
+        eq(fs.walk(base, 64, cancelled, cancelled), false, "walk: 被取消时返回 false");
+        eq(cancelled.files.size(), 1, "walk: 取消后不再回调后续条目");
+
+        // ---- 根路径错误：必须抛，不能当空目录 ----
+        expect(FsError.Code.SRC_MISSING, new Body() {
+            public void run() throws Exception {
+                new LocalFs().walk(PathCore.join(PathCore.normalize(
+                        new File(".").getAbsolutePath()), "no-such-dir"), new Collector());
+            }
+        }, "walk: 根不存在报 SRC_MISSING");
+        expect(FsError.Code.NOT_DIR, new Body() {
+            public void run() throws Exception {
+                new LocalFs().walk(new File(new File("."), "build.sh").getAbsolutePath(),
+                        new Collector());
+            }
+        }, "walk: 根是文件报 NOT_DIR");
+        expect(FsError.Code.BAD_PATH, new Body() {
+            public void run() throws Exception { new LocalFs().walk("", new Collector()); }
+        }, "walk: 空路径报 BAD_PATH");
+    }
+
+    /** 收集式访问者：断言只看集合与深度，不依赖遍历顺序（契约里顺序是不保证的） */
+    static class Collector implements Fs.Visitor, Fs.Cancel {
+        final java.util.Set<String> files = new java.util.TreeSet<String>();
+        final java.util.Set<String> dirs = new java.util.TreeSet<String>();
+        final java.util.Map<String, String> path = new java.util.HashMap<String, String>();
+        final java.util.Map<String, Long> size = new java.util.HashMap<String, Long>();
+        final java.util.Map<String, Integer> depth = new java.util.HashMap<String, Integer>();
+        boolean cancel;
+
+        public boolean onDir(Fs.Entry e, int depth) {
+            dirs.add(e.name);
+            this.depth.put(e.name, depth);
+            return !cancel;
+        }
+
+        public void onFile(Fs.Entry e, int depth) {
+            files.add(e.name);
+            path.put(e.name, e.path);
+            size.put(e.name, e.size);
+            this.depth.put(e.name, depth);
+        }
+
+        String pathOf(String name) { return path.get(name); }
+
+        long sizeOf(String name) {
+            Long v = size.get(name);
+            return v == null ? -1L : v.longValue();
+        }
+
+        int depthOf(String name) {
+            Integer v = depth.get(name);
+            return v == null ? -1 : v.intValue();
+        }
+
+        public boolean isCancelled() { return cancel; }
     }
 
     // ---------------------------------------------------------------- 工具

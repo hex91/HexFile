@@ -67,6 +67,61 @@ public interface Fs {
     /** 释放实现持有的资源（本地实现无状态，空实现）。可重复调用。 */
     default void close() {}
 
+    // ---------------------------------------------------------------- 递归遍历
+
+    /**
+     * v2.116.0（O-27 续）：递归遍历 —— 把「怎么走」从每个调用点收回到一处。
+     *
+     * <p>为什么值得收：磁盘分析、查重、遗留文件扫描、全盘搜索原先各自写了一遍递归，
+     * 于是「不跟进软链接」「深度上限」「被取消时怎么停」这三条规则要重复实现四遍，
+     * 每漏一处就是重复计数或爆栈。这个接口只负责走，不负责统计 —— 累计口径留在调用方。</p>
+     *
+     * <p><b>顺序</b>：不保证。同一目录内也不保证按名称排序，需要顺序的调用方自己排。
+     * 遍历实现自己决定用栈还是队列，这既是性能留白，也免得调用方依赖某一种顺序。</p>
+     *
+     * <p><b>链接</b>：子项里绝不进入链接目标。指向目录的链接按 {@code onFile} 回调并置
+     * {@link Entry#link} 为 true —— 它「看起来是目录但不能走」，用 {@code onDir}
+     * 回调会让调用方以为返回 true 就能进得去。根路径按调用方原样解释
+     * （{@code /sdcard} 在部分 ROM 上本身就是链接，拒绝扫描等于让分析入口失效）。</p>
+     *
+     * <p><b>失败</b>：某个子目录读不出来不会中断整趟，走 {@link Visitor#onError}；
+     * 根路径不存在或不是目录则直接抛 {@link FsError} —— 这是调用方写错了路径，
+     * 不该伪装成「空目录」。</p>
+     *
+     * @param maxDepth 最大深度，根的直接子项为 1；小于 1 按 1 处理
+     * @param cancel   每个条目前检查一次；{@code null} 表示不取消
+     * @return true 走完；false 被取消（已回调的条目有效，未访问的不保证）
+     */
+    default boolean walk(String root, int maxDepth, Cancel cancel, Visitor v) throws IOException {
+        return FsWalk.run(this, root, maxDepth, cancel, v);
+    }
+
+    /** {@link #walk(String, int, Cancel, Visitor)} 的默认深度版本。 */
+    default boolean walk(String root, Visitor v) throws IOException {
+        return walk(root, TreeOps.MAX_DEPTH, null, v);
+    }
+
+    /** 取消信号：遍历每处理一个条目查一次，实现方可以放心做长任务。 */
+    interface Cancel {
+        boolean isCancelled();
+    }
+
+    /** 遍历回调。 */
+    interface Visitor {
+        /**
+         * 遇到真实目录（不是链接）。
+         *
+         * @return false 表示不进入这个目录 —— 剪枝。已剪掉的子树不会再有任何回调。
+         */
+        boolean onDir(Entry dir, int depth);
+
+        /** 遇到文件；{@link Entry#link} 为 true 表示这是链接（不会进入，也不会再展开）。 */
+        void onFile(Entry file, int depth);
+
+        /** 某个目录读不出来（权限 / 已被删除 / 网络失败）；默认忽略，继续走其余的。 */
+        default void onError(Entry dir, IOException e) {}
+    }
+
     /** 目录项元数据；{@code mtime} 为 epoch 毫秒，未知为 0。 */
     final class Entry {
         public final String name;

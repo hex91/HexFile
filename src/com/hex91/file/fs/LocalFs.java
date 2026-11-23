@@ -204,6 +204,83 @@ public final class LocalFs implements Fs {
         if (!src.renameTo(dst)) throw FsError.of(FsError.Code.RENAME_FAIL, b);
     }
 
+    /**
+     * v2.116.0（O-27 续）：{@code File} 快路径遍历。
+     *
+     * <p>与 {@link FsWalk} 的差别只有「省掉什么」：不走 {@link #list}，因此不做排序、
+     * 也不为每个子项拼相对路径再丢给 {@code new File(...)} 解析回来。几十万文件的磁盘
+     * 分析里，这两件事都不改变结果，但会让每条记录多一次字符串分配。</p>
+     *
+     * <p>链接判定用 {@link LinkUtil#kind}（{@code lstat}），不用 {@code isDirectory}：
+     * 后者会跟随链接，指向目录的链接会被当成可进入的目录，进而统计翻倍、遇到环爆栈。</p>
+     */
+    @Override
+    public boolean walk(String root, int maxDepth, Cancel cancel, Visitor v) throws IOException {
+        if (v == null) throw new IllegalArgumentException("visitor == null");
+        String base = require(root);
+        File r = new File(base);
+        if (!r.exists() && LinkUtil.kind(r) == LinkUtil.NONE) {
+            throw FsError.of(FsError.Code.SRC_MISSING, base);
+        }
+        if (!r.isDirectory()) throw FsError.of(FsError.Code.NOT_DIR, base);
+
+        int limit = maxDepth < 1 ? 1 : maxDepth;
+        Deque<Frame> stack = new ArrayDeque<Frame>();
+        stack.push(new Frame(r, base, 0));
+
+        while (!stack.isEmpty()) {
+            Frame f = stack.pop();
+            if (cancel != null && cancel.isCancelled()) return false;
+
+            File[] arr = f.file.listFiles();
+            if (arr == null) {
+                // 根读不出来是调用方的问题；子目录按权限不足跳过，继续扫其余的
+                if (f.depth == 0) throw FsError.of(FsError.Code.LIST_FAIL, f.path);
+                v.onError(dirEntry(f.file, f.path), FsError.of(FsError.Code.LIST_FAIL, f.path));
+                continue;
+            }
+
+            for (File c : arr) {
+                if (cancel != null && cancel.isCancelled()) return false;
+                String p = PathCore.join(f.path, c.getName());
+                int k = LinkUtil.kind(c);
+                if (k != LinkUtil.NONE) {
+                    // 链接：目标大小归目标所有，这里报 0；link=true 让调用方自己决定要不要
+                    boolean dir = k == LinkUtil.DIR;
+                    v.onFile(new Entry(c.getName(), p, dir, dir ? 0L : c.length(),
+                            c.lastModified(), true), f.depth + 1);
+                    continue;
+                }
+                if (c.isDirectory()) {
+                    Entry e = dirEntry(c, p);
+                    int d = f.depth + 1;
+                    if (v.onDir(e, d) && d < limit) stack.push(new Frame(c, p, d));
+                } else {
+                    v.onFile(new Entry(c.getName(), p, false, c.length(), c.lastModified(), false),
+                            f.depth + 1);
+                }
+            }
+        }
+        return true;
+    }
+
+    private static Entry dirEntry(File f, String path) {
+        return new Entry(f.getName(), path, true, 0L, f.lastModified(), false);
+    }
+
+    /** 待处理目录：{@code path} 单独存，避免每层反复 {@code getAbsolutePath()} 与规范化 */
+    private static final class Frame {
+        final File file;
+        final String path;
+        final int depth;
+
+        Frame(File file, String path, int depth) {
+            this.file = file;
+            this.path = path;
+            this.depth = depth;
+        }
+    }
+
     /** 统一入口检查：null / 空串是调用方的编程错误，这里给稳定错误码 */
     private static String require(String path) throws FsError {
         if (path == null || path.trim().isEmpty()) {

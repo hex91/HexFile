@@ -49,7 +49,9 @@ public class FsError extends IOException {
         RENAME_FAIL,
         TARGET_EXISTS,
         BAD_PATH,
-        UNSUPPORTED
+        UNSUPPORTED,
+        // v2.116.0（O-27 续）：遍历入口——根不是目录
+        NOT_DIR
     }
 
     public final Code code;

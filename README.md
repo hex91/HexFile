@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：3174 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：3175 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -56,8 +56,8 @@ adb install -r out/HexFile-*.apk
     │   ├── AtomicReplace MimeUtil TimeCore TextDiffUtil Contrast ScreenPolicy ByteIO
     │   └── CredentialCodec ScanCache StringExtract RadixCore ThemeSchemes PathCore
     │       RegionTable PlaySpeed TestDataCore ArscDefs
-    ├── fs/          (34)        # 文件系统：读目录、复制移动、回收站、压缩包、Root/Shell
-    │   ├── Fs LocalFs FileItem FileOps FileAttrs FileClipboard DirReader DiskScanUtil FileKind
+    ├── fs/          (35)        # 文件系统：读目录、复制移动、回收站、压缩包、Root/Shell
+    │   ├── Fs FsWalk LocalFs FileItem FileOps FileAttrs FileClipboard DirReader DiskScanUtil FileKind
     │   ├── FileTask FileTaskEngine FileSplit FileCrypt Trash TrashJanitor TrashPolicy
     │   ├── ZipUtil ZstdUtil WorkDir DocPath BatchRenameCore CompareUtil ContentGrep
     │   └── LeftoverScan TreeOps RootIO RootUtil Shell LinkUtil SortMode TempFiles
@@ -1784,6 +1784,56 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.116.0（versionCode 309）—— O-27 续：`Fs.walk` 递归遍历 + 查重/TopN 切换
+
+上一版让 `Fs` 有了读写，但「怎么走」还散在各处：磁盘分析、查重、遗留扫描、全盘搜索
+各自写了一遍递归，「不跟进链接 / 深度上限 / 怎么取消」这三条规则也就各实现了一遍。
+这一版把遍历收回接口，并切掉两处最像「纯遍历」的调用点。
+
+### `Fs.walk` 的四个契约
+
+| 契约 | 为什么必须写死 |
+| --- | --- |
+| 只回调「真实目录」给 `onDir`，`onFile` 的 `link=true` 表示链接 | 指向目录的链接「看起来是目录但走不进去」。用 `onDir` 回调会让调用方以为返回 true 就能进 |
+| `onDir` 返回 false = 剪枝，整棵子树不再有任何回调 | 隐私空间、黑名单目录靠它排除；剪枝若只跳过当前项，子树里的文件照样会被统计 |
+| 顺序不保证 | 本地走 `File` 快路径不排序，远程按协议返回顺序。让调用方依赖顺序，后续加优化就得改契约 |
+| 根路径错误抛异常，子目录读不出走 `onError` | 根写错是调用方 bug，不该显示成「空目录」；子目录无权限是常态，不该中断整趟扫描 |
+
+实现分两条：`LocalFs` 覆盖成 `java.io.File` 快路径（不排序、不拼相对路径），
+其余实现继承默认版本 `FsWalk`（基于 `list()`，显式栈而非递归）——
+远程目录没有 `File` 快路径，但遍历规则完全一样，没有理由再写一遍。
+栈而不是递归：深度上限虽然有 64，但「上限被改大」之后递归会直接 StackOverflow 把进程带走。
+
+### 切换的两处调用点
+
+| 位置 | 变化 |
+| --- | --- |
+| `DiskScanUtil.collectFiles`（查重的阶段 1） | 手写递归 → `walk`，隐私空间改为 `onDir` 返回 false |
+| `DiskScanUtil.collect`（最大文件 Top N） | 同上 |
+
+两处都保留旧口径：链接不参与（判重会把同一文件算两遍，Top N 会让目标把真实大文件挤出榜单）、
+`collectFiles` 只要普通文件（根区可能有 FIFO，读它会阻塞）。
+`analyze` 的主扫描**没有**切 —— 它要在同一趟里同时算大小、登记子目录、维护 Top N，
+还带隐私空间的「容量照算、名字不列」模式；这种带累计状态的遍历硬套通用接口，
+只会把状态机搬进匿名类，得不偿失。
+
+### 验证
+
+- `FsLocalTest` 73 项（新增 17 项：剪枝 / 深度上限 / 取消 / 根不存在 / 根是文件 / 空路径）；
+- `FsNetAdapterTest` 46 项（新增 13 项：远程根是空串、剪枝、深度、取消、坏子目录走 `onError`）；
+- 四门全过：依赖方向 PASS、空 catch **334**（基线 335）、文案键 **3175 / 3175**、动作码 55；
+- `run_core` **74/0/0**（分三批）、`run_all` **102/0/4**；
+- APK 13,538,000 B（md5 `3d6ccd88…`），badging 309/2.116.0。
+
+### 仍然遗留
+
+- 写路径没有切：解压、复制、移动、删除仍走 `FileOps` / `RootIO`；
+- 受保护目录（`/data` 等）没有 `Fs` 入口，仍由 `RootUtil` 判定后走 `RootIO`；
+- `analyze` 的带累计状态遍历没有切（理由见上）；
+- 全盘搜索 `SearchActivity` 的遍历仍自己走树，且额外带 `.vault` 整树跳过与结果上限，下一版再评估。
 
 ---
 
