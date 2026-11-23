@@ -1,5 +1,7 @@
 package com.hex91.file.net;
 
+import com.hex91.file.core.PathCore;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -88,25 +90,27 @@ public interface NetFs {
 
     // ----------------------------------------------------------------
     // 静态工具：路径拼接 / 拆分
+    //
+    // v2.115.0（O-27）：实现收敛到 core/PathCore —— 本地 Fs 与远程 NetFs 必须是
+    // 同一套折叠规则，否则同一个路径在两边会落到不同位置。这里只保留转发，
+    // 20 处调用点不动。
+    //
+    // parentOf 用的是 PathCore.parentOfRelative 而不是 parentOf：远程的根是空串，
+    // 不是 "/"（详见 PathCore 里两个方法的注释）。
     // ----------------------------------------------------------------
 
     /** 拼接相对路径："a" + "b.txt" → "a/b.txt"；parent 为空返回 name 本身。 */
     static String join(String parent, String name) {
-        if (parent == null || parent.isEmpty()) return name;
-        return parent + "/" + name;
+        return PathCore.join(parent, name);
     }
 
     /** 取路径最后一段（文件名）；根目录返回空串。 */
     static String baseName(String path) {
-        if (path == null || path.isEmpty()) return "";
-        int i = path.lastIndexOf('/');
-        return i < 0 ? path : path.substring(i + 1);
+        return PathCore.baseName(path);
     }
 
     /** 取父路径；无父（一级路径）返回空串。 */
     static String parentOf(String path) {
-        if (path == null) return "";
-        int i = path.lastIndexOf('/');
-        return i < 0 ? "" : path.substring(0, i);
+        return PathCore.parentOfRelative(path);
     }
 }

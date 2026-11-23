@@ -129,6 +129,23 @@ public class ContentGrepTest {
         eq(1, r13.hits, "真实文件：命中中文关键词");
         eq(2, r13.first().line, "真实文件：行号 2");
 
+        // ---------------------------------------------------------- O-27：Fs 入口
+        // File 版本现在是 Fs 版本的薄壳，这两条同时验证「薄壳没改变结果」与边界行为
+        com.hex91.file.fs.Fs lfs = new com.hex91.file.fs.LocalFs();
+        ContentGrep.Result r14 = ContentGrep.grepFile(lfs, f2.getAbsolutePath(), "关键词",
+                false, false, 10, 0);
+        eq(1, r14.hits, "Fs 入口：与 File 版本同样命中");
+        eq(2, r14.first().line, "Fs 入口：行号一致");
+        ContentGrep.Result r15 = ContentGrep.grepFile(lfs, ROOT.getAbsolutePath(), "needle",
+                false, false, 10, 0);
+        eq(0, r15.hits, "Fs 入口：目录不扫描（不抛异常）");
+        ContentGrep.Result r16 = ContentGrep.grepFile(lfs,
+                new File(ROOT, "no-such.txt").getAbsolutePath(), "needle", false, false, 10, 0);
+        eq(0, r16.hits, "Fs 入口：不存在的文件返回空结果");
+        ContentGrep.Result r17 = ContentGrep.grepFile(lfs, f.getAbsolutePath(), "needle",
+                false, false, 10, 1);
+        ok(r17.tooBig, "Fs 入口：超过 maxBytes 标记 tooBig");
+
         // ---------------------------------------------------------- 片段截断
         String longText = "prefix " + repeat('a', 300) + " needle " + repeat('b', 300);
         String sn = ContentGrep.snippet(longText, "needle", 80);

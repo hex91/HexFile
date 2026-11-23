@@ -46,6 +46,7 @@ public class FsNetAdapterTest {
     }
 
     public static void main(String[] args) throws Exception {
+        netPaths();
         MemFs mem = new MemFs();
         mem.dirs.add("");
         mem.dirs.add("docs");
@@ -130,6 +131,26 @@ public class FsNetAdapterTest {
     }
 
     // ---------------------------------------------------------------- 工具
+
+    /**
+     * v2.115.0：{@code NetFs} 的三个静态路径工具已收敛到 {@code PathCore}，
+     * 20 处调用点没改。这里钉住「收敛后语义没漂」——尤其是远程的根是空串，
+     * 不是文件系统的 {@code "/"}。
+     */
+    static void netPaths() {
+        eq(NetFs.join("a", "b.txt"), "a/b.txt", "NetFs.join: 普通");
+        eq(NetFs.join("", "b.txt"), "b.txt", "NetFs.join: 空父");
+        eq(NetFs.join("a/", "b.txt"), "a/b.txt", "NetFs.join: 父带尾斜杠不出双斜杠");
+        eq(NetFs.baseName("a/b.txt"), "b.txt", "NetFs.baseName: 普通");
+        eq(NetFs.baseName("a/"), "a", "NetFs.baseName: 尾斜杠");
+        eq(NetFs.baseName("/"), "", "NetFs.baseName: 根");
+        eq(NetFs.parentOf("a/b"), "a", "NetFs.parentOf: 两级");
+        eq(NetFs.parentOf("a"), "", "NetFs.parentOf: 一级");
+        eq(NetFs.parentOf(""), "", "NetFs.parentOf: 空");
+        eq(NetFs.parentOf("/a"), "", "NetFs.parentOf: 前导斜杠仍视为远程根");
+        eq(NetFs.parentOf("a/"), "", "NetFs.parentOf: 尾斜杠不影响父目录");
+        eq(NetFs.parentOf("/a/b"), "a", "NetFs.parentOf: 前导斜杠被吃掉");
+    }
 
     interface Body { void run() throws Exception; }
 

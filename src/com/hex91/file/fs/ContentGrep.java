@@ -2,7 +2,6 @@ package com.hex91.file.fs;
 
 import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -35,6 +34,9 @@ public final class ContentGrep {
     /** 默认单文件扫描上限 */
     public static final long DEFAULT_MAX_FILE = 4L * 1024 * 1024;
 
+    /** 本地实现的共享实例：无状态，避免每个文件 new 一个 */
+    private static final Fs LOCAL = new LocalFs();
+
     public static class Match {
         public final int line;      // 行号，从 1 开始
         public final String text;   // 该行内容（最多 MAX_LINE_BYTES 解码）
@@ -57,27 +59,50 @@ public final class ContentGrep {
     }
 
     /**
-     * 扫描一个文件。
+     * 扫描一个本地文件（{@link Fs} 入口的薄壳）。
      *
      * @param maxHits  最多记录多少条命中
      * @param maxBytes 单文件字节上限；&lt;=0 表示不限制
      */
     public static Result grepFile(File f, String query, boolean regex, boolean ignoreCase,
                                   int maxHits, long maxBytes) {
+        if (f == null) return new Result();
+        return grepFile(LOCAL, f.getAbsolutePath(), query, regex, ignoreCase, maxHits, maxBytes);
+    }
+
+    /**
+     * v2.115.0（O-27）：按 {@link Fs} 扫描 —— 本地与远程走同一条读路径。
+     *
+     * <p>为什么先做这一处：内容搜索只用到 {@code stat} + {@code openRead} 两个方法，
+     * 是验证抽象边界最小的真实调用点；写路径（解压落盘、复制移动）等下一版再切，
+     * 那里一旦出错是数据损坏，不适合当第一块试验田。</p>
+     *
+     * <p>与旧实现的差异只有一处：目录判定从 {@code File.isFile()} 换成
+     * {@code stat().dir}，多一次 lstat；对「每个文件都要开流读 4KB」的搜索来说可以忽略。</p>
+     */
+    public static Result grepFile(Fs fs, String path, String query, boolean regex,
+                                  boolean ignoreCase, int maxHits, long maxBytes) {
         Result r = new Result();
-        if (f == null || !f.isFile()) return r;
-        if (maxBytes > 0 && f.length() > maxBytes) {
-            r.tooBig = true;
-            return r;
-        }
-        InputStream in = null;
+        if (fs == null || path == null || path.isEmpty()) return r;
         try {
-            in = new FileInputStream(f);
-            return grep(in, query, regex, ignoreCase, maxHits);
-        } catch (Exception e) {
+            Fs.Entry e = fs.stat(path);
+            if (e == null || e.dir) return r;
+            if (maxBytes > 0 && e.size > maxBytes) {
+                r.tooBig = true;
+                return r;
+            }
+            InputStream in = null;
+            try {
+                in = fs.openRead(path);
+                return grep(in, query, regex, ignoreCase, maxHits);
+            } catch (Exception ex) {
+                return r;
+            } finally {
+                if (in != null) try { in.close(); } catch (IOException ignored) {}
+            }
+        } catch (Exception ex) {
+            // stat 本身失败（远程超时 / 权限）：按「没有命中」返回，与旧的 File 版本一致
             return r;
-        } finally {
-            if (in != null) try { in.close(); } catch (IOException ignored) {}
         }
     }
 

@@ -119,4 +119,28 @@ public final class PathCore {
         if ("/".equals(p)) return true;
         return p.length() == 3 && p.charAt(1) == ':' && p.charAt(2) == '/';
     }
+
+    /**
+     * 远程相对路径的父目录：根是空串（不是 {@code "/"}）。
+     *
+     * <p>为什么不能直接用 {@link #parentOf}：远程协议（FTP/SFTP/SMB/WebDAV/S3）的根
+     * 是空串，{@code "a"} 的父是 {@code ""}；而 {@code parentOf("/a")} 会返回 {@code "/"}，
+     * 那是文件系统语义。两者共用同一套折叠规则，只在「根怎么表示」上有区别，
+     * 所以拆成两个方法而不是让调用方到处补 {@code startsWith("/")}。</p>
+     *
+     * <p>顺带把前导 / 尾随斜杠都吃掉：WebDAV 的 href 会带前导 {@code /}，
+     * 目录项可能带尾随 {@code /}，协议层不该把这些形态差异漏给上层。</p>
+     */
+    public static String parentOfRelative(String path) {
+        if (path == null || path.isEmpty()) return "";
+        String p = normalize(path);
+        int start = 0;
+        while (start < p.length() && p.charAt(start) == '/') start++;
+        p = p.substring(start);
+        int end = p.length();
+        while (end > 0 && p.charAt(end - 1) == '/') end--;
+        p = p.substring(0, end);
+        int i = p.lastIndexOf('/');
+        return i < 0 ? "" : p.substring(0, i);
+    }
 }
