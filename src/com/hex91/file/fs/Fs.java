@@ -74,13 +74,37 @@ public interface Fs {
      * 这与 {@link #rename} 的「目标存在就失败」相反 —— 改名覆盖是静默丢文件，
      * 复制覆盖是用户明确要求的结果。两个方法的差异是刻意保留的。</p>
      *
-     * <p><b>不做进度与取消</b>：大目录复制要走 {@code FileTaskEngine}（可暂停、有进度）。
-     * 这里只保证语义，把「复制」这件事的定义收在一处。</p>
+     * <p><b>不做进度与取消</b>：需要进度时用 {@link #copy(String, String, Progress)}；
+     * 本方法等价于传 {@code null}。</p>
      *
      * @throws FsError {@code SRC_MISSING} 源不存在 / {@code SELF_NEST} 目标在自己的子树里 /
      *                 {@code LINK_UNSUPPORTED} 目标文件系统不支持链接
      */
-    void copy(String from, String to) throws IOException;
+    default CopyResult copy(String from, String to) throws IOException {
+        return copy(from, to, null);
+    }
+
+    /**
+     * v2.118.0（O-27 续）：带进度与取消的复制。
+     *
+     * <p><b>两趟走</b>：先量体积（不读内容，只 lstat），再复制。为什么要多走一趟：
+     * 没有分母的进度条只能显示「已复制 3.2 GB」，用户无法判断还要多久；而 50 万文件
+     * 量一遍也就是几十秒，远小于复制本身。量体积这一趟同样会检查取消，否则
+     * 用户在「扫描中」按取消会没反应。</p>
+     *
+     * <p><b>取消留下什么</b>：已经复制完的文件保留，正在写的那个文件是截断的。
+     * 不回滚是刻意的 —— 回滚要删掉目标里「本次新建」的文件，但同名文件可能在复制前
+     * 就存在（copy 是覆盖语义），删掉等于把用户原有数据一起清了。调用方拿到
+     * {@link CopyResult#cancelled} 后应当提示「已复制 N 个文件，剩余未完成」，
+     * 而不是当作什么都没发生。</p>
+     *
+     * <p><b>进度按文件粒度回调</b>，不按字节回调：一个 4 GB 视频如果按块回调，
+     * 每秒上千次跨线程更新会把主线程压死，而界面上的百分比该跳就跳。
+     * 取消检查在块边界也做（每 64 KB），所以按取消能立刻响应。</p>
+     *
+     * @param p 进度回调；{@code null} 表示不需要进度，此时与 {@link #copy(String, String)} 等价
+     */
+    CopyResult copy(String from, String to, Progress p) throws IOException;
 
     /**
      * v2.117.0（O-27 续）：移动；{@code to} 是完整目标路径，目标存在则失败。
@@ -133,6 +157,70 @@ public interface Fs {
     /** 取消信号：遍历每处理一个条目查一次，实现方可以放心做长任务。 */
     interface Cancel {
         boolean isCancelled();
+    }
+
+    // ---------------------------------------------------------------- 复制进度
+
+    /**
+     * v2.118.0：复制进度回调。三个方法都可能被后台线程调用，实现方自己切主线程。
+     *
+     * <p>刻意不给「百分比」而是给原始数字：总量未知时（远程、权限受限目录）
+     * {@link #onPlan} 的 {@code totalBytes} 会是 {@code -1}，此时界面该显示「已复制 X」
+     * 而不是「50%」—— 算百分比的规则留给调用方，接口不预设。</p>
+     */
+    interface Progress {
+        /**
+         * 量完体积后回调一次，之后才开始真正复制。
+         *
+         * @param totalBytes 预计要写的字节数；{@code -1} 表示无法预知
+         * @param totalFiles 预计要复制的文件数；{@code -1} 表示无法预知
+         */
+        void onPlan(long totalBytes, long totalFiles);
+
+        /**
+         * 每写完一个文件回调一次。
+         *
+         * <p>此时该文件已经完整落盘，{@code doneBytes} / {@code doneFiles} 可以安全地
+         * 用来显示进度。正在写的文件不会回调 —— 否则进度条会显示一个永远不会到达的
+         * 「99%」，用户以为卡住了。</p>
+         *
+         * @return {@code false} 表示取消；已完成的文件保留（见 {@link #copy(String, String, Progress)}）
+         */
+        boolean onFile(String path, long size, long doneBytes, long doneFiles);
+
+        /**
+         * 取消轮询：量体积阶段与复制阶段都会调，实现方可以做长任务。
+         *
+         * <p>与 {@link #onFile} 返回 false 的区别只是时机：这里是块边界（每 64 KB），
+         * 用来让「复制一个 4 GB 文件」也能立刻停下。</p>
+         */
+        default boolean isCancelled() {
+            return false;
+        }
+    }
+
+    /** 复制结果。取消时 {@code cancelled} 为 true，其余字段是已完成的部分。 */
+    final class CopyResult {
+        public final boolean cancelled;
+        /** 已写入的字节数（含被中断那个文件写入的部分） */
+        public final long bytes;
+        /** 已完整写完的文件数 */
+        public final long files;
+        /** 因目标文件系统不支持链接而跳过的条目数 */
+        public final int skipped;
+
+        public CopyResult(boolean cancelled, long bytes, long files, int skipped) {
+            this.cancelled = cancelled;
+            this.bytes = bytes;
+            this.files = files;
+            this.skipped = skipped;
+        }
+
+        @Override
+        public String toString() {
+            return (cancelled ? "copy(cancelled)" : "copy(done)")
+                    + " files=" + files + " bytes=" + bytes + " skipped=" + skipped;
+        }
     }
 
     /** 遍历回调。 */

@@ -115,35 +115,55 @@ public final class NetFsAdapter implements Fs {
     }
 
     /**
-     * v2.117.0（O-27 续）：远程复制只做单文件。
+     * v2.117.0（O-27 续）：远程复制只做单文件；v2.118.0 增加进度与取消。
      *
      * <p>目录复制要逐层建目录、逐文件搬运，中途断线会留下半棵树 —— 而远程没有
      * 「回滚」手段，用户看到的是一个「好像复制了」但缺文件的目录。在协议层给出
      * 事务语义之前，明确报 {@code UNSUPPORTED}，让调用方走「下载到本地再上传」。</p>
+     *
+     * <p>不做「量体积」这趟：远程 {@code stat} 拿到的 size 是协议报告的期望值，
+     * 与实际流长度不一定相等（转码、压缩传输），拿它当分母会让进度条停在 97%。
+     * 所以直接 {@code onPlan(size, 1)} 后按已写字节报告，界面自己决定怎么显示。</p>
      */
     @Override
-    public void copy(String from, String to) throws IOException {
+    public CopyResult copy(String from, String to, Progress p) throws IOException {
         String a = req(from);
         String b = req(to);
-        if (a.equals(b)) return;
+        if (a.equals(b)) return new CopyResult(false, 0L, 0L, 0);
         if (b.startsWith(a + "/")) throw FsError.of(FsError.Code.SELF_NEST, b);
         Entry cur = stat(a);
         if (cur == null) throw FsError.of(FsError.Code.SRC_MISSING, a);
         if (cur.dir) throw FsError.of(FsError.Code.UNSUPPORTED, "copy directory");
 
+        long expect = cur.size;
+        if (p != null) p.onPlan(expect, 1L);
+        if (p != null && p.isCancelled()) return new CopyResult(true, 0L, 0L, 0);
+
+        long done = 0;
         InputStream in = net.openRead(a);
         try {
             OutputStream out = net.openWrite(b);
             try {
                 byte[] buf = new byte[65536];
                 int n;
-                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                while ((n = in.read(buf)) > 0) {
+                    out.write(buf, 0, n);
+                    done += n;
+                    // 远程取消后流已经被截断，继续写只会把半份内容留在远端
+                    if (p != null && p.isCancelled()) {
+                        return new CopyResult(true, done, 0L, 0);
+                    }
+                }
             } finally {
                 out.close();
             }
         } finally {
             in.close();
         }
+        if (p != null && !p.onFile(b, done, done, 1L)) {
+            return new CopyResult(true, done, 1L, 0);
+        }
+        return new CopyResult(false, done, 1L, 0);
     }
 
     /** v2.117.0：远程只有「同目录原子改名」，跨目录移动会由 {@link #rename} 报不支持 */

@@ -271,6 +271,36 @@ public class FsNetAdapterTest {
                 new NetFsAdapter(mem).move("a3.txt", "d1/a3.txt");
             }
         }, "move 远程：跨目录报 UNSUPPORTED");
+
+        // ---- v2.118.0：远程复制的进度口径 ----
+        final java.util.List<Object> plan = new java.util.ArrayList<Object>();
+        final int[] calls = new int[1];
+        Fs.CopyResult r = fs.copy("a3.txt", "a4.txt", new Fs.Progress() {
+            public void onPlan(long tb, long tf) {
+                plan.add(Long.valueOf(tb));
+                plan.add(Long.valueOf(tf));
+            }
+
+            public boolean onFile(String path, long size, long db, long df) {
+                calls[0]++;
+                return true;
+            }
+        });
+        eq(Long.valueOf(4L), plan.get(0), "copy 远程进度：onPlan 用 stat 的期望大小（不另跑一趟量体积）");
+        eq(Long.valueOf(1L), plan.get(1), "copy 远程进度：文件数 1");
+        eq(1, calls[0], "copy 远程进度：onFile 回调一次");
+        ok(!r.cancelled && r.files == 1L, "copy 远程进度：完成计数为 1");
+
+        // --- 取消：远程没有回滚，已写入的部分必须留在远端并如实报取消 ---
+        Fs.CopyResult r2 = fs.copy("a3.txt", "a5.txt", new Fs.Progress() {
+            public void onPlan(long tb, long tf) {}
+
+            public boolean onFile(String path, long size, long db, long df) {
+                return false;
+            }
+        });
+        ok(r2.cancelled, "copy 远程进度：onFile 返回 false → cancelled");
+        ok(mem.has("a5.txt"), "copy 远程进度：取消时已写入内容保留（远程无回滚，不能假装没发生）");
     }
 
     /** 收集式访问者；同时当取消信号用，省掉两个匿名类 */

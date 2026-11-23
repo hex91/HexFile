@@ -6,6 +6,8 @@ import com.hex91.file.MainActivity;
 import com.hex91.file.fs.ContentGrep;
 import com.hex91.file.fs.FileOps;
 import com.hex91.file.fs.Trash;
+import com.hex91.file.fs.Fs;
+import com.hex91.file.fs.LocalFs;
 import com.hex91.file.fs.VaultStore;
 import android.content.Intent;
 import android.os.Bundle;
@@ -24,6 +26,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -246,7 +249,7 @@ public class SearchActivity extends BaseActivity {
         status.setText(filterSummary(ft));
         new Thread(new Runnable() {
             public void run() {
-                walk(startDir, ft, 0);
+                walkTree(startDir, ft);
                 ui.post(new Runnable() {
                     public void run() {
                         searching = false;
@@ -286,49 +289,80 @@ public class SearchActivity extends BaseActivity {
         return sb.toString();
     }
 
-    private void walk(File dir, Filter ft, int depth) {
-        if (dir == null || depth > MAX_DEPTH || results.size() >= MAX || cancel) return;
-        if (ft.content != null && scannedFiles >= MAX_SCAN_FILES) return;
-        File[] kids = dir.listFiles();
-        if (kids == null) return;
-        long now = System.currentTimeMillis();
-        for (File f : kids) {
-            if (results.size() >= MAX || cancel) break;
-            if (ft.content != null && scannedFiles >= MAX_SCAN_FILES) break;
-            String n = f.getName();
-            // 回收站里的东西是被「删除」的，不该出现在搜索结果里（旧代码只比较了目录名，永远不命中）
-            if (f.isDirectory() && f.getAbsolutePath().equals(Trash.dir().getAbsolutePath())) continue;
-            // R-39：隐私空间整体跳过。密文不泄露明文名，但结果行能被点开、能被删 ——
-            // 删掉一个 b/<id>.bin 就是一条记录永久丢失，比「看不到」糟得多。
-            if (f.isDirectory() && VaultStore.isVaultDir(f)) continue;
-            if (f.isDirectory()) {
-                if (ft.content == null && accept(f, ft, now)) results.add(f);
-                walk(f, ft, depth + 1);
-                continue;
+    /**
+     * v2.118.0（O-27 续）：遍历改走 {@link Fs#walk}。
+     *
+     * <p>这里原来有一份自己的递归，和 {@code DiskScanUtil} / 查重 / 遗留扫描各写一遍，
+     * 「不跟进链接」「深度上限」「取消点」三件事要重复实现。切换后有一处行为变化是
+     * 修正：旧代码用 {@code f.isDirectory()} 判目录，而它会<b>跟随链接</b>，指向目录的
+     * 链接会被递归进去 —— 搜索 `/sdcard` 时同一个子树被扫两遍，结果里出现重复条目。
+     * 现在链接按 {@code onFile} 回调，只作为一条结果出现，不再展开。</p>
+     *
+     * <p><b>停止条件</b>：结果满 1000 条、内容搜索扫满 5 万文件、用户按停止，
+     * 三者合并成同一个 {@link Fs.Cancel}。原来分别在两个循环里 break，漏一处就是
+     * 「按了停止还在扫」。</p>
+     */
+    private void walkTree(File rootDir, Filter ft) {
+        if (rootDir == null) return;
+        final long now = System.currentTimeMillis();
+        File trashDir = Trash.dir();
+        final String trash = trashDir == null ? null : trashDir.getAbsolutePath();
+        final Fs fs = new LocalFs();
+
+        Fs.Cancel sig = new Fs.Cancel() {
+            public boolean isCancelled() {
+                return cancel || results.size() >= MAX
+                        || (ft.content != null && scannedFiles >= MAX_SCAN_FILES);
             }
-            if (ft.content == null) {
-                if (accept(f, ft, now)) results.add(f);
-                continue;
-            }
-            // ---- v1.81.0：内容搜索 ----
-            scannedFiles++;
-            if ((scannedFiles & 0xFF) == 0) postProgress(ft);
-            if (!acceptFile(f, ft, now)) continue;
-            ContentGrep.Result gr = ContentGrep.grepFile(
-                    f, ft.content, false, ft.ignoreCase, 2, CONTENT_MAX_BYTES);
-            ContentGrep.Match m = gr.first();
-            if (m == null) continue;
-            snippets.put(f.getAbsolutePath(),
-                    "L" + m.line + ": " + ContentGrep.snippet(m.text, ft.content, 90));
-            results.add(f);
-            if ((scannedFiles & 0xFF) == 0) postProgress(ft);
+        };
+
+        try {
+            // maxDepth 语义是「根的直接子项为 1」，旧实现是 0 基（根的子项 depth=1 且
+            // depth>12 才停），所以这里要 +1 才能保持「展开到第 12 层子目录」不变
+            fs.walk(rootDir.getAbsolutePath(), MAX_DEPTH + 1, sig, new Fs.Visitor() {
+                public boolean onDir(Fs.Entry d, int depth) {
+                    // 回收站里的东西是被「删除」的，不该出现在搜索结果里
+                    if (trash != null && d.path.equals(trash)) return false;
+                    // R-39：隐私空间整体跳过。密文不泄露明文名，但结果行能被点开、能被删 ——
+                    // 删掉一个 b/<id>.bin 就是一条记录永久丢失，比「看不到」糟得多。
+                    if (VaultStore.isVaultDir(new File(d.path))) return false;
+                    if (ft.content == null && accept(new File(d.path), true, ft, now)) {
+                        results.add(new File(d.path));
+                    }
+                    return true;
+                }
+
+                public void onFile(Fs.Entry e, int depth) {
+                    File f = new File(e.path);
+                    if (ft.content == null) {
+                        if (accept(f, e.dir, ft, now)) results.add(f);
+                        return;
+                    }
+                    // ---- v1.81.0：内容搜索 ----
+                    scannedFiles++;
+                    if ((scannedFiles & 0xFF) == 0) postProgress(ft);
+                    if (!acceptFile(f, ft, now)) return;
+                    ContentGrep.Result gr = ContentGrep.grepFile(fs, e.path, ft.content, false,
+                            ft.ignoreCase, 2, CONTENT_MAX_BYTES);
+                    ContentGrep.Match m = gr.first();
+                    if (m == null) return;
+                    snippets.put(e.path,
+                            "L" + m.line + ": " + ContentGrep.snippet(m.text, ft.content, 90));
+                    results.add(f);
+                    if ((scannedFiles & 0xFF) == 0) postProgress(ft);
+                }
+            });
+        } catch (IOException e) {
+            // 根路径失效（被删 / 无权限）：旧实现同样是「静默出空结果」，
+            // 但空 catch 会让这类问题在日志里彻底消失，写一行便于排查
+            android.util.Log.w("SearchActivity", "search root failed: " + rootDir + " " + e);
         }
     }
 
     /** 条件判定：目录仅受名称过滤（且无类型/大小/时间条件时列出）；文件全条件叠加 */
-    private boolean accept(File f, Filter ft, long now) {
+    private boolean accept(File f, boolean dir, Filter ft, long now) {
         if (!matchName(f, ft)) return false;
-        if (f.isDirectory()) {
+        if (dir) {
             return ft.type == 0 && ft.sizeMin < 0 && ft.sizeMax < 0
                     && ft.dayMin < 0 && ft.dayMax < 0;
         }

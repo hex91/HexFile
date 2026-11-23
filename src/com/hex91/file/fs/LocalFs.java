@@ -205,24 +205,29 @@ public final class LocalFs implements Fs {
     }
 
     /**
-     * v2.117.0（O-27 续）：复制。
+     * v2.117.0（O-27 续）：复制；v2.118.0 增加进度与取消。
      *
-     * <p>两处与「朴素实现」不同，都是踩过的坑：</p>
+     * <p>三处与「朴素实现」不同，都是踩过的坑：</p>
      * <ul>
      *   <li><b>同路径直接返回</b>：{@code FileOutputStream} 先截断再读，源等于目标时
      *       会把文件清空 —— 这不是「复制失败」，是数据丢失且没有任何异常。</li>
      *   <li><b>目标在源子树内直接失败</b>：{@code /a → /a/b} 会一边遍历一边新建目录，
      *       轻则重复复制，重则无限增长直到磁盘满。</li>
+     *   <li><b>量体积与复制分两趟</b>：没有分母的进度条只能显示「已复制 3.2 GB」，
+     *       用户无法判断还要多久。量体积不读内容，只 lstat，代价远小于复制本身。</li>
      * </ul>
+     *
+     * <p>取消用 {@link Stop}（运行期异常，单例、不填栈）向上穿，在边界转成
+     * {@link CopyResult#cancelled}，不让「用户主动停止」变成界面上的一条报错。</p>
      */
     @Override
-    public void copy(String from, String to) throws IOException {
+    public CopyResult copy(String from, String to, Progress p) throws IOException {
         String a = require(from);
         String b = require(to);
-        if (a.equals(b)) return;
+        if (a.equals(b)) return new CopyResult(false, 0L, 0L, 0);
         if (b.startsWith(a + "/")) throw FsError.of(FsError.Code.SELF_NEST, b);
 
-        File src = new File(a);
+        final File src = new File(a);
         if (!src.exists() && LinkUtil.kind(src) == LinkUtil.NONE) {
             throw FsError.of(FsError.Code.SRC_MISSING, a);
         }
@@ -232,22 +237,163 @@ public final class LocalFs implements Fs {
             if (!TreeOps.SYSTEM.copyLink(src, dst)) {
                 throw FsError.of(FsError.Code.LINK_UNSUPPORTED, a);
             }
-            return;
+            return new CopyResult(false, 0L, 0L, 0);
         }
-        if (src.isDirectory()) {
-            TreeOps.copyDir(src, dst, TreeOps.SYSTEM, null);
-            return;
+
+        final Acc acc = new Acc();
+        if (!src.isDirectory()) {
+            File parent = dst.getParentFile();
+            if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
+                throw FsError.of(FsError.Code.MKDIR_FAIL, parent.getPath());
+            }
+            long total = src.length();
+            if (p != null) p.onPlan(total, 1L);
+            if (p != null && p.isCancelled()) return new CopyResult(true, 0L, 0L, 0);
+            try {
+                copyOne(src, dst, p, acc);
+                if (p != null && !p.onFile(b, total, acc.bytes, acc.files)) throw Stop.I;
+            } catch (Stop s) {
+                return new CopyResult(true, acc.bytes, acc.files, acc.skipped);
+            }
+            return new CopyResult(false, acc.bytes, acc.files, acc.skipped);
         }
-        File parent = dst.getParentFile();
-        if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
-            throw FsError.of(FsError.Code.MKDIR_FAIL, parent.getPath());
+
+        // ---- 第一趟：量体积 ----
+        final long[] tot = new long[2];
+        Cancel sig = new Cancel() {
+            public boolean isCancelled() {
+                return p != null && p.isCancelled();
+            }
+        };
+        boolean done = walk(a, TreeOps.MAX_DEPTH, sig, new Visitor() {
+            public boolean onDir(Entry dir, int depth) {
+                return true;
+            }
+
+            public void onFile(Entry f, int depth) {
+                if (f.link) return;   // 链接复刻不占数据，不计入总量
+                tot[0] += f.size;
+                tot[1]++;
+            }
+        });
+        if (!done) return new CopyResult(true, 0L, 0L, 0);
+        if (p != null) p.onPlan(tot[0], tot[1]);
+
+        // ---- 第二趟：复制 ----
+        Deque<Pair> stack = new ArrayDeque<Pair>();
+        stack.push(new Pair(src, dst, 0));
+        try {
+            while (!stack.isEmpty()) {
+                Pair f = stack.pop();
+                if (p != null && p.isCancelled()) throw Stop.I;
+                if (!f.dst.isDirectory() && !f.dst.mkdirs() && !f.dst.isDirectory()) {
+                    throw FsError.of(FsError.Code.MKDIR_FAIL, f.dst.getPath());
+                }
+                File[] kids = f.src.listFiles();
+                if (kids == null) continue;   // 与 TreeOps 一致：读不出就跳过，不中断整趟
+                for (File k : kids) {
+                    if (p != null && p.isCancelled()) throw Stop.I;
+                    File d = new File(f.dst, k.getName());
+                    if (LinkUtil.kind(k) != LinkUtil.NONE) {
+                        if (!TreeOps.SYSTEM.copyLink(k, d)) acc.skipped++;
+                        continue;
+                    }
+                    if (k.isDirectory()) {
+                        if (f.depth + 1 > TreeOps.MAX_DEPTH) {
+                            throw FsError.of(FsError.Code.DEEP_PATH, k.getPath());
+                        }
+                        stack.push(new Pair(k, d, f.depth + 1));
+                    } else {
+                        copyOne(k, d, p, acc);
+                        if (p != null && !p.onFile(d.getPath(), k.length(),
+                                acc.bytes, acc.files)) {
+                            throw Stop.I;
+                        }
+                    }
+                }
+            }
+        } catch (Stop s) {
+            return new CopyResult(true, acc.bytes, acc.files, acc.skipped);
+        }
+        return new CopyResult(false, acc.bytes, acc.files, acc.skipped);
+    }
+
+    /**
+     * 单文件复制（截断覆盖写）。
+     *
+     * <p>取消检查放在块边界而不是文件边界：一个 4 GB 视频按 64 KB 走 65536 次，
+     * 每次判一个 volatile 布尔，代价可以忽略；但只在文件边界判，用户按了取消要等
+     * 半分钟才有反应。</p>
+     */
+    private void copyOne(File src, File dst, Progress p, Acc acc) throws IOException {
+        InputStream in;
+        try {
+            in = new FileInputStream(src);
+        } catch (IOException e) {
+            throw FsError.of(FsError.Code.READ_FAIL, src.getPath());
         }
         try {
-            TreeOps.copyFile(src, dst);
+            OutputStream out;
+            try {
+                out = new FileOutputStream(dst);
+            } catch (IOException e) {
+                throw FsError.of(FsError.Code.WRITE_FAIL, dst.getPath());
+            }
+            try {
+                byte[] buf = new byte[65536];
+                int n;
+                while ((n = in.read(buf)) > 0) {
+                    out.write(buf, 0, n);
+                    acc.bytes += n;
+                    if (p != null && p.isCancelled()) throw Stop.I;
+                }
+            } finally {
+                out.close();
+            }
         } catch (IOException e) {
-            throw FsError.of(FsError.Code.WRITE_FAIL, b);
+            // 读写中途的失败分不出是源还是目标，统一按写入失败报；两者都在诊断串里
+            throw e instanceof FsError ? e : FsError.of(FsError.Code.WRITE_FAIL, dst.getPath());
+        } finally {
+            in.close();
+        }
+        acc.files++;
+    }
+
+    /** 复制累加器：取消时要把已完成量带出来，所以不能只是局部变量 */
+    private static final class Acc {
+        long bytes;
+        long files;
+        int skipped;
+    }
+
+    /** 待复制目录对：源与目标必须一起入栈，否则恢复不了对应关系 */
+    private static final class Pair {
+        final File src;
+        final File dst;
+        final int depth;
+
+        Pair(File src, File dst, int depth) {
+            this.src = src;
+            this.dst = dst;
+            this.depth = depth;
         }
     }
+
+    /**
+     * 复制取消信号。
+     *
+     * <p>用异常而不是返回值：取消可能发生在任意一层（块循环、目录循环、栈循环），
+     * 逐层返回 {@code false} 需要每个循环都改签名，漏一处就是「按了取消还在跑」。
+     * 单例 + 不填栈，避免高频抛出时不断分配栈帧。</p>
+     */
+    private static final class Stop extends RuntimeException {
+        static final Stop I = new Stop();
+
+        private Stop() {
+            super("copy cancelled", null, false, false);
+        }
+    }
+
 
     /**
      * v2.117.0（O-27 续）：移动 = 先改名，跨卷退化为「复制 + 删除源」。

@@ -54,6 +54,12 @@ public class FsLocalTest {
         } finally {
             deleteTree(copyRoot);
         }
+        File progRoot = mkTempDir();
+        try {
+            copyProgressOps(progRoot);
+        } finally {
+            deleteTree(progRoot);
+        }
         System.out.println("-----------------------------------------");
         System.out.println("pass=" + pass + " fail=" + fail);
         if (fail > 0) System.exit(1);
@@ -389,6 +395,104 @@ public class FsLocalTest {
                 new LocalFs().move(p(base, "nope"), p(base, "x"));
             }
         }, "move: 源不存在报 SRC_MISSING");
+    }
+
+    /**
+     * v2.118.0（O-27 续）：带进度与取消的复制。
+     *
+     * <p>进度相关的 bug 大多不会让复制失败：界面卡在 99%、取消之后目标里多出半份
+     * 数据、或者「已复制 3 GB」其实把链接目标的体积也算进去了。所以重点验三件事：
+     * 总量口径、回调次数与文件数一一对应、取消之后目标里的旧文件还在不在。</p>
+     */
+    static void copyProgressOps(File root) throws Exception {
+        final LocalFs fs = new LocalFs();
+        final String base = PathCore.normalize(root.getAbsolutePath());
+        final int big = 100 * 1024;
+        final long total = 3L * big + 1L;
+
+        write(new File(root, "p/a.bin"), new byte[big]);
+        write(new File(root, "p/d/b.bin"), new byte[2 * big]);
+        write(new File(root, "p/d/c.bin"), new byte[1]);
+
+        // ---- 正常完成：总量 / 回调次数 / 单调递增 ----
+        final java.util.List<Object> plan = new java.util.ArrayList<Object>();
+        final java.util.List<String> names = new java.util.ArrayList<String>();
+        final java.util.List<Long> doneB = new java.util.ArrayList<Long>();
+        final java.util.List<Long> doneF = new java.util.ArrayList<Long>();
+
+        Fs.CopyResult r = fs.copy(p(base, "p"), p(base, "q"), new Fs.Progress() {
+            public void onPlan(long tb, long tf) {
+                plan.add(Long.valueOf(tb));
+                plan.add(Long.valueOf(tf));
+            }
+
+            public boolean onFile(String path, long size, long db, long df) {
+                names.add(PathCore.baseName(path));
+                doneB.add(Long.valueOf(db));
+                doneF.add(Long.valueOf(df));
+                return true;
+            }
+        });
+
+        ok(!r.cancelled, "copy+progress: 正常完成 cancelled=false");
+        eq(2, plan.size(), "copy+progress: onPlan 只回调一次（两个数字）");
+        eq(Long.valueOf(total), plan.get(0), "copy+progress: 总量 = 全部文件字节和");
+        eq(Long.valueOf(3L), plan.get(1), "copy+progress: 文件数 3");
+        eq(3, names.size(), "copy+progress: onFile 回调次数 = 文件数");
+        eq(Long.valueOf(total), doneB.get(2), "copy+progress: 最后一笔 doneBytes 等于总量");
+        eq(Long.valueOf(3L), doneF.get(2), "copy+progress: doneFiles 最终为 3");
+        ok(doneB.get(0) < doneB.get(1) && doneB.get(1) < doneB.get(2),
+                "copy+progress: doneBytes 单调递增");
+        ok(r.bytes == total && r.files == 3L, "copy+progress: 返回值与回调口径一致");
+        eq(new File(root, "q/d/b.bin").length(), 2L * big, "copy+progress: 大文件完整写入");
+
+        // ---- 单文件：onPlan(size, 1) ----
+        final java.util.List<Object> plan1 = new java.util.ArrayList<Object>();
+        final int[] calls1 = new int[1];
+        Fs.CopyResult r2 = fs.copy(p(base, "p/a.bin"), p(base, "one.bin"), new Fs.Progress() {
+            public void onPlan(long tb, long tf) {
+                plan1.add(Long.valueOf(tb));
+                plan1.add(Long.valueOf(tf));
+            }
+
+            public boolean onFile(String path, long size, long db, long df) {
+                calls1[0]++;
+                return true;
+            }
+        });
+        eq(Long.valueOf(big), plan1.get(0), "copy+progress: 单文件总量 = 文件大小");
+        eq(Long.valueOf(1L), plan1.get(1), "copy+progress: 单文件数 1");
+        eq(1, calls1[0], "copy+progress: 单文件只回调一次");
+        ok(!r2.cancelled && r2.files == 1L, "copy+progress: 单文件完成计数为 1");
+
+        // ---- onFile 返回 false：写完当前文件就停，目标原有文件不动 ----
+        write(new File(root, "q2/keep.txt"), new byte[]{7});
+        Fs.CopyResult r3 = fs.copy(p(base, "p"), p(base, "q2"), new Fs.Progress() {
+            public void onPlan(long tb, long tf) {}
+
+            public boolean onFile(String path, long size, long db, long df) {
+                return false;
+            }
+        });
+        ok(r3.cancelled, "copy+progress: onFile 返回 false → cancelled");
+        ok(r3.files == 1L, "copy+progress: 取消前只完成 1 个文件");
+        ok(r3.bytes > 0, "copy+progress: 取消时已完成字节数带出来");
+        ok(new File(root, "q2/keep.txt").exists(),
+                "copy+progress: 取消不回滚，目标原有文件保留");
+
+        // ---- isCancelled 立刻为 true：量体积阶段就停 ----
+        final int[] plans2 = new int[1];
+        Fs.CopyResult r4 = fs.copy(p(base, "p"), p(base, "q3"), new Fs.Progress() {
+            public void onPlan(long tb, long tf) { plans2[0]++; }
+
+            public boolean onFile(String path, long size, long db, long df) { return true; }
+
+            public boolean isCancelled() { return true; }
+        });
+        ok(r4.cancelled, "copy+progress: isCancelled 立刻生效");
+        ok(r4.files == 0L, "copy+progress: 未开始复制时文件数为 0");
+        eq(0, plans2[0], "copy+progress: 量体积被打断时不报总量（没有分母就别报）");
+        ok(!new File(root, "q3").exists(), "copy+progress: 一开始就取消不建目标目录");
     }
 
     static String p(String base, String rel) {
