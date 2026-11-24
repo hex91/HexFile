@@ -10,7 +10,6 @@ import com.hex91.file.utils.ImageBatchUtil;
 import com.hex91.file.utils.IntentImport;
 import com.hex91.file.utils.KeyCipher;
 import com.hex91.file.utils.LogRing;
-import com.hex91.file.utils.OpenWith;
 import com.hex91.file.utils.StorageStat;
 import com.hex91.file.controller.ArchiveAddController;
 import com.hex91.file.controller.ArchiveController;
@@ -45,6 +44,7 @@ import com.hex91.file.ui.ImageViewerActivity;
 import com.hex91.file.ui.InstallResultReceiver;
 import com.hex91.file.ui.LanShareActivity;
 import com.hex91.file.ui.ManifestEditorActivity;
+import com.hex91.file.ui.OpenWithDialog;
 import com.hex91.file.ui.PdfPreviewActivity;
 import com.hex91.file.ui.PullRefreshLayout;
 import com.hex91.file.ui.RecentStore;
@@ -1485,11 +1485,10 @@ public class MainActivity extends BaseActivity {
             openVideo(f);
         } else if (FileKind.isTextFile(f, lower)) {
             openEditor(f);
-        } else if (!OpenWith.open(this, f)) {
-            // v1.77.0：以前所有不认识的文件一律弹属性，视频/Office 在文件管理器里等于打不开。
-            // 先交给系统找应用；真没应用能处理时才退回属性页，并说清原因。
-            toast(s(R.string.main_no_app_for_type));
-            showProps(f);
+        } else {
+            // v2.122.0：不认识的文件弹分类「打开方式」——内置页可用十六进制/文本等打开，
+            // 系统页列出能处理该类型的应用。v1.77.0 这里只调系统 chooser，失败就弹属性。
+            OpenWithDialog.show(this, f);
         }
     }
 
@@ -3086,8 +3085,8 @@ public class MainActivity extends BaseActivity {
             case A_LAN:                              // 局域网快传（v1.74.0）
                 openLanShare(f);
                 break;
-            case A_OPEN:                              // 打开方式（v1.77.0）
-                if (!OpenWith.open(this, f)) toast(s(R.string.main_no_app_for_type));
+            case A_OPEN:                              // 打开方式（v2.122.0 改分类对话框）
+                OpenWithDialog.show(this, f);
                 break;
             case A_CLIP_C:                              // 复制到剪贴板（v1.78.0）
                 FileClipboard.get().put(java.util.Collections.singletonList(f), false);

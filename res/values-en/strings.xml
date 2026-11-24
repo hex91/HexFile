@@ -3409,4 +3409,26 @@
     <string name="install_notif_channel">Installation result</string>
     <string name="install_notif_ok">Installation complete</string>
     <string name="install_notif_fail">Installation failed</string>
+    <!-- v2.122.0 categorized Open with dialog -->
+    <string name="ow_title">Open with — %1$s</string>
+    <string name="ow_tab_builtin">Built-in</string>
+    <string name="ow_tab_text">Text</string>
+    <string name="ow_tab_image">Images</string>
+    <string name="ow_tab_video">Video</string>
+    <string name="ow_tab_audio">Audio</string>
+    <string name="ow_close">Close</string>
+    <string name="ow_no_app">No app can open this file type</string>
+    <string name="ow_system_title">Choose an app to open with</string>
+    <string name="ow_hex">Hex</string>
+    <string name="ow_item_text">Edit as text</string>
+    <string name="ow_archive">Browse archive</string>
+    <string name="ow_item_image">View image</string>
+    <string name="ow_item_video">Play video</string>
+    <string name="ow_apk_info">APK info</string>
+    <string name="ow_dex">Dex tools</string>
+    <string name="ow_arsc">Arsc tools</string>
+    <string name="ow_font">Preview font</string>
+    <string name="ow_pdf">PDF preview</string>
+    <string name="ow_strings">View strings</string>
+    <string name="ow_system">System apps</string>
 </resources>

@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：3200 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：3221 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1784,6 +1784,60 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.122.0（versionCode 315）—— 分类式「打开方式」：内置查看器 + 系统应用
+
+点开一个不认识的文件，v2.121 之前只会调系统 `ACTION_VIEW` chooser；找不到应用就提示
+「没有可打开该类型的应用」并弹属性页。但它自己明明有十六进制、文本编辑、压缩包浏览、
+Dex/Arsc 编辑器等一堆查看器，用户却够不着。本版把这些能力做成一个 MT 式的分类面板：
+
+### 一、交互结构
+
+顶部一行标签，**内置** + 文本 / 图片 / 视频 / 音频四类：
+
+| 标签 | 内容 | 数据来源 |
+| --- | --- | --- |
+| 内置 | 网格列出本应用查看器：十六进制、编辑文本、浏览压缩包、查看图片、播放视频、Apk 信息、Dex、Arsc、查看字体、PDF、字符串、系统应用 | `OpenWithKind.BUILT_INS`（纯 JDK 适用性判定） |
+| 文本 / 图片 / 视频 / 音频 | 系统里能处理该类 MIME 的应用，按名称排序，最多 30 个 | `queryIntentActivities` + `QUERY_ALL_PACKAGES` |
+
+- **适用性过滤**：通用方式（十六进制 / 文本 / 字符串）对任何文件都显示；专用方式只在扩展名匹配时出现
+  （一个 .png 不会看到「Arsc 功能」），避免 MT 式"全部列出、点了才失败"的尴尬。
+- **两条启动通道**：内置项传 `File.getAbsolutePath()` 给各 Activity 的 `EXTRA_*`；系统项才走
+  `OpenWith.intentFor` 的 `content://` + `ClipData` 授权，与该功能之前的做法一致。
+- **空态与失败**：某类没有系统应用时显示提示；查看器/目标应用启动失败记 `Log.w` 并留在原页面。
+
+### 二、接入点
+
+| 入口 | 原行为 | 本版 |
+| --- | --- | --- |
+| `MainActivity.onFileClick` 兜底 | 系统 chooser，失败弹属性 | 分类对话框 |
+| 长按菜单 A_OPEN | 系统 chooser | 分类对话框 |
+| 搜索结果长按 | 系统 chooser，失败 toast | 分类对话框 |
+
+三个入口统一，文件管理器、长按菜单、搜索页看到的打开方式完全一致。
+
+### 三、分层与测试
+
+- 新增 `core/OpenWithKind`（纯 JDK）：只回答"有哪种方式""对某文件是否适用""分类对应哪个 MIME"，
+  不含 Android API、不产文案；资源 id 与 Activity 启动都在 `ui/OpenWithDialog`。
+- 新增 `test/OpenWithKindTest`：24 项断言覆盖通用方式恒成立、扩展名大小写、专用方式不误显示、
+  四个 MIME 分类归一化。
+- 依赖门保持不变：ui 可以依赖 core，core 依旧不能碰 android。
+
+### 四、验收
+
+| 项 | 结果 |
+| --- | --- |
+| 依赖方向 / 动作码 | PASS（55 个动作码互不重复） |
+| 空 catch | **333** 个（基线 335，其中命名忽略 329 + 其余 4；失败路径补 `Log.w`，未留空块） |
+| 文案键 | **3221 / 3221** 中英 100%（新增 21 键） |
+| `run_core` | **76 / 0 / 0**（含新增 `OpenWithKindTest`，全量回归） |
+| `run_all` | **104 / 0 / 4**（新增用例纳入全量入口；`HlsDownloaderTest` 首轮因本地 HTTP 端口争用偶发失败，单独重跑 1/0/0 通过） |
+| APK | 13,537,926 字节；versionCode **315** / 2.122.0；V3 签名有效、zipalign 4 字节对齐通过 |
+
+真机待确认：点开未知文件能看到内置网格、选十六进制能进入编辑器、文本/图片分类能列出系统应用并成功打开。
 
 ---
 
