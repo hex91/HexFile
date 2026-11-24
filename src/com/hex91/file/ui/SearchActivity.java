@@ -155,7 +155,7 @@ public class SearchActivity extends BaseActivity {
             }
         });
 
-        // v1.81.0：长按结果 → 打开文件；v2.122.0 起弹分类「打开方式」
+        // v1.81.0：长按结果 → 打开文件；v2.123.0 起弹单页「打开方式」
         lv.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
             public boolean onItemLongClick(AdapterView<?> av, View v, int i, long id) {
                 File f = results.get(i);

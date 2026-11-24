@@ -1486,9 +1486,9 @@ public class MainActivity extends BaseActivity {
         } else if (FileKind.isTextFile(f, lower)) {
             openEditor(f);
         } else {
-            // v2.122.0：不认识的文件弹分类「打开方式」——内置页可用十六进制/文本等打开，
-            // 系统页列出能处理该类型的应用。v1.77.0 这里只调系统 chooser，失败就弹属性。
-            OpenWithDialog.show(this, f);
+            // v2.123.0：不认识的文件弹单页「打开方式」——十六进制/文本/属性/字符串等
+            // 对当前文件适用的方式一屏列全，系统应用入口点进去再列应用。
+            showOpenWith(f);
         }
     }
 
@@ -2785,6 +2785,14 @@ public class MainActivity extends BaseActivity {
     /** 属性/权限/哈希弹窗：实现在 PropsController（v2.0.0 O-15 刀6） */
     private void showProps(File f) { propsCtl.showProps(f); }
 
+    /** v2.123.0：单页「打开方式」——属性项回调到本页自己的属性窗 */
+    private void showOpenWith(File f) {
+        final File target = f;
+        OpenWithDialog.show(this, f, new OpenWithDialog.PropsHandler() {
+            public void showProps(File ignored) { MainActivity.this.showProps(target); }
+        });
+    }
+
     private void showOpsMenu(final File f) {
         if (f.isFile() && f.getName().toLowerCase().endsWith(".apk")) {
             showApkOpsMenu(f);       // APK 用专属功能菜单（对标 MT）
@@ -3085,8 +3093,8 @@ public class MainActivity extends BaseActivity {
             case A_LAN:                              // 局域网快传（v1.74.0）
                 openLanShare(f);
                 break;
-            case A_OPEN:                              // 打开方式（v2.122.0 改分类对话框）
-                OpenWithDialog.show(this, f);
+            case A_OPEN:                              // 打开方式（v2.123.0 单页网格）
+                showOpenWith(f);
                 break;
             case A_CLIP_C:                              // 复制到剪贴板（v1.78.0）
                 FileClipboard.get().put(java.util.Collections.singletonList(f), false);

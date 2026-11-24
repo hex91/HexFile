@@ -3411,14 +3411,9 @@
     <string name="install_notif_fail">Installation failed</string>
     <!-- v2.122.0 categorized Open with dialog -->
     <string name="ow_title">Open with — %1$s</string>
-    <string name="ow_tab_builtin">Built-in</string>
-    <string name="ow_tab_text">Text</string>
-    <string name="ow_tab_image">Images</string>
-    <string name="ow_tab_video">Video</string>
-    <string name="ow_tab_audio">Audio</string>
+    <string name="ow_back">← Back to Open with</string>
     <string name="ow_close">Close</string>
     <string name="ow_no_app">No app can open this file type</string>
-    <string name="ow_system_title">Choose an app to open with</string>
     <string name="ow_hex">Hex</string>
     <string name="ow_item_text">Edit as text</string>
     <string name="ow_archive">Browse archive</string>

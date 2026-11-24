@@ -3421,14 +3421,9 @@
     <string name="install_notif_fail">安装失败</string>
     <!-- v2.122.0 分类式打开方式 -->
     <string name="ow_title">打开方式 — %1$s</string>
-    <string name="ow_tab_builtin">内置</string>
-    <string name="ow_tab_text">文本</string>
-    <string name="ow_tab_image">图片</string>
-    <string name="ow_tab_video">视频</string>
-    <string name="ow_tab_audio">音频</string>
+    <string name="ow_back">← 返回打开方式</string>
     <string name="ow_close">关闭</string>
     <string name="ow_no_app">没有可打开该类型的应用</string>
-    <string name="ow_system_title">选择打开方式</string>
     <string name="ow_hex">十六进制</string>
     <string name="ow_item_text">编辑文本</string>
     <string name="ow_archive">浏览压缩包</string>
