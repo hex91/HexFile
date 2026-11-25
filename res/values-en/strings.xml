@@ -34,6 +34,7 @@
     <string name="common_ok">OK</string>
     <string name="common_delete">Delete</string>
     <string name="common_empty">Empty</string>
+    <string name="common_no_file_arg">Missing file argument</string>
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_section_files">Files &amp; Folders</string>
     <string name="settings_section_permissions">Permissions</string>
@@ -2564,6 +2565,7 @@
     <string name="api_title">APK info</string>
     <string name="api_export_txt">Export txt</string>
     <string name="api_parse_fail">Parse failed: %1$s</string>
+    <string name="api_no_file">No APK file specified</string>
     <string name="api_sec_basic">Basic info</string>
     <string name="api_lbl_file">File</string>
     <string name="api_lbl_size">Size</string>

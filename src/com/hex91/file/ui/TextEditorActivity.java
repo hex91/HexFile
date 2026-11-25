@@ -156,7 +156,14 @@ public class TextEditorActivity extends BaseActivity {
         super.onCreate(b);
         setContentView(R.layout.activity_editor);
 
-        file = new File(getIntent().getStringExtra(EXTRA_FILE));
+        String filePath = getIntent().getStringExtra(EXTRA_FILE);
+        // v2.124.0：外部无参启动 new File(null) 会 NPE，统一缺参即提示结束
+        if (filePath == null || filePath.length() == 0) {
+            Toast.makeText(this, R.string.common_no_file_arg, Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+        file = new File(filePath);
         String archPath = getIntent().getStringExtra(EXTRA_ARCHIVE);
         if (archPath != null) archiveFile = new File(archPath);
         entryName = getIntent().getStringExtra(EXTRA_ENTRY);

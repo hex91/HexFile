@@ -68,7 +68,13 @@ public class SignPromptActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
-        apk = new File(getIntent().getStringExtra("apk"));
+        String apkPath = getIntent().getStringExtra("apk");
+        if (apkPath == null || apkPath.length() == 0) {
+            Toast.makeText(this, R.string.common_no_file_arg, Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+        apk = new File(apkPath);
 
         if (!apk.isFile()) {
             Toast.makeText(this, R.string.sp_apk_missing, Toast.LENGTH_LONG).show();

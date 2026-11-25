@@ -39,7 +39,13 @@ public class PdfPreviewActivity extends BaseActivity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
-        pdf = new File(getIntent().getStringExtra(EXTRA_FILE));
+        String path = getIntent().getStringExtra(EXTRA_FILE);
+        if (path == null || path.length() == 0) {
+            Toast.makeText(this, R.string.common_no_file_arg, Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+        pdf = new File(path);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);

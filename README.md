@@ -34,7 +34,7 @@ adb install -r out/HexFile-*.apk
 │   ├── layout/activity_trash.xml / activity_zip.xml
 │   ├── layout/item_file.xml     # 文件列表项
 │   ├── values/                  # colors / strings / themes / attrs / bools / dimens
-│   ├── values-en/               # 英文全量：3216 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
+│   ├── values-en/               # 英文全量：3218 条资源键 100% 有英文（含设置 / 任务中心 / 通知 /
 │                                #   工具栏 / 签名 / 编辑器 / 压缩包 / 网络存储 / 隐私空间 / 主菜单 /
 │                                #   HLS 下载与错误码 / 播放页 / 应用管理）
 │                                #   仍未走资源的页面文案见 test/lang_check.sh 的覆盖率统计
@@ -1784,6 +1784,44 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 - 桌面冒烟测试 `test_arscpp/ArscSmokeTest.java`：真实 APK 的 arsc → XML → 改值 →
   写回 → 重解析校验，**13 项全过**（含 integer/bool/color/id/dimen 全量回读零误报）。
 - versionCode 109，APK 约 13MB。
+
+---
+
+## v2.124.0（versionCode 317）—— 真机排查：修复测试数据页必崩与 8 个 Activity 的缺参 NPE
+
+用户反馈工具箱点「银行卡号」闪退。因设备已连接（Pixel 6 / Android 15），直接读取应用
+私有目录 `files/crash/` 的报告定位，并把 49 个 Activity 全部真机启动一遍找同源问题。
+
+### 一、根因与修复
+
+| # | 问题 | 根因 | 修复 |
+| --- | --- | --- | --- |
+| 1 | 工具箱「银行卡号 / 身份证」进页必崩 | `TestDataActivity.genId` 把 `char` 传给 `%1$d` 格式串，Android `Formatter` 认定 `Character` 与 `d` 不兼容，抛 `IllegalFormatConversionException` | 用 `Character.digit(c,10)` 转成 int 再传 |
+| 2 | ApkInfo / Compare / DupFinder / FontPreview / PdfPreview / SignPrompt / StringsViewer / TextEditor 无参启动崩溃 | `new File(getStringExtra(...))` 在 extra 为 null 时抛 NPE | 先取字符串判 null/空，toast 提示后 finish |
+
+- 问题 1 是**真实用户路径**（进入测试数据页就触发，与点身份证还是银行卡无关，因为
+  `onCreate` 会先生成身份证）；v1.71.0 起就存在，桌面单测不覆盖 Android `getString` 的
+  Formatter 行为，所以四门与 100+ 用例一直未发现。
+- 问题 2 是**健壮性缺陷**：真实使用会带 extra 参数不会崩，但外部 Intent、快捷方式或
+  异常跳转会触发；统一加缺参护栏，避免崩溃落到用户面前。
+
+### 二、排查方法（可复现）
+
+1. 崩溃报告落盘在 `files/crash/`，root 设备可直接 `adb shell cat` 读取，无需 `run-as`
+   （正式签名包不可调试）。
+2. 遍历 Manifest 里 49 个 Activity，逐个 `am start` 并观察 logcat 的 `AndroidRuntime`
+   与崩溃目录增量。注意单次等待至少 3 秒，1.5 秒会因进程启动竞争漏报。
+
+### 三、验收
+
+| 项 | 结果 |
+| --- | --- |
+| 四门 | deps / catch / lang / action 全过；空 catch 333（基线 335） |
+| 文案键 | **3218 / 3218** 中英 100%（新增 2 键） |
+| `run_core` | **76 / 0 / 0** |
+| `run_all` | **104 / 0 / 4** |
+| 真机复测 | 修复版装机后复测：工具箱入口 + 此前 8 个缺参 Activity + 全量 49 个 Activity，**0 崩溃** |
+| APK | 13,554,384 字节；versionCode **317** / 2.124.0；md5 `a0b028b4` |
 
 ---
 

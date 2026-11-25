@@ -77,8 +77,15 @@ public class CompareActivity extends BaseActivity {
         setContentView(R.layout.activity_compare);
 
         mode = getIntent().getStringExtra(EXTRA_MODE);
-        fa = new File(getIntent().getStringExtra(EXTRA_PATH_A));
-        fb = new File(getIntent().getStringExtra(EXTRA_PATH_B));
+        String pa = getIntent().getStringExtra(EXTRA_PATH_A);
+        String pb = getIntent().getStringExtra(EXTRA_PATH_B);
+        if (pa == null || pa.length() == 0 || pb == null || pb.length() == 0) {
+            Toast.makeText(this, R.string.common_no_file_arg, Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+        fa = new File(pa);
+        fb = new File(pb);
         verifyHash = getIntent().getBooleanExtra(EXTRA_VERIFY_HASH, false);
 
         titleView = (TextView) findViewById(R.id.compare_title);

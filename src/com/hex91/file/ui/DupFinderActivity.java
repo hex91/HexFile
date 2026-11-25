@@ -41,7 +41,13 @@ public class DupFinderActivity extends BaseActivity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         float den = getResources().getDisplayMetrics().density;
-        root = new File(getIntent().getStringExtra(EXTRA_ROOT));
+        String rootPath = getIntent().getStringExtra(EXTRA_ROOT);
+        if (rootPath == null || rootPath.length() == 0) {
+            Toast.makeText(this, R.string.common_no_file_arg, Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+        root = new File(rootPath);
 
         LinearLayout rootL = new LinearLayout(this);
         rootL.setOrientation(LinearLayout.VERTICAL);

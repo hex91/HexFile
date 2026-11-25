@@ -30,7 +30,13 @@ public class FontPreviewActivity extends BaseActivity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
-        File font = new File(getIntent().getStringExtra(EXTRA_FILE));
+        String fontPath = getIntent().getStringExtra(EXTRA_FILE);
+        if (fontPath == null || fontPath.length() == 0) {
+            Toast.makeText(this, R.string.common_no_file_arg, Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+        File font = new File(fontPath);
         try {
             typeface = Typeface.createFromFile(font);
         } catch (Throwable t) {

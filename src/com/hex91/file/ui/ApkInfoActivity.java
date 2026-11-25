@@ -35,6 +35,14 @@ public class ApkInfoActivity extends BaseActivity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        // v2.124.0：外部/测试用无参 Intent 进来时 new File(null) 必抛 NPE。
+        // 缺参属于调用方错误，给出明确提示并结束，不留一个空白崩溃页。
+        String apkPath = getIntent().getStringExtra(EXTRA_APK);
+        if (apkPath == null || apkPath.length() == 0) {
+            Toast.makeText(this, R.string.api_no_file, Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
         float den = getResources().getDisplayMetrics().density;
 
         LinearLayout root = new LinearLayout(this);

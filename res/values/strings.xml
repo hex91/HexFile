@@ -39,6 +39,7 @@
     <string name="common_ok">好</string>
     <string name="common_delete">删除</string>
     <string name="common_empty">空</string>
+    <string name="common_no_file_arg">缺少文件参数，无法打开</string>
     <string name="settings_section_appearance">外观</string>
     <string name="settings_section_files">文件与目录</string>
     <string name="settings_section_permissions">权限</string>
@@ -2572,6 +2573,7 @@
     <string name="api_title">APK 信息</string>
     <string name="api_export_txt">导出 txt</string>
     <string name="api_parse_fail">解析失败: %1$s</string>
+    <string name="api_no_file">未指定 APK 文件</string>
     <string name="api_sec_basic">基本信息</string>
     <string name="api_lbl_file">文件</string>
     <string name="api_lbl_size">大小</string>

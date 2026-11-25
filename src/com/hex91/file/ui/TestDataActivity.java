@@ -391,7 +391,11 @@ public class TestDataActivity extends BaseActivity {
         sb.append(s(R.string.td_meta_region, regionName, d.code));
         sb.append(s(R.string.td_meta_birth, TestDataCore.idBirth(idValue)))
                 .append(s(male ? R.string.td_male_suffix : R.string.td_female_suffix)).append('\n');
-        sb.append(s(R.string.td_meta_check, idValue.charAt(17), idValue.charAt(16)))
+        // v2.124.0：字符串格式化的 %d 只接受整数，直接传 char 会被 Formatter 判为
+        // Character 而抛 IllegalFormatConversionException（进入本页必崩）。先转 int。
+        sb.append(s(R.string.td_meta_check,
+                Character.digit(idValue.charAt(17), 10),
+                Character.digit(idValue.charAt(16), 10)))
                 .append(s(male ? R.string.td_check_male : R.string.td_check_female));
         idMeta.setText(sb.toString());
     }
