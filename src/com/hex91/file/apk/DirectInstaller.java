@@ -58,16 +58,27 @@ public final class DirectInstaller {
         public int code;
         public String detail;
         public boolean toUi;
+        /** 系统要求启动确认页；此时会话仍有效，不能按失败收尾 */
+        public boolean pendingUserAction;
+        /** 确认页 Intent，仅 pendingUserAction 时非空 */
+        public Intent confirm;
 
         Result(int code, String detail, boolean toUi) {
+            this(code, detail, toUi, false, null);
+        }
+
+        Result(int code, String detail, boolean toUi, boolean pendingUserAction, Intent confirm) {
             this.code = code;
             this.detail = detail;
             this.toUi = toUi;
+            this.pendingUserAction = pendingUserAction;
+            this.confirm = confirm;
         }
     }
 
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static volatile boolean sBusy;
+    private static volatile boolean sPendingUserAction;
     private static volatile boolean sCancel;
     private static volatile Listener sListener;
     private static volatile String sToken;
@@ -94,6 +105,7 @@ public final class DirectInstaller {
         final String token = String.valueOf(System.currentTimeMillis());
         sToken = token;
         sCancel = false;
+        sPendingUserAction = false;
         sListener = l;
         final Intent template = new Intent(resultIntent);
         new Thread(new Runnable() {
@@ -178,6 +190,12 @@ public final class DirectInstaller {
         MAIN.postDelayed(new Runnable() {
             public void run() {
                 if (token.equals(sToken) && sBusy) {
+                    if (sPendingUserAction) {
+                        // 系统确认页由用户决定停留多久；这段时间内不能报超时
+                        LogRing.add(TAG, "user action pending, watchdog deferred");
+                        startWatchdog(token);
+                        return;
+                    }
                     LogRing.add(TAG, "install result broadcast timeout");
                     Result r = finish(InstallCommand.ERR_TIMEOUT, null);
                     if (r != null && !r.toUi) LogRing.add(TAG, "watchdog: no ui listener");
@@ -200,8 +218,24 @@ public final class DirectInstaller {
             LogRing.add(TAG, "stale result ignored: " + token);
             return null;
         }
+        if (InstallCommand.isPendingUserAction(status)) {
+            Intent confirm = InstallConfirm.extract(intent);
+            if (confirm != null) {
+                LogRing.add(TAG, "pending user action: confirmation intent received");
+                sPendingUserAction = true;
+                return new Result(InstallCommand.OK, null, false, true, confirm);
+            }
+            LogRing.add(TAG, "pending user action without confirmation intent");
+            return finish(InstallCommand.ERR_BLOCKED, msg);
+        }
         int code = mapStatus(status, msg);
         return finish(code, msg);
+    }
+
+    /** 确认页启动失败：会话仍 parked，按系统拦截收尾，避免界面永远停在「等确认」 */
+    public static Result confirmationFailed(String detail) {
+        sPendingUserAction = false;
+        return finish(InstallCommand.ERR_BLOCKED, detail);
     }
 
     /** 系统状态 → 逻辑码；不产文案，系统原文作为 detail 留给 ui 层展开 */
@@ -230,6 +264,7 @@ public final class DirectInstaller {
         Listener l = sListener;
         sListener = null;
         sBusy = false;
+        sPendingUserAction = false;
         sSession = null;
         boolean toUi = l != null;
         if (l != null) deliverTo(l, code, detail);

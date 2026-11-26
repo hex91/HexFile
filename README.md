@@ -1787,6 +1787,40 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.125.0（versionCode 318）—— 修复无 Root 设备安装：待系统确认被误判为未知错误
+
+未 root 的 Pixel 6 / Android 15 上点击 APK 安装，界面提示「安装失败未知错误」，
+同时系统安装确认页不出现。根因不在 APK 本身，而在会话状态码处理：
+`PackageInstaller.STATUS_PENDING_USER_ACTION`（值 `-1`）不是失败，它表示「请启动系统确认页」，
+系统会把确认页 Intent 放在 `Intent.EXTRA_INTENT` 里；旧代码把它落入 `default` 分支，
+映射成 `ERR_UNKNOWN` 并立刻收尾，于是既没有确认页，也丢了仍然有效的会话。
+
+### 一、修复内容
+
+| # | 路径 | 修复 |
+| --- | --- | --- |
+| 1 | 单 APK 安装 | `DirectInstaller` 识别待确认状态，取出 `Intent.EXTRA_INTENT` 并启动；此时不 `finish()`、不清忙标志，等系统把最终成功/失败广播送回后再收尾 |
+| 2 | 分包安装（xapk/apks/apkm） | `SplitInstaller` 增加同一处理，避免同类缺陷在分包路径复现 |
+| 3 | 超时兜底 | 等待系统确认期间挂起 watchdog，不再把用户停留时间误判成安装超时 |
+| 4 | 启动确认页失败 | 返回 `ERR_BLOCKED` 收尾并走既有错误提示，不让界面停在「等确认」 |
+| 5 | 桌面覆盖 | `InstallCommand.isPendingUserAction()` 保留纯 JDK 可测常量，`InstallCommandTest` 新增 4 项断言 |
+
+新增 `apk/InstallConfirm.java` 只负责「提取 + 启动确认 Intent」，不产用户文案；
+中英资源键未变化（3218 / 3218）。Root / Shizuku 静默路径不受影响。
+
+### 二、验收
+
+| 项 | 结果 |
+| --- | --- |
+| 四门 | deps / catch / lang / action 全过；空 catch 333（基线 335） |
+| 文案键 | **3218 / 3218**，无新增键 |
+| `run_core` | **76 / 0 / 0** |
+| `run_all` | **104 / 0 / 4** |
+| 真机复测 | 本机已 root，自动走静默通道，不能复现无 root 回退；已装机待在无 root 设备上确认系统确认页 |
+| APK | 13,554,384 字节；versionCode **318** / 2.125.0；md5 `83acd6f0` |
+
+---
+
 ## v2.124.0（versionCode 317）—— 真机排查：修复测试数据页必崩与 8 个 Activity 的缺参 NPE
 
 用户反馈工具箱点「银行卡号」闪退。因设备已连接（Pixel 6 / Android 15），直接读取应用

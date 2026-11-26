@@ -47,7 +47,21 @@ public final class InstallCommand {
     /** 另一个安装正在进行（同一进程只允许一个会话，避免进度与结果互相覆盖） */
     public static final int ERR_BUSY = 11;
 
+    /**
+     * {@code PackageInstaller.STATUS_PENDING_USER_ACTION} 的数值。
+     *
+     * <p>Android 11 起，会话 commit 的结果可能不是「成功/失败」，而是「请启动系统确认页」。
+     * 这里保留一份纯 JDK 可测的常量，桌面用例才能覆盖「别把待确认当失败」这条分支；
+     * 真正与框架交互时仍以 {@code PackageInstaller.STATUS_PENDING_USER_ACTION} 为准。</p>
+     */
+    public static final int PI_STATUS_PENDING_USER_ACTION = -1;
+
     private InstallCommand() {}
+
+    /** 会话结果是否需要启动系统确认页（不是失败；把此状态当失败会导致无弹窗的「未知错误」） */
+    public static boolean isPendingUserAction(int packageInstallerStatus) {
+        return packageInstallerStatus == PI_STATUS_PENDING_USER_ACTION;
+    }
 
     /**
      * POSIX shell 单引号转义。任何出现在参数里的 {@code '} 都写成 {@code '\''}，

@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 
 import com.hex91.file.apk.DirectInstaller;
+import com.hex91.file.apk.InstallConfirm;
 import com.hex91.file.apk.SplitInstaller;
 
 /**
@@ -29,7 +30,17 @@ public class InstallResultReceiver extends BroadcastReceiver {
         if (intent == null) return;
         if (DirectInstaller.ACTION_RESULT.equals(intent.getAction())) {
             DirectInstaller.Result r = DirectInstaller.deliver(ctx, intent);
-            if (r != null && !r.toUi) InstallNotifier.notify(ctx, r.code, r.detail);
+            if (r == null) return;
+            if (r.pendingUserAction) {
+                if (!InstallConfirm.launch(ctx, r.confirm)) {
+                    DirectInstaller.Result failed = DirectInstaller.confirmationFailed(null);
+                    if (failed != null && !failed.toUi) {
+                        InstallNotifier.notify(ctx, failed.code, failed.detail);
+                    }
+                }
+                return;
+            }
+            if (!r.toUi) InstallNotifier.notify(ctx, r.code, r.detail);
             return;
         }
         SplitInstaller.deliver(ctx, intent);

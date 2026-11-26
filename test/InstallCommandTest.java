@@ -21,6 +21,7 @@ public class InstallCommandTest {
         commands();
         tempPaths();
         classify();
+        pendingAction();
         System.out.println("-----------------------------------------");
         System.out.println("pass=" + pass + " fail=" + fail);
         if (fail > 0) System.exit(1);
@@ -87,5 +88,13 @@ public class InstallCommandTest {
         ok(InstallCommand.classify(1, null) == InstallCommand.ERR_UNKNOWN, "空输出为未知");
         ok(InstallCommand.ok(InstallCommand.OK), "ok(OK) 为真");
         ok(!InstallCommand.ok(InstallCommand.ERR_BUSY), "ok(BUSY) 为假");
+    }
+
+    static void pendingAction() {
+        ok(InstallCommand.PI_STATUS_PENDING_USER_ACTION == -1,
+                "待用户确认状态值与 PackageInstaller 常量一致");
+        ok(InstallCommand.isPendingUserAction(-1), "待确认状态需要启动系统确认页");
+        ok(!InstallCommand.isPendingUserAction(0), "成功状态不算待确认");
+        ok(!InstallCommand.isPendingUserAction(1), "失败状态不算待确认");
     }
 }

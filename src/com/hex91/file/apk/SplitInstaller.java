@@ -72,6 +72,7 @@ public final class SplitInstaller {
 
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static volatile boolean sBusy;
+    private static volatile boolean sPendingUserAction;
     private static volatile boolean sCancel;
     private static volatile Listener sListener;
     private static volatile String sToken;
@@ -101,6 +102,7 @@ public final class SplitInstaller {
         final String token = String.valueOf(System.currentTimeMillis());
         sToken = token;
         sCancel = false;
+        sPendingUserAction = false;
         sObbOk = 0;
         sObbErr = null;
         sPkgName = null;
@@ -287,6 +289,12 @@ public final class SplitInstaller {
         MAIN.postDelayed(new Runnable() {
             public void run() {
                 if (token.equals(sToken) && sBusy) {
+                    if (sPendingUserAction) {
+                        // 系统确认页停留时长由用户决定，这段等待不能被判成超时
+                        LogRing.add(TAG, "user action pending, watchdog deferred");
+                        startWatchdog(app, token);
+                        return;
+                    }
                     LogRing.add(TAG, "install result broadcast timeout");
                     watchdogFire(app.getString(R.string.split_watchdog_timeout));
                 }
@@ -355,6 +363,18 @@ public final class SplitInstaller {
             LogRing.add(TAG, "stale result ignored: " + token);   // 上一个会话的迟到广播
             return;
         }
+        if (InstallCommand.isPendingUserAction(status)) {
+            Intent confirm = InstallConfirm.extract(intent);
+            if (confirm != null && InstallConfirm.launch(ctx, confirm)) {
+                LogRing.add(TAG, "pending user action: confirmation launched");
+                sPendingUserAction = true;
+                return;      // 会话还在，等用户确认后的下一条广播
+            }
+            LogRing.add(TAG, "pending user action without launchable confirmation");
+            finish(ctx, false, ctx.getString(R.string.split_blocked));
+            return;
+        }
+        sPendingUserAction = false;
         String pkg = intent.getStringExtra("pkg");
         boolean ok = status == PackageInstaller.STATUS_SUCCESS;
         String text;
@@ -409,6 +429,7 @@ public final class SplitInstaller {
         Listener l = sListener;
         sListener = null;
         sBusy = false;
+        sPendingUserAction = false;
         sSession = null;
         if (l != null) deliverTo(l, false, msg);
     }
@@ -416,6 +437,7 @@ public final class SplitInstaller {
     /** 收尾（异常/取消/提前退出都走这里）：解除忙标志，结果照原路送回 */
     private static void finish(Context app, boolean ok, String msg) {
         sBusy = false;
+        sPendingUserAction = false;
         sSession = null;
         Listener l = sListener;
         sListener = null;
