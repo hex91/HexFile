@@ -38,6 +38,13 @@ JAVA_BIN="$JH/java$EXE"
 KEYTOOL="$JH/keytool$EXE"
 PLATFORM="$ANDJ"
 
+# d8 默认单线程；dex 化是本项目最重的一步，显式给到 CPU 核数（2～8）。
+D8_THREADS="$(nproc 2>/dev/null || echo 4)"
+case "$D8_THREADS" in ''|*[!0-9]*) D8_THREADS=4 ;; esac
+[ "$D8_THREADS" -gt 8 ] && D8_THREADS=8
+[ "$D8_THREADS" -lt 2 ] && D8_THREADS=2
+export D8_THREADS
+
 # ---- NDK ----
 # v2.11.0（R-36）：版本不再钉 27.0.12077973 —— 由 toolchain.sh 探测
 # （ANDROID_NDK_HOME → $SDK/ndk/<版本最大且含 source.properties>），探测不到就是空串。
@@ -142,10 +149,13 @@ if [ "${SKIP_GATES:-0}" != "1" ]; then
   bash "$ROOT/test/action_check.sh" || { echo "构建中止：动作码一致性门失败" >&2; exit 1; }
 fi
 
-echo "[1/7] aapt2 compile resources..."
+echo "[1/7] aapt2 compile resources...（通常 20-40 秒）"
+T_STEP=$SECONDS
 "$BT/aapt2${EXE}" compile --dir "$ROOT/res" -o "$BUILD/res.zip"
 
+echo "      ↳ 资源编译 $((SECONDS-T_STEP))s"
 echo "[2/7] aapt2 link (manifest + R.java)..."
+T_STEP=$SECONDS
 "$BT/aapt2${EXE}" link -o "$BUILD/base.apk" \
     -I "$PLATFORM" \
     --manifest "$ROOT/AndroidManifest.xml" \
@@ -153,7 +163,9 @@ echo "[2/7] aapt2 link (manifest + R.java)..."
     --min-sdk-version 21 --target-sdk-version 30 \
     "$BUILD/res.zip"
 
+echo "      ↳ 资源链接 $((SECONDS-T_STEP))s"
 echo "[3/7] NDK 编译 libtermux.so（Termux PTY 原生桥，Apache-2.0）..."
+T_STEP=$SECONDS
 mkdir -p "$ROOT/native/lib/arm64-v8a" "$ROOT/native/lib/armeabi-v7a"
 # 原生桥极少改动：两个 ABI 的 .so 都比 termux.c 新时跳过编译
 if [ "$ROOT/native/lib/arm64-v8a/libtermux.so" -nt "$ROOT/native/jni/termux.c" ] \
@@ -172,7 +184,9 @@ else
     -o "$ROOT/native/lib/armeabi-v7a/libtermux.so" "$ROOT/native/jni/termux.c"
 fi
 
-echo "[4/7] javac..."
+echo "      ↳ 原生桥 $((SECONDS-T_STEP))s"
+echo "[4/7] javac...（全量编译，通常 40-90 秒）"
+T_STEP=$SECONDS
 # v1.96.0：先清掉「源码已不存在」的 class。javac -d 只覆盖不清理，删掉的类会一直留在
 # build/obj 里被打进 dex —— 删 FeatureRegistry 时才发现：源码删了，APK 里还查得到它。
 #
@@ -234,7 +248,9 @@ ARGS_FILE="$BUILD/javac.args"
 } > "$ARGS_FILE"
 "$JAVAC" -J-Dfile.encoding=UTF-8 "@$ARGS_FILE"
 
-echo "[5/7] d8 dex（分层：依赖 dex 指纹缓存 + 应用 dex 增量重建）..."
+echo "      ↳ javac $((SECONDS-T_STEP))s"
+echo "[5/7] d8 dex（分层：依赖 dex 指纹缓存 + 应用 dex 增量重建；$D8_THREADS 线程）..."
+T_STEP=$SECONDS
 # 为什么要分层：全量合并时 d8 每次都要重新解析 apksigner.jar + 20 个 libs（约 20MB），
 # 单次常达数分钟；而这些依赖几乎不变。改为：
 #   ① 依赖 dex（build/deps）：仅在 libs/apksigner/platform/build-tools 指纹变化时重建；
@@ -287,6 +303,7 @@ else
         echo "-cp \"$BT/lib/d8.jar\""
         echo "com.android.tools.r8.D8"
         echo "--release --min-api 21"
+        echo "--thread-count $D8_THREADS"
         echo "--lib \"$PLATFORM\""
         echo "--output \"$DEPS_DIR\""
         echo "\"$BT/lib/apksigner.jar\""
@@ -305,6 +322,7 @@ ARGS="$BUILD/java.args"
     echo "-cp \"$BT/lib/d8.jar\""
     echo "com.android.tools.r8.D8"
     echo "--release --min-api 21"
+    echo "--thread-count $D8_THREADS"
     echo "--lib \"$PLATFORM\""
     for j in "$ROOT"/libs/*.jar; do
         is_app_program_jar "$j" || echo "--lib \"$j\""
@@ -332,7 +350,9 @@ if [ -f "$ROOT/tools/dexcheck.py" ]; then
     fi
 fi
 
+echo "      ↳ d8 $((SECONDS-T_STEP))s"
 echo "[6/7] zipalign + 打包原生库..."
+T_STEP=$SECONDS
 cd "$BUILD"
 # dex 段（DEFLATED）：应用 dex 在前、依赖 dex 在后，统一连续编号 classes*.dex
 "$PY" -c "
@@ -369,7 +389,9 @@ for abi in arm64-v8a armeabi-v7a; do
 done
 "$BT/zipalign${EXE}" -f -p 4 base.apk "$OUT/HexFile-unsigned.apk"
 
+echo "      ↳ 打包 $((SECONDS-T_STEP))s"
 echo "[7/7] apksigner sign..."
+T_STEP=$SECONDS
 KS="$ROOT/hexfile.keystore"
 KS_PASS="${HEXFILE_KEYSTORE_PASS:-android}"
 KS_ALIAS="${HEXFILE_KEYSTORE_ALIAS:-hex91}"
@@ -387,6 +409,7 @@ fi
     --ks "$KS" --ks-pass "pass:$KS_PASS" --key-pass "pass:$KS_PASS" --ks-key-alias "$KS_ALIAS" \
     --out "$OUT/HexFile-$VER.apk" "$OUT/HexFile-unsigned.apk"
 
+echo "      ↳ 签名 $((SECONDS-T_STEP))s"
 echo ""
 echo "BUILD OK -> $OUT/HexFile-$VER.apk"
 ls -lh "$OUT/HexFile-$VER.apk" | awk '{print "size:", $5}'

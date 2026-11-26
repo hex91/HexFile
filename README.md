@@ -1787,6 +1787,88 @@ interpolator/layout/menu/mipmap/raw/string/style/xml…）**→ 配置节点**�
 
 ---
 
+## v2.127.0（versionCode 320）—— 安装入口分层：无特权直接走系统安装器；构建多线程与阶段计时
+
+未 Root 设备上，自建会话安装在 ColorOS 上确认页回调与真实结果不一致，且安装前弹自家
+进度框体验不好。本次把安装入口按权限分层，并给构建补上多线程与阶段耗时。
+
+### 一、安装交互
+
+| 场景 | 旧行为 | 新行为 |
+| --- | --- | --- |
+| 无 Root / 无 Shizuku | 弹进度框 → `PackageInstaller` 会话 → 系统确认 → 可能误报失败 | 点击「安装」直接拉起系统安装器，不弹任何 HexFile 对话框 |
+| 有 Root / Shizuku | 直接静默安装，不给选择 | 弹「静默安装 / 系统安装」二选一；静默保留进度与取消 |
+
+- 系统安装统一走 `ACTION_INSTALL_PACKAGE` + `ApkFileProvider` 的 `content://` 与读权限，
+  Android 7+ 不再碰 `file://`；启动失败回退 `ACTION_VIEW`，仍失败提示「没有可用的安装程序」。
+- 分包（xapk / apks / apkm）仍走会话通道：系统安装器一次只接受一个 base，分包必须由会话写入。
+- 新增中英资源 3 键，总量 3221 / 3221。
+
+### 二、构建提速
+
+| 项 | 说明 |
+| --- | --- |
+| d8 多线程 | 显式 `--thread-count`（CPU 核数，限 2～8），依赖 dex 与应用 dex 两阶段都生效 |
+| 阶段计时 | 每步输出实际耗时（资源编译 / 链接 / 原生桥 / javac / d8 / 打包 / 签名），不再长时间无输出 |
+| 边界 | javac 仍是全量单线程编译，约占总时长的一半；d8 多线程只缩短 dex 阶段 |
+
+### 三、验收
+
+| 项 | 结果 |
+| --- | --- |
+| 四门 | deps / catch / lang / action 全过；空 catch 333（基线 335） |
+| 文案键 | **3221 / 3221**（新增 3 键） |
+| `run_core` | **76 / 0 / 0** |
+| `run_all` | **104 / 0 / 4** |
+| 真机 | 未 Root OPPO PHN110 / Android 17：点击安装后系统日志为 `START act=INSTALL_PACKAGE cmp=com.android.packageinstaller/.InstallStart`，无 `DirectInstaller` 会话、无自家弹窗 |
+| APK | 13,570,768 字节；versionCode **320** / 2.127.0；md5 前缀 `ad36c015` |
+
+---
+
+## v2.126.0（versionCode 319）—— 修复未 Root 设备安装无确认页：结果 PendingIntent 误用 IMMUTABLE
+
+v2.125.0 在未 Root 设备上仍报「安装失败 / 未知错误」，系统确认页依旧不出现。
+在未 Root 的 OPPO PHN110（Android 17 / SDK 37）上复现并加诊断日志，拿到结果广播的
+真实内容：`status=-2147483648`（未提供）、`msg=null`、`extras=[token]`。
+
+### 一、根因
+
+`PackageInstaller.commit()` 的结果 `PendingIntent` 由应用创建、由系统回填
+`EXTRA_STATUS` / `EXTRA_STATUS_MESSAGE` / `EXTRA_INTENT`（确认页）。两条安装通道都把它
+声明成了 `FLAG_IMMUTABLE`（API 23+），系统无法写入状态字段，广播只剩应用自己放的 token：
+
+1. `status` 保持默认值 `Integer.MIN_VALUE`，`mapStatus` 落入 `default`，映射为 `ERR_UNKNOWN`，界面显示「未知错误」；
+2. `STATUS_PENDING_USER_ACTION` 与 `Intent.EXTRA_INTENT` 永远收不到，确认页自然不会弹出。
+
+这不是 ROM 拦截，也不是 APK 问题：同一 APK 通过 `adb shell pm install` 在同一台设备安装成功。
+
+### 二、修复内容
+
+| # | 路径 | 修复 |
+| --- | --- | --- |
+| 1 | 单 APK `DirectInstaller` | 结果 PendingIntent 改为 `FLAG_MUTABLE`（API 31+ 必须显式声明），允许系统回填状态与确认 Intent |
+| 2 | 分包 `SplitInstaller` | 同一处修正，避免 xapk / apks / apkm 遗留同类缺陷 |
+| 3 | 状态映射 | 补齐 `STATUS_FAILURE` 与 `STATUS_FAILURE_TIMEOUT`，通用失败按系统原文分类，不再落 `default` |
+| 4 | 诊断 | 状态字段缺失时写 LogRing，便于真机定位；不产用户文案 |
+| 5 | 国产 ROM 假失败校正 | ColorOS 在确认页完成安装后仍回报 `INSTALL_FAILED_ABORTED: User rejected permissions`；失败时核对「APK 可解析 + 已装包版本一致 + 更新时间落在本次会话内」，三项成立即按成功收尾，避免“装上了却报失败” |
+
+通知、定时任务等其他 PendingIntent 不涉及系统回填，保持 IMMUTABLE 不变。
+第 5 项只在回报失败时启用；真正的签名冲突 / 版本降级不会更新 `lastUpdateTime`，不会被误判为成功。
+中英资源键未变化（3218 / 3218）。
+
+### 三、验收
+
+| 项 | 结果 |
+| --- | --- |
+| 四门 | deps / catch / lang / action 全过；空 catch 333（基线 335） |
+| 文案键 | 3218 / 3218，无新增键 |
+| `run_core` | **76 / 0 / 0** |
+| `run_all` | **104 / 0 / 4** |
+| 真机复测 | 未 Root 的 OPPO PHN110 / Android 17：系统确认页成功弹出并完成安装；ColorOS 随后回报 `INSTALL_FAILED_ABORTED`，本版第 5 项校正生效 |
+| APK | versionCode **319** / 2.126.0 |
+
+---
+
 ## v2.125.0（versionCode 318）—— 修复无 Root 设备安装：待系统确认被误判为未知错误
 
 未 root 的 Pixel 6 / Android 15 上点击 APK 安装，界面提示「安装失败未知错误」，

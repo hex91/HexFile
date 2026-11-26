@@ -3399,6 +3399,9 @@
 
     <!-- v2.121.0 自建安装器：特权静默优先 + PackageInstaller 回退 -->
     <string name="install_title">安装应用</string>
+    <string name="install_choice_silent">静默安装（Root / Shizuku）</string>
+    <string name="install_choice_system">系统安装</string>
+    <string name="install_no_handler">没有可用的安装程序</string>
     <string name="install_stage_prepare">正在准备安装包…</string>
     <string name="install_stage_install">正在静默安装（%1$s）…</string>
     <string name="install_stage_confirm">未获得 Root / Shizuku 授权，接下来由系统确认安装</string>

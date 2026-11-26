@@ -3,7 +3,9 @@ package com.hex91.file.apk;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -83,6 +85,8 @@ public final class DirectInstaller {
     private static volatile Listener sListener;
     private static volatile String sToken;
     private static volatile PackageInstaller.Session sSession;
+    private static volatile File sApk;
+    private static volatile long sStartMs;
 
     private DirectInstaller() {}
 
@@ -106,6 +110,8 @@ public final class DirectInstaller {
         sToken = token;
         sCancel = false;
         sPendingUserAction = false;
+        sApk = apk;
+        sStartMs = System.currentTimeMillis();
         sListener = l;
         final Intent template = new Intent(resultIntent);
         new Thread(new Runnable() {
@@ -180,8 +186,12 @@ public final class DirectInstaller {
         Intent i = new Intent(template);
         i.setAction(ACTION_RESULT);
         i.putExtra(EXTRA_TOKEN, token);
+        // PackageInstaller 会往这个 PendingIntent 回填 EXTRA_STATUS / EXTRA_STATUS_MESSAGE /
+        // EXTRA_INTENT（系统确认页）。声明 IMMUTABLE 会让系统填不进去，结果广播只剩 template
+        // 里的 token，调用方把「无状态」当成未知错误，确认页也永远不会弹出。
+        // Android 12+ 必须显式给出 MUTABLE 或 IMMUTABLE；这里只能选 MUTABLE。
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= 23) flags |= PendingIntent.FLAG_IMMUTABLE;
+        if (Build.VERSION.SDK_INT >= 31) flags |= PendingIntent.FLAG_MUTABLE;
         return PendingIntent.getBroadcast(app, token.hashCode(), i, flags);
     }
 
@@ -214,6 +224,10 @@ public final class DirectInstaller {
         int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, Integer.MIN_VALUE);
         String msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
         String token = intent.getStringExtra(EXTRA_TOKEN);
+        // 状态缺失是「确认页没弹 + 报未知错误」的唯一成因，留一行便于真机排查
+        if (status == Integer.MIN_VALUE) {
+            LogRing.add(TAG, "deliver without status extra: " + intent.getAction());
+        }
         if (sToken != null && token != null && !sToken.equals(token)) {
             LogRing.add(TAG, "stale result ignored: " + token);
             return null;
@@ -229,7 +243,39 @@ public final class DirectInstaller {
             return finish(InstallCommand.ERR_BLOCKED, msg);
         }
         int code = mapStatus(status, msg);
+        // 部分国产 ROM 在系统确认页里完成了安装，却向会话回报 aborted / rejected permissions。
+        // 用「同版本包确实已安装且更新时间落在本次会话内」校正，避免「装上了却报失败」。
+        if (!InstallCommand.ok(code) && installedByThisSession(ctx)) {
+            LogRing.add(TAG, "rom reported failure but package is installed and up to date");
+            code = InstallCommand.OK;
+            msg = null;
+        }
         return finish(code, msg);
+    }
+
+    /**
+     * 会话失败时核实设备上的真实结果。只有三项同时成立才算成功：APK 可解析、
+     * 已安装包名与版本一致、安装时间不早于本次会话开始。签名不同 / 版本降级的真失败
+     * 不会更新 lastUpdateTime，因此不会被误判。
+     */
+    private static boolean installedByThisSession(Context ctx) {
+        File apk = sApk;
+        long start = sStartMs;
+        if (apk == null || !apk.isFile() || start <= 0) return false;
+        try {
+            PackageManager pm = ctx.getPackageManager();
+            PackageInfo archived = pm.getPackageArchiveInfo(apk.getAbsolutePath(), 0);
+            if (archived == null || archived.packageName == null) return false;
+            PackageInfo installed = pm.getPackageInfo(archived.packageName, 0);
+            long archivedVer = Build.VERSION.SDK_INT >= 28
+                    ? archived.getLongVersionCode() : archived.versionCode;
+            long installedVer = Build.VERSION.SDK_INT >= 28
+                    ? installed.getLongVersionCode() : installed.versionCode;
+            return archivedVer == installedVer && installed.lastUpdateTime >= start - 5000L;
+        } catch (Throwable t) {
+            LogRing.add(TAG, "install verification: " + t);
+            return false;
+        }
     }
 
     /** 确认页启动失败：会话仍 parked，按系统拦截收尾，避免界面永远停在「等确认」 */
@@ -243,6 +289,10 @@ public final class DirectInstaller {
         switch (status) {
             case PackageInstaller.STATUS_SUCCESS:
                 return InstallCommand.OK;
+            case PackageInstaller.STATUS_FAILURE:
+            case PackageInstaller.STATUS_FAILURE_TIMEOUT:
+                // 通用失败：具体原因在 msg 里，保持分类逻辑，避免被当成未知状态
+                return InstallCommand.classify(-1, msg);
             case PackageInstaller.STATUS_FAILURE_ABORTED:
                 return InstallCommand.ERR_ABORTED;
             case PackageInstaller.STATUS_FAILURE_BLOCKED:
@@ -266,6 +316,7 @@ public final class DirectInstaller {
         sBusy = false;
         sPendingUserAction = false;
         sSession = null;
+        sApk = null;
         boolean toUi = l != null;
         if (l != null) deliverTo(l, code, detail);
         return new Result(code, detail, toUi);

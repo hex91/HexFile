@@ -276,8 +276,10 @@ public final class SplitInstaller {
         i.setAction(ACTION_RESULT);
         i.putExtra(EXTRA_TOKEN, token);
         if (pkgName != null) i.putExtra("pkg", pkgName);
+        // 与 DirectInstaller 同理：PackageInstaller 必须能回填 EXTRA_STATUS / EXTRA_INTENT，
+        // 否则确认页不弹且结果被当成未知错误。Android 12+ 只能显式声明 MUTABLE。
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= 23) flags |= PendingIntent.FLAG_IMMUTABLE;
+        if (Build.VERSION.SDK_INT >= 31) flags |= PendingIntent.FLAG_MUTABLE;
         return PendingIntent.getBroadcast(app, token.hashCode(), i, flags);
     }
 

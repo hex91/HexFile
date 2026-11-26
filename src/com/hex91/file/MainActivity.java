@@ -2572,16 +2572,56 @@ public class MainActivity extends BaseActivity {
     }
 
     /**
-     * v2.121.0：自建安装器入口，不再发 {@code ACTION_INSTALL_PACKAGE}。
+     * v2.127.0：安装入口按权限分层。
      *
-     * <p>Root / Shizuku 可用时走 {@code pm install} 静默安装，既不出现 ROM 安装器
-     * 的推广页也不弹系统确认；无特权时回退 {@link AppInstaller} 的会话通道，进度
-     * 与失败原因仍在 HexFile 界面里，仅保留 Android 强制的系统确认。</p>
+     * <p>无特权设备直接拉起系统安装器，不弹 HexFile 自己的进度框：会话安装在国产 ROM
+     * 上稳定性差（确认页回调与真实结果不一致），系统安装器是唯一可靠路径。</p>
      *
-     * <p>取消按钮在会话 commit 后不再有效（已经交给系统），所以在进入系统确认前
-     * 就收起进度条——避免用户以为还能取消，实际只关掉了一个空壳。</p>
+     * <p>Root / Shizuku 可用时才给选择：静默安装（{@code pm install}，全程无系统页面）
+     * 或系统安装（走安装器 UI）。两者差异是用户明确关心的，所以不替用户默认。</p>
      */
     private void installApk(final File f) {
+        final int backend = Shell.backend(RootUtil.isEnabled());
+        if (backend == Shell.NONE) {
+            launchSystemInstall(f);
+            return;
+        }
+        new HfDialogBuilder(this)
+                .setTitle(R.string.install_title)
+                .setItems(new CharSequence[]{
+                        getString(R.string.install_choice_silent),
+                        getString(R.string.install_choice_system)},
+                        new android.content.DialogInterface.OnClickListener() {
+                            public void onClick(android.content.DialogInterface d, int which) {
+                                d.dismiss();
+                                if (which == 1) launchSystemInstall(f);
+                                else installSilent(f);
+                            }
+                        })
+                .setNegativeButton(R.string.common_cancel, null)
+                .show();
+    }
+
+    /** 交给系统安装器：content:// + 读权限，Android 7+ 不再碰 file:// */
+    private void launchSystemInstall(final File f) {
+        try {
+            Intent i = new Intent(Intent.ACTION_INSTALL_PACKAGE);
+            i.setData(com.hex91.file.utils.OpenWith.uriOf(f));
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(i);
+        } catch (Throwable t) {
+            LogRing.add("install", "system install: " + t);
+            try {
+                startActivity(com.hex91.file.utils.OpenWith.intentFor(f));
+            } catch (Throwable t2) {
+                LogRing.add("install", "system install fallback: " + t2);
+                toast(getString(R.string.install_no_handler));
+            }
+        }
+    }
+
+    /** 特权静默安装：保留进度与取消，全程不出现系统页面 */
+    private void installSilent(final File f) {
         final ProgressDialog pd = new ProgressDialog(this);
         pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
         pd.setTitle(R.string.install_title);
